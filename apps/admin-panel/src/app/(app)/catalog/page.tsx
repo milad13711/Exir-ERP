@@ -81,12 +81,18 @@ export default function CatalogPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-bold">{m.name}</span>
+                    <span className="text-[10.5px] text-muted font-medium">نسخه {m.version}</span>
                     {m.isCore ? <Badge tone="accent">پایه</Badge> : null}
                     <Badge tone="neutral">{m.category}</Badge>
                   </div>
                   <div className="text-[11.5px] text-muted mt-1">{m.description}</div>
                   {m.features.length > 0 ? (
                     <div className="text-[11px] text-muted mt-1">{m.features.join(" · ")}</div>
+                  ) : null}
+                  {m.dependsOn.length > 0 ? (
+                    <div className="text-[11px] text-muted mt-1">
+                      پیش‌نیاز: {m.dependsOn.map((code) => modules.find((x) => x.code === code)?.name ?? code).join("، ")}
+                    </div>
                   ) : null}
                 </div>
                 <div className="text-[13px] font-extrabold shrink-0">
@@ -126,6 +132,7 @@ export default function CatalogPage() {
       {editModule ? (
         <EditModuleModal
           module={editModule === "new" ? null : editModule}
+          allModules={modules ?? []}
           onClose={() => setEditModule(null)}
           onSaved={reloadModules}
         />

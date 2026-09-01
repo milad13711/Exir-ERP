@@ -30,4 +30,15 @@ export class UpsertModuleDto {
   @ArrayMaxSize(20)
   @IsString({ each: true })
   features?: string[];
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+\.\d+\.\d+$/, { message: 'ورژن باید به شکل x.y.z باشد' })
+  version?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  dependsOn?: string[];
 }

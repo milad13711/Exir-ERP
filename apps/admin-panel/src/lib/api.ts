@@ -220,6 +220,8 @@ export type CatalogModule = {
   priceMonthly: number;
   isCore: boolean;
   features: string[];
+  version: string;
+  dependsOn: string[];
 };
 
 export function fetchCatalogModules() {
@@ -234,6 +236,8 @@ export function upsertCatalogModule(data: {
   priceMonthly: number;
   isCore?: boolean;
   features?: string[];
+  version?: string;
+  dependsOn?: string[];
 }) {
   return apiFetch<CatalogModule>("/admin/catalog/modules", { method: "POST", body: JSON.stringify(data) });
 }

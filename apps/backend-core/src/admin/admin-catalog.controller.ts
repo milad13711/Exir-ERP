@@ -36,6 +36,8 @@ export class AdminCatalogController {
         priceMonthly: dto.priceMonthly,
         isCore: dto.isCore ?? false,
         features: dto.features ?? [],
+        version: dto.version ?? '1.0.0',
+        dependsOn: dto.dependsOn ?? [],
       },
       update: {
         name: dto.name,
@@ -44,6 +46,8 @@ export class AdminCatalogController {
         priceMonthly: dto.priceMonthly,
         isCore: dto.isCore ?? false,
         features: dto.features ?? [],
+        version: dto.version ?? '1.0.0',
+        dependsOn: dto.dependsOn ?? [],
       },
     });
   }

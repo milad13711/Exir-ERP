@@ -8,10 +8,12 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export function EditModuleModal({
   module,
+  allModules,
   onClose,
   onSaved,
 }: {
   module: CatalogModule | null; // null => creating a new module
+  allModules: CatalogModule[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -22,8 +24,14 @@ export function EditModuleModal({
   const [priceMonthly, setPriceMonthly] = useState(String(module?.priceMonthly ?? 0));
   const [isCore, setIsCore] = useState(module?.isCore ?? false);
   const [featuresText, setFeaturesText] = useState((module?.features ?? []).join("\n"));
+  const [version, setVersion] = useState(module?.version ?? "1.0.0");
+  const [dependsOn, setDependsOn] = useState<string[]>(module?.dependsOn ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function toggleDependency(depCode: string) {
+    setDependsOn((prev) => (prev.includes(depCode) ? prev.filter((c) => c !== depCode) : [...prev, depCode]));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +49,8 @@ export function EditModuleModal({
           .split("\n")
           .map((f) => f.trim())
           .filter(Boolean),
+        version: version.trim() || "1.0.0",
+        dependsOn,
       });
       onSaved();
       onClose();
@@ -50,6 +60,8 @@ export function EditModuleModal({
       setSubmitting(false);
     }
   }
+
+  const otherModules = allModules.filter((m) => m.code !== module?.code);
 
   return (
     <Modal title={module ? `ویرایش ماژول «${module.name}»` : "ماژول جدید"} onClose={onClose} width="max-w-[520px]">
@@ -100,16 +112,43 @@ export function EditModuleModal({
               inputMode="numeric"
             />
           </div>
-          <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer pb-2.5">
-            <input
-              type="checkbox"
-              checked={isCore}
-              onChange={(e) => setIsCore(e.target.checked)}
-              className="w-4 h-4 accent-[var(--color-primary)]"
-            />
-            ماژول پایه (برای همه‌ی تننت‌ها رایگان و پیش‌فرض)
-          </label>
+          <div>
+            <label className={labelClass}>ورژن</label>
+            <input value={version} onChange={(e) => setVersion(e.target.value)} className={inputClass} dir="ltr" placeholder="1.0.0" />
+          </div>
         </div>
+        <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isCore}
+            onChange={(e) => setIsCore(e.target.checked)}
+            className="w-4 h-4 accent-[var(--color-primary)]"
+          />
+          ماژول پایه (برای همه‌ی تننت‌ها رایگان و پیش‌فرض)
+        </label>
+        {otherModules.length > 0 ? (
+          <div>
+            <label className={labelClass}>پیش‌نیازها (باید قبلاً فعال باشند)</label>
+            <div className="flex flex-wrap gap-2">
+              {otherModules.map((m) => (
+                <label
+                  key={m.code}
+                  className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border cursor-pointer ${
+                    dependsOn.includes(m.code) ? "border-primary bg-primary-soft text-primary" : "border-border bg-slate-50 text-ink-soft"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={dependsOn.includes(m.code)}
+                    onChange={() => toggleDependency(m.code)}
+                    className="w-3.5 h-3.5 accent-[var(--color-primary)]"
+                  />
+                  {m.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button
           type="submit"
