@@ -1,0 +1,508 @@
+// Control Plane schema — one shared database for the whole SaaS.
+// Holds everything that must exist BEFORE a tenant database can be found:
+// tenant directory, subscriptions/billing, module catalog, internal staff
+// (the "تیم مدیریت") and cross-tenant support tickets.
+//
+// Business data for a tenant itself never lives here — see prisma/tenant/schema.prisma,
+// which is applied as a fresh, isolated database per tenant.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/control-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CONTROL_DATABASE_URL")
+}
+
+// ── Identity (global, spans tenants) ───────────────────────────────────────
+
+model GlobalUser {
+  id          String   @id @default(uuid())
+  phone       String   @unique
+  name        String?
+  isSuperUser Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  lastLoginAt DateTime?
+
+  memberships    TenantMembership[]
+  supportTickets SupportTicket[]
+
+  @@map("global_users")
+}
+
+enum OtpPurpose {
+  LOGIN
+  TENANT_INVITE
+}
+
+model OtpCode {
+  id         String     @id @default(uuid())
+  phone      String
+  codeHash   String
+  purpose    OtpPurpose @default(LOGIN)
+  attempts   Int        @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([phone, purpose])
+  @@map("otp_codes")
+}
+
+// ── Tenant directory ────────────────────────────────────────────────────────
+
+enum TenantStatus {
+  PENDING_PROVISION
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum DeploymentType {
+  SHARED_CLOUD
+  DEDICATED_ON_PREMISE
+}
+
+model Tenant {
+  id             String         @id @default(uuid())
+  slug           String         @unique
+  name           String
+  status         TenantStatus   @default(PENDING_PROVISION)
+  deploymentType DeploymentType @default(SHARED_CLOUD)
+
+  // Database-per-tenant connection info (shared_cloud: points at our cluster;
+  // dedicated_on_premise: points at the tenant's own licensed server once activated).
+  dbHost String @default("127.0.0.1")
+  dbPort Int    @default(5433)
+  dbName String @unique
+
+  createdAt      DateTime  @default(now())
+  provisionedAt  DateTime?
+  suspendedAt    DateTime?
+  suspendReason  String?
+
+  memberships    TenantMembership[]
+  subscriptions  Subscription[]
+  invoices       Invoice[]
+  tenantModules  TenantModule[]
+  supportTickets SupportTicket[]
+  auditLogs      AuditLog[]
+  errorLogs      ErrorLog[]
+  licenses       License[]
+  apiKeys        ApiKey[]
+  webhooks       WebhookSubscription[]
+
+  @@map("tenants")
+}
+
+// ── Developer platform: API keys, REST access, webhooks ────────────────────
+// (MCP re-uses the same ApiKey model — an MCP client authenticates with the
+// same key as a REST API caller, just against /mcp instead of /api/*.)
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  tenantId   String
+  name       String // label the tenant chose, e.g. "اسکریپت گزارش‌گیری"
+  keyPrefix  String // first 12 chars of the raw key, shown for identification (never the secret)
+  keyHash    String // bcrypt hash of the full raw key — the raw key is shown to the tenant exactly once, at creation
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([keyPrefix])
+  @@map("api_keys")
+}
+
+model WebhookSubscription {
+  id        String   @id @default(uuid())
+  tenantId  String
+  url       String
+  secret    String // used to HMAC-sign delivered payloads, so the receiver can verify authenticity
+  events    String[] // e.g. ["crm.deal.created", "task.created"]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhook_subscriptions")
+}
+
+enum WebhookDeliveryStatus {
+  SUCCESS
+  FAILED
+}
+
+model WebhookDelivery {
+  id             String                @id @default(uuid())
+  webhookId      String
+  event          String
+  payload        Json
+  status         WebhookDeliveryStatus
+  responseStatus Int?
+  error          String?
+  createdAt      DateTime              @default(now())
+
+  webhook WebhookSubscription @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+// Coarse-grained: "does this person belong to this tenant, and at what base role".
+// Fine-grained module permissions live inside the tenant's own database
+// (see prisma/tenant/schema.prisma → Role/Permission), since they depend on
+// which modules that tenant has installed.
+model TenantMembership {
+  id           String            @id @default(uuid())
+  tenantId     String
+  globalUserId String
+  role         TenantRole        @default(MEMBER)
+  status       MembershipStatus  @default(INVITED)
+  invitedAt    DateTime          @default(now())
+  joinedAt     DateTime?
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  globalUser GlobalUser @relation(fields: [globalUserId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, globalUserId])
+  @@map("tenant_memberships")
+}
+
+// ── Billing ─────────────────────────────────────────────────────────────────
+
+model Plan {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  name          String
+  priceMonthly  Int // Toman
+  userLimit     Int
+  isPubliclySold Boolean @default(true)
+  createdAt     DateTime @default(now())
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  tenantId         String
+  planId           String
+  status           SubscriptionStatus @default(TRIAL)
+  startedAt        DateTime           @default(now())
+  currentPeriodEnd DateTime
+  autoRenew        Boolean            @default(true)
+  cancelledAt      DateTime?
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan     Plan      @relation(fields: [planId], references: [id])
+  invoices Invoice[]
+
+  @@map("subscriptions")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  tenantId       String
+  subscriptionId String?
+  amount         Int // Toman
+  status         InvoiceStatus @default(PENDING)
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime
+  paidAt         DateTime?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@map("invoices")
+}
+
+// ── Module marketplace catalog ─────────────────────────────────────────────
+
+model ModuleDefinition {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String
+  category     String
+  priceMonthly Int      @default(0) // 0 = included in every plan
+  isCore       Boolean  @default(false) // رایگان و پیش‌فرض فعال — اما همچنان قابل غیرفعال‌سازی توسط تننت
+  version      String   @default("1.0.0")
+  dependsOn    String[] @default([]) // کدهای ماژول‌هایی که باید قبل از این یکی فعال باشند
+  features     String[] @default([]) // bullet points shown on the module's store card
+  createdAt    DateTime @default(now())
+
+  tenantModules TenantModule[]
+
+  @@map("module_definitions")
+}
+
+enum TenantModuleStatus {
+  INSTALLED
+  TRIAL
+  DISABLED
+}
+
+model TenantModule {
+  id          String              @id @default(uuid())
+  tenantId    String
+  moduleId    String
+  status      TenantModuleStatus  @default(INSTALLED)
+  installedAt DateTime            @default(now())
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module ModuleDefinition @relation(fields: [moduleId], references: [id])
+
+  @@unique([tenantId, moduleId])
+  @@map("tenant_modules")
+}
+
+// ── Internal management/support team (never tenant users) ─────────────────
+
+enum StaffTeam {
+  SUPER_ADMIN
+  SUPPORT
+  BILLING
+  ENGINEERING
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  team         StaffTeam @default(SUPPORT)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  assignedTickets SupportTicket[]
+  issuedLicenses  License[]
+
+  assignedInternalTasks InternalTask[]  @relation("AssignedInternalTasks")
+  createdInternalTasks  InternalTask[]  @relation("CreatedInternalTasks")
+  ownedLeads            InternalLead[]
+
+  @@map("admin_users")
+}
+
+// ── Internal ops (Exir's own team — task/reminder management and its own
+// sales pipeline for prospective tenants, run from inside the admin panel
+// itself; entirely separate from any tenant's own CRM/Tasks module) ───────
+
+enum InternalTaskStatus {
+  OPEN
+  DONE
+}
+
+model InternalTask {
+  id           String             @id @default(uuid())
+  title        String
+  description  String?
+  status       InternalTaskStatus @default(OPEN)
+  dueAt        DateTime?
+  assignedToId String?
+  createdById  String
+  createdAt    DateTime           @default(now())
+  completedAt  DateTime?
+
+  assignedTo AdminUser? @relation("AssignedInternalTasks", fields: [assignedToId], references: [id])
+  createdBy  AdminUser  @relation("CreatedInternalTasks", fields: [createdById], references: [id])
+
+  @@index([assignedToId])
+  @@map("internal_tasks")
+}
+
+enum InternalLeadStage {
+  NEW
+  CONTACTED
+  PROPOSAL
+  WON
+  LOST
+}
+
+model InternalLead {
+  id           String            @id @default(uuid())
+  name         String
+  company      String?
+  phone        String?
+  email        String?
+  stage        InternalLeadStage @default(NEW)
+  value        Int? // estimated deal value, Toman
+  notes        String?
+  ownerAdminId String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  owner AdminUser? @relation(fields: [ownerAdminId], references: [id])
+
+  @@index([stage])
+  @@map("internal_leads")
+}
+
+// ── On-premise licensing ────────────────────────────────────────────────────
+// A License is issued by the management team for a DEDICATED_ON_PREMISE tenant
+// that runs the full stack on its own server. `signedKey` is an offline-verifiable
+// Ed25519-signed token (see src/licensing) — the on-prem deployment verifies it
+// locally with our public key, with no need to phone home. `verifyLicense` below
+// is an OPTIONAL online check-in an on-prem deployment can call if it does have
+// connectivity, to catch a revocation before the token's own expiry.
+
+enum LicenseStatus {
+  ACTIVE
+  REVOKED
+}
+
+model License {
+  id             String        @id @default(uuid())
+  tenantId       String?
+  orgName        String
+  signedKey      String        @unique // the full "<payload>.<signature>" offline token
+  allowedModules String[]
+  seats          Int           @default(10)
+  status         LicenseStatus @default(ACTIVE)
+  issuedAt       DateTime      @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedReason  String?
+  issuedByAdminId String?
+
+  tenant       Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  issuedByAdmin AdminUser? @relation(fields: [issuedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+  @@map("licenses")
+}
+
+// ── Cross-tenant live support → task handoff ───────────────────────────────
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  URGENT
+}
+
+model SupportTicket {
+  id               String         @id @default(uuid())
+  tenantId         String
+  createdByUserId  String
+  subject          String
+  status           TicketStatus   @default(OPEN)
+  priority         TicketPriority @default(MEDIUM)
+  assignedAdminId  String?
+  createdAt        DateTime       @default(now())
+  resolvedAt       DateTime?
+  resolutionNote   String?
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser GlobalUser      @relation(fields: [createdByUserId], references: [id])
+  assignedAdmin AdminUser?      @relation(fields: [assignedAdminId], references: [id])
+  messages      SupportMessage[]
+
+  @@map("support_tickets")
+}
+
+enum SenderType {
+  TENANT_USER
+  ADMIN
+  SYSTEM
+}
+
+model SupportMessage {
+  id        String     @id @default(uuid())
+  ticketId  String
+  senderType SenderType
+  senderId  String? // GlobalUser.id or AdminUser.id, depending on senderType
+  body      String
+  createdAt DateTime   @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("support_messages")
+}
+
+// ── Central audit + error log (control-plane-level events) ────────────────
+// Tenant-scoped business activity/errors are logged inside each tenant DB;
+// this table is for cross-tenant, platform-level events the management
+// team needs visibility into (tenant created, plan changed, admin actions...).
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorType  String // "global_user" | "admin_user" | "system"
+  actorId    String?
+  tenantId   String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  FATAL
+}
+
+model ErrorLog {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  service    String // e.g. "backend-core", "web-panel"
+  level      LogLevel @default(ERROR)
+  message    String
+  stackTrace String?
+  context    Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@map("error_logs")
+}

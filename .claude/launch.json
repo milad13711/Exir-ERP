@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-panel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/web-panel", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "admin-panel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/admin-panel", "run", "dev"],
+      "port": 3002
+    }
+  ]
+}

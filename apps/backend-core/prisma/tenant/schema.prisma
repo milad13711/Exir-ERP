@@ -1,0 +1,1255 @@
+// Tenant schema — applied as-is to a fresh, isolated database for every
+// tenant (database-per-tenant). Business data for ONE tenant only; never
+// shared across tenants. Cross-tenant concerns (billing, module catalog,
+// support tickets, the management team) live in prisma/control/schema.prisma.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TENANT_DATABASE_URL")
+}
+
+// ── Users, roles & permissions (fine-grained, module-aware) ────────────────
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  globalUserId String     @unique // points at Control Plane GlobalUser.id (no cross-db FK)
+  name         String
+  email        String?
+  phone        String
+  status       UserStatus @default(INVITED)
+  createdAt    DateTime   @default(now())
+
+  roles         UserRole[]
+  tasks         Task[]     @relation("TaskAssignee")
+  activityLogs  ActivityLog[]
+  ownedContacts CrmContact[]  @relation("CrmContactOwner")
+  ownedDeals    CrmDeal[]     @relation("CrmDealOwner")
+  crmActivities CrmActivity[]
+  journalEntries JournalEntry[]
+  stockMovements StockMovement[]
+  reviewedLeaveRequests LeaveRequest[]
+  notifications         Notification[]
+  notificationPreference NotificationPreference?
+  createdInvoices       SalesInvoice[]
+  signedInvoices        SalesInvoice[] @relation("SalesInvoiceSigner")
+  createdQuotations     SalesQuotation[]
+  createdSalesReturns   SalesReturn[]
+  createdPurchaseReturns PurchaseReturn[]
+  createdPurchaseOrders PurchaseOrder[]
+  approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprover")
+  checks                 Check[]
+  partyTransactions      PartyTransaction[]
+  bankStatementLines     BankStatementLine[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
+  budgets                Budget[]
+  fixedAssets            FixedAsset[]
+  attachments            Attachment[]
+
+  @@map("users")
+}
+
+model Role {
+  id       String  @id @default(uuid())
+  name     String
+  isSystem Boolean @default(false) // system roles (e.g. "مدیر سیستم") cannot be deleted
+
+  users             UserRole[]
+  permissions       RolePermission[]
+  modulePermissions ModulePermission[]
+
+  @@unique([name])
+  @@map("roles")
+}
+
+// The access matrix an admin configures per role, per module: view own
+// records vs every record, plus create/edit/delete. This is the ONLY
+// permission model actually enforced by controllers — the atomic
+// Permission/RolePermission pair above is legacy and unused by any guard.
+model ModulePermission {
+  id         String  @id @default(uuid())
+  roleId     String
+  moduleCode String // "crm" | "accounting" | "warehouse" | "hr" | "tasks"
+  canViewAll Boolean @default(false)
+  canViewOwn Boolean @default(true)
+  canCreate  Boolean @default(false)
+  canEdit    Boolean @default(false)
+  canDelete  Boolean @default(false)
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleCode])
+  @@map("module_permissions")
+}
+
+// code is namespaced per module, e.g. "crm.leads.write", "settings.users.manage"
+model Permission {
+  id          String @id @default(uuid())
+  code        String @unique
+  moduleCode  String
+  description String
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ── Base infrastructure every tenant gets regardless of installed modules ──
+
+enum TaskPriority {
+  NORMAL
+  MEDIUM
+  URGENT
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+model Task {
+  id              String       @id @default(uuid())
+  title           String
+  dueAt           DateTime?
+  priority        TaskPriority @default(NORMAL)
+  status          TaskStatus   @default(OPEN)
+  assignedUserId  String?
+  relatedModule   String? // e.g. "crm", "accounting" — null for general tasks
+  relatedEntityId String?
+  createdAt       DateTime     @default(now())
+  completedAt     DateTime?
+
+  assignee  User?      @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  reminders Reminder[]
+
+  @@map("tasks")
+}
+
+enum ReminderChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  CANCELLED
+}
+
+model Reminder {
+  id        String          @id @default(uuid())
+  taskId    String?
+  title     String
+  remindAt  DateTime
+  channel   ReminderChannel @default(IN_APP)
+  status    ReminderStatus  @default(PENDING)
+  createdAt DateTime        @default(now())
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}
+
+// ── Activity + error logs (tenant-scoped) ──────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  FATAL
+}
+
+model ErrorLog {
+  id         String   @id @default(uuid())
+  moduleCode String?
+  level      LogLevel @default(ERROR)
+  message    String
+  stackTrace String?
+  context    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("error_logs")
+}
+
+// ── Notifications: in-app + the per-user email/SMS channel toggles that
+// gate NotificationsService.notify() calls made from other modules ───────
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String // e.g. "task.assigned", "leave.reviewed" — free-form, per calling module
+  title     String
+  body      String?
+  link      String? // relative in-app path to navigate to on click
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  userId       String  @id
+  emailEnabled Boolean @default(true)
+  smsEnabled   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// ── CRM: مدیریت ارتباط با مشتری (contacts, sales pipeline, activity timeline) ─
+
+enum CrmContactType {
+  INDIVIDUAL
+  COMPANY
+}
+
+/// شخص/سازمان طرف‌حساب — می‌تواند مشتری، تأمین‌کننده، یا هر دو باشد (isCustomer/isSupplier).
+/// قبلاً تأمین‌کننده‌ها مدل جدای Supplier داشتند که وقتی یک نفر هم مشتری بود هم
+/// تأمین‌کننده، گردش حسابش بین دو رکورد جدا پخش می‌شد — این‌جا یکی شده‌اند.
+model CrmContact {
+  id        String         @id @default(uuid())
+  type      CrmContactType @default(INDIVIDUAL) // نوع کسب‌وکار: INDIVIDUAL = B2C, COMPANY = B2B
+  name      String
+  company   String?
+  phone     String?
+  email     String?
+  tags      String[]       @default([])
+  ownerUserId String?
+  isCustomer Boolean       @default(true)
+  isSupplier Boolean       @default(false)
+  createdAt DateTime       @default(now())
+
+  // برای درج روی فاکتور رسمی: اشخاص حقیقی با کد ملی، اشخاص حقوقی با کد
+  // اقتصادی/شناسه ملی/شماره ثبت شناخته می‌شوند.
+  address           String?
+  nationalId        String? // کد ملی — اشخاص حقیقی
+  economicCode      String? // کد اقتصادی — اشخاص حقوقی
+  legalId           String? // شناسه ملی — اشخاص حقوقی
+  registrationNumber String? // شماره ثبت شرکت — اشخاص حقوقی
+
+  // ورودی‌های اعتبارسنجی برای مشتری بدون سابقه‌ی خرید — سوابق خرید واقعی
+  // مستقیماً از روی SalesInvoice/SalesPayment محاسبه می‌شود (نه ذخیره‌شده).
+  hasBouncedChecks       Boolean @default(false) // سابقه‌ی چک برگشتی
+  bankAvgMonthlyTurnover Int? // میانگین گردش حساب ماهانه طبق پرینت بانکی، تومان
+  creditLimitOverride    Int? // سقف اعتبار دستی — در صورت تنظیم، جایگزین محاسبه‌ی خودکار می‌شود
+
+  owner      User?         @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  deals      CrmDeal[]
+  activities CrmActivity[]
+  invoices   SalesInvoice[]
+  quotations SalesQuotation[]
+  checks     Check[]
+  checksEndorsedToMe Check[] @relation("CheckEndorsedTo")
+  purchaseOrders PurchaseOrder[]
+  partyTransactions PartyTransaction[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
+
+  @@index([createdAt])
+  @@index([isSupplier])
+  @@map("crm_contacts")
+}
+
+enum CrmDealStage {
+  NEW
+  CONTACTED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model CrmDeal {
+  id              String       @id @default(uuid())
+  title           String
+  contactId       String
+  value           BigInt       @default(0) // تومان — BigInt: مقادیر معاملات می‌توانند از سقف INT4 (~۲.۱ میلیارد) بیشتر باشند
+  stage           CrmDealStage @default(NEW)
+  ownerUserId     String?
+  expectedCloseAt DateTime?
+  createdAt       DateTime     @default(now())
+  closedAt        DateTime?
+
+  contact    CrmContact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner      User?         @relation("CrmDealOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]
+  invoices   SalesInvoice[]
+  quotations SalesQuotation[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
+
+  @@index([stage])
+  @@index([createdAt])
+  @@map("crm_deals")
+}
+
+enum CrmActivityType {
+  NOTE
+  CALL
+  MEETING
+  EMAIL
+  STAGE_CHANGE
+}
+
+model CrmActivity {
+  id        String          @id @default(uuid())
+  type      CrmActivityType
+  body      String?
+  contactId String?
+  dealId    String?
+  userId    String?
+  createdAt DateTime        @default(now())
+
+  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal    CrmDeal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("crm_activities")
+}
+
+// ── Sales: چرخه‌ی سفارش فروش → فاکتور → پرداخت، متصل به انبار و حسابداری ──
+// CONFIRMED کردن یک فاکتور به‌صورت خودکار یک حواله‌ی انبار (StockMovement)
+// و یک سند حسابداری بدهکار/بستانکار (JournalEntry) می‌سازد — این همان
+// نقطه‌ای است که فروش، انبار و حسابداری واقعاً به هم متصل می‌شوند، نه
+// اینکه هر کدام مستقل کار کنند.
+
+enum SalesInvoiceStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model SalesInvoice {
+  id              String             @id @default(uuid())
+  invoiceNo       Int                @unique @default(autoincrement())
+  contactId       String
+  dealId          String?
+  status          SalesInvoiceStatus @default(DRAFT)
+  issuedAt        DateTime           @default(now())
+  dueAt           DateTime?
+  subtotal        Int // تومان
+  discount        Int                @default(0)
+  taxRate         Int? // درصد مالیات بر ارزش افزوده — فقط فاکتور رسمی
+  taxAmount       Int                @default(0)
+  total           Int // subtotal - discount + taxAmount
+  paidAmount      Int                @default(0)
+  notes           String?
+  createdByUserId String?
+  journalEntryId  String? // سند فروش (بدهکار/بستانکار درآمد) — برای رهگیری، نه رابطه‌ی دوطرفه
+  createdAt       DateTime           @default(now())
+  confirmedAt     DateTime?
+
+  // فاکتور رسمی فقط با امضای مالک/مدیر معتبر است؛ غیررسمی را نیروی فروش هم می‌تواند امضا کند.
+  // شماره‌گذاری فاکتور رسمی از توالی مستقل خودش می‌آید (officialInvoiceNoSeq)، جدا از invoiceNo عمومی.
+  isOfficial       Boolean   @default(false)
+  officialInvoiceNo Int?     @unique
+  signedByUserId   String?
+  signedByName     String?
+  signatureDataUrl String? // data:image/png;base64,... — امضای دست‌نویس روی صفحه
+  signedAt         DateTime?
+
+  // تأیید تحویل کالا توسط مشتری — با امضا یا کد محرمانه‌ی ارسالی به موبایل مشتری
+  deliveryConfirmedAt      DateTime?
+  deliveryConfirmedName    String?
+  deliverySignatureDataUrl String?
+  deliveryCodeHash         String?
+  deliveryCodeExpiresAt    DateTime?
+  deliveryCodeSentAt       DateTime?
+
+  // آخرین باری که یادآور تکمیل وجه (مانده‌ی فاکتور) برای مشتری و مدیر ارسال شد.
+  lastPaymentReminderAt DateTime?
+
+  contact   CrmContact @relation(fields: [contactId], references: [id])
+  deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  signedBy  User?      @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
+  lines     SalesInvoiceLine[]
+  payments  SalesPayment[]
+  checks    Check[]
+  returns   SalesReturn[]
+
+  @@index([contactId])
+  @@index([status])
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceLine {
+  id          String @id @default(uuid())
+  invoiceId   String
+  productId   String?
+  description String
+  quantity    Int
+  unitPrice   Int // تومان — همیشه معتبر و پایه‌ی حسابداری، حتی برای اقلام ارزی
+  lineTotal   Int // تومان
+
+  // اگر این قلم از یک کالای ارزی پر شده، نرخ لحظه‌ی صدور فاکتور اینجا قفل
+  // می‌شود — صرفاً برای رهگیری/نمایش؛ unitPrice/lineTotal تومانی هرگز از این
+  // فیلدها مشتق نمی‌شوند تا محاسبات حسابداری/سود و زیان دست‌نخورده بماند.
+  currencyId     String?
+  unitPriceFx    Decimal? @db.Decimal(18, 4)
+  exchangeRateFx Decimal? @db.Decimal(18, 4)
+
+  invoice  SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product  Product?     @relation(fields: [productId], references: [id])
+  currency Currency?    @relation(fields: [currencyId], references: [id])
+
+  @@map("sales_invoice_lines")
+}
+
+enum SalesPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  POS
+}
+
+enum SalesQuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+/// پیش‌فاکتور — پیشنهاد قیمت به مشتری، قبل از صدور فاکتور رسمی فروش. با
+/// تبدیل به فاکتور، یک SalesInvoice جدید ساخته و شناسه‌اش در
+/// convertedInvoiceId ثبت می‌شود (فقط برای رهگیری، مثل الگوی journalEntryId
+/// روی SalesInvoice — رابطه‌ی دوطرفه‌ی Prisma لازم نیست).
+model SalesQuotation {
+  id                 String               @id @default(uuid())
+  quotationNo        Int                  @unique @default(autoincrement())
+  contactId          String
+  dealId             String?
+  status             SalesQuotationStatus @default(DRAFT)
+  issuedAt           DateTime             @default(now())
+  validUntil         DateTime?
+  subtotal           Int // تومان
+  discount           Int                  @default(0)
+  total              Int // subtotal - discount
+  notes              String?
+  createdByUserId    String?
+  convertedInvoiceId String?
+  createdAt          DateTime             @default(now())
+  respondedAt        DateTime?
+
+  contact   CrmContact @relation(fields: [contactId], references: [id])
+  deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     SalesQuotationLine[]
+
+  @@index([contactId])
+  @@index([status])
+  @@map("sales_quotations")
+}
+
+model SalesQuotationLine {
+  id           String @id @default(uuid())
+  quotationId  String
+  productId    String?
+  description  String
+  quantity     Int
+  unitPrice    Int // تومان
+  lineTotal    Int // تومان
+
+  currencyId     String?
+  unitPriceFx    Decimal? @db.Decimal(18, 4)
+  exchangeRateFx Decimal? @db.Decimal(18, 4)
+
+  quotation SalesQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product?       @relation(fields: [productId], references: [id])
+  currency  Currency?      @relation(fields: [currencyId], references: [id])
+
+  @@map("sales_quotation_lines")
+}
+
+/// مرجوعی فروش — کالا از یک فاکتور تأییدشده به مشتری برمی‌گردد. سند حسابداری
+/// معکوس (بستانکار درآمد/بدهکار موجودی) و رسید انبار در لحظه‌ی ثبت صادر
+/// می‌شود؛ چون این خودش یک سند نهایی است، برخلاف فاکتور مرحله‌ی پیش‌نویس ندارد.
+model SalesReturn {
+  id              String   @id @default(uuid())
+  returnNo        Int      @unique @default(autoincrement())
+  invoiceId       String
+  reason          String?
+  subtotal        Int // تومان
+  total           Int
+  notes           String?
+  createdByUserId String?
+  journalEntryId  String? // برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
+  createdAt       DateTime @default(now())
+
+  invoice   SalesInvoice      @relation(fields: [invoiceId], references: [id])
+  createdBy User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     SalesReturnLine[]
+
+  @@index([invoiceId])
+  @@map("sales_returns")
+}
+
+model SalesReturnLine {
+  id          String @id @default(uuid())
+  returnId    String
+  productId   String?
+  description String
+  quantity    Int
+  unitPrice   Int // تومان
+  lineTotal   Int // تومان
+
+  return  SalesReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product Product?    @relation(fields: [productId], references: [id])
+
+  @@map("sales_return_lines")
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// قالب فاکتور تکرارشونده — به‌جای صدور دستی هر بار، در بازه‌ی مشخص یک
+/// SalesInvoice تازه (همیشه پیش‌نویس، تأیید و صدور دستی با کاربر است) از
+/// روی همین الگو ساخته می‌شود. cron هر روز الگوهای سررسیدشده را بررسی می‌کند.
+model RecurringInvoiceTemplate {
+  id              String              @id @default(uuid())
+  contactId       String
+  dealId          String?
+  frequency       RecurrenceFrequency
+  intervalCount   Int                 @default(1) // مثلاً هر ۲ ماه یک‌بار
+  nextRunAt       DateTime
+  isActive        Boolean             @default(true)
+  discount        Int                 @default(0)
+  isOfficial      Boolean             @default(false)
+  taxRate         Int?
+  notes           String?
+  createdByUserId String?
+  lastRunAt       DateTime?
+  lastGeneratedInvoiceId String? // فقط برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
+  createdAt       DateTime            @default(now())
+
+  contact   CrmContact              @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal      CrmDeal?                @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy User?                   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     RecurringInvoiceLine[]
+
+  @@index([nextRunAt])
+  @@map("sales_recurring_invoice_templates")
+}
+
+model RecurringInvoiceLine {
+  id          String @id @default(uuid())
+  templateId  String
+  productId   String?
+  description String
+  quantity    Int
+  unitPrice   Int // تومان
+
+  template RecurringInvoiceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  product  Product?                 @relation(fields: [productId], references: [id])
+
+  @@map("sales_recurring_invoice_lines")
+}
+
+/// مرجوعی خرید — کالا به تأمین‌کننده‌ای که سفارشش دریافت شده برگردانده
+/// می‌شود. سند حسابداری معکوس (بدهکار حساب‌های پرداختنی/بستانکار موجودی) و
+/// حواله‌ی انبار در لحظه‌ی ثبت صادر می‌شود.
+model PurchaseReturn {
+  id              String   @id @default(uuid())
+  returnNo        Int      @unique @default(autoincrement())
+  orderId         String
+  reason          String?
+  subtotal        Int // تومان
+  total           Int
+  notes           String?
+  createdByUserId String?
+  journalEntryId  String?
+  createdAt       DateTime @default(now())
+
+  order     PurchaseOrder        @relation(fields: [orderId], references: [id])
+  createdBy User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     PurchaseReturnLine[]
+
+  @@index([orderId])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnLine {
+  id          String @id @default(uuid())
+  returnId    String
+  productId   String?
+  description String
+  quantity    Int
+  unitCost    Int // تومان
+  lineTotal   Int // تومان
+
+  return  PurchaseReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product Product?       @relation(fields: [productId], references: [id])
+
+  @@map("purchase_return_lines")
+}
+
+model SalesPayment {
+  id        String             @id @default(uuid())
+  invoiceId String
+  amount    Int // تومان
+  method    SalesPaymentMethod @default(CASH)
+  paidAt    DateTime           @default(now())
+  note      String?
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("sales_payments")
+}
+
+// ── Purchasing: تأمین‌کننده → سفارش خرید → رسید انبار → سند بدهی ──────────
+// دریافت (receive) کردن یک سفارش خرید، متقارنِ تأیید فاکتور فروش است: یک
+// رسید انبار (افزایش موجودی) و یک سند حسابداری بدهکار موجودی/بستانکار
+// حساب‌های پرداختنی می‌سازد.
+
+
+enum PurchaseOrderStatus {
+  DRAFT
+  RECEIVED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+// Whether a purchase order needs sign-off from an owner/admin before it can
+// be received, based on the tenant's configured approval threshold (see
+// ModuleSetting moduleCode 'purchasing', key 'approvalThreshold').
+enum ApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PurchaseOrder {
+  id               String              @id @default(uuid())
+  orderNo          Int                 @unique @default(autoincrement())
+  supplierId       String
+  status           PurchaseOrderStatus @default(DRAFT)
+  issuedAt         DateTime            @default(now())
+  expectedAt       DateTime?
+  subtotal         Int // تومان
+  total            Int
+  paidAmount       Int                 @default(0)
+  notes            String?
+  createdByUserId  String?
+  journalEntryId   String? // سند خرید (بدهکار موجودی/بستانکار حساب‌های پرداختنی) — برای رهگیری
+  createdAt        DateTime            @default(now())
+  receivedAt       DateTime?
+  approvalStatus   ApprovalStatus      @default(NOT_REQUIRED)
+  approvedByUserId String?
+  approvedAt       DateTime?
+  rejectionReason  String?
+
+  supplier   CrmContact @relation(fields: [supplierId], references: [id])
+  createdBy  User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy User?    @relation("PurchaseOrderApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  lines      PurchaseOrderLine[]
+  payments   PurchasePayment[]
+  checks     Check[]
+  returns    PurchaseReturn[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+enum CheckDirection {
+  RECEIVED // چک دریافتی از مشتری — نزد ما، در سررسید وصول می‌شود
+  ISSUED // چک صادرشده به تأمین‌کننده — نزد طرف مقابل، در سررسید کسر می‌شود
+}
+
+enum CheckStatus {
+  PENDING // ثبت‌شده (دریافتی) / صادرشده (صادرشده) — هنوز به بانک واگذار نشده
+  DEPOSITED // به بانک واگذار شده — در جریان وصول
+  CLEARED // پاس‌شده / وصول‌شده
+  BOUNCED // برگشت‌خورده
+  CANCELLED // باطل‌شده
+  ENDORSED // پشت‌نویسی و واگذار به شخص دیگر — به‌جای واگذاری به بانک
+}
+
+/**
+ * چک‌های دریافتی و صادرشده — با شماره صیادی، مبلغ و سررسید دقیق، تا هم در
+ * گزارش‌ها قابل رهگیری باشند و هم پیش از سررسید یادآوری خودکار ارسال شود
+ * (ChecksReminderService، پیامک/اعلان/ایمیل به طرف حساب و/یا کارشناس داخلی).
+ */
+model Check {
+  id                 String         @id @default(uuid())
+  direction          CheckDirection
+  sayadId            String // شماره صیادی ۱۶ رقمی
+  amount             Int // تومان
+  dueDate            DateTime
+  bankName           String?
+  status             CheckStatus    @default(PENDING)
+  reminderDaysBefore Int            @default(3)
+  reminderSentAt     DateTime?
+  clearedAt          DateTime?
+  note               String?
+  contactId          String? // طرف‌حساب — مشتری (چک دریافتی) یا تأمین‌کننده (چک صادرشده)، هر دو از یک مدل CrmContact
+  endorsedToContactId String? // برای چک دریافتیِ پشت‌نویسی‌شده — به چه کسی واگذار شد
+  endorsedAt         DateTime?
+  invoiceId          String?
+  purchaseOrderId    String?
+  createdByUserId    String?
+  createdAt          DateTime       @default(now())
+
+  contact         CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  endorsedToContact CrmContact?  @relation("CheckEndorsedTo", fields: [endorsedToContactId], references: [id], onDelete: SetNull)
+  invoice         SalesInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdBy       User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([dueDate])
+  @@index([status])
+  @@index([direction])
+  @@map("checks")
+}
+
+enum PartyTransactionType {
+  RECEIPT // دریافت از طرف‌حساب — بدون ارتباط به یک فاکتور خاص (پیش‌پرداخت، تسویه‌ی کلی و ...)
+  PAYMENT // پرداخت به طرف‌حساب — بدون ارتباط به یک سفارش خرید خاص
+}
+
+/// سند دریافت/پرداخت آزاد — برخلاف SalesPayment/PurchasePayment که به یک
+/// فاکتور/سفارش خاص وصل‌اند، این‌جا فقط بدهی/طلب کلی طرف‌حساب (از روی
+/// حساب‌های دریافتنی/پرداختنی مشترک ۱۰۳۰/۲۰۱۰) تسویه می‌شود — برای مواردی
+/// مثل پیش‌دریافت، کمک مالی، یا تسویه‌ی کلی بدون فاکتور مشخص.
+model PartyTransaction {
+  id              String               @id @default(uuid())
+  partyId         String
+  type            PartyTransactionType
+  amount          Int // تومان
+  accountCode     String // کد حساب نقد/بانکی که وجه از/به آن حرکت کرد (مثلاً 1010 صندوق، 1020 بانک)
+  note            String?
+  journalEntryId  String?
+  createdByUserId String?
+  createdAt       DateTime             @default(now())
+
+  party     CrmContact @relation(fields: [partyId], references: [id])
+  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([partyId])
+  @@map("party_transactions")
+}
+
+model PurchaseOrderLine {
+  id          String @id @default(uuid())
+  orderId     String
+  productId   String?
+  description String
+  quantity    Int
+  unitCost    Int // تومان
+  lineTotal   Int // تومان
+
+  currencyId     String?
+  unitCostFx     Decimal? @db.Decimal(18, 4)
+  exchangeRateFx Decimal? @db.Decimal(18, 4)
+
+  order    PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  Product?      @relation(fields: [productId], references: [id])
+  currency Currency?     @relation(fields: [currencyId], references: [id])
+
+  @@map("purchase_order_lines")
+}
+
+model PurchasePayment {
+  id      String             @id @default(uuid())
+  orderId String
+  amount  Int // تومان
+  method  SalesPaymentMethod @default(CASH)
+  paidAt  DateTime           @default(now())
+  note    String?
+
+  order PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_payments")
+}
+
+// ── Accounting: کدینگ حسابها، اسناد حسابداری و خزانه‌داری ───────────────────
+
+enum AccountType {
+  ASSET // دارایی
+  LIABILITY // بدهی
+  EQUITY // حقوق صاحبان سهام
+  REVENUE // درآمد
+  EXPENSE // هزینه
+}
+
+model Account {
+  id            String      @id @default(uuid())
+  code          String      @unique
+  name          String
+  type          AccountType
+  isCashAccount Boolean     @default(false) // صندوق/بانک — برای نمای خزانه‌داری
+  isSystem      Boolean     @default(false) // کدینگ پیش‌فرض، غیرقابل حذف
+  createdAt     DateTime    @default(now())
+
+  lines JournalLine[]
+  bankStatementLines BankStatementLine[]
+  budgetLines BudgetLine[]
+
+  @@map("accounting_accounts")
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+}
+
+model JournalEntry {
+  id              String             @id @default(uuid())
+  number          Int                @unique @default(autoincrement())
+  date            DateTime
+  description     String?
+  status          JournalEntryStatus @default(DRAFT)
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+  postedAt        DateTime?
+
+  createdBy User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     JournalLine[]
+
+  @@index([date])
+  @@map("accounting_journal_entries")
+}
+
+model JournalLine {
+  id          String  @id @default(uuid())
+  entryId     String
+  accountId   String
+  debit       BigInt  @default(0) // BigInt: سقف INT4 (~۲.۱ میلیارد) برای مبالغ اسناد بزرگ کافی نیست
+  credit      BigInt  @default(0)
+  description String?
+
+  entry             JournalEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account           Account            @relation(fields: [accountId], references: [id])
+  bankStatementLine BankStatementLine?
+
+  @@index([accountId])
+  @@map("accounting_journal_lines")
+}
+
+/// ردیف صورت‌حساب بانکی — برای مغایرت‌گیری، دستی وارد می‌شود (بدون اتصال
+/// مستقیم به بانک) و در برابر ردیف‌های دفتر (JournalLine) روی همان حساب
+/// صندوق/بانک تطبیق داده می‌شود.
+model BankStatementLine {
+  id           String    @id @default(uuid())
+  accountId    String
+  date         DateTime
+  description  String
+  amount       BigInt // مثبت = واریز به حساب، منفی = برداشت از حساب
+  reference    String?
+  matchedJournalLineId String? @unique
+  reconciledAt DateTime?
+  createdByUserId String?
+  createdAt    DateTime  @default(now())
+
+  account            Account      @relation(fields: [accountId], references: [id])
+  matchedJournalLine JournalLine? @relation(fields: [matchedJournalLineId], references: [id], onDelete: SetNull)
+  createdBy          User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@map("accounting_bank_statement_lines")
+}
+
+/// بودجه‌ی یک بازه‌ی زمانی مشخص — مبلغ برنامه‌ریزی‌شده روی هر حساب (معمولاً
+/// حساب‌های درآمد/هزینه)؛ مقایسه با واقعیت از روی JournalLine همان بازه در
+/// لحظه‌ی گزارش محاسبه می‌شود، نه ذخیره‌شده.
+model Budget {
+  id              String   @id @default(uuid())
+  name            String
+  periodStart     DateTime
+  periodEnd       DateTime
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  createdBy User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines     BudgetLine[]
+
+  @@index([periodStart])
+  @@map("accounting_budgets")
+}
+
+model BudgetLine {
+  id        String @id @default(uuid())
+  budgetId  String
+  accountId String
+  amount    Int // تومان — مبلغ بودجه‌ریزی‌شده برای این حساب در این بازه
+
+  budget  Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([budgetId, accountId])
+  @@map("accounting_budget_lines")
+}
+
+enum FixedAssetStatus {
+  ACTIVE
+  DISPOSED
+}
+
+/// دارایی ثابت — استهلاک به روش خط مستقیم، در لحظه‌ی نمایش محاسبه می‌شود
+/// (نه ذخیره‌شده)؛ postedDepreciation فقط رد می‌کند تا کجای این محاسبه قبلاً
+/// به‌عنوان سند حسابداری ثبت شده تا از ثبت دوباره جلوگیری شود.
+model FixedAsset {
+  id               String           @id @default(uuid())
+  name             String
+  category         String?
+  purchaseDate     DateTime
+  purchaseCost     Int // تومان
+  salvageValue     Int              @default(0) // تومان — ارزش اسقاط تخمینی در پایان عمر مفید
+  usefulLifeMonths Int
+  status           FixedAssetStatus @default(ACTIVE)
+  disposedAt       DateTime?
+  disposalAmount   Int?
+  postedDepreciation Int            @default(0) // تومان — جمع استهلاکی که تاکنون سند حسابداری‌اش ثبت شده
+  notes            String?
+  createdByUserId  String?
+  createdAt        DateTime         @default(now())
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@map("accounting_fixed_assets")
+}
+
+// ── Warehouse: کنترل موجودی، رسید و حواله، هشدار کمبود کالا ────────────────
+
+/// نرخ تبدیل ارز — تومان به ازای هر ۱ واحد این ارز. تومان خودش هیچ ردیفی در
+/// این جدول ندارد و ارز پایه‌ی ضمنی سیستم است (currencyId خالی یعنی تومان).
+/// نرخ‌ها فعلاً دستی‌اند؛ اتصال به API نرخ لحظه‌ای، ماژول جداگانه‌ی بعدی است.
+model Currency {
+  id        String   @id @default(uuid())
+  code      String   @unique // "USD", "EUR", ...
+  name      String
+  symbol    String?
+  rate      Decimal  @db.Decimal(18, 4)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products           Product[]
+  invoiceLines       SalesInvoiceLine[]
+  quotationLines     SalesQuotationLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@map("currencies")
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  sku          String   @unique
+  name         String
+  unit         String   @default("عدد")
+  category     String?
+  costPrice    Int      @default(0) // تومان — بهای تمام‌شده (برای کالای ارزی: آخرین معادل محاسبه‌شده)
+  salePrice    Int      @default(0) // تومان — قیمت فروش (برای کالای ارزی: آخرین معادل محاسبه‌شده)
+  reorderPoint Int      @default(0) // نقطه سفارش مجدد؛ ۰ یعنی هشدار غیرفعال
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  // قیمت‌گذاری ارزی — وقتی currencyId ست شده، costPrice/salePrice معادل
+  // تومانی‌شان با نرخ لحظه‌ای Currency.rate محاسبه و نمایش داده می‌شود.
+  currencyId   String?
+  costPriceFx  Decimal? @db.Decimal(18, 4)
+  salePriceFx  Decimal? @db.Decimal(18, 4)
+
+  currency  Currency?       @relation(fields: [currencyId], references: [id])
+  movements StockMovement[]
+  invoiceLines SalesInvoiceLine[]
+  quotationLines SalesQuotationLine[]
+  purchaseLines PurchaseOrderLine[]
+  salesReturnLines SalesReturnLine[]
+  purchaseReturnLines PurchaseReturnLine[]
+  recurringInvoiceLines RecurringInvoiceLine[]
+
+  @@index([createdAt])
+  @@map("warehouse_products")
+}
+
+enum StockMovementType {
+  RECEIPT // رسید ورودی
+  ISSUE // حواله خروجی
+  ADJUSTMENT // اصلاح موجودی
+  SALES_RETURN // مرجوعی فروش — کالا از مشتری برمی‌گردد، موجودی افزایش می‌یابد
+  PURCHASE_RETURN // مرجوعی خرید — کالا به تأمین‌کننده برگردانده می‌شود، موجودی کاهش می‌یابد
+  TRANSFER_OUT // انتقال بین انبارها — کاهش موجودی انبار مبدأ
+  TRANSFER_IN // انتقال بین انبارها — افزایش موجودی انبار مقصد
+}
+
+/// انبار فیزیکی — هر StockMovement به یک انبار مشخص تعلق دارد؛ موجودی کل هر
+/// کالا مجموع تراکنش‌هایش در همه‌ی انبارهاست، و موجودی هر انبار مجموع
+/// تراکنش‌های همان انبار.
+model Warehouse {
+  id        String   @id @default(uuid())
+  name      String
+  code      String?  @unique
+  address   String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  movements StockMovement[]
+
+  @@map("warehouses")
+}
+
+model StockMovement {
+  id              String            @id @default(uuid())
+  productId       String
+  warehouseId     String
+  type            StockMovementType
+  quantityDelta   Int // مثبت = افزایش موجودی، منفی = کاهش موجودی
+  unitCost        Int? // تومان — فقط برای رسید، جهت به‌روزرسانی بهای تمام‌شده
+  reference       String? // شماره فاکتور/سند مرتبط
+  note            String?
+  transferGroupId String? // برای TRANSFER_OUT/TRANSFER_IN، دو رکورد یک انتقال را به‌هم وصل می‌کند
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  createdBy User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([createdAt])
+  @@map("warehouse_stock_movements")
+}
+
+// ── HR: پرونده پرسنلی، حضور و غیاب، مرخصی و فیش حقوقی ──────────────────────
+
+enum EmploymentStatus {
+  ACTIVE
+  TERMINATED
+}
+
+model Employee {
+  id           String           @id @default(uuid())
+  employeeCode String           @unique
+  fullName     String
+  nationalId   String?
+  position     String // سمت شغلی
+  department   String?
+  phone        String?
+  email        String?
+  hireDate     DateTime
+  baseSalary   Int              @default(0) // تومان — حقوق پایه ماهانه
+  status       EmploymentStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+
+  // Links this HR record to the actual login account, so the system knows
+  // whose direct reports a logged-in manager is allowed to approve for.
+  // Optional — plenty of employees (e.g. field/production staff) never get
+  // a system login at all.
+  userId String? @unique
+
+  managerId String?
+  manager       Employee?  @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports Employee[] @relation("EmployeeManager")
+
+  attendance     AttendanceRecord[]
+  leaveRequests  LeaveRequest[]
+  payrollSlips   PayrollSlip[]
+  documents      EmployeeDocument[]
+
+  @@index([createdAt])
+  @@index([managerId])
+  @@map("hr_employees")
+}
+
+enum EmployeeDocumentType {
+  CONTRACT
+  NATIONAL_ID
+  DEGREE_CERTIFICATE
+  OTHER
+}
+
+model EmployeeDocument {
+  id         String               @id @default(uuid())
+  employeeId String
+  type       EmployeeDocumentType @default(OTHER)
+  title      String
+  fileUrl    String
+  uploadedAt DateTime             @default(now())
+  expiresAt  DateTime? // e.g. a fixed-term contract's end date
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("hr_employee_documents")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  HOLIDAY
+}
+
+model AttendanceRecord {
+  id         String           @id @default(uuid())
+  employeeId String
+  date       DateTime // نیمه‌شب همان روز — یک رکورد به‌ازای هر کارمند در هر روز
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     AttendanceStatus @default(PRESENT)
+  createdAt  DateTime         @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@map("hr_attendance_records")
+}
+
+enum LeaveType {
+  ANNUAL // مرخصی استحقاقی
+  SICK // استعلاجی
+  UNPAID // بدون حقوق
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id              String      @id @default(uuid())
+  employeeId      String
+  type            LeaveType
+  startDate       DateTime
+  endDate         DateTime
+  daysCount       Int
+  reason          String?
+  status          LeaveStatus @default(PENDING)
+  reviewedByUserId String?
+  reviewedAt      DateTime?
+  createdAt       DateTime    @default(now())
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewedBy User?    @relation(fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("hr_leave_requests")
+}
+
+enum PayrollStatus {
+  DRAFT
+  ISSUED
+  PAID
+}
+
+model PayrollSlip {
+  id           String        @id @default(uuid())
+  employeeId   String
+  periodYear   Int // سال شمسی، مثلاً ۱۴۰۵
+  periodMonth  Int // ماه شمسی، ۱ تا ۱۲
+  baseSalary   Int
+  allowances   Int           @default(0) // مزایا
+  deductions   Int           @default(0) // کسورات دستی (وام، جریمه و ...)
+  insuranceAmount Int        @default(0) // سهم بیمه‌ی کارمند — خودکار محاسبه می‌شود
+  taxAmount    Int           @default(0) // مالیات حقوق — خودکار محاسبه می‌شود
+  status       PayrollStatus @default(DRAFT)
+  issuedAt     DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, periodYear, periodMonth])
+  @@map("hr_payroll_slips")
+}
+
+// ── Per-module settings, centrally editable from Settings → Modules ────────
+
+model ModuleSetting {
+  id         String   @id @default(uuid())
+  moduleCode String
+  key        String
+  value      Json
+  updatedAt  DateTime @updatedAt
+
+  @@unique([moduleCode, key])
+  @@map("module_settings")
+}
+
+// ── پیوست فایل عمومی — قابل استفاده روی هر موجودیتی ─────────────────────────
+
+/// پیوست فایل عمومی — فقط لینک را نگه می‌دارد (مثل الگوی از پیش موجود
+/// EmployeeDocument)، چون این سیستم زیرساخت آپلود/ذخیره‌ی فایل ندارد.
+/// entityType/entityId چندریختی هستند (بدون FK واقعی) تا یک مدل واحد
+/// بتواند به هر موجودیتی (فاکتور، مخاطب، تیکت، سفارش خرید...) وصل شود.
+model Attachment {
+  id              String   @id @default(uuid())
+  entityType      String
+  entityId        String
+  title           String
+  fileUrl         String
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@map("generic_attachments")
+}

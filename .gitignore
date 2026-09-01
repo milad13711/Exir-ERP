@@ -1,0 +1,17 @@
+infra/postgres/data/
+infra/postgres/logfile
+
+node_modules/
+.next/
+dist/
+generated/
+*.tsbuildinfo
+.env
+.env.local
+
+# Ed25519 license signing keypair — the private key must never be committed.
+# Generate with: npm run license:keygen --workspace apps/backend-core
+keys/
+
+# macOS
+.DS_Store
