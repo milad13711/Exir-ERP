@@ -218,6 +218,7 @@ export function InvoiceDetailModal({
           </div>
 
           <div className="bg-slate-50 border border-border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-border">
@@ -236,6 +237,7 @@ export function InvoiceDetailModal({
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="px-3 py-2.5 border-t border-border flex flex-col gap-1 text-[12.5px]">
               <div className="flex justify-between">
                 <span className="text-muted">جمع اقلام</span>

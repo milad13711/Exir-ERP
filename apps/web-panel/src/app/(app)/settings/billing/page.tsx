@@ -59,6 +59,7 @@ export default function BillingSettingsPage() {
       <div className="mt-7">
         <div className="text-[14.5px] font-bold mb-3">تاریخچه‌ی صورتحساب</div>
         <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-border">
@@ -99,6 +100,7 @@ export default function BillingSettingsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </Card>
       </div>
     </div>

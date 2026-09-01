@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -7,17 +8,24 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { GeneratePayrollDto, UpdatePayrollDto } from './dto/payroll.dto.js';
 import { UpdatePayrollTaxSettingsDto } from './dto/payroll-tax-settings.dto.js';
 import { getPayrollTaxSettings, setPayrollTaxSettings, computePayrollDeductions } from './payroll-tax.js';
+import { PayrollPdfService } from './payroll-pdf.service.js';
 
 const employeeSelect = { select: { id: true, fullName: true, employeeCode: true, position: true } } as const;
+const GENERAL_SETTINGS_MODULE = 'general';
 
 @Controller('hr/payroll')
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('hr')
 export class PayrollController {
-  constructor(private readonly permissions: PermissionsService) {}
+  constructor(
+    private readonly permissions: PermissionsService,
+    private readonly controlDb: ControlPrismaService,
+    private readonly pdf: PayrollPdfService,
+  ) {}
 
   @Get('settings/tax-insurance')
   async getTaxSettings(@Ctx() ctx: TenantRequestContext) {
@@ -121,5 +129,30 @@ export class PayrollController {
       data: { status: 'PAID', paidAt: new Date() },
       include: { employee: employeeSelect },
     });
+  }
+
+  @Get(':id/pdf')
+  async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'hr');
+    const slip = await ctx.tenantDb.payrollSlip.findUnique({
+      where: { id },
+      include: { employee: employeeSelect },
+    });
+    if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
+
+    const [settingsRows, tenant] = await Promise.all([
+      ctx.tenantDb.moduleSetting.findMany({ where: { moduleCode: GENERAL_SETTINGS_MODULE } }),
+      this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
+    ]);
+    const byKey = Object.fromEntries(settingsRows.map((r) => [r.key, r.value as string]));
+
+    const pdf = await this.pdf.render(slip, {
+      orgName: tenant.name,
+      economicCode: byKey.economicCode ?? null,
+      nationalId: byKey.nationalId ?? null,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="payroll-${slip.periodYear}-${slip.periodMonth}-${slip.employee.employeeCode}.pdf"`);
+    res.send(pdf);
   }
 }

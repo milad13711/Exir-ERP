@@ -37,6 +37,14 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function MenuIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  );
+}
+
 export function BuildingIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

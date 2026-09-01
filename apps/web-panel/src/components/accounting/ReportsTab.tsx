@@ -58,6 +58,7 @@ function TrialBalanceView() {
       <div className="px-4 py-3 text-[12px] text-muted border-b border-border">
         تراز آزمایشی — تا {formatJalaliDate(data.asOf)}
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-border">
@@ -88,6 +89,7 @@ function TrialBalanceView() {
           </tr>
         </tfoot>
       </table>
+      </div>
     </Card>
   );
 }

@@ -20,6 +20,7 @@ import {
   updatePayrollSlip,
   issuePayrollSlip,
   payPayrollSlip,
+  openPayrollSlipPdf,
   fetchPayrollTaxSettings,
   updatePayrollTaxSettings,
   fetchOrgChart,
@@ -603,6 +604,14 @@ function PayrollRow({ slip, isLast, onChanged }: { slip: PayrollSlip; isLast: bo
         >
           <CheckIcon className="w-3.5 h-3.5" />
           ثبت پرداخت
+        </button>
+      ) : null}
+      {slip.status !== "DRAFT" ? (
+        <button
+          onClick={() => openPayrollSlipPdf(slip.id)}
+          className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3 py-1.5 rounded-lg cursor-pointer shrink-0"
+        >
+          PDF
         </button>
       ) : null}
     </div>

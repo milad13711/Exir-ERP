@@ -1439,6 +1439,10 @@ export function payPayrollSlip(id: string) {
   return apiFetch<PayrollSlip>(`/hr/payroll/${id}/pay`, { method: "POST" });
 }
 
+export function openPayrollSlipPdf(id: string): Promise<void> {
+  return fetchAndOpenPdf(`/hr/payroll/${id}/pdf`);
+}
+
 export type PayrollTaxSettings = {
   insuranceEmployeeRate: number;
   taxExemptionMonthly: number;
@@ -1739,22 +1743,34 @@ export async function uploadBackupImport(file: File): Promise<{ success: boolean
   });
 }
 
-export async function openSalesInvoicePdf(id: string): Promise<void> {
-  const tab = window.open("", "_blank");
+/**
+ * Fetches a PDF with the auth header (a plain link can't carry it) and opens
+ * it via a same-document anchor click rather than window.open() into a
+ * separate tab — on iOS/Android mobile browsers, a blob: URL assigned to a
+ * pre-opened popup tab frequently fails to render (WebKit doesn't reliably
+ * hand the blob across the window boundary), while an in-page anchor click
+ * opens/downloads it reliably everywhere.
+ */
+async function fetchAndOpenPdf(path: string): Promise<void> {
   const token = getToken();
-  try {
-    const res = await fetch(`${API_URL}/sales/invoices/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    if (tab) tab.location.href = url;
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (err) {
-    tab?.close();
-    throw err;
-  }
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export function openSalesInvoicePdf(id: string): Promise<void> {
+  return fetchAndOpenPdf(`/sales/invoices/${id}/pdf`);
 }
 
 // ── پیش‌فاکتور (Quotation) — پیشنهاد قیمت قبل از صدور فاکتور ─────────────

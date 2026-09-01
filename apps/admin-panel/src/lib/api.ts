@@ -185,28 +185,29 @@ export function markInvoicePaid(tenantId: string, invoiceId: string) {
 }
 
 /**
- * Opens an invoice PDF in a new tab — fetched with the auth header, since a
- * plain link can't carry it. The tab is opened synchronously (inside the
- * click handler) so browsers still treat it as user-gesture-triggered;
- * its location is set once the blob is ready, avoiding the popup blocker
- * that would otherwise catch a window.open() called after an await.
+ * Opens an invoice PDF — fetched with the auth header, since a plain link
+ * can't carry it. Opened via a same-document anchor click rather than
+ * window.open() into a separate tab: on iOS/Android mobile browsers, a
+ * blob: URL assigned to a pre-opened popup tab frequently fails to render
+ * (WebKit doesn't reliably hand the blob across the window boundary), while
+ * an in-page anchor click opens it reliably everywhere.
  */
 export async function openInvoicePdf(tenantId: string, invoiceId: string): Promise<void> {
-  const tab = window.open("", "_blank");
   const token = getToken();
-  try {
-    const res = await fetch(`${API_URL}/admin/tenants/${tenantId}/invoices/${invoiceId}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    if (tab) tab.location.href = url;
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (err) {
-    tab?.close();
-    throw err;
-  }
+  const res = await fetch(`${API_URL}/admin/tenants/${tenantId}/invoices/${invoiceId}/pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // ── Catalog: modules & plans ────────────────────────────────────────────
