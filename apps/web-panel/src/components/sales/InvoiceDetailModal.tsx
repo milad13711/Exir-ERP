@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const STATUS_LABELS: Record<SalesInvoiceStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -52,6 +53,8 @@ export function InvoiceDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { installedModules } = useWorkspace();
+  const deliverySignatureEnabled = installedModules.has("delivery-signature");
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,7 +189,7 @@ export function InvoiceDetailModal({
   const remaining = invoice ? invoice.total - invoice.paidAmount : 0;
   const canPay = invoice?.status === "CONFIRMED" || invoice?.status === "PARTIALLY_PAID";
   const canSign = invoice && invoice.status !== "DRAFT" && !invoice.signatureDataUrl;
-  const canConfirmDelivery = invoice && invoice.status !== "DRAFT" && !invoice.deliveryConfirmedAt;
+  const canConfirmDelivery = deliverySignatureEnabled && invoice && invoice.status !== "DRAFT" && !invoice.deliveryConfirmedAt;
 
   const invoiceLabel = invoice
     ? invoice.isOfficial && invoice.officialInvoiceNo
@@ -315,7 +318,7 @@ export function InvoiceDetailModal({
                 </button>
               ) : null}
 
-              {invoice.deliveryConfirmedAt ? (
+              {deliverySignatureEnabled && invoice.deliveryConfirmedAt ? (
                 <div className="flex items-center gap-3 bg-success-soft border border-border rounded-xl px-3.5 py-2.5">
                   {invoice.deliverySignatureDataUrl ? (
                     <img

@@ -7,6 +7,7 @@ import {
   fetchMe,
   fetchSubscription,
   fetchLicenseStatus,
+  fetchModules,
   type Me,
   type Subscription,
   type LicenseStatus,
@@ -18,6 +19,8 @@ type WorkspaceState = {
   license: LicenseStatus | null;
   loading: boolean;
   refreshSubscription: () => void;
+  /** Module codes currently usable by this tenant (installed/trial, or core with no override) — see /modules for the same logic. */
+  installedModules: Set<string>;
 };
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
@@ -28,6 +31,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription>(null);
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [installedModules, setInstalledModules] = useState<Set<string>>(new Set());
 
   const refreshSubscription = useCallback(() => {
     fetchSubscription().then(setSubscription).catch(() => {});
@@ -38,11 +42,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       router.replace("/login");
       return;
     }
-    Promise.all([fetchMe(), fetchSubscription(), fetchLicenseStatus()])
-      .then(([meData, subData, licenseData]) => {
+    Promise.all([fetchMe(), fetchSubscription(), fetchLicenseStatus(), fetchModules().catch(() => [])])
+      .then(([meData, subData, licenseData, modules]) => {
         setMe(meData);
         setSubscription(subData);
         setLicense(licenseData);
+        setInstalledModules(
+          new Set(
+            modules
+              .filter((m) => m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore))
+              .map((m) => m.code),
+          ),
+        );
       })
       .catch(() => {
         router.replace("/login");
@@ -52,7 +63,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WorkspaceContext.Provider value={{ me, subscription, license, loading, refreshSubscription }}>
+    <WorkspaceContext.Provider value={{ me, subscription, license, loading, refreshSubscription, installedModules }}>
       {children}
     </WorkspaceContext.Provider>
   );

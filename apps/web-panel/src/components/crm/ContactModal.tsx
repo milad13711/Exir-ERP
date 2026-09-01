@@ -18,6 +18,7 @@ import {
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { PartyStatementSection } from "./PartyStatementSection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { useWorkspace } from "@/lib/workspace-context";
 
 function scoreTone(score: number): "success" | "warning" | "danger" {
   if (score >= 70) return "success";
@@ -34,6 +35,8 @@ export function ContactModal({
   onClose: () => void;
   onNewDeal: (contactId: string) => void;
 }) {
+  const { installedModules } = useWorkspace();
+  const supplierRiskEnabled = installedModules.has("supplier-risk");
   const [contact, setContact] = useState<CrmContactDetail | null>(null);
   const [credit, setCredit] = useState<CreditAssessment | null>(null);
   const [supplierRisk, setSupplierRisk] = useState<SupplierRiskAssessment | null>(null);
@@ -66,7 +69,7 @@ export function ContactModal({
       });
     });
     fetchContactCredit(contactId).then(setCredit).catch(() => {});
-    fetchSupplierRisk(contactId).then(setSupplierRisk).catch(() => {});
+    if (supplierRiskEnabled) fetchSupplierRisk(contactId).then(setSupplierRisk).catch(() => {});
   }
   useEffect(reload, [contactId]);
 
@@ -169,7 +172,7 @@ export function ContactModal({
               </ul>
             ) : null}
 
-            {contact.isSupplier && supplierRisk ? (
+            {supplierRiskEnabled && contact.isSupplier && supplierRisk ? (
               <div className="mb-3 pt-3 border-t border-border">
                 <div className="flex items-center gap-3 mb-2">
                   <Badge tone={scoreTone(supplierRisk.score)}>سلامت رابطه‌ی خرید: {supplierRisk.score}</Badge>

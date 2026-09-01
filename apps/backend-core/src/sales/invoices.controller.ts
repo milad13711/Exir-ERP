@@ -93,12 +93,14 @@ export class InvoicesController {
   }
 
   @Post(':id/delivery/code')
+  @RequireModule('delivery-signature')
   async sendDeliveryCode(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
     return this.invoices.sendDeliveryCode(ctx, id);
   }
 
   @Post(':id/delivery/confirm')
+  @RequireModule('delivery-signature')
   async confirmDelivery(@Param('id') id: string, @Body() dto: ConfirmDeliveryDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
     return this.invoices.confirmDelivery(ctx, id, dto);

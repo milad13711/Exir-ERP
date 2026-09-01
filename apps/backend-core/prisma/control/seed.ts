@@ -136,6 +136,26 @@ async function main() {
       version: '1.0.0',
       dependsOn: ['crm', 'sales'],
     },
+    {
+      code: 'supplier-risk',
+      name: 'ریسک‌سنجی تأمین‌کننده',
+      description: 'امتیاز سلامت رابطه‌ی خرید با هر تأمین‌کننده — نرخ پرداخت به‌موقع، حجم خرید و چک‌های برگشتی.',
+      category: 'خرید و تأمین',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['crm'],
+    },
+    {
+      code: 'delivery-signature',
+      name: 'امضای دیجیتال تحویل کالا',
+      description: 'تأیید تحویل فاکتور فروش با امضای دیجیتال یا کد پیامکی تحویل‌گیرنده.',
+      category: 'فروش و مشتری',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['sales'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
@@ -154,7 +174,7 @@ async function main() {
   // تغییر کردند) دسترسی کامل داشتند — چون enforcement تازه اضافه شده،
   // برایشان به‌صورت خودکار نصب‌شده ثبت می‌شوند تا هیچ‌کس با این تغییر
   // یک‌شبه دسترسی از دست ندهد.
-  const grandfatheredCodes = ['crm', 'warehouse', 'sales', 'purchasing', 'checks'];
+  const grandfatheredCodes = ['crm', 'warehouse', 'sales', 'purchasing', 'checks', 'supplier-risk', 'delivery-signature'];
   const grandfatheredModules = await db.moduleDefinition.findMany({ where: { code: { in: grandfatheredCodes } } });
   const existingTenants = await db.tenant.findMany({ select: { id: true } });
   for (const tenant of existingTenants) {
