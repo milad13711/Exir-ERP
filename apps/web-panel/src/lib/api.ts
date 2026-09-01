@@ -523,6 +523,13 @@ export type CreditAssessment = {
   reasons: string[];
 };
 
+export type SupplierRiskAssessment = {
+  score: number;
+  basis: "new" | "history";
+  totalOutstanding: number;
+  reasons: string[];
+};
+
 export type CrmActivity = {
   id: string;
   type: CrmActivityType;
@@ -645,6 +652,10 @@ export function createPartyTransfer(data: {
 
 export function fetchContactCredit(id: string) {
   return apiFetch<CreditAssessment>(`/crm/contacts/${id}/credit`);
+}
+
+export function fetchSupplierRisk(id: string) {
+  return apiFetch<SupplierRiskAssessment>(`/crm/contacts/${id}/supplier-risk`);
 }
 
 export function updateContactCreditInputs(
@@ -1029,6 +1040,8 @@ export type Currency = {
   symbol: string | null;
   rate: string; // Decimal از سرور به‌صورت رشته می‌آید
   isActive: boolean;
+  autoUpdate: boolean;
+  lastAutoRateAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1041,7 +1054,10 @@ export function createCurrency(data: { code: string; name: string; symbol?: stri
   return apiFetch<Currency>("/settings/currencies", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateCurrency(id: string, data: Partial<{ name: string; symbol: string; rate: number; isActive: boolean }>) {
+export function updateCurrency(
+  id: string,
+  data: Partial<{ name: string; symbol: string; rate: number; isActive: boolean; autoUpdate: boolean }>,
+) {
   return apiFetch<Currency>(`/settings/currencies/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 

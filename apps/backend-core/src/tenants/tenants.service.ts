@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantDbAdminService } from './tenant-db-admin.service.js';
-import { seedDefaultTenantData, getSystemRoleId } from './default-tenant-data.seed.js';
+import { seedDefaultTenantData, getSystemRoleId, type IndustryTemplateSeed } from './default-tenant-data.seed.js';
 import type { Tenant } from '../../generated/control-client/index.js';
 
 export type CreateTenantInput = {
@@ -11,6 +11,7 @@ export type CreateTenantInput = {
   ownerPhone: string;
   ownerName: string;
   planCode: string;
+  industryTemplateCode?: string;
 };
 
 const SLUG_PATTERN = /^[a-z][a-z0-9-]{1,48}$/;
@@ -43,6 +44,13 @@ export class TenantsService {
     const plan = await this.controlDb.plan.findUnique({ where: { code: input.planCode } });
     if (!plan) throw new NotFoundException('پلن انتخاب‌شده یافت نشد');
 
+    const industryTemplate = input.industryTemplateCode
+      ? await this.controlDb.industryTemplate.findUnique({ where: { code: input.industryTemplateCode } })
+      : null;
+    if (input.industryTemplateCode && !industryTemplate) {
+      throw new NotFoundException('قالب صنف انتخاب‌شده یافت نشد');
+    }
+
     const dbName = `exir_tenant_${input.slug.replace(/-/g, '_')}`;
     const dbHost = process.env.TENANT_DB_HOST ?? '127.0.0.1';
     const dbPort = Number(process.env.TENANT_DB_PORT ?? 5433);
@@ -56,7 +64,15 @@ export class TenantsService {
       await this.dbAdmin.applyTenantSchema(dbHost, dbPort, dbName);
 
       const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
-      await seedDefaultTenantData(tenantDb);
+      await seedDefaultTenantData(
+        tenantDb,
+        industryTemplate
+          ? {
+              roles: industryTemplate.roles as unknown as IndustryTemplateSeed['roles'],
+              chartOfAccounts: industryTemplate.chartOfAccounts as unknown as IndustryTemplateSeed['chartOfAccounts'],
+            }
+          : undefined,
+      );
       const ownerRoleId = await getSystemRoleId(tenantDb, 'مدیر سیستم');
 
       const globalUser = await this.controlDb.globalUser.upsert({

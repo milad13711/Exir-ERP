@@ -19,4 +19,8 @@ export class UpdateCurrencyDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoUpdate?: boolean;
 }

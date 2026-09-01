@@ -52,6 +52,20 @@ export class AdminCatalogController {
     });
   }
 
+  /**
+   * Read-only for now — authoring/editing industry templates from the admin
+   * panel is out of scope (they're seeded via prisma/control/seed.ts).
+   * Exists so tenant creation can offer a template picker.
+   */
+  @Get('industry-templates')
+  @AdminTeams('SUPER_ADMIN', 'BILLING', 'SUPPORT', 'ENGINEERING')
+  listIndustryTemplates() {
+    return this.controlDb.industryTemplate.findMany({
+      select: { id: true, code: true, name: true, description: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   @Get('plans')
   @AdminTeams('SUPER_ADMIN', 'BILLING', 'SUPPORT', 'ENGINEERING')
   listPlans() {

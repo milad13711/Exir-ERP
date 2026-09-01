@@ -31,6 +31,7 @@ import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ChecksModule } from './checks/checks.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { AttachmentsModule } from './attachments/attachments.module.js';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { AttachmentsModule } from './attachments/attachments.module.js';
     ChecksModule,
     DashboardModule,
     AttachmentsModule,
+    ExchangeRatesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

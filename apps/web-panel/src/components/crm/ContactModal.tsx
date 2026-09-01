@@ -8,10 +8,12 @@ import {
   addCrmContactActivity,
   updateCrmContact,
   fetchContactCredit,
+  fetchSupplierRisk,
   updateContactCreditInputs,
   ApiError,
   type CrmContactDetail,
   type CreditAssessment,
+  type SupplierRiskAssessment,
 } from "@/lib/api";
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { PartyStatementSection } from "./PartyStatementSection";
@@ -34,6 +36,7 @@ export function ContactModal({
 }) {
   const [contact, setContact] = useState<CrmContactDetail | null>(null);
   const [credit, setCredit] = useState<CreditAssessment | null>(null);
+  const [supplierRisk, setSupplierRisk] = useState<SupplierRiskAssessment | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
@@ -63,6 +66,7 @@ export function ContactModal({
       });
     });
     fetchContactCredit(contactId).then(setCredit).catch(() => {});
+    fetchSupplierRisk(contactId).then(setSupplierRisk).catch(() => {});
   }
   useEffect(reload, [contactId]);
 
@@ -163,6 +167,26 @@ export function ContactModal({
                   <li key={i}>{r}</li>
                 ))}
               </ul>
+            ) : null}
+
+            {contact.isSupplier && supplierRisk ? (
+              <div className="mb-3 pt-3 border-t border-border">
+                <div className="flex items-center gap-3 mb-2">
+                  <Badge tone={scoreTone(supplierRisk.score)}>سلامت رابطه‌ی خرید: {supplierRisk.score}</Badge>
+                  {supplierRisk.totalOutstanding > 0 ? (
+                    <span className="text-[12px] text-ink-soft">
+                      بدهی ما به این تأمین‌کننده: <b>{formatToman(supplierRisk.totalOutstanding)}</b>
+                    </span>
+                  ) : null}
+                </div>
+                {supplierRisk.reasons.length > 0 ? (
+                  <ul className="text-[11.5px] text-muted list-disc pr-4 flex flex-col gap-0.5">
+                    {supplierRisk.reasons.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             ) : null}
 
             {!editingInfo ? (

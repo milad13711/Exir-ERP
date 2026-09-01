@@ -1,4 +1,5 @@
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import { DEFAULT_ACCOUNTS, type AccountSeed } from '../accounting/default-chart-of-accounts.js';
 
 const MODULE_PERMISSIONS: Array<{ code: string; moduleCode: string; description: string }> = [
   { code: 'crm.manage', moduleCode: 'crm', description: 'مدیریت مشتریان و فرصت‌های فروش' },
@@ -62,8 +63,27 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
   },
 };
 
-/** Applied once, right after a tenant database is created and migrated. */
-export async function seedDefaultTenantData(db: TenantPrismaClient): Promise<void> {
+/**
+ * An industry template's contribution, applied on top of the universal
+ * baseline below — see `IndustryTemplate` in prisma/control/schema.prisma
+ * for the full shape (the JSON columns there match these types).
+ */
+export type IndustryTemplateSeed = {
+  roles: Array<{ name: string; permissionCodes: string[]; modulePermissions: Record<string, ModuleMatrix> }>;
+  chartOfAccounts: AccountSeed[];
+};
+
+/**
+ * Applied once, right after a tenant database is created and migrated. The
+ * baseline (system roles, their default module permissions, and the
+ * standard chart of accounts) is always seeded regardless of industry —
+ * `template`, when given, only ADDS to it: extra industry-specific roles
+ * (reusing the same coarse `MODULE_PERMISSIONS` codes, just with their own
+ * per-module access matrix) and extra chart-of-accounts rows. It never
+ * replaces or removes the baseline, since e.g. 'مدیر سیستم' (the owner's
+ * role) must always exist.
+ */
+export async function seedDefaultTenantData(db: TenantPrismaClient, template?: IndustryTemplateSeed): Promise<void> {
   for (const perm of MODULE_PERMISSIONS) {
     await db.permission.upsert({
       where: { code: perm.code },
@@ -95,6 +115,36 @@ export async function seedDefaultTenantData(db: TenantPrismaClient): Promise<voi
         update: {},
       });
     }
+  }
+
+  for (const role of template?.roles ?? []) {
+    const created = await db.role.upsert({
+      where: { name: role.name },
+      create: {
+        name: role.name,
+        isSystem: true,
+        permissions: {
+          create: role.permissionCodes.map((code) => ({
+            permission: { connect: { code } },
+          })),
+        },
+      },
+      update: {},
+    });
+
+    for (const [moduleCode, access] of Object.entries(role.modulePermissions)) {
+      await db.modulePermission.upsert({
+        where: { roleId_moduleCode: { roleId: created.id, moduleCode } },
+        create: { roleId: created.id, moduleCode, ...access },
+        update: {},
+      });
+    }
+  }
+
+  const accountsCount = await db.account.count();
+  if (accountsCount === 0) {
+    const accounts = [...DEFAULT_ACCOUNTS, ...(template?.chartOfAccounts ?? [])];
+    await db.account.createMany({ data: accounts.map((a) => ({ ...a, isSystem: true })) });
   }
 }
 

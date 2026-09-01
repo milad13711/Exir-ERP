@@ -8,9 +8,12 @@ import { CreateCurrencyDto } from './dto/create-currency.dto.js';
 import { UpdateCurrencyDto } from './dto/update-currency.dto.js';
 
 /**
- * نرخ‌های ارز — تومان ارز پایه‌ی ضمنی است و ردیفی اینجا ندارد. نرخ‌ها فعلاً
- * دستی‌اند و مسئول به‌روز نگه‌داشتنشان کاربر است؛ اتصال به API نرخ لحظه‌ای
- * ماژول جداگانه‌ی بعدی خواهد بود.
+ * نرخ‌های ارز — تومان ارز پایه‌ی ضمنی است و ردیفی اینجا ندارد. هر ارز به‌طور
+ * پیش‌فرض دستی است؛ با فعال‌سازی `autoUpdate` (فیلد `autoUpdate` همین DTO)،
+ * `ExchangeRatesService` هر چند ساعت یک‌بار نرخ را از baha24.com (نرخ آزاد
+ * بازار) به‌روزرسانی می‌کند (نیازمند `BAHA24_API_KEY` در محیط سرور — تا
+ * وقتی تنظیم نشود، به‌روزرسانی خودکار عملاً غیرفعال است و نرخ همچنان دستی
+ * می‌ماند).
  */
 @Controller('settings/currencies')
 @UseGuards(JwtAuthGuard)
@@ -40,7 +43,7 @@ export class CurrenciesController {
     if (!existing) throw new NotFoundException('ارز یافت نشد');
     return ctx.tenantDb.currency.update({
       where: { id },
-      data: { name: dto.name, symbol: dto.symbol, rate: dto.rate, isActive: dto.isActive },
+      data: { name: dto.name, symbol: dto.symbol, rate: dto.rate, isActive: dto.isActive, autoUpdate: dto.autoUpdate },
     });
   }
 

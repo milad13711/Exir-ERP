@@ -167,6 +167,73 @@ async function main() {
     }
   }
 
+  // ── قالب صنف: خوراک دام (نمونه‌ی اول از سیستم Industry Template) ─────────
+  const FULL_ACCESS = { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: true };
+  const EDITOR_ACCESS = { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false };
+  const VIEW_ONLY = { canViewAll: true, canViewOwn: true, canCreate: false, canEdit: false, canDelete: false };
+  const OWN_CONTRIBUTOR = { canViewAll: false, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false };
+
+  await db.industryTemplate.upsert({
+    where: { code: 'livestock-feed' },
+    create: {
+      code: 'livestock-feed',
+      name: 'خوراک دام',
+      description: 'تولید کنسانتره و خوراک دام، طیور و آبزیان — از تأمین مواد اولیه تا فرمولاسیون و بسته‌بندی محصول نهایی.',
+      roles: [
+        {
+          name: 'مسئول فرمولاسیون',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'کارشناس کنترل کیفیت',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: VIEW_ONLY, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'سرپرست خط تولید',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: FULL_ACCESS, purchasing: VIEW_ONLY, tasks: OWN_CONTRIBUTOR },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1041', name: 'موجودی مواد اولیه - ذرت', type: 'ASSET' },
+        { code: '1042', name: 'موجودی مواد اولیه - کنجاله سویا', type: 'ASSET' },
+        { code: '1043', name: 'موجودی مواد اولیه - افزودنی و ویتامینه', type: 'ASSET' },
+        { code: '1044', name: 'موجودی کالای در جریان ساخت', type: 'ASSET' },
+        { code: '1045', name: 'موجودی محصول نهایی - کنسانتره طیور', type: 'ASSET' },
+        { code: '1046', name: 'موجودی محصول نهایی - کنسانتره دام سنگین', type: 'ASSET' },
+        { code: '5041', name: 'هزینه انرژی خط تولید', type: 'EXPENSE' },
+        { code: '5042', name: 'ضایعات و افت تولید', type: 'EXPENSE' },
+        { code: '5043', name: 'هزینه آزمایشگاه و کنترل کیفیت', type: 'EXPENSE' },
+      ],
+      productCategories: [
+        'ذرت',
+        'کنجاله سویا',
+        'سبوس گندم',
+        'افزودنی و ویتامینه',
+        'کنسانتره طیور',
+        'کنسانتره دام سنگین',
+        'کنسانتره آبزیان',
+        'بسته‌بندی',
+      ],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر تولید', reportsTo: 'مدیرعامل', department: 'تولید' },
+        { position: 'سرپرست خط تولید', reportsTo: 'مدیر تولید', department: 'تولید' },
+        { position: 'کارگر خط تولید', reportsTo: 'سرپرست خط تولید', department: 'تولید' },
+        { position: 'مسئول فرمولاسیون', reportsTo: 'مدیر تولید', department: 'تولید' },
+        { position: 'کارشناس کنترل کیفیت', reportsTo: 'مدیر تولید', department: 'کنترل کیفیت' },
+        { position: 'انباردار', reportsTo: 'مدیر تولید', department: 'انبار' },
+        { position: 'مدیر فروش', reportsTo: 'مدیرعامل', department: 'فروش' },
+        { position: 'کارشناس فروش', reportsTo: 'مدیر فروش', department: 'فروش' },
+        { position: 'مدیر مالی', reportsTo: 'مدیرعامل', department: 'مالی' },
+        { position: 'حسابدار', reportsTo: 'مدیر مالی', department: 'مالی' },
+      ],
+    },
+    update: {},
+  });
+
   const superAdminEmail = 'admin@exir.co';
   const superAdminPassword = 'ExirAdmin123!';
   await db.adminUser.upsert({

@@ -215,7 +215,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             return (
               <div
                 key={m.id}
-                className={`flex items-center justify-between py-3 ${i < modules.length - 1 ? "border-b border-border" : ""}`}
+                className={`flex items-center justify-between flex-wrap gap-2 py-3 ${i < modules.length - 1 ? "border-b border-border" : ""}`}
               >
                 <div>
                   <div className="text-[13px] font-semibold">
@@ -261,7 +261,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           invoices.map((inv, i) => (
             <div
               key={inv.id}
-              className={`flex items-center justify-between py-3 ${i < invoices.length - 1 ? "border-b border-border" : ""}`}
+              className={`flex items-center justify-between flex-wrap gap-2 py-3 ${i < invoices.length - 1 ? "border-b border-border" : ""}`}
             >
               <div>
                 <div className="flex items-center gap-2">

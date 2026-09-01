@@ -115,7 +115,7 @@ export default function AccountingPage() {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2 mt-7 border-b border-border">
+      <div className="flex items-center gap-2 mt-7 border-b border-border overflow-x-auto">
         {(
           [
             ["entries", "اسناد حسابداری"],
@@ -130,7 +130,7 @@ export default function AccountingPage() {
             key={key}
             onClick={() => setTab(key)}
             className={clsx(
-              "px-4 py-2.5 text-[13px] font-bold border-b-2 -mb-px cursor-pointer transition-colors",
+              "px-4 py-2.5 text-[13px] font-bold border-b-2 -mb-px cursor-pointer transition-colors shrink-0 whitespace-nowrap",
               tab === key ? "border-primary text-primary" : "border-transparent text-muted hover:text-ink-soft",
             )}
           >

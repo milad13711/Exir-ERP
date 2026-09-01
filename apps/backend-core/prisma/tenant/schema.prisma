@@ -977,14 +977,16 @@ model FixedAsset {
 /// این جدول ندارد و ارز پایه‌ی ضمنی سیستم است (currencyId خالی یعنی تومان).
 /// نرخ‌ها فعلاً دستی‌اند؛ اتصال به API نرخ لحظه‌ای، ماژول جداگانه‌ی بعدی است.
 model Currency {
-  id        String   @id @default(uuid())
-  code      String   @unique // "USD", "EUR", ...
-  name      String
-  symbol    String?
-  rate      Decimal  @db.Decimal(18, 4)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  code           String   @unique // "USD", "EUR", ...
+  name           String
+  symbol         String?
+  rate           Decimal  @db.Decimal(18, 4)
+  isActive       Boolean  @default(true)
+  autoUpdate     Boolean  @default(false) // نرخ به‌صورت دوره‌ای از سرویس نرخ ارز آزاد به‌روزرسانی شود
+  lastAutoRateAt DateTime? // آخرین باری که به‌روزرسانی خودکار واقعاً نرخ را عوض کرد
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   products           Product[]
   invoiceLines       SalesInvoiceLine[]

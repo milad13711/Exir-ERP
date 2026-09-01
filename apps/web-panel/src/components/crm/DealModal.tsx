@@ -16,6 +16,7 @@ import {
   type CrmDealStage,
 } from "@/lib/api";
 import { STAGE_ORDER, STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 
 export function DealModal({
   dealId,
@@ -228,6 +229,8 @@ export function DealModal({
               ایجاد فاکتور فروش از این فرصت
             </button>
           ) : null}
+
+          <AttachmentsSection entityType="CrmDeal" entityId={deal.id} />
 
           <div>
             <div className="text-[12px] text-muted mb-2">تاریخچه فعالیت</div>

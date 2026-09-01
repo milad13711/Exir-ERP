@@ -15,6 +15,7 @@ import {
   type SalesPaymentMethod,
 } from "@/lib/api";
 import { NewPurchaseReturnModal } from "./NewPurchaseReturnModal";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -312,6 +313,8 @@ export function PurchaseOrderDetailModal({
                 ثبت مرجوعی
               </button>
             ) : null}
+
+            <AttachmentsSection entityType="PurchaseOrder" entityId={order.id} />
           </div>
         </div>
       )}

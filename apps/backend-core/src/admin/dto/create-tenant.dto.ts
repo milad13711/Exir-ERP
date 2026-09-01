@@ -1,4 +1,4 @@
-import { IsString, Matches, MinLength } from 'class-validator';
+import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class CreateTenantDto {
   @IsString()
@@ -21,4 +21,8 @@ export class CreateTenantDto {
 
   @IsString()
   planCode!: string;
+
+  @IsOptional()
+  @IsString()
+  industryTemplateCode?: string;
 }

@@ -1,12 +1,14 @@
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 
-/** A standard Iranian SMB chart of accounts — seeded once, the first time the tenant opens Accounting. */
-const DEFAULT_ACCOUNTS: Array<{
+export type AccountSeed = {
   code: string;
   name: string;
   type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
   isCashAccount?: boolean;
-}> = [
+};
+
+/** A standard Iranian SMB chart of accounts — seeded once, the first time the tenant opens Accounting. */
+export const DEFAULT_ACCOUNTS: AccountSeed[] = [
   { code: '1010', name: 'صندوق', type: 'ASSET', isCashAccount: true },
   { code: '1020', name: 'بانک', type: 'ASSET', isCashAccount: true },
   { code: '1030', name: 'حساب‌های دریافتنی (مشتریان)', type: 'ASSET' },

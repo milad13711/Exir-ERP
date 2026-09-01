@@ -506,3 +506,40 @@ model ErrorLog {
   @@index([createdAt])
   @@map("error_logs")
 }
+
+// ── Industry templates (قالب صنف) ───────────────────────────────────────────
+
+/**
+ * A reusable master seed per industry/trade — so onboarding a new tenant in
+ * an already-covered industry (e.g. another livestock-feed manufacturer)
+ * doesn't require personalizing roles, chart-of-accounts, and org structure
+ * from scratch again. Applied once, at tenant-creation time, by
+ * `seedDefaultTenantData` (see apps/backend-core/src/tenants/default-tenant-data.seed.ts).
+ *
+ * `roles` and `chartOfAccounts` are actually seeded into the new tenant's
+ * database (real Role/Permission/ModulePermission and Account rows).
+ * `productCategories` and `orgChart` are reference/suggestion data only —
+ * there's no Category or OrgChart table in the tenant schema to seed real
+ * rows into (a brand-new tenant has zero products and shouldn't get fake
+ * placeholder employees), so these stay descriptive JSON for a future
+ * onboarding UI to surface as suggestions.
+ *
+ * Authoring/editing templates (an admin-panel UI) and how a template gets
+ * picked at tenant-creation time in the UI are explicitly out of scope for
+ * now — templates are seeded by `prisma/control/seed.ts` today; this model
+ * exists so `CreateTenantDto.industryTemplateCode` has something real to
+ * look up.
+ */
+model IndustryTemplate {
+  id                String   @id @default(uuid())
+  code              String   @unique // e.g. "livestock-feed"
+  name              String // نام صنف، مثلاً «خوراک دام»
+  description       String?
+  roles             Json // Array<{ name, permissionCodes: string[], modulePermissions: Record<moduleCode, matrix> }>
+  chartOfAccounts   Json // Array<{ code, name, type, isCashAccount? }> — افزوده‌ی صنعتی روی کدینگ پایه
+  productCategories Json // string[] — دسته‌بندی‌های پیشنهادی کالا
+  orgChart          Json // Array<{ position, reportsTo: string | null, department }>
+  createdAt         DateTime @default(now())
+
+  @@map("industry_templates")
+}

@@ -13,6 +13,7 @@ import {
   type SupportMessage,
 } from "@/lib/api";
 import { getSupportSocket } from "@/lib/support-socket";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 
 const statusLabel: Record<SupportTicket["status"], string> = {
   OPEN: "در انتظار بررسی",
@@ -31,11 +32,14 @@ export function SupportChat({
   onUnreadChange?: (unread: boolean) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [view, setView] = useState<"list" | "thread">("thread");
   const [ticket, setTicket] = useState<SupportTicket | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [subject, setSubject] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const ticketIdRef = useRef<string | null>(null);
   const openRef = useRef(open);
   useEffect(() => {
@@ -45,8 +49,9 @@ export function SupportChat({
   useEffect(() => {
     if (!open || loaded) return;
     fetchTickets()
-      .then(async (tickets) => {
-        const latest = tickets[0] ?? null;
+      .then(async (list) => {
+        setTickets(list);
+        const latest = list[0] ?? null;
         setTicket(latest);
         if (latest) {
           const res = await fetchTicketMessages(latest.id);
@@ -55,6 +60,20 @@ export function SupportChat({
       })
       .finally(() => setLoaded(true));
   }, [open, loaded]);
+
+  async function openTicketThread(t: SupportTicket) {
+    setView("thread");
+    setTicket(t);
+    setMessages([]);
+    const res = await fetchTicketMessages(t.id);
+    setMessages(res.messages);
+  }
+
+  function startNewTicket() {
+    setView("thread");
+    setTicket(null);
+    setMessages([]);
+  }
 
   // Live delivery: one shared socket per tab, joined to this ticket's room
   // once it's known, and to the tenant-wide room by default (server-side) so
@@ -71,6 +90,7 @@ export function SupportChat({
       }
     }
     function onTicketUpdated(payload: { ticket: SupportTicket }) {
+      setTickets((prev) => prev.map((t) => (t.id === payload.ticket.id ? { ...t, ...payload.ticket } : t)));
       if (payload.ticket.id !== ticketIdRef.current) return;
       setTicket((prev) => (prev ? { ...prev, ...payload.ticket } : prev));
     }
@@ -106,6 +126,7 @@ export function SupportChat({
       const created = await createTicket(subject.trim(), draft.trim());
       setTicket(created);
       setMessages(created.messages);
+      setTickets((prev) => [created, ...prev]);
       setDraft("");
       setSubject("");
     } finally {
@@ -160,23 +181,84 @@ export function SupportChat({
                 </div>
               </div>
             </div>
-            <button type="button" onClick={onClose} aria-label="بستن پشتیبانی">
-              <CloseIcon className="w-[18px] h-[18px]" />
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              {tickets.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setView((v) => (v === "list" ? "thread" : "list"))}
+                  className="text-[11.5px] font-bold text-white/90 cursor-pointer"
+                >
+                  {view === "list" ? "بازگشت" : "تاریخچه"}
+                </button>
+              ) : null}
+              <button type="button" onClick={onClose} aria-label="بستن پشتیبانی">
+                <CloseIcon className="w-[18px] h-[18px]" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {ticket ? (
+        {view === "list" ? null : ticket ? (
           <div className="mx-4 mt-3.5 p-3 rounded-2xl bg-warning-soft border border-amber-200 shrink-0">
-            <div className="text-[12.5px] font-bold text-amber-800">{ticket.subject}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[12.5px] font-bold text-amber-800">{ticket.subject}</div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAttachmentsOpen((v) => !v)}
+                  className="text-[11px] font-bold text-amber-800 cursor-pointer"
+                >
+                  {attachmentsOpen ? "پنهان کردن پیوست‌ها" : "پیوست‌ها"}
+                </button>
+                <button
+                  type="button"
+                  onClick={startNewTicket}
+                  className="text-[11px] font-bold text-amber-800 cursor-pointer"
+                >
+                  گفتگوی جدید
+                </button>
+              </div>
+            </div>
             <div className="text-[11.5px] text-amber-800 mt-0.5">
               وضعیت: {statusLabel[ticket.status]}
               {ticket.assignedAdmin ? ` · ارجاع به: ${ticket.assignedAdmin.name}` : ""}
             </div>
+            {attachmentsOpen ? (
+              <div className="mt-2.5 pt-2.5 border-t border-amber-200">
+                <AttachmentsSection entityType="SupportTicket" entityId={ticket.id} />
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {!loaded ? (
+        {view === "list" ? (
+          <div className="flex-1 overflow-auto px-4 py-3 flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={startNewTicket}
+              className="py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold cursor-pointer shrink-0"
+            >
+              + شروع گفتگوی جدید
+            </button>
+            {tickets.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => openTicketThread(t)}
+                className="text-start p-3 rounded-xl bg-slate-50 border border-border hover:border-primary transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12.5px] font-bold truncate">{t.subject}</span>
+                  <span className="text-[10.5px] text-muted shrink-0">{formatJalaliDate(t.createdAt)}</span>
+                </div>
+                <div className="text-[11px] text-muted mt-1">
+                  وضعیت: {statusLabel[t.status]}
+                  {t.messages[0] ? ` · ${t.messages[0].body.slice(0, 40)}` : ""}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : !loaded ? (
           <div className="flex-1 flex items-center justify-center text-muted text-sm">در حال بارگذاری...</div>
         ) : !ticket ? (
           <form onSubmit={handleOpenTicket} className="flex-1 flex flex-col px-4 py-3 gap-3">

@@ -188,10 +188,10 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-5">
+      <div className="flex items-center gap-2 mt-5 overflow-x-auto">
         <button
           onClick={() => setTab("invoices")}
-          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer ${
+          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer shrink-0 whitespace-nowrap ${
             tab === "invoices" ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
           }`}
         >
@@ -200,7 +200,7 @@ export default function SalesPage() {
         </button>
         <button
           onClick={() => setTab("quotations")}
-          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer ${
+          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer shrink-0 whitespace-nowrap ${
             tab === "quotations" ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
           }`}
         >
@@ -209,7 +209,7 @@ export default function SalesPage() {
         </button>
         <button
           onClick={() => setTab("recurring")}
-          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer ${
+          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer shrink-0 whitespace-nowrap ${
             tab === "recurring" ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
           }`}
         >
@@ -218,7 +218,7 @@ export default function SalesPage() {
         </button>
         <button
           onClick={() => setTab("returns")}
-          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer ${
+          className={`flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-2 rounded-xl cursor-pointer shrink-0 whitespace-nowrap ${
             tab === "returns" ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
           }`}
         >

@@ -8,6 +8,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { WebhooksService } from '../webhooks/webhooks.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { CreditScoreService } from './credit-score.service.js';
+import { SupplierRiskService } from './supplier-risk.service.js';
 import { PartyStatementService } from './party-statement.service.js';
 import { PartyTransactionsService } from './party-transactions.service.js';
 import { CreatePartyTransactionDto } from './dto/create-party-transaction.dto.js';
@@ -25,6 +26,7 @@ export class ContactsController {
     private readonly webhooks: WebhooksService,
     private readonly permissions: PermissionsService,
     private readonly creditScore: CreditScoreService,
+    private readonly supplierRisk: SupplierRiskService,
     private readonly partyStatement: PartyStatementService,
     private readonly partyTransactions: PartyTransactionsService,
   ) {}
@@ -104,6 +106,14 @@ export class ContactsController {
     const contact = await ctx.tenantDb.crmContact.findFirst({ where: { id, ...scope } });
     if (!contact) throw new NotFoundException('مخاطب یافت نشد');
     return this.creditScore.assess(ctx, id);
+  }
+
+  @Get(':id/supplier-risk')
+  async supplierRiskAssessment(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const contact = await ctx.tenantDb.crmContact.findFirst({ where: { id, ...scope } });
+    if (!contact) throw new NotFoundException('مخاطب یافت نشد');
+    return this.supplierRisk.assess(ctx, id);
   }
 
   @Put(':id')

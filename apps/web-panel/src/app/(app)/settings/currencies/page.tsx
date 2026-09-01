@@ -84,6 +84,16 @@ export default function CurrenciesSettingsPage() {
     }
   }
 
+  async function handleToggleAutoUpdate(c: Currency) {
+    setSavingId(c.id);
+    try {
+      await updateCurrency(c.id, { autoUpdate: !c.autoUpdate });
+      reload();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function handleDelete(id: string) {
     setSavingId(id);
     try {
@@ -101,9 +111,10 @@ export default function CurrenciesSettingsPage() {
       <div>
         <h1 className="text-[17px] font-extrabold text-ink">ارزها و نرخ تبدیل</h1>
         <p className="text-[12.5px] text-muted mt-1">
-          تومان ارز پایه‌ی سیستم است. هر ارز دیگری که اینجا اضافه کنید قابل استفاده برای قیمت‌گذاری کالا خواهد بود —
-          نرخ تبدیل فعلاً دستی است و باید به‌روز نگه داشته شود. با تغییر نرخ، قیمت نمایشی کالاهای ارزی در کاتالوگ
-          فوراً به‌روز می‌شود؛ اما فاکتور‌های قبلاً صادرشده نرخ لحظه‌ی صدورشان را نگه می‌دارند.
+          تومان ارز پایه‌ی سیستم است. هر ارز دیگری که اینجا اضافه کنید قابل استفاده برای قیمت‌گذاری کالا خواهد بود.
+          نرخ تبدیل به‌صورت پیش‌فرض دستی است؛ با «فعال‌سازی خودکار» می‌توانید نرخ ارزهای رایج (دلار، یورو، ...) را هر
+          چند ساعت از نرخ آزاد بازار به‌روزرسانی خودکار کنید. با تغییر نرخ، قیمت نمایشی کالاهای ارزی در کاتالوگ فوراً
+          به‌روز می‌شود؛ اما فاکتور‌های قبلاً صادرشده نرخ لحظه‌ی صدورشان را نگه می‌دارند.
         </p>
       </div>
 
@@ -162,6 +173,7 @@ export default function CurrenciesSettingsPage() {
                   <span className="text-[12.5px] text-ink-soft">{c.name}</span>
                   {c.symbol ? <span className="text-[12px] text-muted">({c.symbol})</span> : null}
                   {!c.isActive ? <Badge tone="neutral">غیرفعال</Badge> : null}
+                  {c.autoUpdate ? <Badge tone="accent">به‌روزرسانی خودکار</Badge> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   {editingId === c.id ? (
@@ -194,6 +206,14 @@ export default function CurrenciesSettingsPage() {
                         className="text-[11.5px] font-bold text-accent bg-accent-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
                       >
                         ویرایش نرخ
+                      </button>
+                      <button
+                        onClick={() => handleToggleAutoUpdate(c)}
+                        disabled={savingId === c.id}
+                        title="به‌روزرسانی دوره‌ای نرخ از سرویس نرخ ارز آزاد (نیازمند تنظیم کلید API روی سرور)"
+                        className="text-[11.5px] font-bold text-ink-soft bg-surface border border-border px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                      >
+                        {c.autoUpdate ? "غیرفعال کردن خودکار" : "فعال‌سازی خودکار"}
                       </button>
                       <button
                         onClick={() => handleToggleActive(c)}
