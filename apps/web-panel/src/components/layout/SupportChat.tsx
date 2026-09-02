@@ -168,15 +168,15 @@ export function SupportChat({
         aria-label="پشتیبانی زنده"
       >
         <div className="bg-gradient-to-br from-indigo-800 to-teal-600 px-4.5 pt-4.5 pb-4 text-white shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9.5 h-9.5 rounded-[11px] bg-white/20 flex items-center justify-center">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9.5 h-9.5 rounded-[11px] bg-white/20 flex items-center justify-center shrink-0">
                 <ChatIcon className="w-[18px] h-[18px]" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[14.5px] font-bold">پشتیبانی زنده اکسیر</div>
-                <div className="text-[11.5px] text-white/80 flex items-center gap-1.5 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <div className="text-[11.5px] text-white/80 flex items-center gap-1.5 mt-0.5 truncate">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
                   {ticket?.assignedAdmin ? `کارشناس: ${ticket.assignedAdmin.name}` : "پیام خود را ثبت کنید"}
                 </div>
               </div>
@@ -200,8 +200,8 @@ export function SupportChat({
 
         {view === "list" ? null : ticket ? (
           <div className="mx-4 mt-3.5 p-3 rounded-2xl bg-warning-soft border border-amber-200 shrink-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[12.5px] font-bold text-amber-800">{ticket.subject}</div>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-[12.5px] font-bold text-amber-800 min-w-0 truncate">{ticket.subject}</div>
               <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   type="button"

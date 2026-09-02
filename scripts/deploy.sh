@@ -51,6 +51,7 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/admin-panel/src/ "${HOST}:${REMOTE_DIR}/apps/admin-panel/src/"
 rsync -az docker-compose.on-premise.yml "${HOST}:${REMOTE_DIR}/docker-compose.on-premise.yml"
+rsync -az .dockerignore "${HOST}:${REMOTE_DIR}/.dockerignore"
 
 echo "==> Pushing deploy script..."
 rsync -az scripts/deploy-remote.sh "${HOST}:${REMOTE_DIR}/deploy-remote.sh"

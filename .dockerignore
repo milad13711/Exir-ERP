@@ -1,0 +1,15 @@
+# Local-dev env files must never leak into a Docker build context — the
+# admin-panel image once baked in a stray apps/admin-panel/.env.local
+# (NEXT_PUBLIC_API_URL=http://localhost:3001/api, a local-dev convenience
+# value) that silently overrode the correct build-arg for every visitor in
+# production, because Next.js's own .env.local loading takes precedence
+# over the Docker ENV set from --build-arg. This file exists specifically
+# so that mistake can't happen again, for any app in this monorepo.
+**/.env
+**/.env.local
+**/.env.*.local
+
+**/node_modules
+**/.next
+**/dist
+**/generated
