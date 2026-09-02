@@ -113,11 +113,15 @@ export function verifyOtp(phone: string, code: string) {
 
 export type Me = {
   user: { name: string | null; phone: string; roleTitle: string | null; membershipRole: string };
-  tenant: { name: string; slug: string };
+  tenant: { name: string; slug: string; themeColor: string | null };
 };
 
 export function fetchMe() {
   return apiFetch<Me>("/me");
+}
+
+export function updateBranding(data: { themeColor?: string }) {
+  return apiFetch<{ themeColor: string | null }>("/me/branding", { method: "PATCH", body: JSON.stringify(data) });
 }
 
 // ── Billing ──────────────────────────────────────────────────────────────

@@ -250,8 +250,13 @@ async function main() {
         { position: 'مدیر مالی', reportsTo: 'مدیرعامل', department: 'مالی' },
         { position: 'حسابدار', reportsTo: 'مدیر مالی', department: 'مالی' },
       ],
+      suggestedThemeColor: '#15803d',
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing'],
     },
-    update: {},
+    update: {
+      suggestedThemeColor: '#15803d',
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing'],
+    },
   });
 
   const superAdminEmail = 'admin@exir.co';

@@ -78,6 +78,10 @@ model Tenant {
   dbPort Int    @default(5433)
   dbName String @unique
 
+  // logoUrl lives in the tenant DB's ModuleSetting store (settings/general),
+  // not here — see GeneralSettingsController. themeColor has no other home.
+  themeColor String?
+
   createdAt      DateTime  @default(now())
   provisionedAt  DateTime?
   suspendedAt    DateTime?
@@ -556,6 +560,8 @@ model IndustryTemplate {
   chartOfAccounts   Json // Array<{ code, name, type, isCashAccount? }> — افزوده‌ی صنعتی روی کدینگ پایه
   productCategories Json // string[] — دسته‌بندی‌های پیشنهادی کالا
   orgChart          Json // Array<{ position, reportsTo: string | null, department }>
+  suggestedThemeColor String?
+  defaultModules      String[] @default([]) // ModuleDefinition.code[] installed automatically on tenant creation
   createdAt         DateTime @default(now())
 
   @@map("industry_templates")

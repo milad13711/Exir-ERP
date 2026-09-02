@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
+  API_URL,
   getToken,
   fetchMe,
   fetchSubscription,
@@ -12,6 +13,23 @@ import {
   type Subscription,
   type LicenseStatus,
 } from "./api";
+
+/**
+ * Points the installed-web-app manifest and theme-color at this tenant's own
+ * branding instead of the generic Exir defaults. Browsers fetch the manifest
+ * without auth headers, so it has to be the public slug-based endpoint (see
+ * PublicManifestController), not an authenticated one.
+ */
+function applyTenantBranding(tenant: Me["tenant"]) {
+  if (typeof document === "undefined") return;
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) {
+    manifestLink.setAttribute("href", `${API_URL}/public/tenants/${tenant.slug}/manifest.webmanifest`);
+  }
+  if (tenant.themeColor) {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.setAttribute("content", tenant.themeColor!));
+  }
+}
 
 type WorkspaceState = {
   me: Me | null;
@@ -54,6 +72,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               .map((m) => m.code),
           ),
         );
+        applyTenantBranding(meData.tenant);
       })
       .catch(() => {
         router.replace("/login");

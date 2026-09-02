@@ -56,7 +56,14 @@ export class TenantsService {
     const dbPort = Number(process.env.TENANT_DB_PORT ?? 5433);
 
     const tenant = await this.controlDb.tenant.create({
-      data: { name: input.name, slug: input.slug, dbHost, dbPort, dbName },
+      data: {
+        name: input.name,
+        slug: input.slug,
+        dbHost,
+        dbPort,
+        dbName,
+        themeColor: industryTemplate?.suggestedThemeColor ?? undefined,
+      },
     });
 
     try {
@@ -101,11 +108,13 @@ export class TenantsService {
         },
       });
 
-      const coreModules = await this.controlDb.moduleDefinition.findMany({
-        where: { isCore: true },
+      const defaultModuleCodes = industryTemplate?.defaultModules ?? [];
+      const modulesToInstall = await this.controlDb.moduleDefinition.findMany({
+        where: { OR: [{ isCore: true }, { code: { in: defaultModuleCodes } }] },
       });
       await this.controlDb.tenantModule.createMany({
-        data: coreModules.map((m) => ({ tenantId: tenant.id, moduleId: m.id })),
+        data: modulesToInstall.map((m) => ({ tenantId: tenant.id, moduleId: m.id })),
+        skipDuplicates: true,
       });
 
       const now = new Date();

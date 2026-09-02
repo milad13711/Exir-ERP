@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/Card";
 import {
   fetchGeneralSettings,
   updateGeneralSettings,
+  updateBranding,
   downloadBackupExport,
   uploadBackupImport,
   ApiError,
   type GeneralSettings,
 } from "@/lib/api";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const TIMEZONE_OPTIONS = [
   { value: "Asia/Tehran", label: "تهران (Asia/Tehran)" },
@@ -23,6 +25,7 @@ const inputClass =
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export default function GeneralSettingsPage() {
+  const { me } = useWorkspace();
   const [settings, setSettings] = useState<GeneralSettings | null>(null);
   const [orgName, setOrgName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -32,6 +35,7 @@ export default function GeneralSettingsPage() {
   const [nationalId, setNationalId] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [phone, setPhone] = useState("");
+  const [themeColor, setThemeColor] = useState("#4338ca");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +54,10 @@ export default function GeneralSettingsPage() {
     });
   }, []);
 
+  useEffect(() => {
+    if (me?.tenant.themeColor) setThemeColor(me.tenant.themeColor);
+  }, [me]);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -66,6 +74,7 @@ export default function GeneralSettingsPage() {
         registrationNumber: registrationNumber.trim(),
         phone: phone.trim(),
       });
+      await updateBranding({ themeColor });
       setSettings(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -114,6 +123,24 @@ export default function GeneralSettingsPage() {
             <div>
               <label className={labelClass}>نام سازمان</label>
               <input value={orgName} onChange={(e) => setOrgName(e.target.value)} className={inputClass} />
+            </div>
+
+            <div>
+              <label className={labelClass}>رنگ اصلی (تم وب‌اپ روی گوشی)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={themeColor}
+                  onChange={(e) => setThemeColor(e.target.value)}
+                  className="w-11 h-11 rounded-lg border border-border cursor-pointer bg-transparent p-0.5"
+                />
+                <input
+                  value={themeColor}
+                  onChange={(e) => setThemeColor(e.target.value)}
+                  className={inputClass}
+                  dir="ltr"
+                />
+              </div>
             </div>
 
             <div>
