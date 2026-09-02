@@ -98,8 +98,20 @@ export function createTenant(data: {
   ownerPhone: string;
   ownerName: string;
   planCode: string;
+  industryTemplateCode?: string;
 }) {
   return apiFetch<AdminTenant>("/admin/tenants", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type IndustryTemplate = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+};
+
+export function fetchIndustryTemplates() {
+  return apiFetch<IndustryTemplate[]>("/admin/catalog/industry-templates");
 }
 
 export function suspendTenant(id: string, reason: string) {

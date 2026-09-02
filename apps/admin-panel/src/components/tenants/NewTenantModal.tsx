@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CloseIcon } from "@/components/icons";
-import { createTenant, ApiError } from "@/lib/api";
+import { createTenant, fetchIndustryTemplates, ApiError, type IndustryTemplate } from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -33,8 +33,14 @@ export function NewTenantModal({
   const [ownerName, setOwnerName] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
   const [planCode, setPlanCode] = useState("starter");
+  const [industryTemplateCode, setIndustryTemplateCode] = useState("");
+  const [templates, setTemplates] = useState<IndustryTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchIndustryTemplates().then(setTemplates).catch(() => setTemplates([]));
+  }, []);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -52,6 +58,7 @@ export function NewTenantModal({
         ownerName: ownerName.trim(),
         ownerPhone: ownerPhone.trim(),
         planCode,
+        industryTemplateCode: industryTemplateCode || undefined,
       });
       onCreated();
       onClose();
@@ -129,6 +136,28 @@ export function NewTenantModal({
               ))}
             </select>
           </div>
+          {templates.length > 0 ? (
+            <div>
+              <label className={labelClass}>قالب صنف (اختیاری)</label>
+              <select
+                value={industryTemplateCode}
+                onChange={(e) => setIndustryTemplateCode(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">بدون قالب — نقش‌ها و کدینگ حسابداری پیش‌فرض</option>
+                {templates.map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {industryTemplateCode ? (
+                <p className="text-[11px] text-muted mt-1.5">
+                  {templates.find((t) => t.code === industryTemplateCode)?.description}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {error ? <div className="text-[12px] text-danger">{error}</div> : null}
           <button
             type="submit"
