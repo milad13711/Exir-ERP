@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
 
 const STATUS_LABELS: Record<SalesInvoiceStatus, string> = {
@@ -503,6 +504,8 @@ export function InvoiceDetailModal({
             </button>
 
             <AttachmentsSection entityType="SalesInvoice" entityId={invoice.id} />
+
+            <TasksSection relatedModule="sales" relatedEntityId={invoice.id} />
           </div>
         </div>
       )}

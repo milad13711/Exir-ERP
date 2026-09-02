@@ -13,4 +13,8 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsIn(['NORMAL', 'MEDIUM', 'URGENT'])
   priority?: 'NORMAL' | 'MEDIUM' | 'URGENT';
+
+  @IsOptional()
+  @IsString()
+  assignedUserId?: string;
 }

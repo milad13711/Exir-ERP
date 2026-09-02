@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { STAGE_ORDER, STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { TasksSection } from "@/components/shared/TasksSection";
 
 export function DealModal({
   dealId,
@@ -231,6 +232,8 @@ export function DealModal({
           ) : null}
 
           <AttachmentsSection entityType="CrmDeal" entityId={deal.id} />
+
+          <TasksSection relatedModule="crm" relatedEntityId={deal.id} />
 
           <div>
             <div className="text-[12px] text-muted mb-2">تاریخچه فعالیت</div>

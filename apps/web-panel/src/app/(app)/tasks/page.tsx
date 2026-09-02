@@ -7,20 +7,24 @@ import { Badge } from "@/components/ui/Badge";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { CheckIcon, TrashIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
-import { fetchTasks, createTask, toggleTask, updateTask, deleteTask, type ApiTask } from "@/lib/api";
+import { fetchTasks, createTask, toggleTask, updateTask, deleteTask, fetchUsers, type ApiTask, type TenantUser } from "@/lib/api";
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
+  const [users, setUsers] = useState<TenantUser[]>([]);
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [assignedUserId, setAssignedUserId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDueAt, setEditDueAt] = useState("");
   const [editPriority, setEditPriority] = useState<ApiTask["priority"]>("NORMAL");
+  const [editAssignedUserId, setEditAssignedUserId] = useState("");
 
   useEffect(() => {
     fetchTasks().then(setTasks).catch(() => setTasks([]));
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
   async function handleAdd(e: React.FormEvent) {
@@ -28,10 +32,15 @@ export default function TasksPage() {
     if (!title.trim()) return;
     setSubmitting(true);
     try {
-      const task = await createTask(title.trim(), undefined, dueAt ? new Date(dueAt).toISOString() : undefined);
+      const task = await createTask({
+        title: title.trim(),
+        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        assignedUserId: assignedUserId || undefined,
+      });
       setTasks((prev) => [task, ...(prev ?? [])]);
       setTitle("");
       setDueAt("");
+      setAssignedUserId("");
     } finally {
       setSubmitting(false);
     }
@@ -47,6 +56,7 @@ export default function TasksPage() {
     setEditTitle(task.title);
     setEditDueAt(task.dueAt ?? "");
     setEditPriority(task.priority);
+    setEditAssignedUserId(task.assignedUserId ?? "");
   }
 
   async function saveEdit(id: string) {
@@ -55,6 +65,7 @@ export default function TasksPage() {
       title: editTitle.trim(),
       priority: editPriority,
       dueAt: editDueAt ? new Date(editDueAt).toISOString() : null,
+      ...(editAssignedUserId ? { assignedUserId: editAssignedUserId } : {}),
     });
     setTasks((prev) => prev?.map((t) => (t.id === id ? updated : t)) ?? prev);
     setEditingId(null);
@@ -85,6 +96,18 @@ export default function TasksPage() {
               <div className="w-[220px] shrink-0">
                 <JalaliDateTimeInput value={dueAt} onChange={setDueAt} placeholder="سررسید (اختیاری)" />
               </div>
+              <select
+                value={assignedUserId}
+                onChange={(e) => setAssignedUserId(e.target.value)}
+                className="text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-2 py-1.5 shrink-0"
+              >
+                <option value="">ارجاع به خودم</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
               <button
                 type="submit"
                 disabled={submitting}
@@ -131,6 +154,17 @@ export default function TasksPage() {
                         <option value="MEDIUM">متوسط</option>
                         <option value="URGENT">فوری</option>
                       </select>
+                      <select
+                        value={editAssignedUserId}
+                        onChange={(e) => setEditAssignedUserId(e.target.value)}
+                        className="text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-2 py-1.5"
+                      >
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         onClick={() => setEditingId(null)}
@@ -167,6 +201,7 @@ export default function TasksPage() {
                           {task.dueAt
                             ? `سررسید: ${formatJalaliDateTime(task.dueAt)}`
                             : `ایجاد شده: ${formatJalaliDateTime(task.createdAt)}`}
+                          {task.assignee ? ` · ارجاع به: ${task.assignee.name}` : ""}
                         </div>
                       </div>
                       {task.priority !== "NORMAL" ? (

@@ -263,17 +263,26 @@ export type ApiTask = {
   status: "OPEN" | "DONE";
   createdAt: string;
   completedAt: string | null;
+  assignedUserId?: string | null;
+  assignee?: { name: string } | null;
+  relatedModule?: string | null;
+  relatedEntityId?: string | null;
 };
 
-export function fetchTasks() {
-  return apiFetch<ApiTask[]>("/tasks");
+export function fetchTasks(filter?: { relatedModule: string; relatedEntityId: string }) {
+  const qs = filter ? `?relatedModule=${filter.relatedModule}&relatedEntityId=${filter.relatedEntityId}` : "";
+  return apiFetch<ApiTask[]>(`/tasks${qs}`);
 }
 
-export function createTask(title: string, priority?: ApiTask["priority"], dueAt?: string) {
-  return apiFetch<ApiTask>("/tasks", {
-    method: "POST",
-    body: JSON.stringify({ title, priority, dueAt }),
-  });
+export function createTask(data: {
+  title: string;
+  priority?: ApiTask["priority"];
+  dueAt?: string;
+  assignedUserId?: string;
+  relatedModule?: string;
+  relatedEntityId?: string;
+}) {
+  return apiFetch<ApiTask>("/tasks", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function toggleTask(id: string) {
@@ -282,7 +291,7 @@ export function toggleTask(id: string) {
 
 export function updateTask(
   id: string,
-  data: Partial<{ title: string; priority: ApiTask["priority"]; dueAt: string | null }>,
+  data: Partial<{ title: string; priority: ApiTask["priority"]; dueAt: string | null; assignedUserId: string }>,
 ) {
   return apiFetch<ApiTask>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }

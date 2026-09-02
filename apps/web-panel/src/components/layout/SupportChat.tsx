@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { getSupportSocket } from "@/lib/support-socket";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { TasksSection } from "@/components/shared/TasksSection";
 
 const statusLabel: Record<SupportTicket["status"], string> = {
   OPEN: "در انتظار بررسی",
@@ -208,7 +209,7 @@ export function SupportChat({
                   onClick={() => setAttachmentsOpen((v) => !v)}
                   className="text-[11px] font-bold text-amber-800 cursor-pointer"
                 >
-                  {attachmentsOpen ? "پنهان کردن پیوست‌ها" : "پیوست‌ها"}
+                  {attachmentsOpen ? "پنهان کردن" : "پیوست‌ها و وظایف"}
                 </button>
                 <button
                   type="button"
@@ -224,8 +225,9 @@ export function SupportChat({
               {ticket.assignedAdmin ? ` · ارجاع به: ${ticket.assignedAdmin.name}` : ""}
             </div>
             {attachmentsOpen ? (
-              <div className="mt-2.5 pt-2.5 border-t border-amber-200">
+              <div className="mt-2.5 pt-2.5 border-t border-amber-200 flex flex-col gap-3 max-h-[220px] overflow-y-auto">
                 <AttachmentsSection entityType="SupportTicket" entityId={ticket.id} />
+                <TasksSection relatedModule="support" relatedEntityId={ticket.id} />
               </div>
             ) : null}
           </div>

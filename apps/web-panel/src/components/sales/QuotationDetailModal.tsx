@@ -13,6 +13,8 @@ import {
   type SalesQuotationDetail,
   type SalesQuotationStatus,
 } from "@/lib/api";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { TasksSection } from "@/components/shared/TasksSection";
 
 const STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -140,6 +142,10 @@ export function QuotationDetailModal({
               {quotation.notes}
             </div>
           ) : null}
+
+          <AttachmentsSection entityType="SalesQuotation" entityId={quotation.id} />
+
+          <TasksSection relatedModule="sales" relatedEntityId={quotation.id} />
 
           {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 
