@@ -50,6 +50,17 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/web-panel/src/ "${HOST}:${REMOTE_DIR}/apps/web-panel/src/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/admin-panel/src/ "${HOST}:${REMOTE_DIR}/apps/admin-panel/src/"
+rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
+  apps/web-panel/public/ "${HOST}:${REMOTE_DIR}/apps/web-panel/public/"
+rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
+  apps/admin-panel/public/ "${HOST}:${REMOTE_DIR}/apps/admin-panel/public/"
+# package.json/package-lock.json changes (a new/updated dependency) must
+# reach the server too, or the Docker build's `npm ci` layer stays cached
+# on the OLD dependency set — this bit us for real once (web-push silently
+# missing from a build despite typechecking clean locally).
+for app in backend-core web-panel admin-panel; do
+  rsync -az "apps/${app}/package.json" "apps/${app}/package-lock.json" "${HOST}:${REMOTE_DIR}/apps/${app}/"
+done
 rsync -az docker-compose.on-premise.yml "${HOST}:${REMOTE_DIR}/docker-compose.on-premise.yml"
 rsync -az .dockerignore "${HOST}:${REMOTE_DIR}/.dockerignore"
 
