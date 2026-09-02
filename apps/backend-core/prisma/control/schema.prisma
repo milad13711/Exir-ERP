@@ -314,8 +314,25 @@ model AdminUser {
   assignedInternalTasks InternalTask[]  @relation("AssignedInternalTasks")
   createdInternalTasks  InternalTask[]  @relation("CreatedInternalTasks")
   ownedLeads            InternalLead[]
+  pushSubscriptions     AdminPushSubscription[]
 
   @@map("admin_users")
+}
+
+/// یک اشتراک push-notification مرورگر برای یک عضو تیم ادمین — روی هر
+/// دستگاه/مرورگری که "فعال‌سازی اعلان‌ها" را بزند یک ردیف جدید ساخته
+/// می‌شود (چند دستگاه هم‌زمان مجاز است).
+model AdminPushSubscription {
+  id          String   @id @default(uuid())
+  adminUserId String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now())
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@map("admin_push_subscriptions")
 }
 
 // ── Internal ops (Exir's own team — task/reminder management and its own

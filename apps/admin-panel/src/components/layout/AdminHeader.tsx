@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { LogoMark, MenuIcon, CloseIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
 import { useAdmin } from "@/lib/admin-context";
+import { PushNotificationsButton } from "./PushNotificationsButton";
 
 const NAV_ITEMS = [
   { href: "/tenants", label: "تننت‌ها" },
@@ -55,6 +56,7 @@ export function AdminHeader() {
         </div>
 
         <div className="flex items-center gap-3">
+          <PushNotificationsButton />
           {admin ? (
             <div className="text-left hidden sm:block">
               <div className="text-[12.5px] font-bold">{admin.name}</div>

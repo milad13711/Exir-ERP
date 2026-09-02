@@ -12,9 +12,11 @@ import { AdminLogsController } from './admin-logs.controller.js';
 import { AdminLicensesController } from './admin-licenses.controller.js';
 import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminInternalController } from './admin-internal.controller.js';
+import { AdminPushController } from './admin-push.controller.js';
+import { PushNotificationsModule } from '../notifications/push-notifications.module.js';
 
 @Module({
-  imports: [TenantsModule, LicensingModule, BillingModule, SupportModule],
+  imports: [TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
   controllers: [
     AdminAuthController,
     AdminTenantsController,
@@ -23,6 +25,7 @@ import { AdminInternalController } from './admin-internal.controller.js';
     AdminLicensesController,
     AdminCatalogController,
     AdminInternalController,
+    AdminPushController,
   ],
   providers: [AdminAuthService, AdminSupportService],
 })

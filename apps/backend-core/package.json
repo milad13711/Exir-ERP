@@ -50,7 +50,8 @@
     "puppeteer": "^24.43.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
@@ -62,6 +63,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
+    "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^4.1.2",
     "oxlint": "^1.58.0",
     "prettier": "^3.4.2",

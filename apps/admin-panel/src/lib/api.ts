@@ -407,3 +407,19 @@ export function assignLead(id: string, ownerAdminId: string) {
     body: JSON.stringify({ ownerAdminId }),
   });
 }
+
+// ── Web Push (اعلان روی گوشی برای پیام‌های جدید پشتیبانی) ────────────────
+
+export function fetchPushVapidKey() {
+  return apiFetch<{ publicKey: string | null; configured: boolean }>("/admin/push/vapid-public-key");
+}
+
+export function subscribePush(data: { endpoint: string; p256dh: string; auth: string }) {
+  return apiFetch<{ success: boolean }>("/admin/push/subscribe", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function unsubscribePush(endpoint: string) {
+  return apiFetch<{ success: boolean }>(`/admin/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`, {
+    method: "DELETE",
+  });
+}
