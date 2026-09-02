@@ -487,6 +487,13 @@ model SalesQuotation {
   createdAt          DateTime             @default(now())
   respondedAt        DateTime?
 
+  // Public customer-facing link (see PublicQuotationsController) — no auth,
+  // guarded only by this token being an unguessable random UUID.
+  publicToken              String    @unique @default(uuid())
+  firstViewedAt            DateTime? // stamped once, on the customer's first open — triggers the sales-rep notification
+  acceptedByName           String?
+  acceptedSignatureDataUrl String?
+
   contact   CrmContact @relation(fields: [contactId], references: [id])
   deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
   createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)

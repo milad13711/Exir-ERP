@@ -1836,6 +1836,7 @@ export type SalesQuotationDetail = SalesQuotation & {
   contact: { id: string; name: string; company: string | null; phone: string | null; email: string | null };
   deal: { id: string; title: string } | null;
   lines: SalesQuotationLine[];
+  publicToken: string;
 };
 
 export function fetchSalesQuotations() {
@@ -1905,6 +1906,47 @@ export function convertSalesQuotation(id: string) {
 
 export function deleteSalesQuotation(id: string) {
   return apiFetch<{ success: boolean }>(`/sales/quotations/${id}`, { method: "DELETE" });
+}
+
+// ── لینک عمومی پیش‌فاکتور (بدون نیاز به ورود، برای مشتری) ───────────────
+
+export type PublicQuotation = {
+  orgName: string;
+  quotationNo: number;
+  status: SalesQuotationStatus;
+  issuedAt: string;
+  validUntil: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  notes: string | null;
+  contact: { name: string; company: string | null };
+  lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
+  acceptedByName: string | null;
+};
+
+/** No auth token involved — this runs on the customer's own device, reached via a shared link. */
+async function publicFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...options.headers },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(body?.message?.toString() ?? "خطایی رخ داد", res.status);
+  }
+  return res.json();
+}
+
+export function fetchPublicQuotation(slug: string, token: string) {
+  return publicFetch<PublicQuotation>(`/public/tenants/${slug}/quotations/${token}`);
+}
+
+export function acceptPublicQuotation(slug: string, token: string, data: { name: string; signatureDataUrl: string }) {
+  return publicFetch<{ success: boolean }>(`/public/tenants/${slug}/quotations/${token}/accept`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 // ── فاکتور تکرارشونده (Recurring Invoice) ────────────────────────────────

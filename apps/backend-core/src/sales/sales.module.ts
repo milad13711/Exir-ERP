@@ -11,6 +11,7 @@ import { SalesInvoicePdfService } from './sales-invoice-pdf.service.js';
 import { PaymentReminderService } from './payment-reminder.service.js';
 import { QuotationsController } from './quotations.controller.js';
 import { QuotationsService } from './quotations.service.js';
+import { PublicQuotationsController } from './public-quotations.controller.js';
 import { SalesReturnsController } from './sales-returns.controller.js';
 import { SalesReturnsService } from './sales-returns.service.js';
 import { RecurringInvoicesController } from './recurring-invoices.controller.js';
@@ -18,7 +19,13 @@ import { RecurringInvoicesService } from './recurring-invoices.service.js';
 
 @Module({
   imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule],
-  controllers: [InvoicesController, QuotationsController, SalesReturnsController, RecurringInvoicesController],
+  controllers: [
+    InvoicesController,
+    QuotationsController,
+    PublicQuotationsController,
+    SalesReturnsController,
+    RecurringInvoicesController,
+  ],
   providers: [
     InvoicesService,
     SalesInvoicePdfService,

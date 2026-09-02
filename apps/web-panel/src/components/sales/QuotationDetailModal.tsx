@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -45,9 +46,23 @@ export function QuotationDetailModal({
   onChanged: () => void;
   onConverted: (invoiceId: string) => void;
 }) {
+  const { me } = useWorkspace();
   const [quotation, setQuotation] = useState<SalesQuotationDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function handleCopyLink() {
+    if (!quotation || !me) return;
+    const url = `${window.location.origin}/q/${me.tenant.slug}/${quotation.publicToken}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt("لینک پیش‌فاکتور برای مشتری:", url);
+    }
+  }
 
   function reload() {
     fetchSalesQuotation(quotationId).then(setQuotation);
@@ -186,6 +201,15 @@ export function QuotationDetailModal({
                   رد شد
                 </button>
               </>
+            ) : null}
+
+            {quotation.status === "SENT" || quotation.status === "ACCEPTED" ? (
+              <button
+                onClick={handleCopyLink}
+                className="text-[12.5px] font-bold text-ink-soft bg-slate-100 px-4 py-2.5 rounded-xl cursor-pointer"
+              >
+                {linkCopied ? "لینک کپی شد ✓" : "کپی لینک برای مشتری"}
+              </button>
             ) : null}
 
             {quotation.status === "SENT" || quotation.status === "ACCEPTED" ? (
