@@ -66,6 +66,11 @@ services:
       # see the "admin" service) is a different origin, so its cross-origin
       # calls need to be allow-listed explicitly here.
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      # Daily automated backups (BackupService) land here — a host directory,
+      # not the container's own filesystem, so they survive
+      # `--force-recreate` on deploy instead of being discarded with it.
+      - ./backups:/app/backups
 
   web:
     build:

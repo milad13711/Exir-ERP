@@ -5,6 +5,7 @@ import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { BackupService, stringifyWithBigInt } from './backup.service.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
@@ -45,110 +46,17 @@ function withoutKeys<T extends Record<string, unknown>>(rows: T[], keys: string[
 @Controller('settings/backup')
 @UseGuards(JwtAuthGuard)
 export class BackupController {
+  constructor(private readonly backup: BackupService) {}
+
   @Get('export')
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    const db = ctx.tenantDb;
-    const [
-      users,
-      roles,
-      userRoles,
-      modulePermissions,
-      moduleSettings,
-      crmContacts,
-      crmDeals,
-      crmActivities,
-      products,
-      warehouses,
-      stockMovements,
-      salesInvoices,
-      salesQuotations,
-      salesReturns,
-      purchaseOrders,
-      purchaseReturns,
-      checks,
-      accounts,
-      journalEntries,
-      currencies,
-      budgets,
-      fixedAssets,
-      recurringInvoiceTemplates,
-      bankStatementLines,
-      employees,
-      payrollSlips,
-      tasks,
-      attachments,
-    ] = await Promise.all([
-      db.user.findMany(),
-      db.role.findMany(),
-      db.userRole.findMany(),
-      db.modulePermission.findMany(),
-      db.moduleSetting.findMany(),
-      db.crmContact.findMany(),
-      db.crmDeal.findMany(),
-      db.crmActivity.findMany(),
-      db.product.findMany(),
-      db.warehouse.findMany(),
-      db.stockMovement.findMany(),
-      db.salesInvoice.findMany({ include: { lines: true, payments: true } }),
-      db.salesQuotation.findMany({ include: { lines: true } }),
-      db.salesReturn.findMany({ include: { lines: true } }),
-      db.purchaseOrder.findMany({ include: { lines: true, payments: true } }),
-      db.purchaseReturn.findMany({ include: { lines: true } }),
-      db.check.findMany(),
-      db.account.findMany(),
-      db.journalEntry.findMany({ include: { lines: true } }),
-      db.currency.findMany(),
-      db.budget.findMany({ include: { lines: true } }),
-      db.fixedAsset.findMany(),
-      db.recurringInvoiceTemplate.findMany({ include: { lines: true } }),
-      db.bankStatementLine.findMany(),
-      db.employee.findMany(),
-      db.payrollSlip.findMany(),
-      db.task.findMany(),
-      db.attachment.findMany(),
-    ]);
-
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      tenantId: ctx.tenantId,
-      data: {
-        users,
-        roles,
-        userRoles,
-        modulePermissions,
-        moduleSettings,
-        crmContacts,
-        crmDeals,
-        crmActivities,
-        products,
-        warehouses,
-        stockMovements,
-        salesInvoices,
-        salesQuotations,
-        salesReturns,
-        purchaseOrders,
-        purchaseReturns,
-        checks,
-        accounts,
-        journalEntries,
-        currencies,
-        budgets,
-        fixedAssets,
-        recurringInvoiceTemplates,
-        bankStatementLines,
-        employees,
-        payrollSlips,
-        tasks,
-        attachments,
-      },
-    };
-
+    const payload = await this.backup.buildExportPayload(ctx.tenantDb, ctx.tenantId);
     const fileName = `exir-backup-${new Date().toISOString().slice(0, 10)}.json`;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.send(JSON.stringify(payload, null, 2));
+    res.send(stringifyWithBigInt(payload, 2));
   }
 
   /**
