@@ -40,6 +40,11 @@ ssh_retry() {
 }
 
 echo "==> Syncing source..."
+# rsync refuses to create a destination whose PARENT doesn't exist yet — only
+# matters the first time a new app directory is deployed, but cheap enough
+# to always do.
+ssh_retry "mkdir -p ${REMOTE_DIR}/apps/backend-core ${REMOTE_DIR}/apps/web-panel ${REMOTE_DIR}/apps/admin-panel ${REMOTE_DIR}/apps/marketing-site"
+
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclude generated \
   apps/backend-core/src/ "${HOST}:${REMOTE_DIR}/apps/backend-core/src/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
