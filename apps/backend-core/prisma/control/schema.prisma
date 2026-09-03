@@ -249,6 +249,12 @@ model Invoice {
   issuedAt       DateTime      @default(now())
   dueAt          DateTime
   paidAt         DateTime?
+  // Set when a Zarinpal payment is initiated for this invoice — lets the
+  // callback verify against the exact attempt it started (not just trust
+  // whatever Authority a request happens to carry) and stops a stale/reused
+  // Authority from marking a different invoice paid.
+  zarinpalAuthority String? @unique
+  paymentRefId      Int? // Zarinpal's ref_id once a payment verifies successfully
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])

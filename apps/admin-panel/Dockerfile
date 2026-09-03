@@ -20,6 +20,10 @@ COPY apps/admin-panel/ ./
 # not part of the tenant bundle), so it needs the real, reachable API URL.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Used only to build a "copy payment link" URL that points at the tenant
+# web panel's public /pay/:invoiceId page (see PublicInvoicePaymentController).
+ARG NEXT_PUBLIC_WEB_PANEL_URL=http://localhost:3000
+ENV NEXT_PUBLIC_WEB_PANEL_URL=$NEXT_PUBLIC_WEB_PANEL_URL
 RUN npm run build
 
 FROM node:20-alpine AS runtime

@@ -91,9 +91,16 @@ export default function BillingSettingsPage() {
                     <td className="p-4 text-[13px] text-muted">{formatJalaliDate(inv.issuedAt)}</td>
                     <td className="p-4 text-[13px] font-semibold">{formatToman(inv.amount)}</td>
                     <td className="p-4">
-                      <Badge tone={invoiceStatusTone[inv.status]}>
-                        {invoiceStatusLabel[inv.status]}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge tone={invoiceStatusTone[inv.status]}>
+                          {invoiceStatusLabel[inv.status]}
+                        </Badge>
+                        {inv.status === "PENDING" ? (
+                          <a href={`/pay/${inv.id}`} target="_blank" rel="noopener" className="text-[11.5px] font-bold text-primary">
+                            پرداخت
+                          </a>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))

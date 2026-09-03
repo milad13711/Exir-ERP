@@ -1967,6 +1967,25 @@ export function acceptPublicQuotation(slug: string, token: string, data: { name:
   });
 }
 
+// ── پرداخت آنلاین فاکتور (Zarinpal) ───────────────────────────────────────
+
+export type PublicInvoice = {
+  id: string;
+  amount: number;
+  status: "PENDING" | "PAID" | "FAILED";
+  dueAt: string;
+  tenantName: string;
+  gatewayAvailable: boolean;
+};
+
+export function fetchPublicInvoice(id: string) {
+  return publicFetch<PublicInvoice>(`/public/invoices/${id}`);
+}
+
+export function payPublicInvoice(id: string) {
+  return publicFetch<{ paymentUrl?: string; error?: string }>(`/public/invoices/${id}/pay`, { method: "POST" });
+}
+
 // ── فاکتور تکرارشونده (Recurring Invoice) ────────────────────────────────
 
 export type RecurrenceFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";

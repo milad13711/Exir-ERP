@@ -421,6 +421,18 @@ export class TenantsService {
   }
 
   async markInvoicePaid(invoiceId: string, actorAdminId: string) {
+    return this.settleInvoicePaid(invoiceId, { actorType: 'admin_user', actorId: actorAdminId });
+  }
+
+  /** Same settlement, but for a customer's own Zarinpal payment — no admin actor involved. */
+  async markInvoicePaidByGateway(invoiceId: string, refId: number) {
+    return this.settleInvoicePaid(invoiceId, { actorType: 'system', actorId: null, metadata: { refId }, paymentRefId: refId });
+  }
+
+  private async settleInvoicePaid(
+    invoiceId: string,
+    actor: { actorType: string; actorId: string | null; metadata?: Record<string, unknown>; paymentRefId?: number },
+  ) {
     const invoice = await this.controlDb.invoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
     if (invoice.status === 'PAID') return invoice;
@@ -431,17 +443,17 @@ export class TenantsService {
     const [updated] = await this.controlDb.$transaction([
       this.controlDb.invoice.update({
         where: { id: invoiceId },
-        data: { status: 'PAID', paidAt: new Date() },
+        data: { status: 'PAID', paidAt: new Date(), paymentRefId: actor.paymentRefId },
       }),
       this.controlDb.auditLog.create({
         data: {
-          actorType: 'admin_user',
-          actorId: actorAdminId,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
           tenantId: invoice.tenantId,
           action: 'invoice.paid',
           entityType: 'Invoice',
           entityId: invoiceId,
-          metadata: { amount: invoice.amount },
+          metadata: { amount: invoice.amount, ...actor.metadata },
         },
       }),
       ...(shouldActivate

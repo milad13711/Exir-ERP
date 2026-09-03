@@ -79,6 +79,18 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
+  const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
+
+  async function handleCopyPaymentLink(invoiceId: string) {
+    const url = `${process.env.NEXT_PUBLIC_WEB_PANEL_URL ?? window.location.origin}/pay/${invoiceId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedInvoiceId(invoiceId);
+      setTimeout(() => setCopiedInvoiceId(null), 2000);
+    } catch {
+      window.prompt("لینک پرداخت برای مشتری:", url);
+    }
+  }
 
   function reload() {
     fetchTenant(id).then((t) => {
@@ -292,12 +304,20 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                   PDF
                 </button>
                 {inv.status === "PENDING" ? (
-                  <button
-                    onClick={() => handleMarkPaid(inv.id)}
-                    className="text-[11.5px] font-bold text-success bg-success-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
-                  >
-                    ثبت پرداخت
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleCopyPaymentLink(inv.id)}
+                      className="text-[11.5px] font-bold text-primary bg-primary-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
+                    >
+                      {copiedInvoiceId === inv.id ? "کپی شد ✓" : "لینک پرداخت"}
+                    </button>
+                    <button
+                      onClick={() => handleMarkPaid(inv.id)}
+                      className="text-[11.5px] font-bold text-success bg-success-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
+                    >
+                      ثبت پرداخت دستی
+                    </button>
+                  </>
                 ) : null}
               </div>
             </div>

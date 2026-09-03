@@ -69,6 +69,17 @@ services:
       BAHA24_API_KEY: ${BAHA24_API_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      # Zarinpal — real online payment for invoices (see ZarinpalService).
+      # Empty ZARINPAL_MERCHANT_ID means the gateway is simply unavailable
+      # (public pay page shows "contact support" instead of a pay button).
+      ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID:-}
+      ZARINPAL_SANDBOX: ${ZARINPAL_SANDBOX:-true}
+      # This container's own publicly-reachable URL, for building the
+      # Zarinpal callback_url (Zarinpal redirects the customer's BROWSER
+      # here, so it must be internet-reachable, not the docker-network name).
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      # Where the post-payment success page's "ورود" link points.
+      WEB_PANEL_PUBLIC_URL: ${WEB_PANEL_PUBLIC_URL:-}
     volumes:
       # Daily automated backups (BackupService) land here — a host directory,
       # not the container's own filesystem, so they survive
@@ -99,6 +110,7 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         NEXT_PUBLIC_API_URL: ${ADMIN_PANEL_API_URL:?set ADMIN_PANEL_API_URL in .env, e.g. http://<server-ip>:${EXPOSED_PORT:-80}/api}
+        NEXT_PUBLIC_WEB_PANEL_URL: ${WEB_PANEL_PUBLIC_URL:-http://localhost:${EXPOSED_PORT:-80}}
     restart: unless-stopped
     depends_on:
       - backend
