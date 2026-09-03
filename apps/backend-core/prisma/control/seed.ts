@@ -259,6 +259,269 @@ async function main() {
     },
   });
 
+  // ── قالب‌های صنف دیگر — همه با ماژول‌های موجود، بدون نیاز به ماژول جدید ──
+  const industryTemplates: Array<{
+    code: string;
+    name: string;
+    description: string;
+    roles: unknown[];
+    chartOfAccounts: unknown[];
+    productCategories: string[];
+    orgChart: unknown[];
+    suggestedThemeColor: string;
+    defaultModules: string[];
+  }> = [
+    {
+      code: 'retail-store',
+      name: 'خرده‌فروشی و فروشگاه',
+      description: 'فروشگاه‌های زنجیره‌ای و خرده‌فروشی — از صندوق فروش تا مدیریت موجودی و خرید از تأمین‌کننده.',
+      roles: [
+        {
+          name: 'فروشنده',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { sales: OWN_CONTRIBUTOR, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'صندوقدار',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { sales: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدیر فروشگاه',
+          permissionCodes: ['crm.manage', 'warehouse.manage', 'tasks.manage'],
+          modulePermissions: {
+            sales: FULL_ACCESS,
+            warehouse: FULL_ACCESS,
+            crm: EDITOR_ACCESS,
+            purchasing: VIEW_ONLY,
+            tasks: OWN_CONTRIBUTOR,
+          },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1051', name: 'موجودی کالای فروشگاه', type: 'ASSET' },
+        { code: '1052', name: 'موجودی کالای امانی', type: 'ASSET' },
+        { code: '5051', name: 'هزینه اجاره مغازه', type: 'EXPENSE' },
+        { code: '5052', name: 'تخفیفات و کسورات فروش', type: 'EXPENSE' },
+        { code: '5053', name: 'ضایعات و کسری انبار فروشگاه', type: 'EXPENSE' },
+      ],
+      productCategories: ['پوشاک', 'کیف و کفش', 'لوازم آرایشی و بهداشتی', 'لوازم خانگی', 'اسباب‌بازی'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر فروشگاه', reportsTo: 'مدیرعامل', department: 'فروش' },
+        { position: 'فروشنده', reportsTo: 'مدیر فروشگاه', department: 'فروش' },
+        { position: 'صندوقدار', reportsTo: 'مدیر فروشگاه', department: 'فروش' },
+        { position: 'انباردار', reportsTo: 'مدیر فروشگاه', department: 'انبار' },
+        { position: 'مدیر خرید', reportsTo: 'مدیرعامل', department: 'خرید' },
+      ],
+      suggestedThemeColor: '#db2777',
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'checks'],
+    },
+    {
+      code: 'restaurant-cafe',
+      name: 'رستوران و کافی‌شاپ',
+      description: 'رستوران، کافی‌شاپ و فست‌فود — مدیریت مواد اولیه آشپزخانه، فروش سالن و ضایعات مواد غذایی.',
+      roles: [
+        {
+          name: 'گارسون',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { sales: OWN_CONTRIBUTOR, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'سرآشپز',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدیر سالن',
+          permissionCodes: ['warehouse.manage', 'hr.manage', 'tasks.manage'],
+          modulePermissions: { sales: FULL_ACCESS, warehouse: EDITOR_ACCESS, hr: VIEW_ONLY, tasks: OWN_CONTRIBUTOR },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1061', name: 'موجودی مواد اولیه آشپزخانه', type: 'ASSET' },
+        { code: '5061', name: 'ضایعات مواد غذایی', type: 'EXPENSE' },
+        { code: '5062', name: 'هزینه گاز و انرژی آشپزخانه', type: 'EXPENSE' },
+        { code: '5063', name: 'هزینه ظروف یکبار‌مصرف و بسته‌بندی', type: 'EXPENSE' },
+      ],
+      productCategories: ['پیش‌غذا', 'غذای اصلی', 'دسر', 'نوشیدنی گرم', 'نوشیدنی سرد'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر سالن', reportsTo: 'مدیرعامل', department: 'سالن' },
+        { position: 'گارسون', reportsTo: 'مدیر سالن', department: 'سالن' },
+        { position: 'سرآشپز', reportsTo: 'مدیرعامل', department: 'آشپزخانه' },
+        { position: 'کمک‌آشپز', reportsTo: 'سرآشپز', department: 'آشپزخانه' },
+        { position: 'حسابدار', reportsTo: 'مدیرعامل', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#ea580c',
+      defaultModules: ['tasks', 'warehouse', 'accounting', 'sales', 'purchasing', 'hr'],
+    },
+    {
+      code: 'technical-services',
+      name: 'خدمات فنی و پیمانکاری',
+      description: 'شرکت‌های خدمات فنی، نصب و پیمانکاری — مدیریت پروژه‌محور با پیگیری مطالبات و پیش‌دریافت از کارفرما.',
+      roles: [
+        {
+          name: 'کارشناس فنی',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'ناظر پروژه',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, sales: EDITOR_ACCESS, tasks: FULL_ACCESS },
+        },
+        {
+          name: 'مدیر پروژه‌ها',
+          permissionCodes: ['crm.manage', 'accounting.manage', 'hr.manage', 'tasks.manage'],
+          modulePermissions: {
+            crm: FULL_ACCESS,
+            sales: FULL_ACCESS,
+            purchasing: EDITOR_ACCESS,
+            tasks: FULL_ACCESS,
+          },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1071', name: 'مطالبات پروژه‌ای', type: 'ASSET' },
+        { code: '2071', name: 'پیش‌دریافت از کارفرما', type: 'LIABILITY' },
+        { code: '5071', name: 'هزینه پیمانکاران فرعی', type: 'EXPENSE' },
+        { code: '5072', name: 'هزینه تجهیزات و ابزارآلات پروژه', type: 'EXPENSE' },
+        { code: '4071', name: 'درآمد خدمات فنی و نصب', type: 'REVENUE' },
+      ],
+      productCategories: ['خدمات نصب', 'خدمات تعمیر و نگهداری', 'مشاوره فنی', 'بازرسی و کنترل کیفیت'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر پروژه‌ها', reportsTo: 'مدیرعامل', department: 'پروژه‌ها' },
+        { position: 'ناظر پروژه', reportsTo: 'مدیر پروژه‌ها', department: 'پروژه‌ها' },
+        { position: 'کارشناس فنی', reportsTo: 'ناظر پروژه', department: 'پروژه‌ها' },
+        { position: 'مدیر مالی', reportsTo: 'مدیرعامل', department: 'مالی' },
+        { position: 'حسابدار', reportsTo: 'مدیر مالی', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#0891b2',
+      defaultModules: ['tasks', 'crm', 'accounting', 'sales', 'purchasing', 'checks'],
+    },
+    {
+      code: 'wholesale-distribution',
+      name: 'پخش و توزیع مویرگی',
+      description: 'شرکت‌های پخش و توزیع مویرگی — ویزیتوری، انبار مرکزی و پیگیری مطالبات معوق نمایندگی‌ها.',
+      roles: [
+        {
+          name: 'ویزیتور فروش',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, sales: OWN_CONTRIBUTOR, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'انباردار توزیع',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: FULL_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدیر فروش مویرگی',
+          permissionCodes: ['crm.manage', 'warehouse.manage', 'tasks.manage'],
+          modulePermissions: {
+            crm: FULL_ACCESS,
+            sales: FULL_ACCESS,
+            warehouse: EDITOR_ACCESS,
+            purchasing: EDITOR_ACCESS,
+            tasks: FULL_ACCESS,
+          },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1081', name: 'موجودی کالای در راه', type: 'ASSET' },
+        { code: '1082', name: 'مطالبات معوق نمایندگی‌ها', type: 'ASSET' },
+        { code: '5081', name: 'هزینه حمل و پخش', type: 'EXPENSE' },
+        { code: '5082', name: 'هزینه سوخت ناوگان توزیع', type: 'EXPENSE' },
+      ],
+      productCategories: ['مواد غذایی بسته‌بندی‌شده', 'محصولات بهداشتی', 'لوازم آرایشی', 'نوشیدنی'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر فروش مویرگی', reportsTo: 'مدیرعامل', department: 'فروش' },
+        { position: 'ویزیتور فروش', reportsTo: 'مدیر فروش مویرگی', department: 'فروش' },
+        { position: 'مدیر انبار و لجستیک', reportsTo: 'مدیرعامل', department: 'انبار' },
+        { position: 'انباردار توزیع', reportsTo: 'مدیر انبار و لجستیک', department: 'انبار' },
+        { position: 'راننده پخش', reportsTo: 'انباردار توزیع', department: 'انبار' },
+      ],
+      suggestedThemeColor: '#7c3aed',
+      defaultModules: [
+        'tasks',
+        'crm',
+        'warehouse',
+        'accounting',
+        'sales',
+        'purchasing',
+        'checks',
+        'supplier-risk',
+      ],
+    },
+    {
+      code: 'auto-service',
+      name: 'نمایندگی و تعمیرگاه خودرو',
+      description: 'نمایندگی فروش و تعمیرگاه خودرو — پذیرش خودرو، مدیریت قطعات یدکی و فروش خودرو.',
+      roles: [
+        {
+          name: 'مکانیک',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { warehouse: VIEW_ONLY, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'پذیرش تعمیرگاه',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, sales: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'کارشناس فروش خودرو',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: FULL_ACCESS, sales: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1091', name: 'موجودی قطعات یدکی', type: 'ASSET' },
+        { code: '5091', name: 'هزینه ضمانت‌نامه و گارانتی', type: 'EXPENSE' },
+        { code: '4091', name: 'درآمد خدمات تعمیر و سرویس', type: 'REVENUE' },
+      ],
+      productCategories: ['قطعات یدکی', 'روغن و مایعات خودرو', 'لوازم جانبی و تزئینی', 'لاستیک و رینگ'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر تعمیرگاه', reportsTo: 'مدیرعامل', department: 'تعمیرگاه' },
+        { position: 'مکانیک', reportsTo: 'مدیر تعمیرگاه', department: 'تعمیرگاه' },
+        { position: 'پذیرش تعمیرگاه', reportsTo: 'مدیر تعمیرگاه', department: 'تعمیرگاه' },
+        { position: 'مدیر فروش خودرو', reportsTo: 'مدیرعامل', department: 'فروش' },
+        { position: 'کارشناس فروش خودرو', reportsTo: 'مدیر فروش خودرو', department: 'فروش' },
+      ],
+      suggestedThemeColor: '#1d4ed8',
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'checks'],
+    },
+  ];
+
+  for (const t of industryTemplates) {
+    await db.industryTemplate.upsert({
+      where: { code: t.code },
+      create: {
+        code: t.code,
+        name: t.name,
+        description: t.description,
+        roles: t.roles as object[],
+        chartOfAccounts: t.chartOfAccounts as object[],
+        productCategories: t.productCategories,
+        orgChart: t.orgChart as object[],
+        suggestedThemeColor: t.suggestedThemeColor,
+        defaultModules: t.defaultModules,
+      },
+      update: {
+        name: t.name,
+        description: t.description,
+        roles: t.roles as object[],
+        chartOfAccounts: t.chartOfAccounts as object[],
+        productCategories: t.productCategories,
+        orgChart: t.orgChart as object[],
+        suggestedThemeColor: t.suggestedThemeColor,
+        defaultModules: t.defaultModules,
+      },
+    });
+  }
+
   const superAdminEmail = 'admin@exir.co';
   const superAdminPassword = 'ExirAdmin123!';
   await db.adminUser.upsert({
