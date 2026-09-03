@@ -2638,3 +2638,82 @@ export function createAttachment(data: { entityType: string; entityId: string; t
 export function deleteAttachment(id: string) {
   return apiFetch<{ success: boolean }>(`/attachments/${id}`, { method: "DELETE" });
 }
+
+// ── اتوماسیون (Automation) ──────────────────────────────────────────────
+
+export type PayloadFieldType = "STRING" | "NUMBER" | "USER_ID" | "PHONE";
+
+export type TriggerPayloadField = {
+  key: string;
+  label: string;
+  type: PayloadFieldType;
+};
+
+export type TriggerDefinition = {
+  code: string;
+  moduleCode: string;
+  label: string;
+  description: string | null;
+  payloadFields: TriggerPayloadField[];
+  supportsManualTrigger: boolean;
+};
+
+export function fetchTriggers() {
+  return apiFetch<TriggerDefinition[]>("/automation/triggers");
+}
+
+export type AutomationActionType = "NOTIFY_IN_APP" | "SEND_SMS" | "CREATE_TASK";
+
+export type AutomationAction = {
+  id: string;
+  type: AutomationActionType;
+  config: Record<string, unknown>;
+  sequenceOrder: number;
+};
+
+export type AutomationRunLog = {
+  id: string;
+  actionType: string;
+  status: "SUCCESS" | "FAILED";
+  error: string | null;
+  ranAt: string;
+};
+
+export type AutomationRule = {
+  id: string;
+  name: string;
+  triggerCode: string;
+  isActive: boolean;
+  createdAt: string;
+  createdBy: { id: string; name: string } | null;
+  actions: AutomationAction[];
+  runLogs: AutomationRunLog[];
+};
+
+export function fetchAutomationRules() {
+  return apiFetch<AutomationRule[]>("/automation/rules");
+}
+
+export function fetchAutomationRule(id: string) {
+  return apiFetch<AutomationRule>(`/automation/rules/${id}`);
+}
+
+export function createAutomationRule(data: {
+  name: string;
+  triggerCode: string;
+  actions: Array<{ type: AutomationActionType; config: Record<string, unknown>; sequenceOrder?: number }>;
+}) {
+  return apiFetch<AutomationRule>("/automation/rules", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateAutomationRule(id: string, data: { name?: string; isActive?: boolean }) {
+  return apiFetch<AutomationRule>(`/automation/rules/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteAutomationRule(id: string) {
+  return apiFetch<{ success: boolean }>(`/automation/rules/${id}`, { method: "DELETE" });
+}
+
+export function fireTrigger(triggerCode: string, entityId: string) {
+  return apiFetch<{ success: boolean }>("/automation/fire", { method: "POST", body: JSON.stringify({ triggerCode, entityId }) });
+}

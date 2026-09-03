@@ -7,6 +7,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto.js';
 
 /**
@@ -43,6 +44,7 @@ export class LeaveController {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly permissions: PermissionsService,
+    private readonly automation: AutomationEngineService,
   ) {}
 
   @Get()
@@ -125,6 +127,16 @@ export class LeaveController {
         title: `درخواست مرخصی شما ${statusFa}`,
         body: `درخواست مرخصی شما از ${updated.startDate.toLocaleDateString('fa-IR')} تا ${updated.endDate.toLocaleDateString('fa-IR')} ${statusFa}.`,
         link: '/hr',
+      });
+    }
+
+    if (status === 'APPROVED' && updated.employee.userId) {
+      await this.automation.emit(ctx, 'hr.leave.approved', {
+        employeeName: updated.employee.fullName,
+        employeeUserId: updated.employee.userId,
+        startDate: updated.startDate.toLocaleDateString('fa-IR'),
+        endDate: updated.endDate.toLocaleDateString('fa-IR'),
+        daysCount: updated.daysCount,
       });
     }
 

@@ -61,6 +61,7 @@ model User {
   assignedProductionStages ProductionOrderStage[]
   qualitySamplesTaken      QualitySample[]        @relation("QualitySampleSampledBy")
   qualitySampleResultsTested QualitySampleResult[] @relation("QualitySampleResultTestedBy")
+  createdAutomationRules AutomationRule[]
 
   @@map("users")
 }
@@ -1475,4 +1476,54 @@ model QualitySampleResult {
 
   @@index([sampleId])
   @@map("quality_sample_results")
+}
+
+// ── ماژول اتوماسیون (automation) ──────────────────────────────────────
+// عمداً بدون هیچ ارجاع ساختاریافته به ماژول‌های دیگر: triggerCode یک
+// شناسه‌ی رشته‌ای آزاد است (کاتالوگش در کد هر ماژول، نه اینجا، ثبت
+// می‌شود — TriggerRegistryService) و config هر اقدام یک JSON آزاد است.
+// همان الگوی entityType/entityId در Attachment/Task، برای همان دلیل: یک
+// ماژول جدید نباید نیاز به تغییر این جدول‌ها داشته باشد.
+
+model AutomationRule {
+  id              String   @id @default(uuid())
+  name            String
+  triggerCode     String
+  isActive        Boolean  @default(true)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  createdBy User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  actions   AutomationAction[]
+  runLogs   AutomationRunLog[]
+
+  @@index([triggerCode])
+  @@map("automation_rules")
+}
+
+model AutomationAction {
+  id            String @id @default(uuid())
+  ruleId        String
+  type          String // NOTIFY_IN_APP | SEND_SMS | CREATE_TASK
+  config        Json
+  sequenceOrder Int    @default(0)
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@map("automation_actions")
+}
+
+model AutomationRunLog {
+  id         String   @id @default(uuid())
+  ruleId     String
+  actionType String
+  status     String // SUCCESS | FAILED
+  error      String?
+  ranAt      DateTime @default(now())
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, ranAt])
+  @@map("automation_run_logs")
 }

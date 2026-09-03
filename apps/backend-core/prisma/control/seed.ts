@@ -176,6 +176,16 @@ async function main() {
       version: '1.0.0',
       dependsOn: ['production'],
     },
+    {
+      code: 'automation',
+      name: 'اتوماسیون',
+      description: 'برای هر رویداد آماده در ماژول‌های نصب‌شده (پایان یک مرحله‌ی تولید، پرداخت فاکتور، تأیید مرخصی و...) یک یا چند اقدام خودکار تعریف کنید: اعلان داخل پنل، پیامک، یا ایجاد وظیفه.',
+      category: 'عمومی',
+      priceMonthly: 150000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: [],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });

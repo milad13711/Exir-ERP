@@ -35,6 +35,7 @@ import { ChecksModule } from './checks/checks.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { AttachmentsModule } from './attachments/attachments.module.js';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
+import { AutomationModule } from './automation/automation.module.js';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
     MarketingModule,
     ProductionModule,
     QualityControlModule,
+    AutomationModule,
     BillingModule,
     ModulesCatalogModule,
     UsersModule,

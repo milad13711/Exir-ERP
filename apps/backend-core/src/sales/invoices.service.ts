@@ -7,6 +7,7 @@ import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
@@ -74,6 +75,7 @@ export class InvoicesService {
     private readonly sms: ExirSmsService,
     private readonly creditScore: CreditScoreService,
     private readonly costing: CostingService,
+    private readonly automation: AutomationEngineService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -437,7 +439,15 @@ export class InvoicesService {
       }),
     ]);
 
-    return ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: INVOICE_INCLUDE });
+    const updatedInvoice = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: INVOICE_INCLUDE });
+    await this.automation.emit(ctx, 'sales.invoice.payment_recorded', {
+      invoiceNo: updatedInvoice.invoiceNo,
+      customerName: updatedInvoice.contact.name,
+      customerPhone: updatedInvoice.contact.phone,
+      amount: dto.amount,
+      remaining: updatedInvoice.total - updatedInvoice.paidAmount,
+    });
+    return updatedInvoice;
   }
 
   private async getAccount(ctx: TenantRequestContext, code: string) {

@@ -88,11 +88,12 @@ function sumLines(lines: Array<{ debit: bigint; credit: bigint }>) {
 // is enough to satisfy the constructor.
 const creditScoreStub = { assess: vi.fn() };
 const smsStub = { isConfigured: vi.fn().mockReturnValue(false), sendSms: vi.fn() };
+const automationStub = { emit: vi.fn() };
 
 describe('InvoicesService.confirm — double-entry posting', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService());
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never);
   });
 
   it('posts a balanced Dr AR / Cr Revenue entry for a simple invoice with no tax or COGS', async () => {
@@ -173,7 +174,7 @@ describe('InvoicesService.confirm — double-entry posting', () => {
 describe('InvoicesService.recordPayment', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService());
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never);
   });
 
   function invoiceStub(overrides: Record<string, unknown> = {}) {
@@ -184,6 +185,7 @@ describe('InvoicesService.recordPayment', () => {
       total: 1_000_000,
       paidAmount: 0,
       contactId: 'contact-1',
+      contact: { name: 'مشتری تست', phone: '09120000000' },
       ...overrides,
     };
   }

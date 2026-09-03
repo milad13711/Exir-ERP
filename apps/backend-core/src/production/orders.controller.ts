@@ -15,6 +15,8 @@ import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { RejectOrderDto } from './dto/reject-order.dto.js';
 import { scaleRequirement } from './production-capacity.js';
 import { decideCompletion } from './completion-flow.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { orderCreatedPayload } from './production-automation.triggers.js';
 
 const ORDER_INCLUDE = {
   bom: { include: { outputProduct: true, lines: { include: { rawMaterial: true } } } },
@@ -29,6 +31,7 @@ export class ProductionOrdersController {
   constructor(
     private readonly permissions: PermissionsService,
     private readonly controlDb: ControlPrismaService,
+    private readonly automation: AutomationEngineService,
   ) {}
 
   @Get()
@@ -91,6 +94,7 @@ export class ProductionOrdersController {
       },
       include: ORDER_INCLUDE,
     });
+    await this.automation.emit(ctx, 'production.order.created', orderCreatedPayload(order));
     return order;
   }
 
@@ -185,10 +189,13 @@ export class ProductionOrdersController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'production');
-    const stage = await ctx.tenantDb.productionOrderStage.findUnique({ where: { id: stageId } });
+    const stage = await ctx.tenantDb.productionOrderStage.findUnique({
+      where: { id: stageId },
+      include: { workCenter: true },
+    });
     if (!stage || stage.productionOrderId !== id) throw new NotFoundException('مرحله‌ی تولید یافت نشد');
 
-    return ctx.tenantDb.productionOrderStage.update({
+    const updated = await ctx.tenantDb.productionOrderStage.update({
       where: { id: stageId },
       data: {
         status: dto.status,
@@ -199,6 +206,29 @@ export class ProductionOrdersController {
       },
       include: { workCenter: true, assignedUser: { select: { id: true, name: true } } },
     });
+
+    if (dto.status === 'DONE' && stage.status !== 'DONE') {
+      const nextStage = await ctx.tenantDb.productionOrderStage.findFirst({
+        where: { productionOrderId: id, sequenceOrder: { gt: stage.sequenceOrder } },
+        orderBy: { sequenceOrder: 'asc' },
+        include: { workCenter: true },
+      });
+      if (nextStage) {
+        const order = await ctx.tenantDb.productionOrder.findUniqueOrThrow({
+          where: { id },
+          include: { bom: { include: { outputProduct: true } } },
+        });
+        await this.automation.emit(ctx, 'production.stage.completed', {
+          orderNo: order.orderNo,
+          productName: order.bom.outputProduct.name,
+          stageName: stage.workCenter.name,
+          nextStageName: nextStage.workCenter.name,
+          nextStageAssigneeUserId: nextStage.assignedUserId,
+        });
+      }
+    }
+
+    return updated;
   }
 
   /**

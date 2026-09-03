@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { quotationCreatedPayload } from './sales-automation.triggers.js';
 import type { CreateQuotationDto } from './dto/create-quotation.dto.js';
 import type { UpdateQuotationDto } from './dto/update-quotation.dto.js';
 
@@ -24,6 +27,11 @@ function computeTotals<T extends { quantity: number; unitPrice: number }>(lines:
 
 @Injectable()
 export class QuotationsService {
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly automation: AutomationEngineService,
+  ) {}
+
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
     return ctx.tenantDb.salesQuotation.findMany({
       where: scope,
@@ -49,7 +57,7 @@ export class QuotationsService {
     const createdByUserId = await resolveTenantUserId(ctx);
     const { lines, subtotal, total } = computeTotals(dto.lines, dto.discount ?? 0);
 
-    return ctx.tenantDb.salesQuotation.create({
+    const quotation = await ctx.tenantDb.salesQuotation.create({
       data: {
         contactId: dto.contactId,
         dealId: dto.dealId,
@@ -63,6 +71,11 @@ export class QuotationsService {
       },
       include: QUOTATION_INCLUDE,
     });
+
+    const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId }, select: { slug: true } });
+    await this.automation.emit(ctx, 'sales.quotation.created', quotationCreatedPayload(quotation, tenant.slug));
+
+    return quotation;
   }
 
   async update(ctx: TenantRequestContext, id: string, dto: UpdateQuotationDto, scope: Record<string, unknown>) {

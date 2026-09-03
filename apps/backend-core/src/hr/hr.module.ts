@@ -8,9 +8,11 @@ import { HrSummaryController } from './summary.controller.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { PermissionsModule } from '../permissions/permissions.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
+import { AutomationModule } from '../automation/automation.module.js';
+import { HrAutomationTriggers } from './hr-automation.triggers.js';
 
 @Module({
-  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule],
+  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule],
   controllers: [
     EmployeesController,
     AttendanceController,
@@ -18,6 +20,6 @@ import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
     PayrollController,
     HrSummaryController,
   ],
-  providers: [PayrollPdfService],
+  providers: [PayrollPdfService, HrAutomationTriggers],
 })
 export class HrModule {}
