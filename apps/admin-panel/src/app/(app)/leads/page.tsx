@@ -16,6 +16,7 @@ import {
   type StaffMember,
 } from "@/lib/api";
 import { useAdmin } from "@/lib/admin-context";
+import { NewTenantModal } from "@/components/tenants/NewTenantModal";
 
 const STAGES: { key: LeadStage; label: string }[] = [
   { key: "NEW", label: "جدید" },
@@ -30,6 +31,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<InternalLead[] | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [convertLead, setConvertLead] = useState<InternalLead | null>(null);
 
   function reload() {
     fetchInternalLeads().then(setLeads).catch(() => setLeads([]));
@@ -113,12 +115,36 @@ export default function LeadsPage() {
                   </option>
                 ))}
               </select>
+              {lead.stage !== "WON" ? (
+                <button
+                  onClick={() => setConvertLead(lead)}
+                  className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer shrink-0"
+                >
+                  تبدیل به تننت
+                </button>
+              ) : null}
             </div>
           ))
         )}
       </Card>
 
       {createOpen ? <CreateLeadModal onClose={() => setCreateOpen(false)} onCreated={reload} /> : null}
+
+      {convertLead ? (
+        <NewTenantModal
+          onClose={() => setConvertLead(null)}
+          onCreated={() => {
+            handleStageChange(convertLead.id, "WON");
+          }}
+          initial={{
+            name: convertLead.company || convertLead.name,
+            ownerName: convertLead.name,
+            ownerPhone: convertLead.phone ?? undefined,
+            planCode: convertLead.requestedPlanCode ?? undefined,
+            industryTemplateCode: convertLead.requestedIndustryTemplateCode ?? undefined,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

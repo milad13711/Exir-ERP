@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { CloseIcon } from "@/components/icons";
-import { createTenant, fetchIndustryTemplates, ApiError, type IndustryTemplate } from "@/lib/api";
+import {
+  createTenant,
+  fetchIndustryTemplates,
+  fetchCatalogPlans,
+  ApiError,
+  type IndustryTemplate,
+  type CatalogPlan,
+} from "@/lib/api";
+import { formatToman } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
-
-const PLANS = [
-  { code: "starter", label: "استارتر — ۴۹۰,۰۰۰ تومان/ماه" },
-  { code: "professional", label: "حرفه‌ای — ۱,۹۹۰,۰۰۰ تومان/ماه" },
-  { code: "enterprise", label: "سازمانی — ۴,۹۹۰,۰۰۰ تومان/ماه" },
-];
 
 function slugify(name: string): string {
   return name
@@ -23,23 +25,34 @@ function slugify(name: string): string {
 export function NewTenantModal({
   onClose,
   onCreated,
+  initial,
 }: {
   onClose: () => void;
   onCreated: () => void;
+  /** Prefills the form — used when converting a marketing-site lead into a tenant. */
+  initial?: {
+    name?: string;
+    ownerName?: string;
+    ownerPhone?: string;
+    planCode?: string;
+    industryTemplateCode?: string;
+  };
 }) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [slug, setSlug] = useState(initial?.name ? slugify(initial.name) : "");
   const [slugTouched, setSlugTouched] = useState(false);
-  const [ownerName, setOwnerName] = useState("");
-  const [ownerPhone, setOwnerPhone] = useState("");
-  const [planCode, setPlanCode] = useState("starter");
-  const [industryTemplateCode, setIndustryTemplateCode] = useState("");
+  const [ownerName, setOwnerName] = useState(initial?.ownerName ?? "");
+  const [ownerPhone, setOwnerPhone] = useState(initial?.ownerPhone ?? "");
+  const [planCode, setPlanCode] = useState(initial?.planCode ?? "starter");
+  const [industryTemplateCode, setIndustryTemplateCode] = useState(initial?.industryTemplateCode ?? "");
   const [templates, setTemplates] = useState<IndustryTemplate[]>([]);
+  const [plans, setPlans] = useState<CatalogPlan[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchIndustryTemplates().then(setTemplates).catch(() => setTemplates([]));
+    fetchCatalogPlans().then(setPlans).catch(() => setPlans([]));
   }, []);
 
   function handleNameChange(value: string) {
@@ -129,9 +142,9 @@ export function NewTenantModal({
           <div>
             <label className={labelClass}>پلن اشتراک</label>
             <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} className={inputClass}>
-              {PLANS.map((p) => (
+              {plans.map((p) => (
                 <option key={p.code} value={p.code}>
-                  {p.label}
+                  {p.name} — {formatToman(p.priceMonthly)}/ماه
                 </option>
               ))}
             </select>

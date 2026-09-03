@@ -418,6 +418,8 @@ export type InternalLead = {
   stage: LeadStage;
   value: number | null;
   notes: string | null;
+  requestedPlanCode: string | null;
+  requestedIndustryTemplateCode: string | null;
   createdAt: string;
   owner: { id: string; name: string } | null;
 };

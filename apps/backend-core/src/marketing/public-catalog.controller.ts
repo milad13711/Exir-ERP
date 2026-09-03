@@ -98,6 +98,8 @@ export class PublicCatalogController {
         email: dto.email,
         value: dto.estimatedValue,
         notes: dto.configurationSummary,
+        requestedPlanCode: dto.requestedPlanCode,
+        requestedIndustryTemplateCode: dto.requestedIndustryTemplateCode,
       },
     });
   }

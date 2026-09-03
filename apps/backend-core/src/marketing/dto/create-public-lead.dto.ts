@@ -25,4 +25,12 @@ export class CreatePublicLeadDto {
   @IsOptional()
   @IsString()
   configurationSummary?: string;
+
+  @IsOptional()
+  @IsString()
+  requestedPlanCode?: string;
+
+  @IsOptional()
+  @IsString()
+  requestedIndustryTemplateCode?: string;
 }

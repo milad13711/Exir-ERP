@@ -105,6 +105,8 @@ export function ConfigureClient() {
           configurationSummary: `پلن: ${quote.plan.name} (${billingCycle === "yearly" ? "سالانه" : "ماهانه"})${
             activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""
           } — ماژول‌ها: ${quote.moduleLines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"} — جمع: ${quote.total.toLocaleString("en-US")} تومان`,
+          requestedPlanCode: quote.plan.code,
+          requestedIndustryTemplateCode: activeTemplate?.code,
         }),
       });
       if (!res.ok) throw new Error();
