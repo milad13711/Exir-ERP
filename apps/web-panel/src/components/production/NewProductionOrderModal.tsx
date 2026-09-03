@@ -7,12 +7,14 @@ import {
   fetchWarehouses,
   fetchWorkCenters,
   fetchUsers,
+  fetchSalesInvoices,
   createProductionOrder,
   ApiError,
   type Bom,
   type Warehouse,
   type WorkCenter,
   type TenantUser,
+  type SalesInvoice,
 } from "@/lib/api";
 
 const inputClass =
@@ -26,10 +28,12 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [workCenters, setWorkCenters] = useState<WorkCenter[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
+  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
 
   const [bomId, setBomId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [quantityPlanned, setQuantityPlanned] = useState("");
+  const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
   const [plannedStartAt, setPlannedStartAt] = useState("");
   const [plannedEndAt, setPlannedEndAt] = useState("");
   const [stages, setStages] = useState<StageDraft[]>([]);
@@ -45,6 +49,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
     }).catch(() => setWarehouses([]));
     fetchWorkCenters().then(setWorkCenters).catch(() => setWorkCenters([]));
     fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchSalesInvoices().then(setInvoices).catch(() => setInvoices([]));
   }, []);
 
   const selectedBom = boms.find((b) => b.id === bomId);
@@ -60,6 +65,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
         bomId,
         warehouseId,
         quantityPlanned: Number(quantityPlanned),
+        relatedInvoiceId: relatedInvoiceId || undefined,
         plannedStartAt: plannedStartAt || undefined,
         plannedEndAt: plannedEndAt || undefined,
         stages: stages.length > 0
@@ -119,6 +125,20 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
             />
           </div>
         </div>
+
+        {invoices.length > 0 ? (
+          <div>
+            <label className={labelClass}>مرتبط با فاکتور فروش (اختیاری — برای تولید سفارشی)</label>
+            <select value={relatedInvoiceId} onChange={(e) => setRelatedInvoiceId(e.target.value)} className={inputClass}>
+              <option value="">بدون فاکتور — تولید عمومی</option>
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  فاکتور #{inv.invoiceNo} — {inv.contact.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <div>

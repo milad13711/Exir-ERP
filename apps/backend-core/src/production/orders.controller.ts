@@ -14,6 +14,7 @@ import { UpdateStageDto } from './dto/update-stage.dto.js';
 import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { RejectOrderDto } from './dto/reject-order.dto.js';
 import { scaleRequirement } from './production-capacity.js';
+import { decideCompletion } from './completion-flow.js';
 
 const ORDER_INCLUDE = {
   bom: { include: { outputProduct: true, lines: { include: { rawMaterial: true } } } },
@@ -200,39 +201,63 @@ export class ProductionOrdersController {
     });
   }
 
+  /**
+   * Two-step when quality-control is installed: the first call (from
+   * IN_PROGRESS) records the actual output quantity and, if no PASS sample
+   * from the final product exists yet, parks the order in QC_PENDING rather
+   * than finalizing — the physical run is done, but nothing is released to
+   * stock until QC signs off. A second call (once a PASS sample exists)
+   * finalizes it. Without quality-control installed, one call does both.
+   */
   @Post(':id/complete')
   async complete(@Param('id') id: string, @Body() dto: CompleteOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id }, include: { bom: true } });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
-    if (order.status !== 'IN_PROGRESS') throw new BadRequestException('این دستور تولید در حال انجام نیست');
 
-    // اگر ماژول کنترل کیفیت فعال است، تکمیل بدون یک نمونه‌ی «قبول» از
-    // محصول نهایی مسدود می‌شود — همان گیت کیفیتی که در طراحی توافق شد،
-    // بدون وابستگی سخت این ماژول به کد کنترل کیفیت (فقط بررسی وضعیت نصب).
-    const qcInstalled = await this.controlDb.tenantModule.findFirst({
-      where: { tenantId: ctx.tenantId, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'quality-control' } },
-    });
-    let qualityApprovedAt: Date | undefined;
-    if (qcInstalled) {
-      const passedSample = await ctx.tenantDb.qualitySample.findFirst({
-        where: { productionOrderId: id, source: 'FINAL_PRODUCT', verdict: 'PASS' },
+    const qcInstalled = Boolean(
+      await this.controlDb.tenantModule.findFirst({
+        where: { tenantId: ctx.tenantId, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'quality-control' } },
+      }),
+    );
+    const passedSample = qcInstalled
+      ? await ctx.tenantDb.qualitySample.findFirst({
+          where: { productionOrderId: id, source: 'FINAL_PRODUCT', verdict: 'PASS' },
+        })
+      : null;
+
+    const outcome = decideCompletion(order.status, qcInstalled, Boolean(passedSample));
+
+    if (outcome.action === 'INVALID_STATUS') {
+      throw new BadRequestException('این دستور تولید در حال انجام یا در انتظار کنترل کیفیت نیست');
+    }
+    if (outcome.action === 'STILL_AWAITING_QC') {
+      throw new BadRequestException(
+        'برای تکمیل این دستور تولید، ابتدا باید یک نمونه از محصول نهایی با نتیجه‌ی «قبول» در ماژول کنترل کیفیت ثبت شود',
+      );
+    }
+    if (outcome.action === 'AWAIT_QC') {
+      const quantityProduced = dto.quantityProduced ?? order.quantityPlanned;
+      return ctx.tenantDb.productionOrder.update({
+        where: { id },
+        data: { status: 'QC_PENDING', actualEndAt: new Date(), quantityProduced },
+        include: ORDER_INCLUDE,
       });
-      if (!passedSample) {
-        throw new BadRequestException(
-          'برای تکمیل این دستور تولید، ابتدا باید یک نمونه از محصول نهایی با نتیجه‌ی «قبول» در ماژول کنترل کیفیت ثبت شود',
-        );
-      }
-      qualityApprovedAt = new Date();
     }
 
-    const quantityProduced = dto.quantityProduced ?? order.quantityPlanned;
+    // FINALIZE — either no QC gate, or the gate already passed.
+    const quantityProduced = order.status === 'QC_PENDING' ? (order.quantityProduced ?? order.quantityPlanned) : (dto.quantityProduced ?? order.quantityPlanned);
     const userId = await resolveTenantUserId(ctx);
 
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.productionOrder.update({
         where: { id },
-        data: { status: 'COMPLETED', actualEndAt: new Date(), quantityProduced, qualityApprovedAt },
+        data: {
+          status: 'COMPLETED',
+          actualEndAt: order.actualEndAt ?? new Date(),
+          quantityProduced,
+          qualityApprovedAt: qcInstalled ? new Date() : undefined,
+        },
       }),
       ctx.tenantDb.stockMovement.create({
         data: {
@@ -249,6 +274,13 @@ export class ProductionOrdersController {
     return ctx.tenantDb.productionOrder.findUnique({ where: { id }, include: ORDER_INCLUDE });
   }
 
+  /**
+   * DRAFT has no raw-material stock committed yet, so stopping it there is a
+   * plain cancellation. Past that point materials were already deducted
+   * (approve-raw-materials) or the run may already be mid-progress, so
+   * stopping it means the batch is a loss — recorded as REJECTED, not
+   * reversed, since the material really was consumed.
+   */
   @Post(':id/reject')
   async reject(@Param('id') id: string, @Body() dto: RejectOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
@@ -259,7 +291,7 @@ export class ProductionOrdersController {
     }
     return ctx.tenantDb.productionOrder.update({
       where: { id },
-      data: { status: 'REJECTED', rawMaterialApprovalNotes: dto.reason },
+      data: { status: order.status === 'DRAFT' ? 'CANCELLED' : 'REJECTED', rawMaterialApprovalNotes: dto.reason },
       include: ORDER_INCLUDE,
     });
   }

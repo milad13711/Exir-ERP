@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatJalaliDate, formatNumber } from "@/lib/persian";
 import {
   fetchProductionOrder,
+  fetchSalesInvoice,
   approveRawMaterials,
   startProductionOrder,
   updateProductionStage,
@@ -11,9 +12,11 @@ import {
   rejectProductionOrder,
   ApiError,
   type ProductionOrder,
+  type SalesInvoice,
 } from "@/lib/api";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES, STAGE_STATUS_LABELS } from "./production-shared";
 import { QualityControlSection } from "./QualityControlSection";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
 
 const btnBase = "text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50";
@@ -34,11 +37,19 @@ export function ProductionOrderDetailModal({
   const [quantityProduced, setQuantityProduced] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
+  const [reportDrafts, setReportDrafts] = useState<Record<string, string>>({});
+  const [expandedStageDocs, setExpandedStageDocs] = useState<Record<string, boolean>>({});
+  const [relatedInvoice, setRelatedInvoice] = useState<SalesInvoice | null>(null);
 
   function reload() {
     fetchProductionOrder(orderId).then((o) => {
       setOrder(o);
       setQuantityProduced(String(o.quantityPlanned));
+      if (o.relatedInvoiceId) {
+        fetchSalesInvoice(o.relatedInvoiceId).then(setRelatedInvoice).catch(() => setRelatedInvoice(null));
+      } else {
+        setRelatedInvoice(null);
+      }
     });
   }
   useEffect(reload, [orderId]);
@@ -80,6 +91,12 @@ export function ProductionOrderDetailModal({
             {order.quantityProduced != null ? ` · مقدار واقعی: ${formatNumber(order.quantityProduced)}` : ""}
           </div>
         </div>
+
+        {relatedInvoice ? (
+          <div className="text-[12px] bg-primary/5 text-primary rounded-lg px-3 py-2">
+            تولید سفارشی برای فاکتور #{relatedInvoice.invoiceNo} — {relatedInvoice.contact.name}
+          </div>
+        ) : null}
 
         <div>
           <div className="text-[13px] font-bold mb-2">مواد اولیه لازم</div>
@@ -127,7 +144,33 @@ export function ProductionOrderDetailModal({
                       ))}
                     </select>
                   </div>
-                  {stage.report ? <p className="text-[11.5px] text-muted mt-1.5">{stage.report}</p> : null}
+                  <div className="mt-2 flex items-center gap-2">
+                    <textarea
+                      value={reportDrafts[stage.id] ?? stage.report ?? ""}
+                      onChange={(e) => setReportDrafts((prev) => ({ ...prev, [stage.id]: e.target.value }))}
+                      placeholder="گزارش / مستندات این مرحله..."
+                      rows={2}
+                      className="flex-1 text-[11.5px] bg-surface border border-border rounded-lg px-2.5 py-2 outline-none resize-none"
+                    />
+                    <button
+                      disabled={busy || (reportDrafts[stage.id] ?? stage.report ?? "") === (stage.report ?? "")}
+                      onClick={() => run(() => updateProductionStage(order.id, stage.id, { report: reportDrafts[stage.id] ?? "" }))}
+                      className="text-[11px] font-bold text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default self-start py-2"
+                    >
+                      ذخیره
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setExpandedStageDocs((prev) => ({ ...prev, [stage.id]: !prev[stage.id] }))}
+                    className="text-[11px] text-muted mt-1.5 cursor-pointer"
+                  >
+                    {expandedStageDocs[stage.id] ? "بستن مستندات پیوست‌شده" : "مستندات پیوست‌شده"}
+                  </button>
+                  {expandedStageDocs[stage.id] ? (
+                    <div className="mt-2">
+                      <AttachmentsSection entityType="production_order_stage" entityId={stage.id} />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -135,6 +178,11 @@ export function ProductionOrderDetailModal({
         ) : null}
 
         {installedModules.has("quality-control") ? <QualityControlSection productionOrderId={order.id} /> : null}
+
+        <div>
+          <div className="text-[13px] font-bold mb-2">مستندات دستور تولید</div>
+          <AttachmentsSection entityType="production_order" entityId={order.id} />
+        </div>
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 
@@ -167,9 +215,14 @@ export function ProductionOrderDetailModal({
                 onClick={() => run(() => completeProductionOrder(order.id, Number(quantityProduced)))}
                 className={`${btnBase} bg-success text-white`}
               >
-                تکمیل و افزودن به انبار
+                {installedModules.has("quality-control") ? "پایان تولید و ارسال به کنترل کیفیت" : "تکمیل و افزودن به انبار"}
               </button>
             </div>
+          ) : null}
+          {order.status === "QC_PENDING" ? (
+            <button disabled={busy} onClick={() => run(() => completeProductionOrder(order.id))} className={`${btnBase} bg-success text-white`}>
+              تکمیل نهایی و افزودن به انبار
+            </button>
           ) : null}
           {order.status !== "COMPLETED" && order.status !== "CANCELLED" && order.status !== "REJECTED" ? (
             showReject ? (
@@ -177,7 +230,7 @@ export function ProductionOrderDetailModal({
                 <input
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="دلیل رد"
+                  placeholder="دلیل"
                   className="w-40 text-[12.5px] bg-slate-50 border border-border rounded-xl px-3 py-2.5 outline-none"
                 />
                 <button
@@ -185,12 +238,12 @@ export function ProductionOrderDetailModal({
                   onClick={() => run(() => rejectProductionOrder(order.id, rejectReason.trim()))}
                   className={`${btnBase} bg-danger-soft text-danger`}
                 >
-                  ثبت رد
+                  {order.status === "DRAFT" ? "ثبت لغو" : "ثبت رد"}
                 </button>
               </div>
             ) : (
               <button disabled={busy} onClick={() => setShowReject(true)} className={`${btnBase} bg-danger-soft text-danger`}>
-                رد کردن دستور تولید
+                {order.status === "DRAFT" ? "لغو دستور تولید" : "رد کردن دستور تولید"}
               </button>
             )
           ) : null}
