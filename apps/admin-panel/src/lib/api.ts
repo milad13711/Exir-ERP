@@ -301,6 +301,7 @@ export type CatalogPlan = {
   code: string;
   name: string;
   priceMonthly: number;
+  priceYearly: number | null;
   userLimit: number;
   isPubliclySold: boolean;
 };
@@ -313,6 +314,7 @@ export function upsertCatalogPlan(data: {
   code: string;
   name: string;
   priceMonthly: number;
+  priceYearly?: number;
   userLimit: number;
   isPubliclySold?: boolean;
 }) {

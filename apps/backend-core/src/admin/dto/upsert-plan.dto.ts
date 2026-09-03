@@ -13,6 +13,11 @@ export class UpsertPlanDto {
   @Min(0)
   priceMonthly!: number;
 
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  priceYearly?: number;
+
   @IsInt()
   @Min(1)
   userLimit!: number;

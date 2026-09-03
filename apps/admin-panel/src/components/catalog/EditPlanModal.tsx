@@ -18,6 +18,7 @@ export function EditPlanModal({
   const [code, setCode] = useState(plan?.code ?? "");
   const [name, setName] = useState(plan?.name ?? "");
   const [priceMonthly, setPriceMonthly] = useState(String(plan?.priceMonthly ?? 0));
+  const [priceYearly, setPriceYearly] = useState(plan?.priceYearly != null ? String(plan.priceYearly) : "");
   const [userLimit, setUserLimit] = useState(String(plan?.userLimit ?? 5));
   const [isPubliclySold, setIsPubliclySold] = useState(plan?.isPubliclySold ?? true);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +33,7 @@ export function EditPlanModal({
         code: code.trim(),
         name: name.trim(),
         priceMonthly: Number(priceMonthly || 0),
+        priceYearly: priceYearly.trim() ? Number(priceYearly) : undefined,
         userLimit: Number(userLimit || 1),
         isPubliclySold,
       });
@@ -73,6 +75,17 @@ export function EditPlanModal({
               className={inputClass}
               dir="ltr"
               inputMode="numeric"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>قیمت سالانه (تومان، اختیاری)</label>
+            <input
+              value={priceYearly}
+              onChange={(e) => setPriceYearly(e.target.value.replace(/[^0-9]/g, ""))}
+              className={inputClass}
+              dir="ltr"
+              inputMode="numeric"
+              placeholder={`پیش‌فرض: ${(Number(priceMonthly || 0) * 12).toLocaleString("en-US")}`}
             />
           </div>
           <div>

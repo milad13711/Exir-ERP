@@ -51,14 +51,21 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/admin-panel/src/ "${HOST}:${REMOTE_DIR}/apps/admin-panel/src/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
+  apps/marketing-site/src/ "${HOST}:${REMOTE_DIR}/apps/marketing-site/src/"
+rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/web-panel/public/ "${HOST}:${REMOTE_DIR}/apps/web-panel/public/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/admin-panel/public/ "${HOST}:${REMOTE_DIR}/apps/admin-panel/public/"
+rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
+  apps/marketing-site/public/ "${HOST}:${REMOTE_DIR}/apps/marketing-site/public/"
+rsync -az apps/marketing-site/next.config.ts apps/marketing-site/tsconfig.json apps/marketing-site/next-env.d.ts \
+  apps/marketing-site/postcss.config.mjs apps/marketing-site/eslint.config.mjs apps/marketing-site/Dockerfile \
+  "${HOST}:${REMOTE_DIR}/apps/marketing-site/"
 # package.json/package-lock.json changes (a new/updated dependency) must
 # reach the server too, or the Docker build's `npm ci` layer stays cached
 # on the OLD dependency set — this bit us for real once (web-push silently
 # missing from a build despite typechecking clean locally).
-for app in backend-core web-panel admin-panel; do
+for app in backend-core web-panel admin-panel marketing-site; do
   rsync -az "apps/${app}/package.json" "apps/${app}/package-lock.json" "${HOST}:${REMOTE_DIR}/apps/${app}/"
 done
 rsync -az docker-compose.on-premise.yml "${HOST}:${REMOTE_DIR}/docker-compose.on-premise.yml"

@@ -200,6 +200,7 @@ model Plan {
   code          String   @unique
   name          String
   priceMonthly  Int // Toman
+  priceYearly   Int? // Toman — null means "no yearly discount configured yet", quote falls back to priceMonthly*12
   userLimit     Int
   isPubliclySold Boolean @default(true)
   createdAt     DateTime @default(now())
