@@ -59,13 +59,19 @@ export class ModulesCatalogController {
       );
     }
 
+    // A row already existing here means the tenant has installed this
+    // module before (even if they later switched it off) — re-activating
+    // is just flipping status back on, not a new purchase, so it must NOT
+    // invoice again. Only a genuinely first-time install charges.
+    const hadModuleBefore = installedByModuleId.has(module.id);
+
     const tenantModule = await this.controlDb.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: ctx.tenantId, moduleId: module.id } },
       create: { tenantId: ctx.tenantId, moduleId: module.id, status: 'INSTALLED' },
       update: { status: 'INSTALLED' },
     });
 
-    if (module.priceMonthly > 0) {
+    if (module.priceMonthly > 0 && !hadModuleBefore) {
       await this.controlDb.invoice.create({
         data: {
           tenantId: ctx.tenantId,

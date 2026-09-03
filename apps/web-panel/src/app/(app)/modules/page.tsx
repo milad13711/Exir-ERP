@@ -126,6 +126,9 @@ export default function ModuleStorePage() {
             const isPending = pendingCode === m.code;
             const prerequisites = m.dependsOn.map((code) => byCode.get(code)).filter((d): d is ModuleCatalogItem => !!d);
             const missingPrereqs = prerequisites.filter((d) => !isActive(d));
+            // DISABLED (not null) means the tenant installed this before and
+            // switched it off — reactivating is free, not a new purchase.
+            const isReactivation = m.installStatus === "DISABLED";
             return (
               <Card key={m.id} className="p-5 flex flex-col gap-3.5">
                 <div className="flex justify-between items-start">
@@ -181,7 +184,7 @@ export default function ModuleStorePage() {
                       >
                         {isPending ? "در حال غیرفعال‌سازی..." : "غیرفعال‌سازی"}
                       </button>
-                    ) : m.priceMonthly > 0 ? (
+                    ) : m.priceMonthly > 0 && !isReactivation ? (
                       <>
                         <span className="text-[13px] font-bold">
                           {formatToman(m.priceMonthly)}
@@ -195,6 +198,14 @@ export default function ModuleStorePage() {
                           {isPending ? "در حال نصب..." : "خرید و نصب"}
                         </button>
                       </>
+                    ) : isReactivation ? (
+                      <button
+                        onClick={() => handleInstall(m.code)}
+                        disabled={isPending || missingPrereqs.length > 0}
+                        className="w-full py-2.5 rounded-[10px] bg-primary text-white text-[12.5px] font-bold disabled:opacity-50"
+                      >
+                        {isPending ? "در حال فعال‌سازی..." : "فعال‌سازی مجدد (رایگان — قبلاً خریداری شده)"}
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleInstall(m.code)}

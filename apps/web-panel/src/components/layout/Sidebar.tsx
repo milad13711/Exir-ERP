@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { LogoMark, DocsIcon } from "@/components/icons";
-import { primaryNav, secondaryNav } from "./nav";
+import { primaryNav, secondaryNav, type NavItem } from "./nav";
+import { useWorkspace } from "@/lib/workspace-context";
 
 function NavLink({
   href,
@@ -36,8 +37,14 @@ function NavLink({
   );
 }
 
+function useVisibleNav(items: NavItem[]) {
+  const { installedModules } = useWorkspace();
+  return items.filter((item) => !item.moduleCode || installedModules.has(item.moduleCode));
+}
+
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const visiblePrimaryNav = useVisibleNav(primaryNav);
 
   return (
     <div className="flex flex-col h-full p-3.5">
@@ -49,7 +56,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex flex-col gap-0.5">
-        {primaryNav.map((item) => (
+        {visiblePrimaryNav.map((item) => (
           <NavLink
             key={item.href}
             href={item.href}

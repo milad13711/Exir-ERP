@@ -345,7 +345,6 @@ export type DashboardSummary = {
       amount: number;
       dueDate: string;
       contact: { name: string; company: string | null } | null;
-      supplier: { name: string; company: string | null } | null;
     }>;
   };
   lowStockCount: number;
@@ -1781,21 +1780,36 @@ export async function uploadBackupImport(file: File): Promise<{ success: boolean
  * opens/downloads it reliably everywhere.
  */
 async function fetchAndOpenPdf(path: string): Promise<void> {
-  const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  // Mobile browsers only allow window.open()/target="_blank" as a direct,
+  // synchronous result of the click — opening it AFTER an awaited fetch()
+  // (even a fast one) is no longer considered gesture-triggered and gets
+  // silently popup-blocked, unlike on most desktop browsers. So we open a
+  // blank tab synchronously first, on the click itself, then point it at
+  // the PDF once it's fetched (needs a Bearer header a plain nav can't send).
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.document.title = "در حال بارگذاری...";
+  }
+  try {
+    const token = getToken();
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError("دریافت فایل PDF ناموفق بود", res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if (tab && !tab.closed) {
+      tab.location.href = url;
+    } else {
+      // Popup was blocked or the tab never opened (older WebViews) — fall
+      // back to a same-tab navigation, which mobile browsers render inline.
+      window.location.href = url;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
 }
 
 export function openSalesInvoicePdf(id: string): Promise<void> {

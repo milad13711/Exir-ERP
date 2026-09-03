@@ -120,7 +120,7 @@ export function NewEntryModal({
                   <select
                     value={line.side}
                     onChange={(e) => updateLine(i, { side: e.target.value as LineDraft["side"] })}
-                    className="flex-1 text-[12px] bg-surface border border-border rounded-lg px-2 py-2 outline-none"
+                    className="flex-1 text-[12px] bg-surface border border-border rounded-lg px-2 py-2 outline-none min-w-0"
                   >
                     <option value="debit">بدهکار</option>
                     <option value="credit">بستانکار</option>

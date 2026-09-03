@@ -219,7 +219,7 @@ export default function DashboardPage() {
           ) : (
             <div className="flex flex-col">
               {summary.checksDueSoon.items.map((c, i) => {
-                const party = c.direction === "RECEIVED" ? c.contact : c.supplier;
+                const party = c.contact;
                 return (
                   <div
                     key={c.id}

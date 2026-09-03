@@ -17,17 +17,19 @@ export type NavItem = {
   href: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Module code gating this page — omitted for pages with no module (or core, always-on) requirement. */
+  moduleCode?: string;
 };
 
 export const primaryNav: NavItem[] = [
   { href: "/dashboard", label: "داشبورد", icon: DashboardIcon },
-  { href: "/crm", label: "مشتریان (CRM)", icon: CrmIcon },
-  { href: "/sales", label: "فروش و فاکتور", icon: ReceiptIcon },
-  { href: "/purchasing", label: "خرید و تأمین‌کننده", icon: OrdersIcon },
-  { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon },
-  { href: "/accounting", label: "حسابداری", icon: AccountingIcon },
-  { href: "/checks", label: "چک‌ها", icon: BillingIcon },
-  { href: "/hr", label: "منابع انسانی", icon: HrIcon },
+  { href: "/crm", label: "مشتریان (CRM)", icon: CrmIcon, moduleCode: "crm" },
+  { href: "/sales", label: "فروش و فاکتور", icon: ReceiptIcon, moduleCode: "sales" },
+  { href: "/purchasing", label: "خرید و تأمین‌کننده", icon: OrdersIcon, moduleCode: "purchasing" },
+  { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon, moduleCode: "warehouse" },
+  { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting" },
+  { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks" },
+  { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon },
 ];
 

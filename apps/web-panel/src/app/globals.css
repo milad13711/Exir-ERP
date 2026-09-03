@@ -50,6 +50,16 @@
   --font-sans: "Vazirmatn Variable", Tahoma, "Segoe UI", sans-serif;
 }
 
+html,
+body {
+  /* Some form controls (native <select>, certain mobile keyboards) can
+     render a hair wider than their box on real devices even when every
+     flex child has min-w-0/shrink — without this, that sliver of overflow
+     makes the ENTIRE page horizontally scrollable to reach it instead of
+     just clipping, which is what made buttons feel "off-screen" on phones. */
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -113,7 +113,6 @@ export class DashboardService {
         select: {
           id: true, direction: true, sayadId: true, amount: true, dueDate: true,
           contact: { select: { name: true, company: true } },
-          supplier: { select: { name: true, company: true } },
         },
         orderBy: { dueDate: 'asc' },
         take: 5,

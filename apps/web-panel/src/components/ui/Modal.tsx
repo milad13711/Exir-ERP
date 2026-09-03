@@ -13,9 +13,9 @@ export function Modal({
   width?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-ink/40 p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-ink/40 p-4 overflow-y-auto overflow-x-hidden">
       <div
-        className={`bg-surface rounded-2xl border border-border w-full ${width} my-8 shadow-xl`}
+        className={`bg-surface rounded-2xl border border-border w-full ${width} my-8 shadow-xl overflow-x-hidden`}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-[15px] font-extrabold">{title}</h2>
