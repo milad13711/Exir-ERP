@@ -166,6 +166,16 @@ async function main() {
       version: '1.0.0',
       dependsOn: ['warehouse'],
     },
+    {
+      code: 'quality-control',
+      name: 'کنترل کیفیت',
+      description: 'نمونه‌برداری تصادفی از مراحل تولید یا محصول نهایی، ثبت نتیجه‌ی آزمون در برابر بازه‌ی قابل‌قبول، و اعلان خودکار به مدیریت هنگام رد شدن نمونه.',
+      category: 'تولید',
+      priceMonthly: 190000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['production'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });

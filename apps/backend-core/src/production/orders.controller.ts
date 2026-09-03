@@ -6,6 +6,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { currentStock } from '../warehouse/stock.js';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto.js';
 import { ApproveRawMaterialDto } from './dto/approve-raw-material.dto.js';
@@ -24,7 +25,10 @@ const ORDER_INCLUDE = {
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('production')
 export class ProductionOrdersController {
-  constructor(private readonly permissions: PermissionsService) {}
+  constructor(
+    private readonly permissions: PermissionsService,
+    private readonly controlDb: ControlPrismaService,
+  ) {}
 
   @Get()
   async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
@@ -203,13 +207,32 @@ export class ProductionOrdersController {
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
     if (order.status !== 'IN_PROGRESS') throw new BadRequestException('این دستور تولید در حال انجام نیست');
 
+    // اگر ماژول کنترل کیفیت فعال است، تکمیل بدون یک نمونه‌ی «قبول» از
+    // محصول نهایی مسدود می‌شود — همان گیت کیفیتی که در طراحی توافق شد،
+    // بدون وابستگی سخت این ماژول به کد کنترل کیفیت (فقط بررسی وضعیت نصب).
+    const qcInstalled = await this.controlDb.tenantModule.findFirst({
+      where: { tenantId: ctx.tenantId, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'quality-control' } },
+    });
+    let qualityApprovedAt: Date | undefined;
+    if (qcInstalled) {
+      const passedSample = await ctx.tenantDb.qualitySample.findFirst({
+        where: { productionOrderId: id, source: 'FINAL_PRODUCT', verdict: 'PASS' },
+      });
+      if (!passedSample) {
+        throw new BadRequestException(
+          'برای تکمیل این دستور تولید، ابتدا باید یک نمونه از محصول نهایی با نتیجه‌ی «قبول» در ماژول کنترل کیفیت ثبت شود',
+        );
+      }
+      qualityApprovedAt = new Date();
+    }
+
     const quantityProduced = dto.quantityProduced ?? order.quantityPlanned;
     const userId = await resolveTenantUserId(ctx);
 
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.productionOrder.update({
         where: { id },
-        data: { status: 'COMPLETED', actualEndAt: new Date(), quantityProduced },
+        data: { status: 'COMPLETED', actualEndAt: new Date(), quantityProduced, qualityApprovedAt },
       }),
       ctx.tenantDb.stockMovement.create({
         data: {

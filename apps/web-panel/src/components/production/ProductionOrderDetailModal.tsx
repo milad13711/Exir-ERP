@@ -13,6 +13,8 @@ import {
   type ProductionOrder,
 } from "@/lib/api";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES, STAGE_STATUS_LABELS } from "./production-shared";
+import { QualityControlSection } from "./QualityControlSection";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const btnBase = "text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50";
 
@@ -25,6 +27,7 @@ export function ProductionOrderDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { installedModules } = useWorkspace();
   const [order, setOrder] = useState<ProductionOrder | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +133,8 @@ export function ProductionOrderDetailModal({
             </div>
           </div>
         ) : null}
+
+        {installedModules.has("quality-control") ? <QualityControlSection productionOrderId={order.id} /> : null}
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 

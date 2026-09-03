@@ -1390,6 +1390,60 @@ export function rejectProductionOrder(id: string, reason: string) {
   });
 }
 
+// ── کنترل کیفیت (Quality Control) ───────────────────────────────────────
+
+export type QualityTestType = {
+  id: string;
+  name: string;
+  unit: string;
+  acceptableMin: string | null;
+  acceptableMax: string | null;
+  description: string | null;
+};
+
+export function fetchTestTypes() {
+  return apiFetch<QualityTestType[]>("/quality-control/test-types");
+}
+
+export function createTestType(data: { name: string; unit: string; acceptableMin?: number; acceptableMax?: number; description?: string }) {
+  return apiFetch<QualityTestType>("/quality-control/test-types", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type QualityVerdict = "PENDING" | "PASS" | "FAIL";
+
+export type QualitySampleResult = {
+  id: string;
+  measuredValue: string;
+  verdict: QualityVerdict;
+  testedAt: string;
+  testType: QualityTestType;
+  testedBy: { id: string; name: string } | null;
+};
+
+export type QualitySample = {
+  id: string;
+  productionOrderId: string;
+  source: "IN_PROCESS" | "FINAL_PRODUCT";
+  sampledAt: string;
+  note: string | null;
+  verdict: QualityVerdict;
+  sampledBy: { id: string; name: string } | null;
+  productionOrderStage: { workCenter: { name: string } } | null;
+  results: QualitySampleResult[];
+};
+
+export function fetchSamples(productionOrderId: string) {
+  return apiFetch<QualitySample[]>(`/quality-control/samples?productionOrderId=${productionOrderId}`);
+}
+
+export function createSample(data: { productionOrderId: string; productionOrderStageId?: string; source: "IN_PROCESS" | "FINAL_PRODUCT"; note?: string }) {
+  return apiFetch<QualitySample>("/quality-control/samples", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function addSampleResult(sampleId: string, data: { testTypeId: string; measuredValue: number }) {
+  return apiFetch<QualitySample>(`/quality-control/samples/${sampleId}/results`, { method: "POST", body: JSON.stringify(data) });
+}
+
 // ── HR ───────────────────────────────────────────────────────────────────
 
 export type EmploymentStatus = "ACTIVE" | "TERMINATED";

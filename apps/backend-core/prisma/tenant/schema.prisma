@@ -59,6 +59,8 @@ model User {
   createdProductionOrders ProductionOrder[] @relation("ProductionOrderCreatedBy")
   rawMaterialApprovals   ProductionOrder[] @relation("ProductionOrderRawApprover")
   assignedProductionStages ProductionOrderStage[]
+  qualitySamplesTaken      QualitySample[]        @relation("QualitySampleSampledBy")
+  qualitySampleResultsTested QualitySampleResult[] @relation("QualitySampleResultTestedBy")
 
   @@map("users")
 }
@@ -1358,6 +1360,7 @@ model ProductionOrder {
   rawMaterialApprovedBy User?                  @relation("ProductionOrderRawApprover", fields: [rawMaterialApprovedByUserId], references: [id], onDelete: SetNull)
   createdBy           User?                   @relation("ProductionOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   stages              ProductionOrderStage[]
+  qualitySamples      QualitySample[]
 
   @@index([status])
   @@index([bomId])
@@ -1397,7 +1400,79 @@ model ProductionOrderStage {
   productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
   workCenter      WorkCenter      @relation(fields: [workCenterId], references: [id])
   assignedUser    User?           @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  qualitySamples  QualitySample[]
 
   @@index([productionOrderId])
   @@map("production_order_stages")
+}
+
+// ── ماژول کنترل کیفیت (quality-control) — وابسته به production ──────────
+// نمونه‌برداری تصادفی از میانه‌ی تولید یا محصول نهایی → نتیجه‌ی هر آزمون
+// در برابر بازه‌ی قابل‌قبول تعریف‌شده برای آن آزمون سنجیده و قبول/رد
+// خودکار محاسبه می‌شود؛ رد شدن هر نتیجه بلافاصله یک وظیفه برای پیگیری
+// می‌سازد و به سازنده‌ی دستور تولید اعلان می‌فرستد.
+
+model QualityTestType {
+  id            String   @id @default(uuid())
+  name          String
+  unit          String
+  // هر دو خالی یعنی آزمون فقط اطلاعاتی است، بدون بازه‌ی قبول/رد خودکار.
+  acceptableMin Decimal? @db.Decimal(10, 3)
+  acceptableMax Decimal? @db.Decimal(10, 3)
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  results QualitySampleResult[]
+
+  @@map("quality_test_types")
+}
+
+enum QualitySampleSource {
+  IN_PROCESS
+  FINAL_PRODUCT
+}
+
+enum QualityVerdict {
+  PENDING
+  PASS
+  FAIL
+}
+
+model QualitySample {
+  id                     String              @id @default(uuid())
+  productionOrderId      String
+  productionOrderStageId String?
+  source                 QualitySampleSource
+  sampledByUserId        String?
+  sampledAt              DateTime            @default(now())
+  note                   String?
+  verdict                QualityVerdict      @default(PENDING)
+  createdAt              DateTime            @default(now())
+
+  productionOrder      ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  productionOrderStage ProductionOrderStage? @relation(fields: [productionOrderStageId], references: [id], onDelete: SetNull)
+  sampledBy            User?                 @relation("QualitySampleSampledBy", fields: [sampledByUserId], references: [id], onDelete: SetNull)
+  results              QualitySampleResult[]
+
+  @@index([productionOrderId])
+  @@map("quality_samples")
+}
+
+model QualitySampleResult {
+  id             String         @id @default(uuid())
+  sampleId       String
+  testTypeId     String
+  measuredValue  Decimal        @db.Decimal(10, 3)
+  verdict        QualityVerdict
+  testedByUserId String?
+  testedAt       DateTime       @default(now())
+  notes          String?
+
+  sample   QualitySample   @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  testType QualityTestType @relation(fields: [testTypeId], references: [id])
+  testedBy User?           @relation("QualitySampleResultTestedBy", fields: [testedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([sampleId])
+  @@map("quality_sample_results")
 }
