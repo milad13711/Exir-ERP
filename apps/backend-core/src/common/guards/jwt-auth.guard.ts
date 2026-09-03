@@ -47,6 +47,11 @@ export class JwtAuthGuard implements CanActivate {
     if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
       throw new UnauthorizedException('دسترسی به این محیط کاری غیرفعال شده است');
     }
+    if (tenant.status === 'PENDING_PAYMENT') {
+      throw new UnauthorizedException(
+        'برای فعال‌سازی این محیط کاری، ابتدا فاکتور صادرشده باید پرداخت شود. با پشتیبانی اکسیر تماس بگیرید.',
+      );
+    }
 
     const tenantDb = this.tenantPrisma.forTenant({
       dbHost: tenant.dbHost,

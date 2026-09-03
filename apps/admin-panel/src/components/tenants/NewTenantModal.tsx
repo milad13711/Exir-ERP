@@ -152,9 +152,14 @@ export function NewTenantModal({
                 ))}
               </select>
               {industryTemplateCode ? (
-                <p className="text-[11px] text-muted mt-1.5">
-                  {templates.find((t) => t.code === industryTemplateCode)?.description}
-                </p>
+                <>
+                  <p className="text-[11px] text-muted mt-1.5">
+                    {templates.find((t) => t.code === industryTemplateCode)?.description}
+                  </p>
+                  <p className="text-[11px] text-warning mt-1 font-semibold">
+                    با انتخاب قالب صنف، بلافاصله فاکتور صادر می‌شود و تننت تا پرداخت آن قابل ورود نخواهد بود.
+                  </p>
+                </>
               ) : null}
             </div>
           ) : null}

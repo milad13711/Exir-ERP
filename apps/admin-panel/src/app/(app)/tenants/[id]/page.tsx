@@ -24,6 +24,7 @@ import { RenewTenantModal } from "@/components/tenants/RenewTenantModal";
 import { DeleteTenantModal } from "@/components/tenants/DeleteTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
 import { IssueInvoiceModal } from "@/components/tenants/IssueInvoiceModal";
+import { SaveAsTemplateModal } from "@/components/tenants/SaveAsTemplateModal";
 
 const INVOICE_STATUS_LABELS: Record<TenantInvoice["status"], string> = {
   PENDING: "در انتظار پرداخت",
@@ -39,6 +40,7 @@ const INVOICE_STATUS_TONES: Record<TenantInvoice["status"], "success" | "warning
 
 const STATUS_LABELS: Record<AdminTenant["status"], string> = {
   PENDING_PROVISION: "در حال راه‌اندازی",
+  PENDING_PAYMENT: "در انتظار پرداخت فاکتور",
   ACTIVE: "فعال",
   SUSPENDED: "معلق",
   CANCELLED: "لغوشده",
@@ -46,6 +48,7 @@ const STATUS_LABELS: Record<AdminTenant["status"], string> = {
 
 const STATUS_TONES: Record<AdminTenant["status"], "success" | "warning" | "danger" | "neutral"> = {
   PENDING_PROVISION: "warning",
+  PENDING_PAYMENT: "warning",
   ACTIVE: "success",
   SUSPENDED: "danger",
   CANCELLED: "neutral",
@@ -73,6 +76,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
 
@@ -146,6 +150,13 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             className="text-[12.5px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-xl cursor-pointer"
           >
             تمدید اشتراک
+          </button>
+          <button
+            onClick={() => setSaveTemplateOpen(true)}
+            className="text-[12.5px] font-bold text-ink-soft bg-slate-100 px-3.5 py-2 rounded-xl cursor-pointer"
+            title="ساخت قالب صنف جدید از تنظیمات این تننت"
+          >
+            ذخیره به‌عنوان قالب صنف
           </button>
           {tenant.status === "ACTIVE" ? (
             <button
@@ -301,6 +312,15 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           suggestedAmount={subscription?.plan.priceMonthly}
           onClose={() => setInvoiceOpen(false)}
           onIssued={reload}
+        />
+      ) : null}
+
+      {saveTemplateOpen ? (
+        <SaveAsTemplateModal
+          tenantId={id}
+          tenantName={tenant.name}
+          onClose={() => setSaveTemplateOpen(false)}
+          onSaved={() => {}}
         />
       ) : null}
 

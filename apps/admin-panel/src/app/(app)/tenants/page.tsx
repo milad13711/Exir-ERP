@@ -12,6 +12,7 @@ import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
 
 const STATUS_LABELS: Record<AdminTenant["status"], string> = {
   PENDING_PROVISION: "در حال راه‌اندازی",
+  PENDING_PAYMENT: "در انتظار پرداخت فاکتور",
   ACTIVE: "فعال",
   SUSPENDED: "معلق",
   CANCELLED: "لغوشده",
@@ -19,6 +20,7 @@ const STATUS_LABELS: Record<AdminTenant["status"], string> = {
 
 const STATUS_TONES: Record<AdminTenant["status"], "success" | "warning" | "danger" | "neutral"> = {
   PENDING_PROVISION: "warning",
+  PENDING_PAYMENT: "warning",
   ACTIVE: "success",
   SUSPENDED: "danger",
   CANCELLED: "neutral",

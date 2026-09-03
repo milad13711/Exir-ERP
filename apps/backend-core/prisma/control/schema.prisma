@@ -55,6 +55,7 @@ model OtpCode {
 
 enum TenantStatus {
   PENDING_PROVISION
+  PENDING_PAYMENT // provisioned (DB/modules/owner all set up) but blocked until the setup invoice is paid
   ACTIVE
   SUSPENDED
   CANCELLED

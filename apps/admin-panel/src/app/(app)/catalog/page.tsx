@@ -6,18 +6,31 @@ import { Badge } from "@/components/ui/Badge";
 import { PlusIcon } from "@/components/icons";
 import { formatToman } from "@/lib/persian";
 import { toPersianDigits } from "@/lib/persian";
-import { fetchCatalogModules, fetchCatalogPlans, type CatalogModule, type CatalogPlan } from "@/lib/api";
+import {
+  fetchCatalogModules,
+  fetchCatalogPlans,
+  fetchIndustryTemplates,
+  fetchIndustryTemplate,
+  type CatalogModule,
+  type CatalogPlan,
+  type IndustryTemplate,
+  type IndustryTemplateDetail,
+} from "@/lib/api";
 import { EditModuleModal } from "@/components/catalog/EditModuleModal";
 import { EditPlanModal } from "@/components/catalog/EditPlanModal";
+import { EditIndustryTemplateModal } from "@/components/catalog/EditIndustryTemplateModal";
 
-type Tab = "modules" | "plans";
+type Tab = "modules" | "plans" | "industries";
 
 export default function CatalogPage() {
   const [tab, setTab] = useState<Tab>("modules");
   const [modules, setModules] = useState<CatalogModule[] | null>(null);
   const [plans, setPlans] = useState<CatalogPlan[] | null>(null);
+  const [templates, setTemplates] = useState<IndustryTemplate[] | null>(null);
   const [editModule, setEditModule] = useState<CatalogModule | null | "new">(null);
   const [editPlan, setEditPlan] = useState<CatalogPlan | null | "new">(null);
+  const [editTemplate, setEditTemplate] = useState<IndustryTemplateDetail | null | "new">(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
 
   function reloadModules() {
     fetchCatalogModules().then(setModules).catch(() => setModules([]));
@@ -25,10 +38,23 @@ export default function CatalogPage() {
   function reloadPlans() {
     fetchCatalogPlans().then(setPlans).catch(() => setPlans([]));
   }
+  function reloadTemplates() {
+    fetchIndustryTemplates().then(setTemplates).catch(() => setTemplates([]));
+  }
   useEffect(() => {
     reloadModules();
     reloadPlans();
+    reloadTemplates();
   }, []);
+
+  async function openTemplate(code: string) {
+    setTemplateLoading(true);
+    try {
+      setEditTemplate(await fetchIndustryTemplate(code));
+    } finally {
+      setTemplateLoading(false);
+    }
+  }
 
   return (
     <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
@@ -38,11 +64,15 @@ export default function CatalogPage() {
           <p className="text-[13.5px] text-muted mt-1">قیمت‌گذاری و امکانات هرچه اینجا تغییر کند، فوراً در پنل تننت‌ها اثر می‌گذارد</p>
         </div>
         <button
-          onClick={() => (tab === "modules" ? setEditModule("new") : setEditPlan("new"))}
+          onClick={() => {
+            if (tab === "modules") setEditModule("new");
+            else if (tab === "plans") setEditPlan("new");
+            else setEditTemplate("new");
+          }}
           className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
-          {tab === "modules" ? "ماژول جدید" : "پلن جدید"}
+          {tab === "modules" ? "ماژول جدید" : tab === "plans" ? "پلن جدید" : "قالب صنف جدید"}
         </button>
       </div>
 
@@ -51,6 +81,7 @@ export default function CatalogPage() {
           [
             ["modules", "ماژول‌ها"],
             ["plans", "پلن‌ها"],
+            ["industries", "قالب‌های صنفی"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button
@@ -102,7 +133,7 @@ export default function CatalogPage() {
             ))
           )}
         </Card>
-      ) : (
+      ) : tab === "plans" ? (
         <Card className="mt-5 p-2">
           {plans === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
@@ -127,6 +158,33 @@ export default function CatalogPage() {
             ))
           )}
         </Card>
+      ) : (
+        <Card className="mt-5 p-2">
+          {templates === null ? (
+            <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          ) : templates.length === 0 ? (
+            <div className="p-8 text-center text-muted text-sm">هنوز قالب صنفی ساخته نشده است</div>
+          ) : (
+            templates.map((t, i) => (
+              <button
+                key={t.id}
+                onClick={() => openTemplate(t.code)}
+                disabled={templateLoading}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors disabled:opacity-50 ${
+                  i < templates.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold">{t.name}</div>
+                  <div className="text-[11.5px] text-muted mt-1">{t.description}</div>
+                </div>
+                <span className="text-[11px] text-muted font-mono" dir="ltr">
+                  {t.code}
+                </span>
+              </button>
+            ))
+          )}
+        </Card>
       )}
 
       {editModule ? (
@@ -140,6 +198,15 @@ export default function CatalogPage() {
 
       {editPlan ? (
         <EditPlanModal plan={editPlan === "new" ? null : editPlan} onClose={() => setEditPlan(null)} onSaved={reloadPlans} />
+      ) : null}
+
+      {editTemplate ? (
+        <EditIndustryTemplateModal
+          template={editTemplate === "new" ? null : editTemplate}
+          allModules={modules ?? []}
+          onClose={() => setEditTemplate(null)}
+          onSaved={reloadTemplates}
+        />
       ) : null}
     </div>
   );

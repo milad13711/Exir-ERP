@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { AdminTeamsGuard } from '../common/guards/admin-teams.guard.js';
 import { AdminTeams } from '../common/decorators/admin-teams.decorator.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { UpsertModuleDto } from './dto/upsert-module.dto.js';
 import { UpsertPlanDto } from './dto/upsert-plan.dto.js';
+import { UpsertIndustryTemplateDto } from './dto/upsert-industry-template.dto.js';
+import { SaveIndustryTemplateFromTenantDto } from './dto/save-industry-template-from-tenant.dto.js';
 
 /**
  * Pricing and feature-list editing for what tenants see in the module store
@@ -15,7 +18,10 @@ import { UpsertPlanDto } from './dto/upsert-plan.dto.js';
 @Controller('admin/catalog')
 @UseGuards(AdminJwtAuthGuard, AdminTeamsGuard)
 export class AdminCatalogController {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+  ) {}
 
   @Get('modules')
   @AdminTeams('SUPER_ADMIN', 'BILLING', 'SUPPORT', 'ENGINEERING')
@@ -52,17 +58,123 @@ export class AdminCatalogController {
     });
   }
 
-  /**
-   * Read-only for now — authoring/editing industry templates from the admin
-   * panel is out of scope (they're seeded via prisma/control/seed.ts).
-   * Exists so tenant creation can offer a template picker.
-   */
+  /** Slim shape for the tenant-creation picker. Full detail is GET :code. */
   @Get('industry-templates')
   @AdminTeams('SUPER_ADMIN', 'BILLING', 'SUPPORT', 'ENGINEERING')
   listIndustryTemplates() {
     return this.controlDb.industryTemplate.findMany({
       select: { id: true, code: true, name: true, description: true },
       orderBy: { name: 'asc' },
+    });
+  }
+
+  @Get('industry-templates/:code')
+  @AdminTeams('SUPER_ADMIN', 'BILLING', 'SUPPORT', 'ENGINEERING')
+  async getIndustryTemplate(@Param('code') code: string) {
+    const template = await this.controlDb.industryTemplate.findUnique({ where: { code } });
+    if (!template) throw new NotFoundException('قالب صنف یافت نشد');
+    return template;
+  }
+
+  @Post('industry-templates')
+  @AdminTeams('SUPER_ADMIN', 'ENGINEERING')
+  upsertIndustryTemplate(@Body() dto: UpsertIndustryTemplateDto) {
+    return this.controlDb.industryTemplate.upsert({
+      where: { code: dto.code },
+      create: {
+        code: dto.code,
+        name: dto.name,
+        description: dto.description,
+        roles: dto.roles as object[],
+        chartOfAccounts: dto.chartOfAccounts as object[],
+        productCategories: dto.productCategories,
+        orgChart: dto.orgChart as object[],
+        suggestedThemeColor: dto.suggestedThemeColor,
+        defaultModules: dto.defaultModules ?? [],
+      },
+      update: {
+        name: dto.name,
+        description: dto.description,
+        roles: dto.roles as object[],
+        chartOfAccounts: dto.chartOfAccounts as object[],
+        productCategories: dto.productCategories,
+        orgChart: dto.orgChart as object[],
+        suggestedThemeColor: dto.suggestedThemeColor,
+        defaultModules: dto.defaultModules ?? [],
+      },
+    });
+  }
+
+  /**
+   * Bootstraps a new industry template from an already-configured tenant,
+   * instead of hand-writing roles/chart-of-accounts JSON from scratch: the
+   * tenant's own custom (non-system) roles, non-system chart-of-accounts
+   * rows, distinct product categories, theme color, and currently active
+   * modules become the template's defaults. orgChart has no live equivalent
+   * in the tenant DB (it's descriptive-only), so it starts empty — edit it
+   * by hand afterwards via the update endpoint above.
+   */
+  @Post('industry-templates/from-tenant/:tenantId')
+  @AdminTeams('SUPER_ADMIN', 'ENGINEERING')
+  async saveIndustryTemplateFromTenant(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: SaveIndustryTemplateFromTenantDto,
+  ) {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('تننت یافت نشد');
+
+    const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+
+    const [roles, accounts, products, activeModules] = await Promise.all([
+      tenantDb.role.findMany({
+        where: { isSystem: false },
+        include: { permissions: { include: { permission: true } }, modulePermissions: true },
+      }),
+      tenantDb.account.findMany({
+        where: { isSystem: false },
+        select: { code: true, name: true, type: true, isCashAccount: true },
+        orderBy: { code: 'asc' },
+      }),
+      tenantDb.product.findMany({ select: { category: true }, distinct: ['category'] }),
+      this.controlDb.tenantModule.findMany({
+        where: { tenantId, status: { in: ['INSTALLED', 'TRIAL'] } },
+        include: { module: true },
+      }),
+    ]);
+
+    const rolesJson = roles.map((r) => ({
+      name: r.name,
+      permissionCodes: r.permissions.map((rp) => rp.permission.code),
+      modulePermissions: Object.fromEntries(
+        r.modulePermissions.map((mp) => [
+          mp.moduleCode,
+          { canViewAll: mp.canViewAll, canViewOwn: mp.canViewOwn, canCreate: mp.canCreate, canEdit: mp.canEdit, canDelete: mp.canDelete },
+        ]),
+      ),
+    }));
+
+    return this.controlDb.industryTemplate.upsert({
+      where: { code: dto.code },
+      create: {
+        code: dto.code,
+        name: dto.name,
+        description: dto.description,
+        roles: rolesJson,
+        chartOfAccounts: accounts,
+        productCategories: products.map((p) => p.category).filter((c): c is string => !!c),
+        orgChart: [],
+        suggestedThemeColor: tenant.themeColor ?? undefined,
+        defaultModules: activeModules.map((m) => m.module.code),
+      },
+      update: {
+        name: dto.name,
+        description: dto.description,
+        roles: rolesJson,
+        chartOfAccounts: accounts,
+        productCategories: products.map((p) => p.category).filter((c): c is string => !!c),
+        suggestedThemeColor: tenant.themeColor ?? undefined,
+        defaultModules: activeModules.map((m) => m.module.code),
+      },
     });
   }
 

@@ -102,6 +102,11 @@ export class AuthService {
     });
 
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
+    if (tenant?.status === 'PENDING_PAYMENT') {
+      throw new UnauthorizedException(
+        'برای فعال‌سازی این محیط کاری، ابتدا فاکتور صادرشده باید پرداخت شود. با پشتیبانی اکسیر تماس بگیرید.',
+      );
+    }
     if (!tenant || tenant.status !== 'ACTIVE') {
       throw new NotFoundException('این محیط کاری یافت نشد یا فعال نیست');
     }

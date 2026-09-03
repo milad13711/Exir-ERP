@@ -130,9 +130,29 @@ export class TenantsService {
         },
       });
 
+      // Picking an industry template means this is a real business signing
+      // up, not an internal/test tenant — it must pay for its plan before
+      // it can log in. The tenant DB is still fully provisioned either way;
+      // only `status` gates access (see JwtAuthGuard), and markInvoicePaid
+      // flips it to ACTIVE once the invoice below is settled.
+      const requiresPayment = !!industryTemplate && plan.priceMonthly > 0;
+      if (requiresPayment) {
+        await this.controlDb.invoice.create({
+          data: {
+            tenantId: tenant.id,
+            amount: plan.priceMonthly,
+            status: 'PENDING',
+            dueAt: now,
+          },
+        });
+      }
+
       const activated = await this.controlDb.tenant.update({
         where: { id: tenant.id },
-        data: { status: 'ACTIVE', provisionedAt: new Date() },
+        data: {
+          status: requiresPayment ? 'PENDING_PAYMENT' : 'ACTIVE',
+          provisionedAt: new Date(),
+        },
       });
 
       await this.controlDb.auditLog.create({
@@ -405,6 +425,9 @@ export class TenantsService {
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
     if (invoice.status === 'PAID') return invoice;
 
+    const tenant = await this.controlDb.tenant.findUnique({ where: { id: invoice.tenantId } });
+    const shouldActivate = tenant?.status === 'PENDING_PAYMENT';
+
     const [updated] = await this.controlDb.$transaction([
       this.controlDb.invoice.update({
         where: { id: invoiceId },
@@ -421,6 +444,9 @@ export class TenantsService {
           metadata: { amount: invoice.amount },
         },
       }),
+      ...(shouldActivate
+        ? [this.controlDb.tenant.update({ where: { id: invoice.tenantId }, data: { status: 'ACTIVE' } })]
+        : []),
     ]);
     return updated;
   }

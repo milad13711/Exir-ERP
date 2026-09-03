@@ -68,7 +68,7 @@ export type AdminTenant = {
   id: string;
   slug: string;
   name: string;
-  status: "PENDING_PROVISION" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
+  status: "PENDING_PROVISION" | "PENDING_PAYMENT" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
   deploymentType: "SHARED_CLOUD" | "DEDICATED_ON_PREMISE";
   dbName: string;
   dbHost: string;
@@ -110,8 +110,49 @@ export type IndustryTemplate = {
   description: string;
 };
 
+export type IndustryTemplateDetail = IndustryTemplate & {
+  roles: Array<{ name: string; permissionCodes: string[]; modulePermissions: Record<string, unknown> }>;
+  chartOfAccounts: Array<{ code: string; name: string; type: string; isCashAccount?: boolean }>;
+  productCategories: string[];
+  orgChart: Array<{ position: string; reportsTo: string | null; department: string }>;
+  suggestedThemeColor: string | null;
+  defaultModules: string[];
+  createdAt: string;
+};
+
 export function fetchIndustryTemplates() {
   return apiFetch<IndustryTemplate[]>("/admin/catalog/industry-templates");
+}
+
+export function fetchIndustryTemplate(code: string) {
+  return apiFetch<IndustryTemplateDetail>(`/admin/catalog/industry-templates/${code}`);
+}
+
+export function upsertIndustryTemplate(data: {
+  code: string;
+  name: string;
+  description?: string;
+  roles: unknown[];
+  chartOfAccounts: unknown[];
+  productCategories: string[];
+  orgChart: unknown[];
+  suggestedThemeColor?: string;
+  defaultModules?: string[];
+}) {
+  return apiFetch<IndustryTemplateDetail>("/admin/catalog/industry-templates", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function saveIndustryTemplateFromTenant(
+  tenantId: string,
+  data: { code: string; name: string; description?: string },
+) {
+  return apiFetch<IndustryTemplateDetail>(`/admin/catalog/industry-templates/from-tenant/${tenantId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export function suspendTenant(id: string, reason: string) {
