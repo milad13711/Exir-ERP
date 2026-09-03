@@ -357,6 +357,16 @@ export type DashboardSummary = {
   }>;
   salesTrend: Array<{ label: string; value: number }>;
   productionTrend: Array<{ label: string; value: number; valueLastYear: number }>;
+  customerFollowUps: Array<{
+    contactId: string;
+    contactName: string;
+    productId: string;
+    productName: string;
+    avgIntervalDays: number;
+    lastPurchaseAt: string;
+    daysSinceLastPurchase: number;
+    daysOverdue: number;
+  }>;
 };
 
 export function fetchDashboardSummary() {

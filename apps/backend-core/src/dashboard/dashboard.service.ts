@@ -4,6 +4,7 @@ import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-acc
 import { accountBalance } from '../accounting/balance.js';
 import { currentStock } from '../warehouse/stock.js';
 import { computeProducibleOutputQty } from '../production/production-capacity.js';
+import { computeCustomerFollowUps } from '../crm/purchase-pattern.js';
 
 const JALALI_MONTHS = [
   'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
@@ -225,6 +226,37 @@ export class DashboardService {
       };
     });
 
+    // مشتریانی که موعد سفارش مجدد (طبق ریتم خرید خودشان، نه یک آستانه‌ی
+    // ثابت) گذشته — فقط از فاکتورهای واقعا صادرشده (نه پیش‌نویس) و حداکثر
+    // دو سال اخیر، تا الگوی قدیمی/متروک باعث یادآوری بی‌مورد نشود.
+    const twoYearsAgo = new Date(now.getTime() - 730 * 86_400_000);
+    const invoiceLines = await ctx.tenantDb.salesInvoiceLine.findMany({
+      where: {
+        productId: { not: null },
+        invoice: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] }, issuedAt: { gte: twoYearsAgo } },
+      },
+      select: {
+        productId: true,
+        invoice: { select: { issuedAt: true, contactId: true, contact: { select: { name: true, company: true } } } },
+      },
+    });
+    const purchaseLines = invoiceLines
+      .filter((l): l is typeof l & { productId: string } => !!l.productId)
+      .map((l) => ({
+        contactId: l.invoice.contactId,
+        contactName: l.invoice.contact.company || l.invoice.contact.name,
+        productId: l.productId,
+        productName: '',
+        issuedAt: l.invoice.issuedAt,
+      }));
+    const productIds = [...new Set(purchaseLines.map((l) => l.productId))];
+    const productNames = await ctx.tenantDb.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } });
+    const productNameById = new Map(productNames.map((p) => [p.id, p.name]));
+    const customerFollowUps = computeCustomerFollowUps(
+      purchaseLines.map((l) => ({ ...l, productName: productNameById.get(l.productId) ?? '' })),
+      now,
+    ).slice(0, 8);
+
     return {
       cashBalance,
       monthInvoiceCount: monthConfirmedInvoiceCount,
@@ -234,6 +266,7 @@ export class DashboardService {
       producibleCapacity,
       salesTrend,
       productionTrend,
+      customerFollowUps,
     };
   }
 }

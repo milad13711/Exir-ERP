@@ -246,6 +246,36 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {installedModules.has("sales") && summary && summary.customerFollowUps.length > 0 ? (
+        <Card className="p-5 mb-4">
+          <div className="text-[14.5px] font-bold mb-1">مشتریان با موعد پیگیری</div>
+          <p className="text-[11.5px] text-muted mb-3.5">
+            بر اساس ریتم خرید هر مشتری از هر کالا — نه یک بازه‌ی ثابت برای همه
+          </p>
+          <div className="flex flex-col">
+            {summary.customerFollowUps.map((f, i) => (
+              <div
+                key={`${f.contactId}-${f.productId}`}
+                className={clsx(
+                  "flex items-center justify-between py-2.5",
+                  i < summary.customerFollowUps.length - 1 && "border-b border-border",
+                )}
+              >
+                <div>
+                  <div className="text-[12.5px] font-bold">
+                    {f.contactName} <span className="text-muted font-normal">— {f.productName}</span>
+                  </div>
+                  <div className="text-[11px] text-muted mt-0.5">
+                    معمولاً هر {f.avgIntervalDays.toLocaleString("fa-IR")} روز — {f.daysSinceLastPurchase.toLocaleString("fa-IR")} روز از خرید قبلی گذشته
+                  </div>
+                </div>
+                <Badge tone="warning">{f.daysOverdue.toLocaleString("fa-IR")} روز موعد گذشته</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       {installedModules.has("production") && summary && summary.producibleCapacity.length > 0 ? (
         <div className="grid lg:grid-cols-2 gap-4 mb-4">
           <Card className="p-5">
