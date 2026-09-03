@@ -12,6 +12,7 @@ import {
   SettingsIcon,
   BillingIcon,
   FactoryIcon,
+  FlaskIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -29,6 +30,7 @@ export const primaryNav: NavItem[] = [
   { href: "/purchasing", label: "خرید و تأمین‌کننده", icon: OrdersIcon, moduleCode: "purchasing" },
   { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon, moduleCode: "warehouse" },
   { href: "/production", label: "تولید", icon: FactoryIcon, moduleCode: "production" },
+  { href: "/quality-control", label: "کنترل کیفیت", icon: FlaskIcon, moduleCode: "quality-control" },
   { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting" },
   { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },

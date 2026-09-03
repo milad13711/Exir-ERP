@@ -14,6 +14,7 @@ const SAMPLE_INCLUDE = {
   results: { include: { testType: true, testedBy: { select: { id: true, name: true } } } },
   sampledBy: { select: { id: true, name: true } },
   productionOrderStage: { include: { workCenter: true } },
+  productionOrder: { select: { orderNo: true, bom: { select: { outputProduct: { select: { name: true } } } } } },
 };
 
 @Controller('quality-control/samples')

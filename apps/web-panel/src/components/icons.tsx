@@ -97,6 +97,15 @@ export function FactoryIcon(props: IconProps) {
   );
 }
 
+export function FlaskIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 0 0 5.8 21h12.4a1.5 1.5 0 0 0 1.3-2.5L14 9V3" />
+      <path d="M7.5 15h9" />
+    </svg>
+  );
+}
+
 export function HrIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

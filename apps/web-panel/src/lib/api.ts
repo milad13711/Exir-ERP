@@ -1439,11 +1439,12 @@ export type QualitySample = {
   verdict: QualityVerdict;
   sampledBy: { id: string; name: string } | null;
   productionOrderStage: { workCenter: { name: string } } | null;
+  productionOrder: { orderNo: number; bom: { outputProduct: { name: string } } };
   results: QualitySampleResult[];
 };
 
-export function fetchSamples(productionOrderId: string) {
-  return apiFetch<QualitySample[]>(`/quality-control/samples?productionOrderId=${productionOrderId}`);
+export function fetchSamples(productionOrderId?: string) {
+  return apiFetch<QualitySample[]>(`/quality-control/samples${productionOrderId ? `?productionOrderId=${productionOrderId}` : ""}`);
 }
 
 export function createSample(data: { productionOrderId: string; productionOrderStageId?: string; source: "IN_PROCESS" | "FINAL_PRODUCT"; note?: string }) {
