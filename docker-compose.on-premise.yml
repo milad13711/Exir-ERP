@@ -33,6 +33,7 @@ services:
       dockerfile: apps/backend-core/Dockerfile
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
     restart: unless-stopped
     depends_on:
       postgres:
