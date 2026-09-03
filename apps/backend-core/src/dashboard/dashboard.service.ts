@@ -3,6 +3,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import { accountBalance } from '../accounting/balance.js';
 import { currentStock } from '../warehouse/stock.js';
+import { computeProducibleOutputQty } from '../production/production-capacity.js';
 
 const JALALI_MONTHS = [
   'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
@@ -121,6 +122,32 @@ export class DashboardService {
       ctx.tenantDb.salesInvoice.count({ where: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] }, confirmedAt: { gte: monthStart } } }),
     ]);
 
+    // «ظرفیت تولید فعلی» — فقط اگر ماژول تولید واقعاً استفاده شده (حداقل یک
+    // فرمول فعال دارد)؛ موجودی کل روی همه‌ی انبارها جمع می‌شود (نه هر انبار
+    // جدا) چون این فقط یک ویجت خلاصه‌ی داشبورد است.
+    const boms = await ctx.tenantDb.billOfMaterial.findMany({
+      where: { isActive: true },
+      include: { outputProduct: { select: { id: true, name: true, unit: true } }, lines: { include: { rawMaterial: { select: { name: true } } } } },
+    });
+    const stockByProductId = new Map(products.map((p) => [p.id, currentStock(p.movements)]));
+    const producibleCapacity = boms.map((bom) => {
+      const lines = bom.lines.map((l) => ({
+        quantityPerBatch: l.quantityPerBatch,
+        availableStock: stockByProductId.get(l.rawMaterialProductId) ?? 0,
+      }));
+      const producibleQty = computeProducibleOutputQty(bom.batchOutputQty, lines);
+      const bottleneck = bom.lines.find(
+        (l) => (stockByProductId.get(l.rawMaterialProductId) ?? 0) < l.quantityPerBatch,
+      );
+      return {
+        productId: bom.outputProduct.id,
+        productName: bom.outputProduct.name,
+        unit: bom.outputProduct.unit,
+        producibleQty,
+        bottleneckMaterial: producibleQty === 0 ? (bottleneck?.rawMaterial.name ?? null) : null,
+      };
+    });
+
     const cashBalance = cashAccounts.reduce(
       (sum, acc) => sum + accountBalance(acc.type, acc.lines.map((l) => ({ debit: Number(l.debit), credit: Number(l.credit) }))),
       0,
@@ -173,13 +200,40 @@ export class DashboardService {
       return { label: JALALI_MONTHS[month - 1], value: buckets.get(key) ?? 0 };
     });
 
+    // روند تولید ۶ ماه اخیر + همان ماه‌ها در سال قبل برای مقایسه — بازه‌ی
+    // واکشی سخاوتمندانه (۲۰ ماه میلادی) تا هر دو سال جلالی را پوشش دهد،
+    // چون مرز سال جلالی/میلادی یکی نیست.
+    const twentyMonthsAgo = new Date(now.getTime() - 610 * 86_400_000);
+    const completedOrders = await ctx.tenantDb.productionOrder.findMany({
+      where: { status: 'COMPLETED', actualEndAt: { gte: twentyMonthsAgo } },
+      select: { quantityProduced: true, actualEndAt: true },
+    });
+    const productionBuckets = new Map<string, number>();
+    for (const o of completedOrders) {
+      if (!o.actualEndAt || !o.quantityProduced) continue;
+      const { year, month } = toJalaliYearMonth(o.actualEndAt);
+      const key = `${year}-${month}`;
+      productionBuckets.set(key, (productionBuckets.get(key) ?? 0) + o.quantityProduced);
+    }
+    const productionTrend = orderedKeys.map((key) => {
+      const [yearStr, monthStr] = key.split('-');
+      const lastYearKey = `${Number(yearStr) - 1}-${monthStr}`;
+      return {
+        label: JALALI_MONTHS[Number(monthStr) - 1],
+        value: productionBuckets.get(key) ?? 0,
+        valueLastYear: productionBuckets.get(lastYearKey) ?? 0,
+      };
+    });
+
     return {
       cashBalance,
       monthInvoiceCount: monthConfirmedInvoiceCount,
       overdueReceivables: { total: overdueTotal, count: overdueCountAll, items: overdueInvoices },
       checksDueSoon: { total: checksDueSoonTotal, count: checksDueSoonCountAll, items: checksDueSoon },
       lowStockCount,
+      producibleCapacity,
       salesTrend,
+      productionTrend,
     };
   }
 }

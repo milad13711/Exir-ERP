@@ -55,6 +55,10 @@ model User {
   budgets                Budget[]
   fixedAssets            FixedAsset[]
   attachments            Attachment[]
+  createdBoms            BillOfMaterial[]
+  createdProductionOrders ProductionOrder[] @relation("ProductionOrderCreatedBy")
+  rawMaterialApprovals   ProductionOrder[] @relation("ProductionOrderRawApprover")
+  assignedProductionStages ProductionOrderStage[]
 
   @@map("users")
 }
@@ -1029,6 +1033,8 @@ model Product {
   salesReturnLines SalesReturnLine[]
   purchaseReturnLines PurchaseReturnLine[]
   recurringInvoiceLines RecurringInvoiceLine[]
+  bomsAsOutput          BillOfMaterial[]     @relation("BomOutput")
+  bomLinesAsRawMaterial BillOfMaterialLine[]
 
   @@index([createdAt])
   @@map("warehouse_products")
@@ -1042,6 +1048,8 @@ enum StockMovementType {
   PURCHASE_RETURN // مرجوعی خرید — کالا به تأمین‌کننده برگردانده می‌شود، موجودی کاهش می‌یابد
   TRANSFER_OUT // انتقال بین انبارها — کاهش موجودی انبار مبدأ
   TRANSFER_IN // انتقال بین انبارها — افزایش موجودی انبار مقصد
+  PRODUCTION_CONSUME // کسر ماده اولیه بابت یک دستور تولید
+  PRODUCTION_YIELD // افزایش موجودی محصول نهایی از یک دستور تولید
 }
 
 /// انبار فیزیکی — هر StockMovement به یک انبار مشخص تعلق دارد؛ موجودی کل هر
@@ -1057,6 +1065,7 @@ model Warehouse {
   createdAt DateTime @default(now())
 
   movements StockMovement[]
+  productionOrders ProductionOrder[]
 
   @@map("warehouses")
 }
@@ -1261,4 +1270,134 @@ model Attachment {
 
   @@index([entityType, entityId])
   @@map("generic_attachments")
+}
+
+// ── ماژول تولید (production) ────────────────────────────────────────────
+// فرمولاسیون (BOM) → دستور تولید → مراحل روی ایستگاه‌های کاری → کسر/افزایش
+// خودکار موجودی انبار (از همان StockMovement موجود، نه یک سیستم موازی).
+// کنترل کیفیت (ماژول جدا، وابسته به این ماژول) روی QualitySample سوار می‌شود.
+
+/// فرمول تولید یک محصول نهایی — batchOutputQty مقدار پایه‌ی هر بچ است
+/// (مثلاً «هر ۱۰۰۰ کیلو») و هر ردیف مصرف آن ماده اولیه به‌ازای همان بچ را
+/// می‌گوید؛ برای دستور تولیدی با quantityPlanned دلخواه، مصرف هر ماده با
+/// نسبت quantityPlanned/batchOutputQty مقیاس می‌شود. فقط یک نسخه‌ی فعال
+/// در هر لحظه برای هر محصول — نسخه‌ی قبلی isActive=false می‌شود، تاریخچه
+/// حفظ می‌شود (دستورهای تولید قدیمی همچنان به فرمول قدیمی وصل می‌مانند).
+model BillOfMaterial {
+  id              String   @id @default(uuid())
+  outputProductId String
+  batchOutputQty  Int
+  version         Int      @default(1)
+  isActive        Boolean  @default(true)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  outputProduct   Product              @relation("BomOutput", fields: [outputProductId], references: [id])
+  createdBy       User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines           BillOfMaterialLine[]
+  productionOrders ProductionOrder[]
+
+  @@index([outputProductId])
+  @@map("production_boms")
+}
+
+model BillOfMaterialLine {
+  id                   String @id @default(uuid())
+  bomId                String
+  rawMaterialProductId String
+  quantityPerBatch     Int
+
+  bom         BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  rawMaterial Product        @relation(fields: [rawMaterialProductId], references: [id])
+
+  @@index([bomId])
+  @@map("production_bom_lines")
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  RAW_MATERIAL_APPROVED
+  IN_PROGRESS
+  QC_PENDING
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id               String                 @id @default(uuid())
+  orderNo          Int                    @default(autoincrement())
+  bomId            String
+  warehouseId      String
+  quantityPlanned  Int
+  quantityProduced Int?
+  status           ProductionOrderStatus  @default(DRAFT)
+
+  // برای «تولید سفارشی بر اساس یک فاکتور خاص» — عمداً بدون FK واقعی، فقط
+  // برای ردگیری (همان الگوی SalesInvoice.journalEntryId در این schema).
+  relatedInvoiceId String?
+
+  plannedStartAt DateTime?
+  plannedEndAt   DateTime?
+  actualStartAt  DateTime?
+  actualEndAt    DateTime?
+
+  rawMaterialApprovedByUserId String?
+  rawMaterialApprovedAt       DateTime?
+  rawMaterialApprovalNotes    String?
+
+  // ست می‌شود وقتی حداقل یک QualitySample از محصول نهایی این دستور نتیجه‌ی
+  // PASS بگیرد (توسط ماژول کنترل کیفیت) — نه یک فیلد تأیید دستی ساده.
+  qualityApprovedAt DateTime?
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  bom                 BillOfMaterial          @relation(fields: [bomId], references: [id])
+  warehouse           Warehouse               @relation(fields: [warehouseId], references: [id])
+  rawMaterialApprovedBy User?                  @relation("ProductionOrderRawApprover", fields: [rawMaterialApprovedByUserId], references: [id], onDelete: SetNull)
+  createdBy           User?                   @relation("ProductionOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  stages              ProductionOrderStage[]
+
+  @@index([status])
+  @@index([bomId])
+  @@map("production_orders")
+}
+
+/// ایستگاه/بخش تولید — داده‌ی پایه‌ی قابل‌تعریف توسط خود تننت (خط دانه‌بندی،
+/// خط پلت، بسته‌بندی و ...)، sequenceOrder ترتیب پیش‌فرض نمایش/توالی است.
+model WorkCenter {
+  id            String  @id @default(uuid())
+  name          String
+  sequenceOrder Int     @default(0)
+  isActive      Boolean @default(true)
+
+  stages ProductionOrderStage[]
+
+  @@map("production_work_centers")
+}
+
+enum ProductionStageStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+model ProductionOrderStage {
+  id                 String                 @id @default(uuid())
+  productionOrderId  String
+  workCenterId       String
+  assignedUserId     String?
+  sequenceOrder      Int
+  status             ProductionStageStatus  @default(PENDING)
+  startedAt          DateTime?
+  endedAt            DateTime?
+  report             String?
+
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  workCenter      WorkCenter      @relation(fields: [workCenterId], references: [id])
+  assignedUser    User?           @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  @@index([productionOrderId])
+  @@map("production_order_stages")
 }

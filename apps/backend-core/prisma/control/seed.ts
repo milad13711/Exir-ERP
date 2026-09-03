@@ -156,6 +156,16 @@ async function main() {
       version: '1.0.0',
       dependsOn: ['sales'],
     },
+    {
+      code: 'production',
+      name: 'مدیریت تولید',
+      description: 'فرمولاسیون، دستور تولید، مراحل خط تولید و کسر/افزایش خودکار موجودی مواد اولیه و محصول نهایی.',
+      category: 'تولید',
+      priceMonthly: 290000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['warehouse'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
@@ -251,11 +261,11 @@ async function main() {
         { position: 'حسابدار', reportsTo: 'مدیر مالی', department: 'مالی' },
       ],
       suggestedThemeColor: '#15803d',
-      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing'],
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'production'],
     },
     update: {
       suggestedThemeColor: '#15803d',
-      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing'],
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'production'],
     },
   });
 

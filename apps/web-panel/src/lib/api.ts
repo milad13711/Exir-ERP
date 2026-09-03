@@ -348,7 +348,15 @@ export type DashboardSummary = {
     }>;
   };
   lowStockCount: number;
+  producibleCapacity: Array<{
+    productId: string;
+    productName: string;
+    unit: string;
+    producibleQty: number;
+    bottleneckMaterial: string | null;
+  }>;
   salesTrend: Array<{ label: string; value: number }>;
+  productionTrend: Array<{ label: string; value: number; valueLastYear: number }>;
 };
 
 export function fetchDashboardSummary() {
@@ -1237,6 +1245,148 @@ export function updateCostingMethod(method: CostingMethod) {
   return apiFetch<{ method: CostingMethod }>("/warehouse/settings/costing-method", {
     method: "PUT",
     body: JSON.stringify({ method }),
+  });
+}
+
+// ── تولید (Production) ──────────────────────────────────────────────────
+
+export type BomLine = {
+  id: string;
+  rawMaterialProductId: string;
+  quantityPerBatch: number;
+  rawMaterial: { id: string; name: string; unit: string };
+};
+
+export type Bom = {
+  id: string;
+  outputProductId: string;
+  batchOutputQty: number;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+  outputProduct: { id: string; name: string; unit: string; sku: string };
+  lines: BomLine[];
+};
+
+export function fetchBoms() {
+  return apiFetch<Bom[]>("/production/boms");
+}
+
+export function fetchBom(id: string) {
+  return apiFetch<Bom>(`/production/boms/${id}`);
+}
+
+export function createBom(data: {
+  outputProductId: string;
+  batchOutputQty: number;
+  lines: Array<{ rawMaterialProductId: string; quantityPerBatch: number }>;
+}) {
+  return apiFetch<Bom>("/production/boms", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type WorkCenter = { id: string; name: string; sequenceOrder: number; isActive: boolean };
+
+export function fetchWorkCenters() {
+  return apiFetch<WorkCenter[]>("/production/work-centers");
+}
+
+export function createWorkCenter(data: { name: string; sequenceOrder?: number }) {
+  return apiFetch<WorkCenter>("/production/work-centers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type ProductionOrderStatus =
+  | "DRAFT"
+  | "RAW_MATERIAL_APPROVED"
+  | "IN_PROGRESS"
+  | "QC_PENDING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED";
+
+export type ProductionOrderStage = {
+  id: string;
+  sequenceOrder: number;
+  status: "PENDING" | "IN_PROGRESS" | "DONE";
+  startedAt: string | null;
+  endedAt: string | null;
+  report: string | null;
+  workCenter: WorkCenter;
+  assignedUser: { id: string; name: string } | null;
+};
+
+export type ProductionOrder = {
+  id: string;
+  orderNo: number;
+  status: ProductionOrderStatus;
+  quantityPlanned: number;
+  quantityProduced: number | null;
+  relatedInvoiceId: string | null;
+  plannedStartAt: string | null;
+  plannedEndAt: string | null;
+  actualStartAt: string | null;
+  actualEndAt: string | null;
+  rawMaterialApprovedAt: string | null;
+  rawMaterialApprovalNotes: string | null;
+  qualityApprovedAt: string | null;
+  createdAt: string;
+  bom: Bom;
+  warehouse: { id: string; name: string };
+  stages: ProductionOrderStage[];
+};
+
+export function fetchProductionOrders(status?: ProductionOrderStatus) {
+  return apiFetch<ProductionOrder[]>(`/production/orders${status ? `?status=${status}` : ""}`);
+}
+
+export function fetchProductionOrder(id: string) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}`);
+}
+
+export function createProductionOrder(data: {
+  bomId: string;
+  warehouseId: string;
+  quantityPlanned: number;
+  relatedInvoiceId?: string;
+  plannedStartAt?: string;
+  plannedEndAt?: string;
+  stages?: Array<{ workCenterId: string; assignedUserId?: string }>;
+}) {
+  return apiFetch<ProductionOrder>("/production/orders", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function approveRawMaterials(id: string, notes?: string) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}/approve-raw-materials`, {
+    method: "POST",
+    body: JSON.stringify({ notes }),
+  });
+}
+
+export function startProductionOrder(id: string) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}/start`, { method: "POST" });
+}
+
+export function updateProductionStage(
+  orderId: string,
+  stageId: string,
+  data: { status?: "PENDING" | "IN_PROGRESS" | "DONE"; report?: string; assignedUserId?: string },
+) {
+  return apiFetch<ProductionOrderStage>(`/production/orders/${orderId}/stages/${stageId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function completeProductionOrder(id: string, quantityProduced?: number) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ quantityProduced }),
+  });
+}
+
+export function rejectProductionOrder(id: string, reason: string) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
 

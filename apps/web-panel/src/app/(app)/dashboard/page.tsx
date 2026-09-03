@@ -27,7 +27,7 @@ import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 
 export default function DashboardPage() {
-  const { me } = useWorkspace();
+  const { me, installedModules } = useWorkspace();
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -245,6 +245,62 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {installedModules.has("production") && summary && summary.producibleCapacity.length > 0 ? (
+        <div className="grid lg:grid-cols-2 gap-4 mb-4">
+          <Card className="p-5">
+            <div className="text-[14.5px] font-bold mb-3.5">ظرفیت تولید فعلی</div>
+            <div className="flex flex-col">
+              {summary.producibleCapacity.map((c, i) => (
+                <div
+                  key={c.productId}
+                  className={clsx(
+                    "flex items-center justify-between py-2.5",
+                    i < summary.producibleCapacity.length - 1 && "border-b border-border",
+                  )}
+                >
+                  <div>
+                    <div className="text-[12.5px] font-bold">{c.productName}</div>
+                    {c.bottleneckMaterial ? (
+                      <div className="text-[11px] text-danger mt-0.5">کمبود ماده اولیه: {c.bottleneckMaterial}</div>
+                    ) : null}
+                  </div>
+                  <div className={clsx("text-[12.5px] font-extrabold", c.producibleQty === 0 && "text-danger")}>
+                    {c.producibleQty.toLocaleString("fa-IR")} {c.unit}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="text-[14.5px] font-bold mb-4">روند تولید ۶ ماه اخیر (مقایسه با سال قبل)</div>
+            <div className="flex items-end gap-3 sm:gap-5.5 h-40 px-1.5">
+              {summary.productionTrend.map((point, i) => {
+                const maxProd = Math.max(1, ...summary.productionTrend.flatMap((p) => [p.value, p.valueLastYear]));
+                const isLast = i === summary.productionTrend.length - 1;
+                return (
+                  <div key={`${point.label}-${i}`} className="flex-1 flex flex-col items-center gap-2.5">
+                    <div className="w-full flex items-end gap-1 h-32">
+                      <div
+                        className="flex-1 rounded-t-[6px] bg-slate-200"
+                        style={{ height: `${(point.valueLastYear / maxProd) * 128}px` }}
+                        title="سال قبل"
+                      />
+                      <div
+                        className={clsx("flex-1 rounded-t-[6px]", isLast ? "bg-primary" : "bg-primary-soft")}
+                        style={{ height: `${(point.value / maxProd) * 128}px` }}
+                        title="امسال"
+                      />
+                    </div>
+                    <span className={clsx("text-[11.5px]", isLast ? "text-ink font-bold" : "text-muted")}>{point.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      ) : null}
 
       <Card className="p-5">
         <div className="text-[14.5px] font-bold mb-3.5">فعالیت‌های اخیر</div>

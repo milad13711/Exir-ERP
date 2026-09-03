@@ -41,6 +41,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     tasks: FULL_ACCESS,
     sales: FULL_ACCESS,
     purchasing: FULL_ACCESS,
+    production: FULL_ACCESS,
   },
   'کارشناس فروش': {
     crm: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },

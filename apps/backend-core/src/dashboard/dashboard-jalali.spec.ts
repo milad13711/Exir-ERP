@@ -17,6 +17,8 @@ describe('DashboardService sales trend month bucketing (via summary())', () => {
       salesInvoice: { findMany: async () => [], count: async () => 0 },
       check: { findMany: async () => [], count: async () => 0 },
       product: { findMany: async () => [] },
+      billOfMaterial: { findMany: async () => [] },
+      productionOrder: { findMany: async () => [] },
     };
   }
 

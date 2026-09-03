@@ -11,6 +11,7 @@ import {
   StoreIcon,
   SettingsIcon,
   BillingIcon,
+  FactoryIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -27,6 +28,7 @@ export const primaryNav: NavItem[] = [
   { href: "/sales", label: "فروش و فاکتور", icon: ReceiptIcon, moduleCode: "sales" },
   { href: "/purchasing", label: "خرید و تأمین‌کننده", icon: OrdersIcon, moduleCode: "purchasing" },
   { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon, moduleCode: "warehouse" },
+  { href: "/production", label: "تولید", icon: FactoryIcon, moduleCode: "production" },
   { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting" },
   { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },

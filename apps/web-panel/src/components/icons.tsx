@@ -88,6 +88,15 @@ export function AccountingIcon(props: IconProps) {
   );
 }
 
+export function FactoryIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 21V10l6 4v-4l6 4v-4l6 4v7H3z" />
+      <path d="M7 17v-2M12 17v-2M17 17v-2" />
+    </svg>
+  );
+}
+
 export function HrIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

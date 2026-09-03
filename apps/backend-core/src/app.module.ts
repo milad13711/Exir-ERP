@@ -10,6 +10,7 @@ import { TenantsModule } from './tenants/tenants.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { MarketingModule } from './marketing/marketing.module.js';
+import { ProductionModule } from './production/production.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ModulesCatalogModule } from './modules-catalog/modules-catalog.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -49,6 +50,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
     AdminModule,
     WorkspaceModule,
     MarketingModule,
+    ProductionModule,
     BillingModule,
     ModulesCatalogModule,
     UsersModule,
