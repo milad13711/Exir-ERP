@@ -30,47 +30,49 @@ model User {
   status       UserStatus @default(INVITED)
   createdAt    DateTime   @default(now())
 
-  roles         UserRole[]
-  tasks         Task[]     @relation("TaskAssignee")
-  activityLogs  ActivityLog[]
-  ownedContacts CrmContact[]  @relation("CrmContactOwner")
-  ownedDeals    CrmDeal[]     @relation("CrmDealOwner")
-  crmActivities CrmActivity[]
-  journalEntries JournalEntry[]
-  stockMovements StockMovement[]
-  reviewedLeaveRequests LeaveRequest[]
-  notifications         Notification[]
-  notificationPreference NotificationPreference?
-  createdInvoices       SalesInvoice[]
-  signedInvoices        SalesInvoice[] @relation("SalesInvoiceSigner")
-  createdQuotations     SalesQuotation[]
-  createdSalesReturns   SalesReturn[]
-  createdPurchaseReturns PurchaseReturn[]
-  createdPurchaseOrders PurchaseOrder[]
-  approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprover")
-  checks                 Check[]
-  partyTransactions      PartyTransaction[]
-  bankStatementLines     BankStatementLine[]
-  recurringInvoiceTemplates RecurringInvoiceTemplate[]
-  budgets                Budget[]
-  fixedAssets            FixedAsset[]
-  attachments            Attachment[]
-  createdBoms            BillOfMaterial[]
-  createdProductionOrders ProductionOrder[] @relation("ProductionOrderCreatedBy")
-  rawMaterialApprovals   ProductionOrder[] @relation("ProductionOrderRawApprover")
-  assignedProductionStages ProductionOrderStage[]
-  qualitySamplesTaken      QualitySample[]        @relation("QualitySampleSampledBy")
-  qualitySampleResultsTested QualitySampleResult[] @relation("QualitySampleResultTestedBy")
-  createdAutomationRules AutomationRule[]
-  voipExtension          VoipExtension?
-  decidedAiActions       AiActionRequest[]
-  providedAppointments   Appointment[] @relation("AppointmentProvider")
-  createdAppointments    Appointment[] @relation("AppointmentCreatedBy")
-  createdContracts       Contract[]
-  managedProjects        Project[] @relation("ProjectManager")
-  createdProjects        Project[] @relation("ProjectCreatedBy")
-  requestedStages        ProjectStage[] @relation("ProjectStageRequestedBy")
-  approvedStages         ProjectStage[] @relation("ProjectStageApprovedBy")
+  roles                      UserRole[]
+  tasks                      Task[]                     @relation("TaskAssignee")
+  activityLogs               ActivityLog[]
+  ownedContacts              CrmContact[]               @relation("CrmContactOwner")
+  ownedDeals                 CrmDeal[]                  @relation("CrmDealOwner")
+  crmActivities              CrmActivity[]
+  journalEntries             JournalEntry[]
+  stockMovements             StockMovement[]
+  reviewedLeaveRequests      LeaveRequest[]
+  notifications              Notification[]
+  notificationPreference     NotificationPreference?
+  createdInvoices            SalesInvoice[]
+  signedInvoices             SalesInvoice[]             @relation("SalesInvoiceSigner")
+  createdQuotations          SalesQuotation[]
+  createdSalesReturns        SalesReturn[]
+  createdPurchaseReturns     PurchaseReturn[]
+  createdPurchaseOrders      PurchaseOrder[]
+  approvedPurchaseOrders     PurchaseOrder[]            @relation("PurchaseOrderApprover")
+  checks                     Check[]
+  partyTransactions          PartyTransaction[]
+  bankStatementLines         BankStatementLine[]
+  recurringInvoiceTemplates  RecurringInvoiceTemplate[]
+  budgets                    Budget[]
+  fixedAssets                FixedAsset[]
+  attachments                Attachment[]
+  createdBoms                BillOfMaterial[]
+  createdProductionOrders    ProductionOrder[]          @relation("ProductionOrderCreatedBy")
+  rawMaterialApprovals       ProductionOrder[]          @relation("ProductionOrderRawApprover")
+  assignedProductionStages   ProductionOrderStage[]
+  qualitySamplesTaken        QualitySample[]            @relation("QualitySampleSampledBy")
+  qualitySampleResultsTested QualitySampleResult[]      @relation("QualitySampleResultTestedBy")
+  createdAutomationRules     AutomationRule[]
+  voipExtension              VoipExtension?
+  decidedAiActions           AiActionRequest[]
+  providedAppointments       Appointment[]              @relation("AppointmentProvider")
+  createdAppointments        Appointment[]              @relation("AppointmentCreatedBy")
+  createdContracts           Contract[]
+  createdContractTemplates   ContractTemplate[]
+  createdContractAmendments  ContractAmendment[]
+  managedProjects            Project[]                  @relation("ProjectManager")
+  createdProjects            Project[]                  @relation("ProjectCreatedBy")
+  requestedStages            ProjectStage[]             @relation("ProjectStageRequestedBy")
+  approvedStages             ProjectStage[]             @relation("ProjectStageApprovedBy")
 
   @@map("users")
 }
@@ -276,24 +278,24 @@ enum CrmContactType {
 /// قبلاً تأمین‌کننده‌ها مدل جدای Supplier داشتند که وقتی یک نفر هم مشتری بود هم
 /// تأمین‌کننده، گردش حسابش بین دو رکورد جدا پخش می‌شد — این‌جا یکی شده‌اند.
 model CrmContact {
-  id        String         @id @default(uuid())
-  type      CrmContactType @default(INDIVIDUAL) // نوع کسب‌وکار: INDIVIDUAL = B2C, COMPANY = B2B
-  name      String
-  company   String?
-  phone     String?
-  email     String?
-  tags      String[]       @default([])
+  id          String         @id @default(uuid())
+  type        CrmContactType @default(INDIVIDUAL) // نوع کسب‌وکار: INDIVIDUAL = B2C, COMPANY = B2B
+  name        String
+  company     String?
+  phone       String?
+  email       String?
+  tags        String[]       @default([])
   ownerUserId String?
-  isCustomer Boolean       @default(true)
-  isSupplier Boolean       @default(false)
-  createdAt DateTime       @default(now())
+  isCustomer  Boolean        @default(true)
+  isSupplier  Boolean        @default(false)
+  createdAt   DateTime       @default(now())
 
   // برای درج روی فاکتور رسمی: اشخاص حقیقی با کد ملی، اشخاص حقوقی با کد
   // اقتصادی/شناسه ملی/شماره ثبت شناخته می‌شوند.
-  address           String?
-  nationalId        String? // کد ملی — اشخاص حقیقی
-  economicCode      String? // کد اقتصادی — اشخاص حقوقی
-  legalId           String? // شناسه ملی — اشخاص حقوقی
+  address            String?
+  nationalId         String? // کد ملی — اشخاص حقیقی
+  economicCode       String? // کد اقتصادی — اشخاص حقوقی
+  legalId            String? // شناسه ملی — اشخاص حقوقی
   registrationNumber String? // شماره ثبت شرکت — اشخاص حقوقی
 
   // ورودی‌های اعتبارسنجی برای مشتری بدون سابقه‌ی خرید — سوابق خرید واقعی
@@ -302,19 +304,20 @@ model CrmContact {
   bankAvgMonthlyTurnover Int? // میانگین گردش حساب ماهانه طبق پرینت بانکی، تومان
   creditLimitOverride    Int? // سقف اعتبار دستی — در صورت تنظیم، جایگزین محاسبه‌ی خودکار می‌شود
 
-  owner      User?         @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  deals      CrmDeal[]
-  activities CrmActivity[]
-  invoices   SalesInvoice[]
-  quotations SalesQuotation[]
-  checks     Check[]
-  checksEndorsedToMe Check[] @relation("CheckEndorsedTo")
-  purchaseOrders PurchaseOrder[]
-  partyTransactions PartyTransaction[]
+  owner                     User?                      @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  deals                     CrmDeal[]
+  activities                CrmActivity[]
+  invoices                  SalesInvoice[]
+  quotations                SalesQuotation[]
+  checks                    Check[]
+  checksEndorsedToMe        Check[]                    @relation("CheckEndorsedTo")
+  purchaseOrders            PurchaseOrder[]
+  partyTransactions         PartyTransaction[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
-  appointments Appointment[]
-  contracts Contract[]
-  projects Project[]
+  appointments              Appointment[]
+  contracts                 Contract[]
+  contractsAsSecondParty    Contract[]                 @relation("ContractSecondParty")
+  projects                  Project[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -341,11 +344,11 @@ model CrmDeal {
   createdAt       DateTime     @default(now())
   closedAt        DateTime?
 
-  contact    CrmContact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  owner      User?         @relation("CrmDealOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  activities CrmActivity[]
-  invoices   SalesInvoice[]
-  quotations SalesQuotation[]
+  contact                   CrmContact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner                     User?                      @relation("CrmDealOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  activities                CrmActivity[]
+  invoices                  SalesInvoice[]
+  quotations                SalesQuotation[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
 
   @@index([stage])
@@ -415,12 +418,12 @@ model SalesInvoice {
 
   // فاکتور رسمی فقط با امضای مالک/مدیر معتبر است؛ غیررسمی را نیروی فروش هم می‌تواند امضا کند.
   // شماره‌گذاری فاکتور رسمی از توالی مستقل خودش می‌آید (officialInvoiceNoSeq)، جدا از invoiceNo عمومی.
-  isOfficial       Boolean   @default(false)
-  officialInvoiceNo Int?     @unique
-  signedByUserId   String?
-  signedByName     String?
-  signatureDataUrl String? // data:image/png;base64,... — امضای دست‌نویس روی صفحه
-  signedAt         DateTime?
+  isOfficial        Boolean   @default(false)
+  officialInvoiceNo Int?      @unique
+  signedByUserId    String?
+  signedByName      String?
+  signatureDataUrl  String? // data:image/png;base64,... — امضای دست‌نویس روی صفحه
+  signedAt          DateTime?
 
   // تأیید تحویل کالا توسط مشتری — با امضا یا کد محرمانه‌ی ارسالی به موبایل مشتری
   deliveryConfirmedAt      DateTime?
@@ -433,11 +436,11 @@ model SalesInvoice {
   // آخرین باری که یادآور تکمیل وجه (مانده‌ی فاکتور) برای مشتری و مدیر ارسال شد.
   lastPaymentReminderAt DateTime?
 
-  contact   CrmContact @relation(fields: [contactId], references: [id])
-  deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  signedBy  User?      @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
+  contact   CrmContact         @relation(fields: [contactId], references: [id])
+  deal      CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  project   Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  signedBy  User?              @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
   lines     SalesInvoiceLine[]
   payments  SalesPayment[]
   checks    Check[]
@@ -450,7 +453,7 @@ model SalesInvoice {
 }
 
 model SalesInvoiceLine {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   invoiceId   String
   productId   String?
   description String
@@ -516,9 +519,9 @@ model SalesQuotation {
   acceptedByName           String?
   acceptedSignatureDataUrl String?
 
-  contact   CrmContact @relation(fields: [contactId], references: [id])
-  deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contact   CrmContact           @relation(fields: [contactId], references: [id])
+  deal      CrmDeal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   lines     SalesQuotationLine[]
 
   @@index([contactId])
@@ -527,13 +530,13 @@ model SalesQuotation {
 }
 
 model SalesQuotationLine {
-  id           String @id @default(uuid())
-  quotationId  String
-  productId    String?
-  description  String
-  quantity     Int
-  unitPrice    Int // تومان
-  lineTotal    Int // تومان
+  id          String  @id @default(uuid())
+  quotationId String
+  productId   String?
+  description String
+  quantity    Int
+  unitPrice   Int // تومان
+  lineTotal   Int // تومان
 
   currencyId     String?
   unitPriceFx    Decimal? @db.Decimal(18, 4)
@@ -570,7 +573,7 @@ model SalesReturn {
 }
 
 model SalesReturnLine {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   returnId    String
   productId   String?
   description String
@@ -595,25 +598,25 @@ enum RecurrenceFrequency {
 /// SalesInvoice تازه (همیشه پیش‌نویس، تأیید و صدور دستی با کاربر است) از
 /// روی همین الگو ساخته می‌شود. cron هر روز الگوهای سررسیدشده را بررسی می‌کند.
 model RecurringInvoiceTemplate {
-  id              String              @id @default(uuid())
-  contactId       String
-  dealId          String?
-  frequency       RecurrenceFrequency
-  intervalCount   Int                 @default(1) // مثلاً هر ۲ ماه یک‌بار
-  nextRunAt       DateTime
-  isActive        Boolean             @default(true)
-  discount        Int                 @default(0)
-  isOfficial      Boolean             @default(false)
-  taxRate         Int?
-  notes           String?
-  createdByUserId String?
-  lastRunAt       DateTime?
+  id                     String              @id @default(uuid())
+  contactId              String
+  dealId                 String?
+  frequency              RecurrenceFrequency
+  intervalCount          Int                 @default(1) // مثلاً هر ۲ ماه یک‌بار
+  nextRunAt              DateTime
+  isActive               Boolean             @default(true)
+  discount               Int                 @default(0)
+  isOfficial             Boolean             @default(false)
+  taxRate                Int?
+  notes                  String?
+  createdByUserId        String?
+  lastRunAt              DateTime?
   lastGeneratedInvoiceId String? // فقط برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
-  createdAt       DateTime            @default(now())
+  createdAt              DateTime            @default(now())
 
-  contact   CrmContact              @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal      CrmDeal?                @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  createdBy User?                   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contact   CrmContact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal      CrmDeal?               @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy User?                  @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   lines     RecurringInvoiceLine[]
 
   @@index([nextRunAt])
@@ -621,7 +624,7 @@ model RecurringInvoiceTemplate {
 }
 
 model RecurringInvoiceLine {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   templateId  String
   productId   String?
   description String
@@ -658,7 +661,7 @@ model PurchaseReturn {
 }
 
 model PurchaseReturnLine {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   returnId    String
   productId   String?
   description String
@@ -689,7 +692,6 @@ model SalesPayment {
 // دریافت (receive) کردن یک سفارش خرید، متقارنِ تأیید فاکتور فروش است: یک
 // رسید انبار (افزایش موجودی) و یک سند حسابداری بدهکار موجودی/بستانکار
 // حساب‌های پرداختنی می‌سازد.
-
 
 enum PurchaseOrderStatus {
   DRAFT
@@ -729,9 +731,9 @@ model PurchaseOrder {
   approvedAt       DateTime?
   rejectionReason  String?
 
-  supplier   CrmContact @relation(fields: [supplierId], references: [id])
-  createdBy  User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  approvedBy User?    @relation("PurchaseOrderApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  supplier   CrmContact          @relation(fields: [supplierId], references: [id])
+  createdBy  User?               @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy User?               @relation("PurchaseOrderApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   lines      PurchaseOrderLine[]
   payments   PurchasePayment[]
   checks     Check[]
@@ -762,30 +764,30 @@ enum CheckStatus {
  * (ChecksReminderService، پیامک/اعلان/ایمیل به طرف حساب و/یا کارشناس داخلی).
  */
 model Check {
-  id                 String         @id @default(uuid())
-  direction          CheckDirection
-  sayadId            String // شماره صیادی ۱۶ رقمی
-  amount             Int // تومان
-  dueDate            DateTime
-  bankName           String?
-  status             CheckStatus    @default(PENDING)
-  reminderDaysBefore Int            @default(3)
-  reminderSentAt     DateTime?
-  clearedAt          DateTime?
-  note               String?
-  contactId          String? // طرف‌حساب — مشتری (چک دریافتی) یا تأمین‌کننده (چک صادرشده)، هر دو از یک مدل CrmContact
+  id                  String         @id @default(uuid())
+  direction           CheckDirection
+  sayadId             String // شماره صیادی ۱۶ رقمی
+  amount              Int // تومان
+  dueDate             DateTime
+  bankName            String?
+  status              CheckStatus    @default(PENDING)
+  reminderDaysBefore  Int            @default(3)
+  reminderSentAt      DateTime?
+  clearedAt           DateTime?
+  note                String?
+  contactId           String? // طرف‌حساب — مشتری (چک دریافتی) یا تأمین‌کننده (چک صادرشده)، هر دو از یک مدل CrmContact
   endorsedToContactId String? // برای چک دریافتیِ پشت‌نویسی‌شده — به چه کسی واگذار شد
-  endorsedAt         DateTime?
-  invoiceId          String?
-  purchaseOrderId    String?
-  createdByUserId    String?
-  createdAt          DateTime       @default(now())
+  endorsedAt          DateTime?
+  invoiceId           String?
+  purchaseOrderId     String?
+  createdByUserId     String?
+  createdAt           DateTime       @default(now())
 
-  contact         CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  endorsedToContact CrmContact?  @relation("CheckEndorsedTo", fields: [endorsedToContactId], references: [id], onDelete: SetNull)
-  invoice         SalesInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
-  createdBy       User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contact           CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  endorsedToContact CrmContact?    @relation("CheckEndorsedTo", fields: [endorsedToContactId], references: [id], onDelete: SetNull)
+  invoice           SalesInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdBy         User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([dueDate])
   @@index([status])
@@ -821,7 +823,7 @@ model PartyTransaction {
 }
 
 model PurchaseOrderLine {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   orderId     String
   productId   String?
   description String
@@ -872,9 +874,9 @@ model Account {
   isSystem      Boolean     @default(false) // کدینگ پیش‌فرض، غیرقابل حذف
   createdAt     DateTime    @default(now())
 
-  lines JournalLine[]
+  lines              JournalLine[]
   bankStatementLines BankStatementLine[]
-  budgetLines BudgetLine[]
+  budgetLines        BudgetLine[]
 
   @@map("accounting_accounts")
 }
@@ -921,16 +923,16 @@ model JournalLine {
 /// مستقیم به بانک) و در برابر ردیف‌های دفتر (JournalLine) روی همان حساب
 /// صندوق/بانک تطبیق داده می‌شود.
 model BankStatementLine {
-  id           String    @id @default(uuid())
-  accountId    String
-  date         DateTime
-  description  String
-  amount       BigInt // مثبت = واریز به حساب، منفی = برداشت از حساب
-  reference    String?
-  matchedJournalLineId String? @unique
-  reconciledAt DateTime?
-  createdByUserId String?
-  createdAt    DateTime  @default(now())
+  id                   String    @id @default(uuid())
+  accountId            String
+  date                 DateTime
+  description          String
+  amount               BigInt // مثبت = واریز به حساب، منفی = برداشت از حساب
+  reference            String?
+  matchedJournalLineId String?   @unique
+  reconciledAt         DateTime?
+  createdByUserId      String?
+  createdAt            DateTime  @default(now())
 
   account            Account      @relation(fields: [accountId], references: [id])
   matchedJournalLine JournalLine? @relation(fields: [matchedJournalLineId], references: [id], onDelete: SetNull)
@@ -980,20 +982,20 @@ enum FixedAssetStatus {
 /// (نه ذخیره‌شده)؛ postedDepreciation فقط رد می‌کند تا کجای این محاسبه قبلاً
 /// به‌عنوان سند حسابداری ثبت شده تا از ثبت دوباره جلوگیری شود.
 model FixedAsset {
-  id               String           @id @default(uuid())
-  name             String
-  category         String?
-  purchaseDate     DateTime
-  purchaseCost     Int // تومان
-  salvageValue     Int              @default(0) // تومان — ارزش اسقاط تخمینی در پایان عمر مفید
-  usefulLifeMonths Int
-  status           FixedAssetStatus @default(ACTIVE)
-  disposedAt       DateTime?
-  disposalAmount   Int?
-  postedDepreciation Int            @default(0) // تومان — جمع استهلاکی که تاکنون سند حسابداری‌اش ثبت شده
-  notes            String?
-  createdByUserId  String?
-  createdAt        DateTime         @default(now())
+  id                 String           @id @default(uuid())
+  name               String
+  category           String?
+  purchaseDate       DateTime
+  purchaseCost       Int // تومان
+  salvageValue       Int              @default(0) // تومان — ارزش اسقاط تخمینی در پایان عمر مفید
+  usefulLifeMonths   Int
+  status             FixedAssetStatus @default(ACTIVE)
+  disposedAt         DateTime?
+  disposalAmount     Int?
+  postedDepreciation Int              @default(0) // تومان — جمع استهلاکی که تاکنون سند حسابداری‌اش ثبت شده
+  notes              String?
+  createdByUserId    String?
+  createdAt          DateTime         @default(now())
 
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
@@ -1006,16 +1008,16 @@ model FixedAsset {
 /// این جدول ندارد و ارز پایه‌ی ضمنی سیستم است (currencyId خالی یعنی تومان).
 /// نرخ‌ها فعلاً دستی‌اند؛ اتصال به API نرخ لحظه‌ای، ماژول جداگانه‌ی بعدی است.
 model Currency {
-  id             String   @id @default(uuid())
-  code           String   @unique // "USD", "EUR", ...
+  id             String    @id @default(uuid())
+  code           String    @unique // "USD", "EUR", ...
   name           String
   symbol         String?
-  rate           Decimal  @db.Decimal(18, 4)
-  isActive       Boolean  @default(true)
-  autoUpdate     Boolean  @default(false) // نرخ به‌صورت دوره‌ای از سرویس نرخ ارز آزاد به‌روزرسانی شود
+  rate           Decimal   @db.Decimal(18, 4)
+  isActive       Boolean   @default(true)
+  autoUpdate     Boolean   @default(false) // نرخ به‌صورت دوره‌ای از سرویس نرخ ارز آزاد به‌روزرسانی شود
   lastAutoRateAt DateTime? // آخرین باری که به‌روزرسانی خودکار واقعاً نرخ را عوض کرد
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   products           Product[]
   invoiceLines       SalesInvoiceLine[]
@@ -1039,19 +1041,19 @@ model Product {
 
   // قیمت‌گذاری ارزی — وقتی currencyId ست شده، costPrice/salePrice معادل
   // تومانی‌شان با نرخ لحظه‌ای Currency.rate محاسبه و نمایش داده می‌شود.
-  currencyId   String?
-  costPriceFx  Decimal? @db.Decimal(18, 4)
-  salePriceFx  Decimal? @db.Decimal(18, 4)
+  currencyId  String?
+  costPriceFx Decimal? @db.Decimal(18, 4)
+  salePriceFx Decimal? @db.Decimal(18, 4)
 
-  currency  Currency?       @relation(fields: [currencyId], references: [id])
-  movements StockMovement[]
-  invoiceLines SalesInvoiceLine[]
-  quotationLines SalesQuotationLine[]
-  purchaseLines PurchaseOrderLine[]
-  salesReturnLines SalesReturnLine[]
-  purchaseReturnLines PurchaseReturnLine[]
+  currency              Currency?              @relation(fields: [currencyId], references: [id])
+  movements             StockMovement[]
+  invoiceLines          SalesInvoiceLine[]
+  quotationLines        SalesQuotationLine[]
+  purchaseLines         PurchaseOrderLine[]
+  salesReturnLines      SalesReturnLine[]
+  purchaseReturnLines   PurchaseReturnLine[]
   recurringInvoiceLines RecurringInvoiceLine[]
-  bomsAsOutput          BillOfMaterial[]     @relation("BomOutput")
+  bomsAsOutput          BillOfMaterial[]       @relation("BomOutput")
   bomLinesAsRawMaterial BillOfMaterialLine[]
 
   @@index([createdAt])
@@ -1082,7 +1084,7 @@ model Warehouse {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  movements StockMovement[]
+  movements        StockMovement[]
   productionOrders ProductionOrder[]
 
   @@map("warehouses")
@@ -1138,14 +1140,15 @@ model Employee {
   // a system login at all.
   userId String? @unique
 
-  managerId String?
+  managerId     String?
   manager       Employee?  @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
   directReports Employee[] @relation("EmployeeManager")
 
-  attendance     AttendanceRecord[]
-  leaveRequests  LeaveRequest[]
-  payrollSlips   PayrollSlip[]
-  documents      EmployeeDocument[]
+  attendance    AttendanceRecord[]
+  leaveRequests LeaveRequest[]
+  payrollSlips  PayrollSlip[]
+  documents     EmployeeDocument[]
+  contracts     Contract[]
 
   @@index([createdAt])
   @@index([managerId])
@@ -1210,17 +1213,17 @@ enum LeaveStatus {
 }
 
 model LeaveRequest {
-  id              String      @id @default(uuid())
-  employeeId      String
-  type            LeaveType
-  startDate       DateTime
-  endDate         DateTime
-  daysCount       Int
-  reason          String?
-  status          LeaveStatus @default(PENDING)
+  id               String      @id @default(uuid())
+  employeeId       String
+  type             LeaveType
+  startDate        DateTime
+  endDate          DateTime
+  daysCount        Int
+  reason           String?
+  status           LeaveStatus @default(PENDING)
   reviewedByUserId String?
-  reviewedAt      DateTime?
-  createdAt       DateTime    @default(now())
+  reviewedAt       DateTime?
+  createdAt        DateTime    @default(now())
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   reviewedBy User?    @relation(fields: [reviewedByUserId], references: [id], onDelete: SetNull)
@@ -1236,19 +1239,19 @@ enum PayrollStatus {
 }
 
 model PayrollSlip {
-  id           String        @id @default(uuid())
-  employeeId   String
-  periodYear   Int // سال شمسی، مثلاً ۱۴۰۵
-  periodMonth  Int // ماه شمسی، ۱ تا ۱۲
-  baseSalary   Int
-  allowances   Int           @default(0) // مزایا
-  deductions   Int           @default(0) // کسورات دستی (وام، جریمه و ...)
-  insuranceAmount Int        @default(0) // سهم بیمه‌ی کارمند — خودکار محاسبه می‌شود
-  taxAmount    Int           @default(0) // مالیات حقوق — خودکار محاسبه می‌شود
-  status       PayrollStatus @default(DRAFT)
-  issuedAt     DateTime?
-  paidAt       DateTime?
-  createdAt    DateTime      @default(now())
+  id              String        @id @default(uuid())
+  employeeId      String
+  periodYear      Int // سال شمسی، مثلاً ۱۴۰۵
+  periodMonth     Int // ماه شمسی، ۱ تا ۱۲
+  baseSalary      Int
+  allowances      Int           @default(0) // مزایا
+  deductions      Int           @default(0) // کسورات دستی (وام، جریمه و ...)
+  insuranceAmount Int           @default(0) // سهم بیمه‌ی کارمند — خودکار محاسبه می‌شود
+  taxAmount       Int           @default(0) // مالیات حقوق — خودکار محاسبه می‌شود
+  status          PayrollStatus @default(DRAFT)
+  issuedAt        DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -1310,9 +1313,9 @@ model BillOfMaterial {
   createdByUserId String?
   createdAt       DateTime @default(now())
 
-  outputProduct   Product              @relation("BomOutput", fields: [outputProductId], references: [id])
-  createdBy       User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  lines           BillOfMaterialLine[]
+  outputProduct    Product              @relation("BomOutput", fields: [outputProductId], references: [id])
+  createdBy        User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines            BillOfMaterialLine[]
   productionOrders ProductionOrder[]
 
   @@index([outputProductId])
@@ -1343,13 +1346,13 @@ enum ProductionOrderStatus {
 }
 
 model ProductionOrder {
-  id               String                 @id @default(uuid())
-  orderNo          Int                    @default(autoincrement())
+  id               String                @id @default(uuid())
+  orderNo          Int                   @default(autoincrement())
   bomId            String
   warehouseId      String
   quantityPlanned  Int
   quantityProduced Int?
-  status           ProductionOrderStatus  @default(DRAFT)
+  status           ProductionOrderStatus @default(DRAFT)
 
   // برای «تولید سفارشی بر اساس یک فاکتور خاص» — عمداً بدون FK واقعی، فقط
   // برای ردگیری (همان الگوی SalesInvoice.journalEntryId در این schema).
@@ -1371,12 +1374,12 @@ model ProductionOrder {
   createdByUserId String?
   createdAt       DateTime @default(now())
 
-  bom                 BillOfMaterial          @relation(fields: [bomId], references: [id])
-  warehouse           Warehouse               @relation(fields: [warehouseId], references: [id])
+  bom                   BillOfMaterial         @relation(fields: [bomId], references: [id])
+  warehouse             Warehouse              @relation(fields: [warehouseId], references: [id])
   rawMaterialApprovedBy User?                  @relation("ProductionOrderRawApprover", fields: [rawMaterialApprovedByUserId], references: [id], onDelete: SetNull)
-  createdBy           User?                   @relation("ProductionOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  stages              ProductionOrderStage[]
-  qualitySamples      QualitySample[]
+  createdBy             User?                  @relation("ProductionOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  stages                ProductionOrderStage[]
+  qualitySamples        QualitySample[]
 
   @@index([status])
   @@index([bomId])
@@ -1403,15 +1406,15 @@ enum ProductionStageStatus {
 }
 
 model ProductionOrderStage {
-  id                 String                 @id @default(uuid())
-  productionOrderId  String
-  workCenterId       String
-  assignedUserId     String?
-  sequenceOrder      Int
-  status             ProductionStageStatus  @default(PENDING)
-  startedAt          DateTime?
-  endedAt            DateTime?
-  report             String?
+  id                String                @id @default(uuid())
+  productionOrderId String
+  workCenterId      String
+  assignedUserId    String?
+  sequenceOrder     Int
+  status            ProductionStageStatus @default(PENDING)
+  startedAt         DateTime?
+  endedAt           DateTime?
+  report            String?
 
   productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
   workCenter      WorkCenter      @relation(fields: [workCenterId], references: [id])
@@ -1646,10 +1649,27 @@ model Appointment {
 }
 
 // ── مدیریت قرارداد ───────────────────────────────────────────────────────
+// امضای دیجیتال دوطرفه: هر قرارداد یک contentHash از متن نهایی نگه می‌دارد
+// (نه رمزگذاری واقعی — چون هدف «غیرقابل‌تغییر بودن پس از امضا»ست، نه محرمانگی؛
+// این دقیقاً همان الگوی واقعی امضای دیجیتال/DocuSign است: هش + رکورد امضا).
+// پس از قفل‌شدن (isLocked)، هرگونه ویرایش فقط به شکل ContractAmendment جدید
+// (خودش هم امضا و هش می‌شود) به قرارداد اصلی الحاق می‌شود، نه ویرایش مستقیم.
 
 enum ContractType {
   SALES // قرارداد با مشتری
   PURCHASE // قرارداد با تأمین‌کننده
+}
+
+enum ContractPartyMode {
+  INTERNAL // بین شرکت و پرسنل
+  EXTERNAL // بین شرکت و مشتری/تأمین‌کننده
+  THIRD_PARTY // بین دو طرف دیگر (که ممکن است هیچ‌کدام «ما» نباشیم)
+}
+
+enum ContractLegalCategory {
+  NOTARIZED // ثبت‌شده در دفترخانه اسناد رسمی
+  LAWYER_SUPERVISED // فقط تحت نظارت وکیل
+  GENERAL // عمومی
 }
 
 enum ContractStatus {
@@ -1659,34 +1679,114 @@ enum ContractStatus {
   TERMINATED
 }
 
-model Contract {
-  id                  String         @id @default(uuid())
-  contractNo          Int            @unique @default(autoincrement())
-  title               String
-  type                ContractType
-  contactId           String
-  status              ContractStatus @default(DRAFT)
-  value               Int // تومان — ارزش کل قرارداد
-  startDate           DateTime
-  endDate             DateTime
-  autoRenew           Boolean        @default(false)
-  renewalReminderDays Int            @default(30)
-  reminderSentAt      DateTime?
-  terms               String? // شرح بندها و شرایط قرارداد
-  signedAt            DateTime?
-  terminatedAt        DateTime?
-  terminationReason   String?
-  createdByUserId     String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+model ContractTemplate {
+  id              String            @id @default(uuid())
+  name            String
+  partyMode       ContractPartyMode @default(EXTERNAL)
+  type            ContractType?
+  body            String // متن پیش‌فرض بندها و شرایط
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
-  contact   CrmContact @relation(fields: [contactId], references: [id])
   createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contracts Contract[]
+
+  @@map("contract_templates")
+}
+
+model Contract {
+  id                   String                @id @default(uuid())
+  contractNo           Int                   @unique @default(autoincrement())
+  title                String
+  type                 ContractType?
+  partyMode            ContractPartyMode     @default(EXTERNAL)
+  legalCategory        ContractLegalCategory @default(GENERAL)
+  templateId           String?
+  contactId            String? // طرف اول — مشتری/تأمین‌کننده (EXTERNAL) یا یکی از طرفین (THIRD_PARTY)
+  employeeId           String? // طرف اول برای قرارداد داخلی (INTERNAL)
+  secondPartyContactId String? // طرف دوم اگر خودش یکی از مخاطبین CRM باشد (THIRD_PARTY)
+  secondPartyName      String? // طرف دوم آزاد — وقتی مخاطب ثبت‌شده‌ای نیست
+  secondPartyPhone     String?
+  status               ContractStatus        @default(DRAFT)
+  value                Int // تومان — ارزش کل قرارداد
+  startDate            DateTime
+  endDate              DateTime
+  autoRenew            Boolean               @default(false)
+  renewalReminderDays  Int                   @default(30)
+  reminderSentAt       DateTime?
+  terms                String? // شرح بندها و شرایط قرارداد
+  signedAt             DateTime?
+  terminatedAt         DateTime?
+  terminationReason    String?
+  createdByUserId      String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  // امضای دیجیتال دوطرفه از طریق لینک عمومی + OTP
+  publicToken            String    @unique @default(uuid())
+  contentHash            String? // هش متن نهایی در لحظه‌ی تکمیل امضای هر دو طرف
+  isLocked               Boolean   @default(false)
+  partyASignedAt         DateTime?
+  partyASignatureDataUrl String?
+  partyASignerName       String?
+  partyBSignedAt         DateTime?
+  partyBSignatureDataUrl String?
+  partyBSignerName       String?
+
+  contact            CrmContact?           @relation(fields: [contactId], references: [id])
+  employee           Employee?             @relation(fields: [employeeId], references: [id])
+  secondPartyContact CrmContact?           @relation("ContractSecondParty", fields: [secondPartyContactId], references: [id])
+  template           ContractTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy          User?                 @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  editRequests       ContractEditRequest[]
+  amendments         ContractAmendment[]
 
   @@index([status])
   @@index([endDate])
   @@index([type])
   @@map("contracts")
+}
+
+enum ContractPartySide {
+  PARTY_A
+  PARTY_B
+}
+
+model ContractEditRequest {
+  id         String            @id @default(uuid())
+  contractId String
+  side       ContractPartySide
+  text       String
+  resolved   Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_edit_requests")
+}
+
+// هر پیوست به‌عنوان یک نسخه‌ی امضاشده‌ی جداگانه — پس از امضای هر دو طرف، خودش
+// هم قفل و هش می‌شود و در قرارداد اصلی به‌عنوان «در تاریخ فلان الحاق شد» ثبت می‌ماند.
+model ContractAmendment {
+  id                     String    @id @default(uuid())
+  contractId             String
+  text                   String
+  contentHash            String?
+  isLocked               Boolean   @default(false)
+  partyASignedAt         DateTime?
+  partyASignatureDataUrl String?
+  partyBSignedAt         DateTime?
+  partyBSignatureDataUrl String?
+  createdByUserId        String?
+  createdAt              DateTime  @default(now())
+
+  contract  Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([contractId])
+  @@map("contract_amendments")
 }
 
 // ── مدیریت پروژه ─────────────────────────────────────────────────────────
@@ -1719,9 +1819,9 @@ model Project {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  contact   CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  manager   User?       @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
-  createdBy User?       @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contact   CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  manager   User?          @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  createdBy User?          @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   stages    ProjectStage[]
   invoices  SalesInvoice[]
 

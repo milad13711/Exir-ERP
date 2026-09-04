@@ -3037,13 +3037,45 @@ export function createPublicAppointment(
 
 export type ContractType = "SALES" | "PURCHASE";
 export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "TERMINATED";
+export type ContractPartyMode = "INTERNAL" | "EXTERNAL" | "THIRD_PARTY";
+export type ContractLegalCategory = "NOTARIZED" | "LAWYER_SUPERVISED" | "GENERAL";
+export type ContractPartySide = "PARTY_A" | "PARTY_B";
+
+export type ContractEditRequest = {
+  id: string;
+  contractId: string;
+  side: ContractPartySide;
+  text: string;
+  resolved: boolean;
+  createdAt: string;
+};
+
+export type ContractAmendment = {
+  id: string;
+  contractId: string;
+  text: string;
+  contentHash: string | null;
+  isLocked: boolean;
+  partyASignedAt: string | null;
+  partyASignatureDataUrl: string | null;
+  partyBSignedAt: string | null;
+  partyBSignatureDataUrl: string | null;
+  createdAt: string;
+};
 
 export type Contract = {
   id: string;
   contractNo: number;
   title: string;
-  type: ContractType;
-  contactId: string;
+  type: ContractType | null;
+  partyMode: ContractPartyMode;
+  legalCategory: ContractLegalCategory;
+  templateId: string | null;
+  contactId: string | null;
+  employeeId: string | null;
+  secondPartyContactId: string | null;
+  secondPartyName: string | null;
+  secondPartyPhone: string | null;
   status: ContractStatus;
   value: number;
   startDate: string;
@@ -3056,11 +3088,35 @@ export type Contract = {
   terminatedAt: string | null;
   terminationReason: string | null;
   createdAt: string;
-  contact: { id: string; name: string; company: string | null; phone: string | null };
+  publicToken: string;
+  contentHash: string | null;
+  isLocked: boolean;
+  partyASignedAt: string | null;
+  partyASignatureDataUrl: string | null;
+  partyASignerName: string | null;
+  partyBSignedAt: string | null;
+  partyBSignatureDataUrl: string | null;
+  partyBSignerName: string | null;
+  contact: { id: string; name: string; company: string | null; phone: string | null } | null;
+  employee: { id: string; fullName: string; phone: string | null } | null;
+  secondPartyContact: { id: string; name: string; company: string | null; phone: string | null } | null;
+  template: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
+  editRequests?: ContractEditRequest[];
+  amendments?: ContractAmendment[];
 };
 
-export function fetchContracts(params: { type?: string; status?: string; contactId?: string } = {}) {
+export type ContractTemplate = {
+  id: string;
+  name: string;
+  partyMode: ContractPartyMode;
+  type: ContractType | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function fetchContracts(params: { type?: string; status?: string; contactId?: string; legalCategory?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Contract[]>(`/contracts${qs ? `?${qs}` : ""}`);
 }
@@ -3069,10 +3125,21 @@ export function fetchContract(id: string) {
   return apiFetch<Contract>(`/contracts/${id}`);
 }
 
+export function fetchExpiringSoonContracts() {
+  return apiFetch<Contract[]>("/contracts/expiring-soon");
+}
+
 export function createContract(data: {
   title: string;
-  type: ContractType;
-  contactId: string;
+  partyMode: ContractPartyMode;
+  type?: ContractType;
+  legalCategory?: ContractLegalCategory;
+  templateId?: string;
+  contactId?: string;
+  employeeId?: string;
+  secondPartyContactId?: string;
+  secondPartyName?: string;
+  secondPartyPhone?: string;
   value: number;
   startDate: string;
   endDate: string;
@@ -3083,12 +3150,12 @@ export function createContract(data: {
   return apiFetch<Contract>("/contracts", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateContract(id: string, data: Partial<Omit<Parameters<typeof createContract>[0], "type">>) {
+export function updateContract(id: string, data: Partial<Pick<Parameters<typeof createContract>[0], "title" | "contactId" | "value" | "startDate" | "endDate" | "autoRenew" | "renewalReminderDays" | "terms">>) {
   return apiFetch<Contract>(`/contracts/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function signContract(id: string) {
-  return apiFetch<Contract>(`/contracts/${id}/sign`, { method: "POST" });
+export function signContract(id: string, data: { signatureDataUrl: string; signerName: string }) {
+  return apiFetch<Contract>(`/contracts/${id}/sign`, { method: "POST", body: JSON.stringify(data) });
 }
 
 export function terminateContract(id: string, reason?: string) {
@@ -3097,6 +3164,80 @@ export function terminateContract(id: string, reason?: string) {
 
 export function renewContract(id: string, newEndDate: string) {
   return apiFetch<Contract>(`/contracts/${id}/renew`, { method: "POST", body: JSON.stringify({ newEndDate }) });
+}
+
+export function fetchContractTemplates() {
+  return apiFetch<ContractTemplate[]>("/contracts/templates");
+}
+
+export function createContractTemplate(data: { name: string; partyMode: ContractPartyMode; type?: ContractType; body: string }) {
+  return apiFetch<ContractTemplate>("/contracts/templates", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateContractTemplate(id: string, data: { name: string; partyMode: ContractPartyMode; type?: ContractType; body: string }) {
+  return apiFetch<ContractTemplate>(`/contracts/templates/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteContractTemplate(id: string) {
+  return apiFetch<{ ok: true }>(`/contracts/templates/${id}`, { method: "DELETE" });
+}
+
+export function fetchContractEditRequests(contractId: string) {
+  return apiFetch<ContractEditRequest[]>(`/contracts/${contractId}/edit-requests`);
+}
+
+export function resolveContractEditRequest(requestId: string) {
+  return apiFetch<ContractEditRequest>(`/contracts/edit-requests/${requestId}/resolve`, { method: "POST" });
+}
+
+export function fetchContractAmendments(contractId: string) {
+  return apiFetch<ContractAmendment[]>(`/contracts/${contractId}/amendments`);
+}
+
+export function createContractAmendment(contractId: string, text: string) {
+  return apiFetch<ContractAmendment>(`/contracts/${contractId}/amendments`, { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export function signContractAmendmentAsCompany(amendmentId: string, data: { signatureDataUrl: string; signerName: string }) {
+  return apiFetch<ContractAmendment>(`/contracts/amendments/${amendmentId}/sign`, { method: "POST", body: JSON.stringify(data) });
+}
+
+// ── امضای دیجیتال عمومی قرارداد (بدون نیاز به لاگین) ───────────────────────
+
+export function requestContractSignOtp(slug: string, publicToken: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/contracts/${slug}/${publicToken}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyContractSignOtp(slug: string, publicToken: string, phone: string, code: string) {
+  return apiFetch<{ ticket: string; expiresInSeconds: number; side: ContractPartySide }>(`/public/contracts/${slug}/${publicToken}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function viewPublicContract(slug: string, publicToken: string, ticket: string) {
+  return apiFetch<Contract>(`/public/contracts/${slug}/${publicToken}/view`, { method: "POST", body: JSON.stringify({ ticket }) });
+}
+
+export function submitPublicContractEditRequest(slug: string, publicToken: string, ticket: string, text: string) {
+  return apiFetch<ContractEditRequest>(`/public/contracts/${slug}/${publicToken}/edit-request`, {
+    method: "POST",
+    body: JSON.stringify({ ticket, text }),
+  });
+}
+
+export function signPublicContract(
+  slug: string,
+  publicToken: string,
+  data: { ticket: string; signatureDataUrl: string; signerName: string; amendmentId?: string },
+) {
+  return apiFetch<Contract | ContractAmendment>(`/public/contracts/${slug}/${publicToken}/sign`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 // ── مدیریت پروژه (Projects) ───────────────────────────────────────────────

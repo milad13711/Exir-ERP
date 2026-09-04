@@ -66,3 +66,18 @@ export type TrackingTicketPayload = {
   phone: string;
   tenantSlug: string;
 };
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for the public
+ * contract e-signature page — issued after OTP verify, scoped to one
+ * contract's publicToken so it can't be replayed against a different
+ * contract, and carries which side of the contract that phone resolved to
+ * (matched against the contract's party phone numbers at verify time).
+ */
+export type ContractSignTicketPayload = {
+  type: 'contract_sign_ticket';
+  phone: string;
+  tenantSlug: string;
+  contractId: string;
+  side: 'PARTY_A' | 'PARTY_B';
+};

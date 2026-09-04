@@ -38,6 +38,7 @@ enum OtpPurpose {
   SIGNUP
   BOOKING
   TRACKING
+  CONTRACT_SIGN
 }
 
 model OtpCode {

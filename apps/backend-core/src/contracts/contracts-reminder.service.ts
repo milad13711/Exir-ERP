@@ -4,6 +4,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { contractPartyName } from './contracts.service.js';
 
 /**
  * Runs once a day across every active tenant with the contracts module
@@ -57,7 +58,7 @@ export class ContractsReminderService {
     // سخاوتمندانه (۹۰ روز) واکشی می‌کنیم و شرط دقیق را در حافظه اعمال می‌کنیم.
     const candidates = await tenantDb.contract.findMany({
       where: { status: 'ACTIVE', reminderSentAt: null, endDate: { lte: new Date(now.getTime() + 90 * 86_400_000) } },
-      include: { contact: { select: { name: true } } },
+      include: { contact: { select: { name: true } }, employee: { select: { fullName: true } } },
     });
 
     const dueNow = candidates.filter((c) => {
@@ -71,12 +72,14 @@ export class ContractsReminderService {
     for (const contract of dueNow) {
       const endDateFa = contract.endDate.toLocaleDateString('fa-IR');
 
+      const partyName = contractPartyName(contract);
+
       if (contract.createdByUserId) {
         await this.notifications.notify(tenantDb, {
           userId: contract.createdByUserId,
           type: 'contract.expiring_soon',
           title: `قرارداد «${contract.title}» رو به پایان است`,
-          body: `قرارداد شماره ${contract.contractNo} با ${contract.contact.name} در تاریخ ${endDateFa} پایان می‌یابد.`,
+          body: `قرارداد شماره ${contract.contractNo} با ${partyName} در تاریخ ${endDateFa} پایان می‌یابد.`,
           link: '/contracts',
         });
       }
@@ -84,7 +87,7 @@ export class ContractsReminderService {
       await this.automation.emit(ctx, 'contracts.contract.expiring_soon', {
         contractNo: contract.contractNo,
         title: contract.title,
-        contactName: contract.contact.name,
+        contactName: partyName,
         endDate: contract.endDate.toISOString(),
       });
 

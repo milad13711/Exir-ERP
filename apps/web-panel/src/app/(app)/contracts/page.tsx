@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { DocsIcon, PlusIcon, SearchIcon } from "@/components/icons";
+import { DocsIcon, PlusIcon, SearchIcon, SettingsIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import { fetchContracts, type Contract, type ContractStatus } from "@/lib/api";
 import { NewContractModal } from "@/components/contracts/NewContractModal";
 import { ContractDetailModal } from "@/components/contracts/ContractDetailModal";
+import { ContractTemplatesModal } from "@/components/contracts/ContractTemplatesModal";
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -25,11 +26,16 @@ const STATUS_TONES: Record<ContractStatus, "primary" | "success" | "neutral" | "
 
 type StatusFilter = "همه" | ContractStatus;
 
+function partyDisplayName(c: Contract): string {
+  return c.employee?.fullName ?? c.contact?.name ?? c.secondPartyContact?.name ?? c.secondPartyName ?? "—";
+}
+
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("همه");
   const [newOpen, setNewOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [openContract, setOpenContract] = useState<Contract | null>(null);
 
   function reload() {
@@ -41,8 +47,7 @@ export default function ContractsPage() {
     if (!contracts) return [];
     return contracts.filter((c) => {
       const matchesStatus = statusFilter === "همه" || c.status === statusFilter;
-      const matchesSearch =
-        !search.trim() || c.title.includes(search) || c.contact.name.includes(search) || String(c.contractNo).includes(search);
+      const matchesSearch = !search.trim() || c.title.includes(search) || partyDisplayName(c).includes(search) || String(c.contractNo).includes(search);
       return matchesStatus && matchesSearch;
     });
   }, [contracts, search, statusFilter]);
@@ -52,15 +57,24 @@ export default function ContractsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-extrabold">مدیریت قرارداد</h1>
-          <p className="text-[13.5px] text-muted mt-1">قراردادهای فروش و خرید — از پیش‌نویس تا امضا، تمدید و فسخ</p>
+          <p className="text-[13.5px] text-muted mt-1">قراردادهای داخلی، خارجی و بین‌طرفین — با امضای دیجیتال دوطرفه</p>
         </div>
-        <button
-          onClick={() => setNewOpen(true)}
-          className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
-        >
-          <PlusIcon className="w-4 h-4" />
-          قرارداد جدید
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setTemplatesOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <SettingsIcon className="w-4 h-4" />
+            قالب‌های قرارداد
+          </button>
+          <button
+            onClick={() => setNewOpen(true)}
+            className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
+          >
+            <PlusIcon className="w-4 h-4" />
+            قرارداد جدید
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
@@ -110,7 +124,9 @@ export default function ContractsPage() {
               <div className="flex-1 min-w-0">
                 <div className="text-[13.5px] font-bold truncate">{c.title}</div>
                 <div className="text-[11.5px] text-muted mt-0.5">
-                  #{c.contractNo} · {c.contact.name} · {c.type === "SALES" ? "فروش" : "خرید"}
+                  #{c.contractNo} · {partyDisplayName(c)}
+                  {c.type ? ` · ${c.type === "SALES" ? "فروش" : "خرید"}` : ""}
+                  {c.isLocked ? " · 🔒" : ""}
                 </div>
               </div>
               <div className="text-[12px] text-muted w-[130px] text-left shrink-0 hidden sm:block">
@@ -126,6 +142,7 @@ export default function ContractsPage() {
       </Card>
 
       {newOpen ? <NewContractModal onClose={() => setNewOpen(false)} onCreated={reload} /> : null}
+      {templatesOpen ? <ContractTemplatesModal onClose={() => setTemplatesOpen(false)} /> : null}
       {openContract ? (
         <ContractDetailModal contract={openContract} onClose={() => setOpenContract(null)} onChanged={reload} />
       ) : null}

@@ -1,10 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
-import { signContract, terminateContract, renewContract, type Contract, type ContractStatus } from "@/lib/api";
+import { TasksSection } from "@/components/shared/TasksSection";
+import { SendIcon } from "@/components/icons";
+import { formatToman, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
+import { useWorkspace } from "@/lib/workspace-context";
+import {
+  signContract,
+  terminateContract,
+  renewContract,
+  fetchContractEditRequests,
+  resolveContractEditRequest,
+  fetchContractAmendments,
+  createContractAmendment,
+  signContractAmendmentAsCompany,
+  type Contract,
+  type ContractStatus,
+  type ContractLegalCategory,
+  type ContractEditRequest,
+  type ContractAmendment,
+} from "@/lib/api";
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -18,6 +36,15 @@ const STATUS_TONES: Record<ContractStatus, "primary" | "success" | "neutral" | "
   EXPIRED: "danger",
   TERMINATED: "danger",
 };
+const LEGAL_CATEGORY_LABELS: Record<ContractLegalCategory, string> = {
+  NOTARIZED: "دفترخانه اسناد رسمی",
+  LAWYER_SUPERVISED: "تحت نظارت وکیل",
+  GENERAL: "عمومی",
+};
+
+function partyDisplayName(contract: Contract): string {
+  return contract.employee?.fullName ?? contract.contact?.name ?? "—";
+}
 
 export function ContractDetailModal({
   contract,
@@ -34,16 +61,38 @@ export function ContractDetailModal({
   const [terminateReason, setTerminateReason] = useState("");
   const [renewOpen, setRenewOpen] = useState(false);
   const [newEndDate, setNewEndDate] = useState("");
+  const [signing, setSigning] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  async function handleSign() {
+  const [editRequests, setEditRequests] = useState<ContractEditRequest[]>(contract.editRequests ?? []);
+  const [amendments, setAmendments] = useState<ContractAmendment[]>(contract.amendments ?? []);
+  const [amendmentText, setAmendmentText] = useState("");
+  const [addingAmendment, setAddingAmendment] = useState(false);
+  const { me } = useWorkspace();
+
+  useEffect(() => {
+    fetchContractEditRequests(contract.id).then(setEditRequests).catch(() => {});
+    fetchContractAmendments(contract.id).then(setAmendments).catch(() => {});
+  }, [contract.id]);
+
+  async function copyPublicLink() {
+    if (!me) return;
+    const url = `${window.location.origin}/sign/${me.tenant.slug}/${contract.publicToken}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  async function handleSign(signatureDataUrl: string) {
     setBusy(true);
     setError(null);
     try {
-      await signContract(contract.id);
+      await signContract(contract.id, { signatureDataUrl, signerName: me?.user.name ?? "نماینده شرکت" });
       onChanged();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "امضای قرارداد ناموفق بود");
+      setSigning(false);
     } finally {
       setBusy(false);
     }
@@ -80,19 +129,66 @@ export function ContractDetailModal({
     }
   }
 
+  async function handleResolveEditRequest(id: string) {
+    try {
+      const updated = await resolveContractEditRequest(id);
+      setEditRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch {
+      // فقط برای این آیتم ناموفق می‌ماند — بقیه‌ی صفحه دست‌نخورده باقی می‌ماند
+    }
+  }
+
+  async function handleAddAmendment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!amendmentText.trim()) return;
+    setAddingAmendment(true);
+    try {
+      const created = await createContractAmendment(contract.id, amendmentText.trim());
+      setAmendments((prev) => [created, ...prev]);
+      setAmendmentText("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ثبت الحاقیه ناموفق بود");
+    } finally {
+      setAddingAmendment(false);
+    }
+  }
+
+  async function handleSignAmendment(amendmentId: string, signatureDataUrl: string) {
+    try {
+      const updated = await signContractAmendmentAsCompany(amendmentId, { signatureDataUrl, signerName: me?.user.name ?? "نماینده شرکت" });
+      setAmendments((prev) => prev.map((a) => (a.id === amendmentId ? updated : a)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "امضای الحاقیه ناموفق بود");
+    }
+  }
+
+  const unresolvedEditRequests = editRequests.filter((r) => !r.resolved);
+
   return (
-    <Modal title={`قرارداد شماره ${contract.contractNo}`} onClose={onClose} width="max-w-[560px]">
+    <Modal title={`قرارداد شماره ${contract.contractNo}`} onClose={onClose} width="max-w-[600px]">
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[15px] font-bold">{contract.title}</div>
             <div className="text-[12.5px] text-muted mt-1">
-              {contract.contact.name}
-              {contract.contact.company ? ` — ${contract.contact.company}` : ""}
+              {partyDisplayName(contract)}
+              {contract.partyMode === "THIRD_PARTY" && (
+                <> ⟷ {contract.secondPartyContact?.name ?? contract.secondPartyName ?? "—"}</>
+              )}
+              {contract.contact?.company ? ` — ${contract.contact.company}` : ""}
             </div>
           </div>
-          <Badge tone={STATUS_TONES[contract.status]}>{STATUS_LABELS[contract.status]}</Badge>
+          <div className="flex flex-col items-end gap-1.5">
+            <Badge tone={STATUS_TONES[contract.status]}>{STATUS_LABELS[contract.status]}</Badge>
+            <Badge tone="neutral">{LEGAL_CATEGORY_LABELS[contract.legalCategory]}</Badge>
+          </div>
         </div>
+
+        {contract.isLocked && (
+          <div className="text-[11.5px] text-success bg-success-soft rounded-xl px-3 py-2 flex items-center gap-1.5">
+            🔒 این قرارداد با امضای دیجیتال هر دو طرف قفل شده و غیرقابل ویرایش است.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-50 rounded-xl p-3">
@@ -101,7 +197,7 @@ export function ContractDetailModal({
           </div>
           <div className="bg-slate-50 rounded-xl p-3">
             <div className="text-[11px] text-muted mb-1">نوع</div>
-            <div className="text-[13.5px] font-bold">{contract.type === "SALES" ? "فروش" : "خرید"}</div>
+            <div className="text-[13.5px] font-bold">{contract.type === "SALES" ? "فروش" : contract.type === "PURCHASE" ? "خرید" : "—"}</div>
           </div>
           <div className="bg-slate-50 rounded-xl p-3">
             <div className="text-[11px] text-muted mb-1">تاریخ شروع</div>
@@ -128,9 +224,60 @@ export function ContractDetailModal({
           </div>
         )}
 
+        {!contract.isLocked && (
+          <button
+            onClick={copyPublicLink}
+            className="flex items-center justify-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <SendIcon className="w-4 h-4" />
+            {linkCopied ? "لینک کپی شد" : "لینک عمومی امضای دیجیتال"}
+          </button>
+        )}
+
+        {(contract.partyASignedAt || contract.partyBSignedAt) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-xl p-3 ${contract.partyASignedAt ? "bg-success-soft" : "bg-slate-50"}`}>
+              <div className="text-[11px] text-muted mb-1">امضای طرف اول</div>
+              <div className="text-[12.5px] font-bold">
+                {contract.partyASignedAt ? `${contract.partyASignerName} — ${formatJalaliDateTime(contract.partyASignedAt)}` : "هنوز امضا نشده"}
+              </div>
+            </div>
+            <div className={`rounded-xl p-3 ${contract.partyBSignedAt ? "bg-success-soft" : "bg-slate-50"}`}>
+              <div className="text-[11px] text-muted mb-1">{contract.partyMode === "THIRD_PARTY" ? "امضای طرف دوم" : "امضای شرکت"}</div>
+              <div className="text-[12.5px] font-bold">
+                {contract.partyBSignedAt ? `${contract.partyBSignerName} — ${formatJalaliDateTime(contract.partyBSignedAt)}` : "هنوز امضا نشده"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {unresolvedEditRequests.length > 0 && (
+          <div>
+            <div className="text-[12px] font-semibold text-ink-soft mb-1.5">درخواست‌های ویرایش طرفین</div>
+            <div className="flex flex-col gap-2">
+              {unresolvedEditRequests.map((r) => (
+                <div key={r.id} className="flex items-start gap-2 bg-warning-soft rounded-xl p-3">
+                  <div className="flex-1">
+                    <div className="text-[11px] text-muted mb-0.5">{r.side === "PARTY_A" ? "طرف اول" : "طرف دوم"}</div>
+                    <div className="text-[12.5px]">{r.text}</div>
+                  </div>
+                  <button onClick={() => handleResolveEditRequest(r.id)} className="text-[11px] font-bold text-primary shrink-0 cursor-pointer">
+                    بررسی شد
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
-        {terminateOpen ? (
+        {signing ? (
+          <div className="bg-primary-soft rounded-xl p-3.5">
+            <div className="text-[12px] font-semibold text-primary mb-2">امضای طرف شرکت</div>
+            <SignaturePad onDone={handleSign} onCancel={() => setSigning(false)} />
+          </div>
+        ) : terminateOpen ? (
           <form onSubmit={handleTerminate} className="flex flex-col gap-2.5 bg-danger-soft rounded-xl p-3.5">
             <label className="text-[12px] font-semibold text-danger">دلیل فسخ (اختیاری)</label>
             <input
@@ -174,13 +321,13 @@ export function ContractDetailModal({
           </form>
         ) : (
           <div className="flex items-center gap-2">
-            {contract.status === "DRAFT" && (
+            {contract.status === "DRAFT" && contract.partyMode !== "THIRD_PARTY" && !contract.partyBSignedAt && (
               <button
-                onClick={handleSign}
+                onClick={() => setSigning(true)}
                 disabled={busy}
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-[12.5px] font-bold cursor-pointer disabled:opacity-50"
               >
-                امضا و فعال‌سازی
+                امضای شرکت
               </button>
             )}
             {(contract.status === "ACTIVE" || contract.status === "EXPIRED") && (
@@ -202,8 +349,72 @@ export function ContractDetailModal({
           </div>
         )}
 
+        {contract.isLocked && (
+          <div>
+            <div className="text-[12px] font-semibold text-ink-soft mb-1.5">الحاقیه‌ها</div>
+            <form onSubmit={handleAddAmendment} className="flex items-center gap-2 mb-2.5">
+              <input
+                value={amendmentText}
+                onChange={(e) => setAmendmentText(e.target.value)}
+                placeholder="متن الحاقیه/اصلاحیه جدید..."
+                className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2"
+              />
+              <button
+                type="submit"
+                disabled={addingAmendment || !amendmentText.trim()}
+                className="text-[12px] font-bold text-white bg-primary px-3.5 py-2 rounded-lg cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                افزودن
+              </button>
+            </form>
+            <div className="flex flex-col gap-2">
+              {amendments.map((a) => (
+                <div key={a.id} className="bg-slate-50 rounded-xl p-3">
+                  <div className="text-[12.5px] mb-2">{a.text}</div>
+                  {a.isLocked ? (
+                    <div className="text-[11px] text-success font-semibold">🔒 امضا و قفل‌شده — {formatJalaliDateTime(a.partyBSignedAt!)}</div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-muted">
+                        {a.partyASignedAt ? "طرف اول امضا کرده" : "منتظر امضای طرف اول"} ·{" "}
+                        {a.partyBSignedAt ? "شرکت امضا کرده" : "منتظر امضای شرکت"}
+                      </div>
+                      {!a.partyBSignedAt && contract.partyMode !== "THIRD_PARTY" && (
+                        <AmendmentSignButton amendmentId={a.id} onSign={handleSignAmendment} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <TasksSection relatedModule="contract" relatedEntityId={contract.id} />
         <AttachmentsSection entityType="Contract" entityId={contract.id} />
       </div>
     </Modal>
+  );
+}
+
+function AmendmentSignButton({ amendmentId, onSign }: { amendmentId: string; onSign: (id: string, dataUrl: string) => void }) {
+  const [open, setOpen] = useState(false);
+  if (open) {
+    return (
+      <div className="w-full">
+        <SignaturePad
+          onDone={(dataUrl) => {
+            onSign(amendmentId, dataUrl);
+            setOpen(false);
+          }}
+          onCancel={() => setOpen(false)}
+        />
+      </div>
+    );
+  }
+  return (
+    <button onClick={() => setOpen(true)} className="text-[11px] font-bold text-primary shrink-0 cursor-pointer">
+      امضای شرکت
+    </button>
   );
 }

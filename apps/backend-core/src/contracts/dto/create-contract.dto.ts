@@ -5,11 +5,42 @@ export class CreateContractDto {
   @MinLength(2)
   title!: string;
 
-  @IsIn(['SALES', 'PURCHASE'])
-  type!: 'SALES' | 'PURCHASE';
+  @IsIn(['INTERNAL', 'EXTERNAL', 'THIRD_PARTY'])
+  partyMode!: 'INTERNAL' | 'EXTERNAL' | 'THIRD_PARTY';
 
+  @IsOptional()
+  @IsIn(['SALES', 'PURCHASE'])
+  type?: 'SALES' | 'PURCHASE';
+
+  @IsOptional()
+  @IsIn(['NOTARIZED', 'LAWYER_SUPERVISED', 'GENERAL'])
+  legalCategory?: 'NOTARIZED' | 'LAWYER_SUPERVISED' | 'GENERAL';
+
+  @IsOptional()
   @IsString()
-  contactId!: string;
+  templateId?: string;
+
+  // طرف اول — برای INTERNAL شناسه‌ی پرسنل، برای EXTERNAL/THIRD_PARTY شناسه‌ی مخاطب CRM
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
+  // طرف دوم — فقط برای THIRD_PARTY
+  @IsOptional()
+  @IsString()
+  secondPartyContactId?: string;
+
+  @IsOptional()
+  @IsString()
+  secondPartyName?: string;
+
+  @IsOptional()
+  @IsString()
+  secondPartyPhone?: string;
 
   @IsInt()
   @Min(0)

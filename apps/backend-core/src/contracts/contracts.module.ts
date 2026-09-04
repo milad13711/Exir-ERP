@@ -12,5 +12,6 @@ import { ContractsAutomationTriggers } from './contracts-automation.triggers.js'
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule, NotificationsModule],
   controllers: [ContractsController],
   providers: [ContractsService, ContractsReminderService, ContractsAutomationTriggers],
+  exports: [ContractsService],
 })
 export class ContractsModule {}

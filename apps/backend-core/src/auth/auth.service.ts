@@ -54,6 +54,7 @@ export class AuthService {
         SIGNUP: 'کد تأیید ثبت‌نام شما',
         BOOKING: 'کد تأیید رزرو نوبت شما',
         TRACKING: 'کد تأیید پیگیری پروژه‌ی شما',
+        CONTRACT_SIGN: 'کد تأیید امضای قرارداد شما',
       };
       const message = `${purposeText[purpose]} در اکسیر ERP: ${code}`;
       const result = await this.sms.sendSms(phone, message);

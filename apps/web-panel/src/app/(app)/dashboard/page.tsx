@@ -19,9 +19,11 @@ import {
   toggleTask,
   fetchActivity,
   fetchDashboardSummary,
+  fetchExpiringSoonContracts,
   type ApiTask,
   type ActivityEntry,
   type DashboardSummary,
+  type Contract,
 } from "@/lib/api";
 import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
@@ -31,12 +33,18 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [expiringContracts, setExpiringContracts] = useState<Contract[] | null>(null);
 
   useEffect(() => {
     fetchTasks().then((t) => setTasks(t.slice(0, 4))).catch(() => setTasks([]));
     fetchActivity().then((a) => setActivity(a.slice(0, 3))).catch(() => setActivity([]));
     fetchDashboardSummary().then(setSummary).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!installedModules.has("contracts")) return;
+    fetchExpiringSoonContracts().then(setExpiringContracts).catch(() => setExpiringContracts([]));
+  }, [installedModules]);
 
   async function handleToggle(id: string) {
     const updated = await toggleTask(id);
@@ -245,6 +253,37 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {installedModules.has("contracts") && expiringContracts && expiringContracts.length > 0 ? (
+        <Card className="p-5 mb-4">
+          <div className="flex items-center justify-between mb-3.5">
+            <span className="text-[14.5px] font-bold">قراردادهای رو به انقضا (تا یک ماه آینده)</span>
+            <a href="/contracts" className="text-xs font-bold text-primary">همه</a>
+          </div>
+          <div className="flex flex-col">
+            {expiringContracts.map((c, i) => {
+              const party = c.employee?.fullName ?? c.contact?.name ?? c.secondPartyContact?.name ?? c.secondPartyName ?? "—";
+              return (
+                <div
+                  key={c.id}
+                  className={clsx(
+                    "flex items-center justify-between py-2.5",
+                    i < expiringContracts.length - 1 && "border-b border-border",
+                  )}
+                >
+                  <div>
+                    <div className="text-[12.5px] font-bold">
+                      قرارداد #{c.contractNo} — {party}
+                    </div>
+                    <div className="text-[11px] text-warning mt-0.5">پایان: {formatJalaliDate(c.endDate)}</div>
+                  </div>
+                  <div className="text-[12.5px] font-extrabold">{formatToman(c.value)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
 
       {installedModules.has("sales") && summary && summary.customerFollowUps.length > 0 ? (
         <Card className="p-5 mb-4">
