@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CalendarIcon, PlusIcon, ChevronDownIcon, SettingsIcon, PhoneIcon } from "@/components/icons";
+import { CalendarIcon, PlusIcon, ChevronDownIcon, SettingsIcon, PhoneIcon, SendIcon } from "@/components/icons";
+import { useWorkspace } from "@/lib/workspace-context";
 import { toPersianDigits, formatToman, toJalali, toGregorian, JALALI_MONTHS } from "@/lib/persian";
 import {
   fetchAppointments,
@@ -55,6 +56,16 @@ export default function BookingPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [serviceTypesOpen, setServiceTypesOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const { me } = useWorkspace();
+
+  async function copyBookingLink() {
+    if (!me) return;
+    const url = `${window.location.origin}/book/${me.tenant.slug}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
 
   function reload() {
     const { from, to } = dayBounds(selectedDate);
@@ -99,6 +110,14 @@ export default function BookingPage() {
           <p className="text-[13.5px] text-muted mt-1">مدیریت نوبت‌های دریافت خدمات و جلوگیری از تداخل زمانی</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={copyBookingLink}
+            disabled={!me}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+          >
+            <SendIcon className="w-4 h-4" />
+            {linkCopied ? "لینک کپی شد" : "لینک رزرو آنلاین"}
+          </button>
           <button
             onClick={() => setServiceTypesOpen(true)}
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"

@@ -43,3 +43,15 @@ export type SignupTicketPayload = {
   type: 'signup_ticket';
   phone: string;
 };
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for a public
+ * booking wizard — issued after OTP verify, consumed by the create-
+ * appointment step, scoped to one tenant so it can't be replayed against
+ * a different tenant's booking endpoint.
+ */
+export type BookingTicketPayload = {
+  type: 'booking_ticket';
+  phone: string;
+  tenantSlug: string;
+};

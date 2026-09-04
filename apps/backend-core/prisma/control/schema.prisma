@@ -36,6 +36,7 @@ enum OtpPurpose {
   LOGIN
   TENANT_INVITE
   SIGNUP
+  BOOKING
 }
 
 model OtpCode {

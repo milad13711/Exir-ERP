@@ -2990,3 +2990,44 @@ export function noShowAppointment(id: string) {
 export function cancelAppointment(id: string, reason?: string) {
   return apiFetch<Appointment>(`/booking/appointments/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
 }
+
+// ── رزرو نوبت عمومی (Public booking wizard — no auth) ─────────────────────
+
+export type PublicServiceType = { id: string; name: string; durationMinutes: number; price: number };
+export type PublicProvider = { id: string; name: string };
+
+export function fetchPublicServiceTypes(slug: string) {
+  return apiFetch<PublicServiceType[]>(`/public/booking/${slug}/service-types`);
+}
+
+export function fetchPublicProviders(slug: string) {
+  return apiFetch<PublicProvider[]>(`/public/booking/${slug}/providers`);
+}
+
+export function requestBookingOtp(slug: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/booking/${slug}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyBookingOtp(slug: string, phone: string, code: string) {
+  return apiFetch<{ bookingToken: string; expiresInSeconds: number }>(`/public/booking/${slug}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function createPublicAppointment(
+  slug: string,
+  data: {
+    bookingToken: string;
+    serviceTypeId: string;
+    providerUserId?: string;
+    customerName: string;
+    startAt: string;
+    notes?: string;
+  },
+) {
+  return apiFetch<Appointment>(`/public/booking/${slug}/appointments`, { method: "POST", body: JSON.stringify(data) });
+}

@@ -2,8 +2,15 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
+
+function formatWhen(date: Date): string {
+  const d = date.toLocaleDateString('fa-IR');
+  const t = date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  return `${d} ساعت ${t}`;
+}
 
 const APPOINTMENT_INCLUDE = {
   serviceType: true,
@@ -15,7 +22,10 @@ const ACTIVE_STATUSES = ['SCHEDULED', 'CONFIRMED'] as const;
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly automation: AutomationEngineService) {}
+  constructor(
+    private readonly automation: AutomationEngineService,
+    private readonly sms: ExirSmsService,
+  ) {}
 
   list(
     ctx: TenantRequestContext,
@@ -57,6 +67,16 @@ export class AppointmentsService {
   }
 
   async create(ctx: TenantRequestContext, dto: CreateAppointmentDto) {
+    const createdByUserId = await resolveTenantUserId(ctx);
+    return this.createInternal(ctx, dto, createdByUserId);
+  }
+
+  /** Used by the public booking wizard, where there's no tenant User to attribute creation to. */
+  createPublic(ctx: TenantRequestContext, dto: CreateAppointmentDto) {
+    return this.createInternal(ctx, dto, null);
+  }
+
+  private async createInternal(ctx: TenantRequestContext, dto: CreateAppointmentDto, createdByUserId: string | null) {
     const serviceType = await ctx.tenantDb.serviceType.findUnique({ where: { id: dto.serviceTypeId } });
     if (!serviceType || !serviceType.isActive) throw new NotFoundException('نوع خدمت یافت نشد یا غیرفعال است');
 
@@ -66,7 +86,6 @@ export class AppointmentsService {
 
     await this.assertNoOverlap(ctx, dto.providerUserId, startAt, endAt);
 
-    const createdByUserId = await resolveTenantUserId(ctx);
     const appointment = await ctx.tenantDb.appointment.create({
       data: {
         serviceTypeId: dto.serviceTypeId,
@@ -89,6 +108,13 @@ export class AppointmentsService {
       startAt: appointment.startAt.toISOString(),
       providerUserId: appointment.providerUserId,
     });
+
+    if (appointment.customerPhone && this.sms.isConfigured()) {
+      await this.sms.sendSms(
+        appointment.customerPhone,
+        `درخواست نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} ثبت شد و در انتظار تأیید است.`,
+      );
+    }
 
     return appointment;
   }
@@ -145,8 +171,15 @@ export class AppointmentsService {
     return ctx.tenantDb.appointment.update({ where: { id }, data, include: APPOINTMENT_INCLUDE });
   }
 
-  confirm(ctx: TenantRequestContext, id: string) {
-    return this.transition(ctx, id, ['SCHEDULED'], { status: 'CONFIRMED' });
+  async confirm(ctx: TenantRequestContext, id: string) {
+    const appointment = await this.transition(ctx, id, ['SCHEDULED'], { status: 'CONFIRMED' });
+    if (appointment.customerPhone && this.sms.isConfigured()) {
+      await this.sms.sendSms(
+        appointment.customerPhone,
+        `نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} تأیید شد.`,
+      );
+    }
+    return appointment;
   }
 
   complete(ctx: TenantRequestContext, id: string) {
@@ -168,6 +201,12 @@ export class AppointmentsService {
       serviceName: appointment.serviceType.name,
       startAt: appointment.startAt.toISOString(),
     });
+    if (appointment.customerPhone && this.sms.isConfigured()) {
+      await this.sms.sendSms(
+        appointment.customerPhone,
+        `متأسفانه نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} لغو شد.`,
+      );
+    }
     return appointment;
   }
 }
