@@ -1,5 +1,7 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { ModuleGuard } from '../common/guards/module.guard.js';
+import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { MCP_TOOLS } from './mcp-tools.js';
@@ -24,7 +26,8 @@ const PROTOCOL_VERSION = '2025-06-18';
  * (MCP_TOOLS), not a document store.
  */
 @Controller('mcp')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleGuard)
+@RequireModule('mcp')
 export class McpController {
   @Post()
   @HttpCode(200)

@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { Body, Controller, Delete, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { ModuleGuard } from '../common/guards/module.guard.js';
+import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
@@ -10,7 +12,8 @@ import { CreateWebhookDto } from './dto/create-webhook.dto.js';
 import { WEBHOOK_EVENTS } from './webhook-events.js';
 
 @Controller('settings/webhooks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModuleGuard, RolesGuard)
+@RequireModule('webhooks')
 @Roles('OWNER', 'ADMIN')
 export class WebhooksController {
   constructor(private readonly controlDb: ControlPrismaService) {}

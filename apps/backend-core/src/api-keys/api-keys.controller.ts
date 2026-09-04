@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { ModuleGuard } from '../common/guards/module.guard.js';
+import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
@@ -19,7 +21,8 @@ import { API_KEY_PREFIX, API_KEY_LOOKUP_PREFIX_LENGTH } from './api-key.constant
  * does — same as any other settings write.
  */
 @Controller('settings/api-keys')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModuleGuard, RolesGuard)
+@RequireModule('api-access')
 @Roles('OWNER', 'ADMIN')
 export class ApiKeysController {
   constructor(private readonly controlDb: ControlPrismaService) {}

@@ -177,6 +177,36 @@ async function main() {
       dependsOn: ['production'],
     },
     {
+      code: 'api-access',
+      name: 'دسترسی API',
+      description: 'ساخت کلید API برای اتصال سیستم‌های خارجی به اکسیر — پیش‌نیاز ماژول‌های وب‌هوک و MCP.',
+      category: 'یکپارچه‌سازی',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: [],
+    },
+    {
+      code: 'webhooks',
+      name: 'وب‌هوک',
+      description: 'اطلاع‌رسانی خودکار به سیستم‌های بیرونی هنگام وقوع رویدادهای مهم (فاکتور جدید، مخاطب جدید و ...).',
+      category: 'یکپارچه‌سازی',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['api-access'],
+    },
+    {
+      code: 'mcp',
+      name: 'اتصال دستیار هوشمند (MCP)',
+      description: 'اتصال یک ایجنت هوش مصنوعی (مثل دستیار صوتی) به اکسیر برای ثبت، ویرایش، مشاهده و حذف اطلاعات — با تأیید کاربر برای هر تغییر.',
+      category: 'یکپارچه‌سازی',
+      priceMonthly: 190000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['api-access'],
+    },
+    {
       code: 'currency-exchange',
       name: 'نرخ ارز و تبدیل لحظه‌ای',
       description: 'تعریف ارزهای خارجی برای قیمت‌گذاری کالا، و به‌روزرسانی خودکار نرخ آن‌ها از بازار آزاد. بدون این ماژول، سیستم فقط با تومان کار می‌کند.',
@@ -234,7 +264,7 @@ async function main() {
   // تغییر کردند) دسترسی کامل داشتند — چون enforcement تازه اضافه شده،
   // برایشان به‌صورت خودکار نصب‌شده ثبت می‌شوند تا هیچ‌کس با این تغییر
   // یک‌شبه دسترسی از دست ندهد.
-  const grandfatheredCodes = ['crm', 'warehouse', 'sales', 'purchasing', 'checks', 'supplier-risk', 'delivery-signature'];
+  const grandfatheredCodes = ['crm', 'warehouse', 'sales', 'purchasing', 'checks', 'supplier-risk', 'delivery-signature', 'api-access', 'webhooks', 'mcp'];
   const grandfatheredModules = await db.moduleDefinition.findMany({ where: { code: { in: grandfatheredCodes } } });
   const existingTenants = await db.tenant.findMany({ select: { id: true } });
   for (const tenant of existingTenants) {

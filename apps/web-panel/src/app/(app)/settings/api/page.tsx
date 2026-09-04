@@ -20,6 +20,7 @@ import { NewApiKeyModal } from "@/components/api/NewApiKeyModal";
 import { NewWebhookModal } from "@/components/api/NewWebhookModal";
 import { WebhookDeliveriesModal } from "@/components/api/WebhookDeliveriesModal";
 import { WEBHOOK_EVENT_LABELS } from "@/components/api/webhook-labels";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const MCP_TOOLS_REFERENCE = [
   { name: "list_crm_deals", desc: "فهرست فرصت‌های فروش CRM" },
@@ -60,6 +61,9 @@ const sections = [
 ];
 
 export default function ApiDocsSettingsPage() {
+  const { installedModules } = useWorkspace();
+  const webhooksEnabled = installedModules.has("webhooks");
+  const mcpEnabled = installedModules.has("mcp");
   const [keys, setKeys] = useState<ApiKeyEntry[] | null>(null);
   const [webhooks, setWebhooks] = useState<WebhookSubscription[] | null>(null);
   const [events, setEvents] = useState<string[]>([]);
@@ -171,6 +175,7 @@ export default function ApiDocsSettingsPage() {
       </Card>
 
       {/* وب‌هوک‌ها */}
+      {webhooksEnabled ? (
       <Card id="webhooks" className="mt-6 p-5 scroll-mt-20">
         <div className="flex items-center justify-between mb-3">
           <div className="text-[13.5px] font-bold">وب‌هوک‌ها</div>
@@ -219,8 +224,10 @@ export default function ApiDocsSettingsPage() {
           ))
         )}
       </Card>
+      ) : null}
 
       {/* MCP */}
+      {mcpEnabled ? (
       <Card id="mcp" className="mt-6 p-5 scroll-mt-20">
         <div className="text-[13.5px] font-bold mb-1">اتصال از طریق MCP</div>
         <p className="text-[12px] text-muted mb-3 leading-relaxed">
@@ -261,6 +268,7 @@ export default function ApiDocsSettingsPage() {
           </div>
         </div>
       </Card>
+      ) : null}
 
       {newKeyOpen ? (
         <NewApiKeyModal

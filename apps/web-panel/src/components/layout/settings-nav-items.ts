@@ -25,7 +25,7 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/modules", label: "ماژول‌های نصب‌شده", icon: StoreIcon },
   { href: "/settings/currencies", label: "ارزها و نرخ تبدیل", icon: CurrencyIcon, moduleCode: "currency-exchange" },
   { href: "/settings/voip", label: "اتصال تلفن (VoIP)", icon: PhoneIcon, moduleCode: "voip" },
-  { href: "/settings/api", label: "API، وب‌هوک و MCP", icon: DocsIcon },
+  { href: "/settings/api", label: "API، وب‌هوک و MCP", icon: DocsIcon, moduleCode: "api-access" },
   { href: "/settings/notifications", label: "اعلان‌ها", icon: BellIcon },
   { href: "/settings/logs", label: "لاگ فعالیت‌ها و خطاها", icon: LogIcon },
 ];
