@@ -60,7 +60,7 @@ export function ProductModal({
       setWarehouses(list);
       setWarehouseId((prev) => prev || list.find((w) => w.isDefault)?.id || list[0]?.id || "");
     });
-    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive)));
+    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive))).catch(() => setCurrencies([]));
   }, []);
 
   const editSelectedCurrency = currencies.find((c) => c.id === editCurrencyId);

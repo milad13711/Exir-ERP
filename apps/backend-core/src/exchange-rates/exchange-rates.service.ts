@@ -79,7 +79,10 @@ export class ExchangeRatesService {
     }
 
     const tenants = await this.controlDb.tenant.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        tenantModules: { some: { status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'currency-exchange' } } },
+      },
       select: { id: true, dbHost: true, dbPort: true, dbName: true },
     });
 

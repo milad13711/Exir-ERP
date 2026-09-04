@@ -26,7 +26,7 @@ export function NewProductModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive)));
+    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive))).catch(() => setCurrencies([]));
   }, []);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId);

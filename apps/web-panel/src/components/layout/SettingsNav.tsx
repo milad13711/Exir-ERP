@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { settingsNav } from "./settings-nav-items";
+import { useWorkspace } from "@/lib/workspace-context";
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const { installedModules } = useWorkspace();
+  const visibleNav = settingsNav.filter((item) => !item.moduleCode || installedModules.has(item.moduleCode));
 
   return (
     <nav className="flex flex-col gap-1">
-      {settingsNav.map((item) => {
+      {visibleNav.map((item) => {
         const active = pathname === item.href;
         return (
           <Link

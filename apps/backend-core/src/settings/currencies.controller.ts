@@ -1,6 +1,8 @@
 import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
+import { ModuleGuard } from '../common/guards/module.guard.js';
+import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -16,7 +18,8 @@ import { UpdateCurrencyDto } from './dto/update-currency.dto.js';
  * می‌ماند).
  */
 @Controller('settings/currencies')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleGuard)
+@RequireModule('currency-exchange')
 export class CurrenciesController {
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
