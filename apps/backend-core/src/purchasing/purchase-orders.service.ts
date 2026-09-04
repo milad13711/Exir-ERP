@@ -4,6 +4,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import type { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
 import type { RecordPurchasePaymentDto } from './dto/record-purchase-payment.dto.js';
 
@@ -32,7 +33,10 @@ const ORDER_INCLUDE = {
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly costing: CostingService) {}
+  constructor(
+    private readonly costing: CostingService,
+    private readonly automation: AutomationEngineService,
+  ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
     return ctx.tenantDb.purchaseOrder.findMany({
@@ -95,11 +99,18 @@ export class PurchaseOrdersService {
     if (order.approvalStatus !== 'PENDING') throw new BadRequestException('این سفارش در انتظار تأیید نیست');
 
     const approvedByUserId = await resolveTenantUserId(ctx);
-    return ctx.tenantDb.purchaseOrder.update({
+    const updated = await ctx.tenantDb.purchaseOrder.update({
       where: { id },
       data: { approvalStatus: 'APPROVED', approvedByUserId, approvedAt: new Date() },
       include: ORDER_INCLUDE,
     });
+    await this.automation.emit(ctx, 'purchasing.order.approved', {
+      orderNo: updated.orderNo,
+      supplierName: updated.supplier.name,
+      supplierPhone: updated.supplier.phone,
+      total: updated.total,
+    });
+    return updated;
   }
 
   async reject(ctx: TenantRequestContext, id: string, reason?: string) {

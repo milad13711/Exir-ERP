@@ -10,6 +10,8 @@ const ACCOUNTS_BY_CODE: Record<string, { id: string; code: string }> = {
   '2010': { id: 'acc-payable', code: '2010' },
 };
 
+const automationStub = { emit: vi.fn() };
+
 function makeTenantDb(overrides: Record<string, unknown> = {}) {
   const journalEntryCalls: Array<Record<string, unknown>> = [];
   const purchasePaymentCalls: Array<Record<string, unknown>> = [];
@@ -34,7 +36,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
       create: vi.fn((args: { data: Record<string, unknown> }) => Promise.resolve({ id: 'po-1', ...args.data })),
       update: vi.fn((args: { data: Record<string, unknown> }) => {
         orderUpdateCalls.push(args.data);
-        return Promise.resolve({ id: 'po-1', ...args.data });
+        return Promise.resolve({ id: 'po-1', orderNo: 1, total: 0, supplier: { name: 'تأمین‌کننده تست', phone: null }, ...args.data });
       }),
     },
     product: {
@@ -99,7 +101,7 @@ function sumLines(lines: Array<{ debit: bigint; credit: bigint }>) {
 describe('PurchaseOrdersService.receive — double-entry posting', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService());
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
   });
 
   function orderStub(overrides: Record<string, unknown> = {}) {
@@ -160,7 +162,7 @@ describe('PurchaseOrdersService.receive — double-entry posting', () => {
 describe('PurchaseOrdersService.recordPayment', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService());
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
   });
 
   function orderStub(overrides: Record<string, unknown> = {}) {
@@ -218,7 +220,7 @@ describe('PurchaseOrdersService.recordPayment', () => {
 describe('PurchaseOrdersService approval authority', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService());
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
   });
 
   it('lets an OWNER approve a pending order', async () => {
@@ -251,7 +253,7 @@ describe('PurchaseOrdersService approval authority', () => {
 describe('PurchaseOrdersService.create — approval threshold gating', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService());
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
   });
 
   it('marks NOT_REQUIRED when no threshold is configured', async () => {

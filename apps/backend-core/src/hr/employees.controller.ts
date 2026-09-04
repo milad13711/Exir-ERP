@@ -16,6 +16,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator.js'
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { AssignManagerDto } from './dto/assign-manager.dto.js';
@@ -25,7 +26,10 @@ import { CreateEmployeeDocumentDto } from './dto/create-employee-document.dto.js
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('hr')
 export class EmployeesController {
-  constructor(private readonly permissions: PermissionsService) {}
+  constructor(
+    private readonly permissions: PermissionsService,
+    private readonly automation: AutomationEngineService,
+  ) {}
 
   @Get()
   async list(
@@ -138,7 +142,13 @@ export class EmployeesController {
     await this.permissions.assertDelete(ctx, 'hr');
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
-    return ctx.tenantDb.employee.update({ where: { id }, data: { status: 'TERMINATED' } });
+    const updated = await ctx.tenantDb.employee.update({ where: { id }, data: { status: 'TERMINATED' } });
+    await this.automation.emit(ctx, 'hr.employee.terminated', {
+      employeeName: updated.fullName,
+      employeeCode: updated.employeeCode,
+      position: updated.position,
+    });
+    return updated;
   }
 
   @Post(':id/reactivate')

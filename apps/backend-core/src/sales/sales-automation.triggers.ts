@@ -47,6 +47,19 @@ export class SalesAutomationTriggers implements OnModuleInit {
         return quotationCreatedPayload(quotation, tenant.slug);
       },
     });
+
+    this.registry.register({
+      code: 'sales.quotation.accepted',
+      moduleCode: 'sales',
+      label: 'پذیرش پیش‌فاکتور توسط مشتری',
+      description: 'وقتی مشتری، پیش‌فاکتور را از طریق لینک عمومی می‌پذیرد — سیگنال قطعی برای پیگیری فوری فروش.',
+      payloadFields: [
+        { key: 'quotationNo', label: 'شماره پیش‌فاکتور', type: 'NUMBER' },
+        { key: 'acceptedByName', label: 'نام تأییدکننده', type: 'STRING' },
+        { key: 'total', label: 'مبلغ کل', type: 'NUMBER' },
+        { key: 'createdByUserId', label: 'کارشناس فروش مربوطه', type: 'USER_ID' },
+      ],
+    });
   }
 }
 

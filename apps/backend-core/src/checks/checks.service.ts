@@ -6,6 +6,7 @@ import { getManagerUsers } from '../common/manager-users.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import type { CreateCheckDto } from './dto/create-check.dto.js';
 
@@ -33,6 +34,7 @@ export class ChecksService {
     private readonly controlDb: ControlPrismaService,
     private readonly sms: ExirSmsService,
     private readonly notifications: NotificationsService,
+    private readonly automation: AutomationEngineService,
   ) {}
 
   list(
@@ -121,6 +123,12 @@ export class ChecksService {
     }
 
     await this.alertManagersOfBounce(ctx, check);
+    await this.automation.emit(ctx, 'checks.check.bounced', {
+      sayadId: check.sayadId,
+      amount: check.amount,
+      contactName: check.contact?.name ?? null,
+      direction: check.direction,
+    });
     return ctx.tenantDb.check.findUniqueOrThrow({ where: { id }, include: CHECK_INCLUDE });
   }
 

@@ -2,7 +2,9 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoun
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { AcceptPublicQuotationDto } from './dto/accept-public-quotation.dto.js';
+import type { TenantRequestContext } from '../common/request-context.js';
 
 /**
  * Unauthenticated customer-facing view of a sales quotation — reached via a
@@ -20,6 +22,7 @@ export class PublicQuotationsController {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
+    private readonly automation: AutomationEngineService,
   ) {}
 
   private async resolveTenantDb(slug: string) {
@@ -76,7 +79,7 @@ export class PublicQuotationsController {
 
   @Post(':token/accept')
   async accept(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: AcceptPublicQuotationDto) {
-    const { tenantDb } = await this.resolveTenantDb(slug);
+    const { tenant, tenantDb } = await this.resolveTenantDb(slug);
     const quotation = await tenantDb.salesQuotation.findFirst({ where: { publicToken: token } });
     if (!quotation) throw new NotFoundException('پیش‌فاکتور یافت نشد');
     if (quotation.status !== 'SENT') {
@@ -103,6 +106,14 @@ export class PublicQuotationsController {
         link: '/sales',
       });
     }
+
+    const automationCtx = { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
+    await this.automation.emit(automationCtx, 'sales.quotation.accepted', {
+      quotationNo: quotation.quotationNo,
+      acceptedByName: dto.name.trim(),
+      total: quotation.total,
+      createdByUserId: quotation.createdByUserId,
+    });
 
     return { success: true };
   }

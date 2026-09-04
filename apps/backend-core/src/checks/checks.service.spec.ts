@@ -39,7 +39,7 @@ describe('ChecksService — status transitions', () => {
   let service: ChecksService;
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new ChecksService(controlDbStub as never, smsStub as never, notificationsStub as never);
+    service = new ChecksService(controlDbStub as never, smsStub as never, notificationsStub as never, { emit: async () => {} } as never);
   });
 
   it('markDeposited moves PENDING to DEPOSITED', async () => {
@@ -91,7 +91,7 @@ describe('ChecksService.markBounced', () => {
   let service: ChecksService;
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new ChecksService(controlDbStub as never, smsStub as never, notificationsStub as never);
+    service = new ChecksService(controlDbStub as never, smsStub as never, notificationsStub as never, { emit: async () => {} } as never);
   });
 
   it('flags the customer credit record for a bounced RECEIVED check', async () => {

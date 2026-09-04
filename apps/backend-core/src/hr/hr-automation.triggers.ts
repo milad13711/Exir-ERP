@@ -20,5 +20,17 @@ export class HrAutomationTriggers implements OnModuleInit {
         { key: 'daysCount', label: 'تعداد روز', type: 'NUMBER' },
       ],
     });
+
+    this.registry.register({
+      code: 'hr.employee.terminated',
+      moduleCode: 'hr',
+      label: 'خاتمه‌ی همکاری کارمند',
+      description: 'وقتی وضعیت یک کارمند به خاتمه‌ی همکاری تغییر می‌کند — برای اطلاع‌رسانی به واحدهای مربوطه (مثلاً IT برای غیرفعال‌سازی دسترسی).',
+      payloadFields: [
+        { key: 'employeeName', label: 'نام کارمند', type: 'STRING' },
+        { key: 'employeeCode', label: 'کد پرسنلی', type: 'STRING' },
+        { key: 'position', label: 'سمت', type: 'STRING' },
+      ],
+    });
   }
 }

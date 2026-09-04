@@ -48,7 +48,8 @@ export class AutomationEngineService {
     for (const rule of rules) {
       for (const action of rule.actions) {
         try {
-          await this.runAction(ctx, action.config as unknown as AutomationActionConfig, payload);
+          const config = { ...(action.config as object), type: action.type } as unknown as AutomationActionConfig;
+          await this.runAction(ctx, config, payload);
           await ctx.tenantDb.automationRunLog.create({
             data: { ruleId: rule.id, actionType: action.type, status: 'SUCCESS' },
           });
