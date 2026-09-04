@@ -9,6 +9,7 @@ import {
   fetchSubscription,
   fetchLicenseStatus,
   fetchModules,
+  setOfflineModuleInstalled,
   type Me,
   type Subscription,
   type LicenseStatus,
@@ -65,13 +66,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setMe(meData);
         setSubscription(subData);
         setLicense(licenseData);
-        setInstalledModules(
-          new Set(
-            modules
-              .filter((m) => m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore))
-              .map((m) => m.code),
-          ),
+        const installed = new Set(
+          modules
+            .filter((m) => m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore))
+            .map((m) => m.code),
         );
+        setInstalledModules(installed);
+        setOfflineModuleInstalled(installed.has("offline-sync"));
         applyTenantBranding(meData.tenant);
       })
       .catch(() => {

@@ -27,6 +27,20 @@ export class ApiError extends Error {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/**
+ * Whether the "افلاین" module is installed for this tenant — plain
+ * module-level state (not React), set by WorkspaceProvider once /modules
+ * resolves, and read here so apiFetch (a non-component function) can decide
+ * whether a network failure should queue for later or just fail normally.
+ * Defaults to false: until the real value is known, a tenant that hasn't
+ * paid for offline sync shouldn't get it by accident during the loading
+ * window.
+ */
+let offlineModuleInstalled = false;
+export function setOfflineModuleInstalled(installed: boolean): void {
+  offlineModuleInstalled = installed;
+}
+
 /** Best-effort human label for a queued offline request, shown in the pending-sync list. */
 function describeQueuedRequest(method: string, path: string): string {
   const segment = path.split("?")[0].split("/").filter(Boolean)[0] ?? "";
@@ -61,7 +75,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     // A rejected fetch() here means genuinely no connection (DNS/TCP never
     // even completed) — a real HTTP error response would have resolved
     // normally and hit the `!res.ok` branch below instead.
-    if (MUTATING_METHODS.has(method)) {
+    if (MUTATING_METHODS.has(method) && offlineModuleInstalled) {
       const { enqueue, OfflineQueuedError } = await import("./offline/queue");
       const description = describeQueuedRequest(method, path);
       const queueId = await enqueue(method, path, (options.body as string) ?? null, description);
