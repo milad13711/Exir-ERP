@@ -75,7 +75,7 @@ async function main() {
     const admin = await controlDb.adminUser.findFirst({ orderBy: { createdAt: 'asc' } });
     const tenant = await tenants.createTenant(
       { name: orgName, slug, ownerPhone, ownerName, planCode: 'on_premise' },
-      admin?.id ?? 'system-bootstrap',
+      admin ? { type: 'admin_user', id: admin.id } : { type: 'system', id: null },
     );
 
     const moduleDefs = await controlDb.moduleDefinition.findMany({

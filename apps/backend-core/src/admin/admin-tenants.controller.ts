@@ -39,7 +39,7 @@ export class AdminTenantsController {
   @Post()
   @AdminTeams('SUPER_ADMIN', 'BILLING')
   create(@Body() dto: CreateTenantDto, @AdminCtx() ctx: AdminRequestContext) {
-    return this.tenants.createTenant(dto, ctx.auth.sub);
+    return this.tenants.createTenant(dto, { type: 'admin_user', id: ctx.auth.sub });
   }
 
   @Get(':id')

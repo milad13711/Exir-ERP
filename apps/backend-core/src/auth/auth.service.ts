@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
+import type { OtpPurpose } from '../../generated/control-client/index.js';
 import type { TenantJwtPayload } from './jwt-payload.type.js';
 
 const OTP_TTL_MS = 2 * 60 * 1000;
@@ -27,7 +28,10 @@ export class AuthService {
     private readonly sms: ExirSmsService,
   ) {}
 
-  async requestOtp(phone: string): Promise<{ expiresInSeconds: number; devCode?: string }> {
+  async requestOtp(
+    phone: string,
+    purpose: OtpPurpose = 'LOGIN',
+  ): Promise<{ expiresInSeconds: number; devCode?: string }> {
     const code = generateOtpCode();
     const codeHash = await bcrypt.hash(code, 10);
 
@@ -35,7 +39,7 @@ export class AuthService {
       data: {
         phone,
         codeHash,
-        purpose: 'LOGIN',
+        purpose,
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
     });
@@ -44,7 +48,8 @@ export class AuthService {
     let smsSent = false;
 
     if (this.sms.isConfigured()) {
-      const result = await this.sms.sendSms(phone, `کد ورود شما به اکسیر ERP: ${code}`);
+      const message = purpose === 'SIGNUP' ? `کد تأیید ثبت‌نام شما در اکسیر ERP: ${code}` : `کد ورود شما به اکسیر ERP: ${code}`;
+      const result = await this.sms.sendSms(phone, message);
       smsSent = result.success;
       if (!result.success) {
         await this.controlDb.errorLog.create({

@@ -35,6 +35,7 @@ model GlobalUser {
 enum OtpPurpose {
   LOGIN
   TENANT_INVITE
+  SIGNUP
 }
 
 model OtpCode {

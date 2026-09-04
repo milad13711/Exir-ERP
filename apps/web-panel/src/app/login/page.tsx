@@ -3,9 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { LogoMark } from "@/components/icons";
+import { LogoMark, BoltIcon, StoreIcon, FactoryIcon, ReceiptIcon, SettingsIcon, WarehouseIcon } from "@/components/icons";
 import { toPersianDigits } from "@/lib/persian";
-import { requestOtp, verifyOtp, setToken, ApiError } from "@/lib/api";
+import { requestOtp, verifyOtp, setToken, ApiError, fetchPublicIndustryTemplates, type PublicIndustryTemplate } from "@/lib/api";
+
+const TEMPLATE_ICONS: Record<string, typeof StoreIcon> = {
+  "technical-services": BoltIcon,
+  "retail-store": StoreIcon,
+  "livestock-feed": FactoryIcon,
+  "restaurant-cafe": ReceiptIcon,
+  "auto-service": SettingsIcon,
+  "wholesale-distribution": WarehouseIcon,
+};
 
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 48;
@@ -20,6 +29,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const [templates, setTemplates] = useState<PublicIndustryTemplate[]>([]);
+
+  useEffect(() => {
+    fetchPublicIndustryTemplates().then((t) => setTemplates(t.slice(0, 6))).catch(() => setTemplates([]));
+  }, []);
 
   useEffect(() => {
     if (step !== "otp" || secondsLeft <= 0) return;
@@ -105,6 +119,33 @@ export default function LoginPage() {
           <div className="mt-4 text-[15px] leading-loose text-white/85">
             فروش، انبار، حسابداری و منابع انسانی در یک محیط فارسی، راست‌چین و کاملاً ماژولار.
           </div>
+
+          {templates.length > 0 && (
+            <div className="mt-9">
+              <div className="text-[12.5px] font-semibold text-white/70 mb-3">قالب آماده برای صنف شما:</div>
+              <div className="flex flex-wrap gap-2">
+                {templates.map((t) => {
+                  const Icon = TEMPLATE_ICONS[t.code] ?? StoreIcon;
+                  return (
+                    <a
+                      key={t.code}
+                      href="/signup"
+                      className="flex items-center gap-1.5 bg-white/10 hover:bg-white/18 transition-colors rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold text-white"
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {t.name}
+                    </a>
+                  );
+                })}
+              </div>
+              <a
+                href="/signup"
+                className="inline-flex items-center gap-1.5 mt-4 text-[13px] font-bold text-white bg-white/15 hover:bg-white/22 transition-colors px-4 py-2.5 rounded-xl"
+              >
+                کسب‌وکار جدید دارید؟ همین حالا بسازید ←
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="relative flex gap-7 text-white/75 text-[13px]">
@@ -152,6 +193,12 @@ export default function LoginPage() {
 
               <div className="text-center mt-8 text-[12.5px] text-muted leading-relaxed">
                 با ورود، <span className="text-primary font-semibold">قوانین و مقررات</span> اکسیر ERP را می‌پذیرید.
+              </div>
+              <div className="text-center mt-3 text-[12.5px] lg:hidden">
+                کسب‌وکار جدید دارید؟{" "}
+                <a href="/signup" className="text-primary font-bold">
+                  همین حالا بسازید
+                </a>
               </div>
             </form>
           ) : (

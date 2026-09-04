@@ -32,3 +32,14 @@ export type ApiKeyAuthPayload = {
 };
 
 export type TenantAuthPayload = TenantJwtPayload | ApiKeyAuthPayload;
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for the public
+ * self-signup wizard — issued by PublicSignupController after OTP verify,
+ * consumed by the tenant-creation step so it never has to trust a raw
+ * phone number the client just typed in.
+ */
+export type SignupTicketPayload = {
+  type: 'signup_ticket';
+  phone: string;
+};

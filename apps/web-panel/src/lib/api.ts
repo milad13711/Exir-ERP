@@ -123,6 +123,83 @@ export function verifyOtp(phone: string, code: string) {
   });
 }
 
+// ── Public signup (unauthenticated — no existing tenant/membership yet) ───
+
+export type PublicIndustryTemplate = {
+  code: string;
+  name: string;
+  description: string | null;
+  suggestedThemeColor: string | null;
+  defaultModules: string[];
+};
+
+export type PublicPlan = {
+  code: string;
+  name: string;
+  priceMonthly: number;
+  priceYearly: number | null;
+  userLimit: number;
+};
+
+export type PublicModule = {
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  priceMonthly: number;
+  isCore: boolean;
+  features: string[];
+  dependsOn: string[];
+};
+
+export function fetchPublicIndustryTemplates() {
+  return apiFetch<PublicIndustryTemplate[]>("/public/catalog/industry-templates");
+}
+
+export function fetchPublicPlans() {
+  return apiFetch<PublicPlan[]>("/public/catalog/plans");
+}
+
+export function fetchPublicModules() {
+  return apiFetch<PublicModule[]>("/public/catalog/modules");
+}
+
+export function requestSignupOtp(phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>("/public/signup/otp/request", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifySignupOtp(phone: string, code: string) {
+  return apiFetch<{ signupToken: string; expiresInSeconds: number }>("/public/signup/otp/verify", {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function checkSlugAvailable(slug: string) {
+  return apiFetch<{ available: boolean }>(`/public/signup/check-slug?slug=${encodeURIComponent(slug)}`);
+}
+
+export function createPublicTenant(input: {
+  signupToken: string;
+  businessName: string;
+  slug: string;
+  ownerName: string;
+  planCode: string;
+  industryTemplateCode?: string;
+}) {
+  return apiFetch<{
+    tenant: { name: string; slug: string; status: string };
+    requiresPayment: boolean;
+    accessToken?: string;
+  }>("/public/signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 // ── Workspace ────────────────────────────────────────────────────────────
 
 export type Me = {

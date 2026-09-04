@@ -37,6 +37,7 @@ import { AttachmentsModule } from './attachments/attachments.module.js';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
 import { AutomationModule } from './automation/automation.module.js';
 import { VoipModule } from './voip/voip.module.js';
+import { PublicModule } from './public/public.module.js';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { VoipModule } from './voip/voip.module.js';
     PrismaModule,
     AuthModule,
     TenantsModule,
+    PublicModule,
     AdminModule,
     WorkspaceModule,
     MarketingModule,

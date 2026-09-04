@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantDbAdminService } from './tenant-db-admin.service.js';
@@ -12,7 +12,18 @@ export type CreateTenantInput = {
   ownerName: string;
   planCode: string;
   industryTemplateCode?: string;
+  /**
+   * True only for tenants provisioned through the public self-signup wizard
+   * (no admin in the loop). Forces payment for any paid plan even when no
+   * industry template was picked — the industry-template-implies-payment
+   * shortcut below is safe for admin-created tenants (a trusted actor
+   * choosing to skip it for an internal/test tenant) but would otherwise be
+   * a free-paid-tenant loophole once tenant creation is reachable publicly.
+   */
+  isPublicSignup?: boolean;
 };
+
+export type TenantActor = { type: 'admin_user'; id: string } | { type: 'system'; id: null };
 
 const SLUG_PATTERN = /^[a-z][a-z0-9-]{1,48}$/;
 
@@ -34,7 +45,7 @@ export class TenantsService {
    * PENDING_PROVISION for the management team to retry or investigate —
    * it never silently leaves a half-built tenant marked ACTIVE.
    */
-  async createTenant(input: CreateTenantInput, actorAdminId: string): Promise<Tenant> {
+  async createTenant(input: CreateTenantInput, actor: TenantActor): Promise<Tenant> {
     if (!SLUG_PATTERN.test(input.slug)) {
       throw new BadRequestException(
         'شناسه تننت باید فقط شامل حروف کوچک انگلیسی، عدد و خط تیره باشد',
@@ -49,6 +60,11 @@ export class TenantsService {
       : null;
     if (input.industryTemplateCode && !industryTemplate) {
       throw new NotFoundException('قالب صنف انتخاب‌شده یافت نشد');
+    }
+
+    const slugTaken = await this.controlDb.tenant.findUnique({ where: { slug: input.slug }, select: { id: true } });
+    if (slugTaken) {
+      throw new ConflictException('این شناسه قبلاً استفاده شده است، شناسه‌ی دیگری انتخاب کنید');
     }
 
     const dbName = `exir_tenant_${input.slug.replace(/-/g, '_')}`;
@@ -135,7 +151,7 @@ export class TenantsService {
       // it can log in. The tenant DB is still fully provisioned either way;
       // only `status` gates access (see JwtAuthGuard), and markInvoicePaid
       // flips it to ACTIVE once the invoice below is settled.
-      const requiresPayment = !!industryTemplate && plan.priceMonthly > 0;
+      const requiresPayment = (!!industryTemplate || !!input.isPublicSignup) && plan.priceMonthly > 0;
       if (requiresPayment) {
         await this.controlDb.invoice.create({
           data: {
@@ -157,8 +173,8 @@ export class TenantsService {
 
       await this.controlDb.auditLog.create({
         data: {
-          actorType: 'admin_user',
-          actorId: actorAdminId,
+          actorType: actor.type,
+          actorId: actor.id,
           tenantId: tenant.id,
           action: 'tenant.created',
           entityType: 'Tenant',
