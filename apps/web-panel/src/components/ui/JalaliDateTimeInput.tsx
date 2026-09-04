@@ -108,13 +108,13 @@ export function JalaliDateTimeInput({
 
       {open ? (
         <div className="absolute z-[60] mt-1.5 right-0 bg-surface border border-border rounded-xl shadow-xl p-3 w-[280px]" dir="rtl">
-          {/* راست‌چین: سمت راست = ماه قبل، سمت چپ = ماه بعد (قرارداد تقویم فارسی این پروژه). */}
+          {/* راست‌چین: سمت راست = ماه بعد، سمت چپ = ماه قبل (قرارداد تقویم فارسی این پروژه). گلیف‌ها به‌خاطر bidi-mirroring عمداً برعکس به‌نظر می‌رسند — ‹ روی صفحه به‌صورت راست‌گرد و › به‌صورت چپ‌گرد رندر می‌شود. */}
           <div className="flex items-center justify-between mb-2.5">
             <button
               type="button"
-              onClick={goPrevMonth}
+              onClick={goNextMonth}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-soft hover:bg-slate-100 cursor-pointer"
-              aria-label="ماه قبل"
+              aria-label="ماه بعد"
             >
               ‹
             </button>
@@ -123,9 +123,9 @@ export function JalaliDateTimeInput({
             </div>
             <button
               type="button"
-              onClick={goNextMonth}
+              onClick={goPrevMonth}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-soft hover:bg-slate-100 cursor-pointer"
-              aria-label="ماه بعد"
+              aria-label="ماه قبل"
             >
               ›
             </button>

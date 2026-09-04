@@ -129,7 +129,7 @@ export default function BookingPage() {
           className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer"
           aria-label="روز بعد"
         >
-          <ChevronDownIcon className="w-4 h-4 rotate-90" />
+          <ChevronDownIcon className="w-4 h-4 -rotate-90" />
         </button>
         <div className="flex items-center gap-2.5">
           <CalendarIcon className="w-4 h-4 text-muted" />
@@ -143,7 +143,7 @@ export default function BookingPage() {
           className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer"
           aria-label="روز قبل"
         >
-          <ChevronDownIcon className="w-4 h-4 -rotate-90" />
+          <ChevronDownIcon className="w-4 h-4 rotate-90" />
         </button>
       </div>
 
