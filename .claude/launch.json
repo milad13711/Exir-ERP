@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/admin-panel", "run", "dev"],
       "port": 3002
+    },
+    {
+      "name": "backend-core",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/backend-core", "run", "start:dev"],
+      "port": 3001
     }
   ]
 }

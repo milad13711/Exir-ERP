@@ -54,7 +54,7 @@ export default function WarehousePage() {
           <h1 className="text-xl font-extrabold">انبارداری و موجودی</h1>
           <p className="text-[13.5px] text-muted mt-1">کنترل موجودی، رسید و حواله، و هشدار کمبود کالا</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setWarehousesModalOpen(true)}
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"

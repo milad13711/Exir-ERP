@@ -76,7 +76,7 @@ export default function PurchasingPage() {
             از سفارش خرید تا رسید انبار و پرداخت — با اتصال خودکار به انبار و حسابداری
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setSuppliersModalOpen(true)}
             title="مدیریت تأمین‌کنندگان"
