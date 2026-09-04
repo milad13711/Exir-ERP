@@ -42,6 +42,7 @@ import {
 import { NewEmployeeModal } from "@/components/hr/NewEmployeeModal";
 import { EmployeeModal } from "@/components/hr/EmployeeModal";
 import { NewLeaveModal } from "@/components/hr/NewLeaveModal";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 type Tab = "employees" | "orgchart" | "attendance" | "leave" | "payroll";
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -127,14 +128,19 @@ export default function HrPage() {
 
       {tab === "employees" ? (
         <>
-          <div className="relative max-w-[320px] mt-5 mb-4">
-            <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جستجوی نام، کد پرسنلی یا سمت..."
-              className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-            />
+          <div className="flex items-center gap-3 flex-wrap mt-5 mb-4">
+            <div className="relative max-w-[320px] flex-1 min-w-[220px]">
+              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="جستجوی نام، کد پرسنلی یا سمت..."
+                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
+              />
+            </div>
+            <div className="mr-auto">
+              <ExcelImportExportBar exportPath="/hr/employees/export" exportFilename="employees.xlsx" importPath="/hr/employees/import" onImported={reloadCore} />
+            </div>
           </div>
           <Card className="p-2">
             {employees === null ? (

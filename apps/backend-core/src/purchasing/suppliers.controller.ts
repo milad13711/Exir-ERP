@@ -9,16 +9,22 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
+import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateSupplierDto } from './dto/create-supplier.dto.js';
 import { UpdateSupplierDto } from './dto/update-supplier.dto.js';
+
+const SUPPLIER_EXCEL_HEADERS = ['نام', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
 
 /**
  * "Supplier" here is just a CrmContact with `isSupplier: true` — the same
@@ -50,6 +56,78 @@ export class SuppliersController {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  @Get('export')
+  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'purchasing');
+    const suppliers = await ctx.tenantDb.crmContact.findMany({ where: { isSupplier: true }, orderBy: { name: 'asc' } });
+    const buffer = await buildExcelBuffer(
+      SUPPLIER_EXCEL_HEADERS,
+      suppliers.map((s) => ({
+        نام: s.name,
+        شرکت: s.company ?? '',
+        تلفن: s.phone ?? '',
+        ایمیل: s.email ?? '',
+        آدرس: s.address ?? '',
+      })),
+      'تأمین‌کنندگان',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="suppliers.xlsx"');
+    res.send(buffer);
+  }
+
+  /**
+   * Best-effort dedup by phone (same rule as CreateSupplierDto's own match
+   * logic): a non-empty phone matching an existing contact flips
+   * isSupplier on it instead of creating a duplicate party. Rows with no
+   * نام are skipped.
+   */
+  @Post('import')
+  async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'purchasing');
+    const buffer = Buffer.from(dto.fileBase64, 'base64');
+    const rows = await parseExcelBuffer(buffer);
+
+    const results: ImportRowResult[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const name = String(row['نام'] ?? '').trim();
+      if (!name) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'نام خالی است' });
+        continue;
+      }
+
+      const phone = String(row['تلفن'] ?? '').trim() || undefined;
+      const data = {
+        company: String(row['شرکت'] ?? '').trim() || undefined,
+        email: String(row['ایمیل'] ?? '').trim() || undefined,
+        address: String(row['آدرس'] ?? '').trim() || undefined,
+      };
+
+      const existing = phone ? await ctx.tenantDb.crmContact.findFirst({ where: { phone } }) : null;
+      if (existing) {
+        await ctx.tenantDb.crmContact.update({
+          where: { id: existing.id },
+          data: {
+            isSupplier: true,
+            company: existing.company ?? data.company,
+            email: existing.email ?? data.email,
+            address: existing.address ?? data.address,
+          },
+        });
+        results.push({ row: rowNumber, status: 'UPDATED' });
+      } else {
+        await ctx.tenantDb.crmContact.create({
+          data: { name, phone, ...data, isCustomer: false, isSupplier: true },
+        });
+        results.push({ row: rowNumber, status: 'CREATED' });
+      }
+    }
+
+    return summarize(results);
   }
 
   @Get(':id')

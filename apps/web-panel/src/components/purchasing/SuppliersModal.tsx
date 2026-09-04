@@ -8,6 +8,7 @@ import {
   deleteSupplier,
   type Supplier,
 } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const inputClass =
   "text-[12.5px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-2.5 py-2 focus:border-primary transition-colors";
@@ -127,6 +128,8 @@ export function SuppliersModal({ onClose }: { onClose: () => void }) {
             تأمین‌کننده جدید
           </button>
         </div>
+
+        <ExcelImportExportBar exportPath="/purchasing/suppliers/export" exportFilename="suppliers.xlsx" importPath="/purchasing/suppliers/import" onImported={reload} />
 
         {addOpen ? (
           <form onSubmit={handleAdd} className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">

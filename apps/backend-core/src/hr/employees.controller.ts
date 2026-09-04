@@ -8,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -17,10 +19,14 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
+import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { AssignManagerDto } from './dto/assign-manager.dto.js';
 import { CreateEmployeeDocumentDto } from './dto/create-employee-document.dto.js';
+
+const EMPLOYEE_EXCEL_HEADERS = ['کد پرسنلی', 'نام کامل', 'سمت', 'واحد', 'تلفن', 'ایمیل', 'تاریخ استخدام', 'حقوق پایه'];
 
 @Controller('hr/employees')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -64,6 +70,82 @@ export class EmployeesController {
       select: { id: true, fullName: true, position: true, department: true, managerId: true, status: true },
       orderBy: { fullName: 'asc' },
     });
+  }
+
+  @Get('export')
+  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'hr');
+    const employees = await ctx.tenantDb.employee.findMany({ where: { status: 'ACTIVE' }, orderBy: { fullName: 'asc' } });
+    const buffer = await buildExcelBuffer(
+      EMPLOYEE_EXCEL_HEADERS,
+      employees.map((e) => ({
+        'کد پرسنلی': e.employeeCode,
+        'نام کامل': e.fullName,
+        سمت: e.position,
+        واحد: e.department ?? '',
+        تلفن: e.phone ?? '',
+        ایمیل: e.email ?? '',
+        'تاریخ استخدام': e.hireDate.toISOString().slice(0, 10),
+        'حقوق پایه': e.baseSalary,
+      })),
+      'کارمندان',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="employees.xlsx"');
+    res.send(buffer);
+  }
+
+  /**
+   * Upserts by کد پرسنلی: an existing code updates that employee, a new one
+   * creates it. Rows missing کد پرسنلی, نام کامل or سمت are skipped rather
+   * than failing the whole import.
+   */
+  @Post('import')
+  async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'hr');
+    const buffer = Buffer.from(dto.fileBase64, 'base64');
+    const rows = await parseExcelBuffer(buffer);
+
+    const results: ImportRowResult[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const employeeCode = String(row['کد پرسنلی'] ?? '').trim();
+      const fullName = String(row['نام کامل'] ?? '').trim();
+      const position = String(row['سمت'] ?? '').trim();
+      if (!employeeCode || !fullName || !position) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'کد پرسنلی، نام کامل یا سمت خالی است' });
+        continue;
+      }
+
+      const hireDateRaw = String(row['تاریخ استخدام'] ?? '').trim();
+      const hireDate = hireDateRaw ? new Date(hireDateRaw) : new Date();
+      if (Number.isNaN(hireDate.getTime())) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'تاریخ استخدام نامعتبر است' });
+        continue;
+      }
+
+      const data = {
+        fullName,
+        position,
+        department: String(row['واحد'] ?? '').trim() || undefined,
+        phone: String(row['تلفن'] ?? '').trim() || undefined,
+        email: String(row['ایمیل'] ?? '').trim() || undefined,
+        hireDate,
+        baseSalary: Number(row['حقوق پایه'] ?? 0) || 0,
+      };
+
+      const existing = await ctx.tenantDb.employee.findUnique({ where: { employeeCode } });
+      if (existing) {
+        await ctx.tenantDb.employee.update({ where: { id: existing.id }, data });
+        results.push({ row: rowNumber, status: 'UPDATED' });
+      } else {
+        await ctx.tenantDb.employee.create({ data: { employeeCode, ...data } });
+        results.push({ row: rowNumber, status: 'CREATED' });
+      }
+    }
+
+    return summarize(results);
   }
 
   @Post()
