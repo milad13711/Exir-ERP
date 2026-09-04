@@ -2000,6 +2000,44 @@ export async function uploadBackupImport(file: File): Promise<{ success: boolean
   });
 }
 
+// ── ورود/خروج اکسل (Excel import/export) ─────────────────────────────────
+// عمومی برای هر ماژول: هر صفحه‌ی لیست فقط export/import path خودش را
+// می‌دهد؛ دانلود/آپلود فایل و رمزگشایی base64 اینجا یک‌بار پیاده شده.
+
+export type ExcelImportRowResult = { row: number; status: "CREATED" | "UPDATED" | "SKIPPED"; reason?: string };
+export type ExcelImportSummary = { created: number; updated: number; skipped: number; details: ExcelImportRowResult[] };
+
+export async function downloadExcelFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("دریافت فایل اکسل ناموفق بود", res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",").pop() ?? "");
+    reader.onerror = () => reject(new Error("خواندن فایل ناموفق بود"));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadExcelImport(path: string, file: File): Promise<ExcelImportSummary> {
+  const fileBase64 = await fileToBase64(file);
+  return apiFetch<ExcelImportSummary>(path, { method: "POST", body: JSON.stringify({ fileBase64 }) });
+}
+
 /**
  * Fetches a PDF with the auth header (a plain link can't carry it) and opens
  * it via a same-document anchor click rather than window.open() into a

@@ -9,6 +9,7 @@ import { CrmIcon, PlusIcon, SearchIcon, BuildingIcon, PhoneIcon } from "@/compon
 import { formatToman, formatNumber } from "@/lib/persian";
 import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact } from "@/lib/api";
 import { STAGE_ORDER, STAGE_META } from "@/components/crm/crm-shared";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { DealModal } from "@/components/crm/DealModal";
 import { ContactModal } from "@/components/crm/ContactModal";
 import { NewContactModal } from "@/components/crm/NewContactModal";
@@ -27,9 +28,13 @@ export default function CrmPage() {
   const [newContactOpen, setNewContactOpen] = useState(false);
   const [newDealFor, setNewDealFor] = useState<{ contactId?: string } | null>(null);
 
+  function reloadContacts() {
+    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
+  }
+
   useEffect(() => {
     fetchCrmDeals().then(setDeals).catch(() => setDeals([]));
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
+    reloadContacts();
   }, []);
 
   const openDeals = useMemo(
@@ -171,14 +176,17 @@ export default function CrmPage() {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="relative max-w-[320px] mb-4">
-            <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جستجوی نام، شرکت، تلفن یا ایمیل..."
-              className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-            />
+          <div className="flex items-start gap-3 flex-wrap mb-4">
+            <div className="relative max-w-[320px] flex-1 min-w-[220px]">
+              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="جستجوی نام، شرکت، تلفن یا ایمیل..."
+                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
+              />
+            </div>
+            <ExcelImportExportBar exportPath="/crm/contacts/export" exportFilename="contacts.xlsx" importPath="/crm/contacts/import" onImported={reloadContacts} />
           </div>
           <Card className="p-2">
             {contacts === null ? (

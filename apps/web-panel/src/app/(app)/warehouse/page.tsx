@@ -8,6 +8,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { WarehouseIcon, PlusIcon, SearchIcon, WarningIcon, OrdersIcon, AccountingIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
 import { fetchProducts, fetchWarehouseSummary, type Product, type WarehouseSummary } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { NewProductModal } from "@/components/warehouse/NewProductModal";
 import { ProductModal } from "@/components/warehouse/ProductModal";
 import { WarehousesModal } from "@/components/warehouse/WarehousesModal";
@@ -120,6 +121,9 @@ export default function WarehousePage() {
         >
           فقط کالاهای رو به اتمام
         </button>
+        <div className="mr-auto">
+          <ExcelImportExportBar exportPath="/warehouse/products/export" exportFilename="products.xlsx" importPath="/warehouse/products/import" onImported={reload} />
+        </div>
       </div>
 
       <Card className="mt-5 p-2">

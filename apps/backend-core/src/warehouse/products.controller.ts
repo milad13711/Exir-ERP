@@ -9,18 +9,24 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
+import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { currentStock, stockByWarehouse } from './stock.js';
 import { withFxPrices } from './fx-price.js';
+
+const PRODUCT_EXCEL_HEADERS = ['کد کالا', 'نام', 'واحد', 'دسته‌بندی', 'قیمت خرید', 'قیمت فروش', 'نقطه سفارش مجدد'];
 
 @Controller('warehouse/products')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -59,6 +65,72 @@ export class ProductsController {
         isLowStock: product.reorderPoint > 0 && stock <= product.reorderPoint,
       };
     });
+  }
+
+  @Get('export')
+  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'warehouse');
+    const products = await ctx.tenantDb.product.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+    const buffer = await buildExcelBuffer(
+      PRODUCT_EXCEL_HEADERS,
+      products.map((p) => ({
+        'کد کالا': p.sku,
+        نام: p.name,
+        واحد: p.unit,
+        'دسته‌بندی': p.category ?? '',
+        'قیمت خرید': p.costPrice,
+        'قیمت فروش': p.salePrice,
+        'نقطه سفارش مجدد': p.reorderPoint,
+      })),
+      'کالاها',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="products.xlsx"');
+    res.send(buffer);
+  }
+
+  /**
+   * Upserts by SKU (کد کالا): an existing SKU updates that product, a new
+   * one creates it. Rows missing either کد کالا or نام are skipped rather
+   * than failing the whole import — one bad row shouldn't block the rest.
+   */
+  @Post('import')
+  async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'warehouse');
+    const buffer = Buffer.from(dto.fileBase64, 'base64');
+    const rows = await parseExcelBuffer(buffer);
+
+    const results: ImportRowResult[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2; // header is row 1
+      const sku = String(row['کد کالا'] ?? '').trim();
+      const name = String(row['نام'] ?? '').trim();
+      if (!sku || !name) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'کد کالا یا نام خالی است' });
+        continue;
+      }
+
+      const data = {
+        name,
+        unit: String(row['واحد'] ?? '').trim() || 'عدد',
+        category: String(row['دسته‌بندی'] ?? '').trim() || undefined,
+        costPrice: Number(row['قیمت خرید'] ?? 0) || 0,
+        salePrice: Number(row['قیمت فروش'] ?? 0) || 0,
+        reorderPoint: Number(row['نقطه سفارش مجدد'] ?? 0) || 0,
+      };
+
+      const existing = await ctx.tenantDb.product.findUnique({ where: { sku } });
+      if (existing) {
+        await ctx.tenantDb.product.update({ where: { id: existing.id }, data });
+        results.push({ row: rowNumber, status: 'UPDATED' });
+      } else {
+        await ctx.tenantDb.product.create({ data: { sku, ...data } });
+        results.push({ row: rowNumber, status: 'CREATED' });
+      }
+    }
+
+    return summarize(results);
   }
 
   @Post()

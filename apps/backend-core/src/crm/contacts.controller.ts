@@ -1,4 +1,5 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -7,6 +8,8 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { WebhooksService } from '../webhooks/webhooks.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
+import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreditScoreService } from './credit-score.service.js';
 import { SupplierRiskService } from './supplier-risk.service.js';
 import { PartyStatementService } from './party-statement.service.js';
@@ -17,6 +20,8 @@ import { CreateContactDto } from './dto/create-contact.dto.js';
 import { UpdateContactDto } from './dto/update-contact.dto.js';
 import { UpdateCreditInputsDto } from './dto/update-credit-inputs.dto.js';
 import { AddActivityDto } from './dto/add-activity.dto.js';
+
+const CONTACT_EXCEL_HEADERS = ['نام', 'نوع', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
 
 @Controller('crm/contacts')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -55,6 +60,73 @@ export class ContactsController {
       include: { _count: { select: { deals: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  @Get('export')
+  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const contacts = await ctx.tenantDb.crmContact.findMany({ where: scope, orderBy: { name: 'asc' } });
+    const buffer = await buildExcelBuffer(
+      CONTACT_EXCEL_HEADERS,
+      contacts.map((c) => ({
+        نام: c.name,
+        نوع: c.type === 'COMPANY' ? 'شرکت' : 'فرد',
+        شرکت: c.company ?? '',
+        تلفن: c.phone ?? '',
+        ایمیل: c.email ?? '',
+        آدرس: c.address ?? '',
+      })),
+      'مخاطبین',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="contacts.xlsx"');
+    res.send(buffer);
+  }
+
+  /**
+   * Contacts have no unique business key (phone is optional, unindexed) —
+   * so this is best-effort dedup: a non-empty phone matching an existing
+   * contact updates it, everything else (no phone, or no match) creates a
+   * new one. Rows with no نام are skipped.
+   */
+  @Post('import')
+  async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'crm');
+    const ownerUserId = await resolveTenantUserId(ctx);
+    const buffer = Buffer.from(dto.fileBase64, 'base64');
+    const rows = await parseExcelBuffer(buffer);
+
+    const results: ImportRowResult[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const name = String(row['نام'] ?? '').trim();
+      if (!name) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'نام خالی است' });
+        continue;
+      }
+
+      const phone = String(row['تلفن'] ?? '').trim() || undefined;
+      const data = {
+        type: (String(row['نوع'] ?? '').trim() === 'شرکت' ? 'COMPANY' : 'INDIVIDUAL') as 'COMPANY' | 'INDIVIDUAL',
+        name,
+        company: String(row['شرکت'] ?? '').trim() || undefined,
+        phone,
+        email: String(row['ایمیل'] ?? '').trim() || undefined,
+        address: String(row['آدرس'] ?? '').trim() || undefined,
+      };
+
+      const existing = phone ? await ctx.tenantDb.crmContact.findFirst({ where: { phone } }) : null;
+      if (existing) {
+        await ctx.tenantDb.crmContact.update({ where: { id: existing.id }, data });
+        results.push({ row: rowNumber, status: 'UPDATED' });
+      } else {
+        await ctx.tenantDb.crmContact.create({ data: { ...data, ownerUserId } });
+        results.push({ row: rowNumber, status: 'CREATED' });
+      }
+    }
+
+    return summarize(results);
   }
 
   @Get(':id/statement')
