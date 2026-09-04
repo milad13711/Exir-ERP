@@ -3031,3 +3031,69 @@ export function createPublicAppointment(
 ) {
   return apiFetch<Appointment>(`/public/booking/${slug}/appointments`, { method: "POST", body: JSON.stringify(data) });
 }
+
+// ── مدیریت قرارداد (Contracts) ────────────────────────────────────────────
+
+export type ContractType = "SALES" | "PURCHASE";
+export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "TERMINATED";
+
+export type Contract = {
+  id: string;
+  contractNo: number;
+  title: string;
+  type: ContractType;
+  contactId: string;
+  status: ContractStatus;
+  value: number;
+  startDate: string;
+  endDate: string;
+  autoRenew: boolean;
+  renewalReminderDays: number;
+  reminderSentAt: string | null;
+  terms: string | null;
+  signedAt: string | null;
+  terminatedAt: string | null;
+  terminationReason: string | null;
+  createdAt: string;
+  contact: { id: string; name: string; company: string | null; phone: string | null };
+  createdBy: { id: string; name: string } | null;
+};
+
+export function fetchContracts(params: { type?: string; status?: string; contactId?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<Contract[]>(`/contracts${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchContract(id: string) {
+  return apiFetch<Contract>(`/contracts/${id}`);
+}
+
+export function createContract(data: {
+  title: string;
+  type: ContractType;
+  contactId: string;
+  value: number;
+  startDate: string;
+  endDate: string;
+  autoRenew?: boolean;
+  renewalReminderDays?: number;
+  terms?: string;
+}) {
+  return apiFetch<Contract>("/contracts", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateContract(id: string, data: Partial<Omit<Parameters<typeof createContract>[0], "type">>) {
+  return apiFetch<Contract>(`/contracts/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function signContract(id: string) {
+  return apiFetch<Contract>(`/contracts/${id}/sign`, { method: "POST" });
+}
+
+export function terminateContract(id: string, reason?: string) {
+  return apiFetch<Contract>(`/contracts/${id}/terminate`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function renewContract(id: string, newEndDate: string) {
+  return apiFetch<Contract>(`/contracts/${id}/renew`, { method: "POST", body: JSON.stringify({ newEndDate }) });
+}

@@ -39,6 +39,7 @@ import { AutomationModule } from './automation/automation.module.js';
 import { VoipModule } from './voip/voip.module.js';
 import { PublicModule } from './public/public.module.js';
 import { BookingModule } from './booking/booking.module.js';
+import { ContractsModule } from './contracts/contracts.module.js';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { BookingModule } from './booking/booking.module.js';
     TenantsModule,
     PublicModule,
     BookingModule,
+    ContractsModule,
     AdminModule,
     WorkspaceModule,
     MarketingModule,

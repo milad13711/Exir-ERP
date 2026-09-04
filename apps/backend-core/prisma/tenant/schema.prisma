@@ -66,6 +66,7 @@ model User {
   decidedAiActions       AiActionRequest[]
   providedAppointments   Appointment[] @relation("AppointmentProvider")
   createdAppointments    Appointment[] @relation("AppointmentCreatedBy")
+  createdContracts       Contract[]
 
   @@map("users")
 }
@@ -308,6 +309,7 @@ model CrmContact {
   partyTransactions PartyTransaction[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
   appointments Appointment[]
+  contracts Contract[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1633,4 +1635,48 @@ model Appointment {
   @@index([providerUserId, startAt])
   @@index([status])
   @@map("appointments")
+}
+
+// ── مدیریت قرارداد ───────────────────────────────────────────────────────
+
+enum ContractType {
+  SALES // قرارداد با مشتری
+  PURCHASE // قرارداد با تأمین‌کننده
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+model Contract {
+  id                  String         @id @default(uuid())
+  contractNo          Int            @unique @default(autoincrement())
+  title               String
+  type                ContractType
+  contactId           String
+  status              ContractStatus @default(DRAFT)
+  value               Int // تومان — ارزش کل قرارداد
+  startDate           DateTime
+  endDate             DateTime
+  autoRenew           Boolean        @default(false)
+  renewalReminderDays Int            @default(30)
+  reminderSentAt      DateTime?
+  terms               String? // شرح بندها و شرایط قرارداد
+  signedAt            DateTime?
+  terminatedAt        DateTime?
+  terminationReason   String?
+  createdByUserId     String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  contact   CrmContact @relation(fields: [contactId], references: [id])
+  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([endDate])
+  @@index([type])
+  @@map("contracts")
 }

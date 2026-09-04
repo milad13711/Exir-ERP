@@ -277,6 +277,17 @@ async function main() {
       dependsOn: [],
       features: ['تعریف انواع خدمت با مدت‌زمان و قیمت', 'جلوگیری خودکار از تداخل نوبت‌ها', 'گردش تأیید، انجام و لغو نوبت'],
     },
+    {
+      code: 'contracts',
+      name: 'مدیریت قرارداد',
+      description: 'قراردادهای فروش و خرید با مشتریان و تأمین‌کنندگان — از پیش‌نویس تا امضا، یادآوری خودکار پیش از پایان، تمدید و فسخ.',
+      category: 'فروش و مشتری',
+      priceMonthly: 190000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['crm'],
+      features: ['یادآوری خودکار پیش از پایان قرارداد', 'گردش امضا، تمدید و فسخ', 'اتصال به مخاطبین CRM'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
