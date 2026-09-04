@@ -2769,3 +2769,40 @@ export function deleteAutomationRule(id: string) {
 export function fireTrigger(triggerCode: string, entityId: string) {
   return apiFetch<{ success: boolean }>("/automation/fire", { method: "POST", body: JSON.stringify({ triggerCode, entityId }) });
 }
+
+// ── VoIP ─────────────────────────────────────────────────────────────────
+
+export type VoipProvider = {
+  code: string;
+  name: string;
+  configFields: Array<{ key: string; label: string }>;
+  supportsOriginate: boolean;
+};
+
+export type VoipConfig = { providerCode: string; config: Record<string, unknown>; webhookSecret: string } | null;
+
+export type VoipExtension = { id: string; extension: string; user: { id: string; name: string } };
+
+export function fetchVoipProviders() {
+  return apiFetch<VoipProvider[]>("/voip/providers");
+}
+
+export function fetchVoipConfig() {
+  return apiFetch<VoipConfig>("/voip/config");
+}
+
+export function saveVoipConfig(data: { providerCode: string; config: Record<string, unknown> }) {
+  return apiFetch<VoipConfig>("/voip/config", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchVoipExtensions() {
+  return apiFetch<VoipExtension[]>("/voip/extensions");
+}
+
+export function saveMyVoipExtension(extension: string) {
+  return apiFetch<VoipExtension>("/voip/extensions/me", { method: "PUT", body: JSON.stringify({ extension }) });
+}
+
+export function originateCall(toNumber: string, contactId?: string) {
+  return apiFetch<{ success: boolean }>("/voip/originate", { method: "POST", body: JSON.stringify({ toNumber, contactId }) });
+}

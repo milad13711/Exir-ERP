@@ -10,6 +10,7 @@ import {
   fetchContactCredit,
   fetchSupplierRisk,
   updateContactCreditInputs,
+  originateCall,
   ApiError,
   type CrmContactDetail,
   type CreditAssessment,
@@ -37,6 +38,8 @@ export function ContactModal({
 }) {
   const { installedModules } = useWorkspace();
   const supplierRiskEnabled = installedModules.has("supplier-risk");
+  const voipEnabled = installedModules.has("voip");
+  const [callStatus, setCallStatus] = useState<"idle" | "calling" | "error">("idle");
   const [contact, setContact] = useState<CrmContactDetail | null>(null);
   const [credit, setCredit] = useState<CreditAssessment | null>(null);
   const [supplierRisk, setSupplierRisk] = useState<SupplierRiskAssessment | null>(null);
@@ -123,8 +126,26 @@ export function ContactModal({
                 <span className="text-[12px] text-ink-soft flex items-center gap-1.5">
                   <PhoneIcon className="w-3.5 h-3.5" />
                   {contact.phone}
+                  {voipEnabled ? (
+                    <button
+                      disabled={callStatus === "calling"}
+                      onClick={async () => {
+                        setCallStatus("calling");
+                        try {
+                          await originateCall(contact.phone!, contact.id);
+                          setCallStatus("idle");
+                        } catch {
+                          setCallStatus("error");
+                        }
+                      }}
+                      className="text-[11px] font-bold text-primary cursor-pointer disabled:opacity-50"
+                    >
+                      {callStatus === "calling" ? "در حال تماس..." : "تماس"}
+                    </button>
+                  ) : null}
                 </span>
               ) : null}
+              {callStatus === "error" ? <span className="text-[11px] text-danger">تماس ناموفق بود</span> : null}
               {contact.email ? (
                 <span className="text-[12px] text-ink-soft flex items-center gap-1.5">
                   <MailIcon className="w-3.5 h-3.5" />

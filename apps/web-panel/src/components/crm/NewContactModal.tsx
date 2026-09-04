@@ -9,14 +9,16 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 export function NewContactModal({
   onClose,
   onCreated,
+  initialPhone,
 }: {
   onClose: () => void;
   onCreated: (contact: CrmContact) => void;
+  initialPhone?: string;
 }) {
   const [type, setType] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone ?? "");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 

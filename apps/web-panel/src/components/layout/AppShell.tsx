@@ -6,6 +6,7 @@ import { Header } from "./Header";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { SupportChat } from "./SupportChat";
+import { IncomingCallPopup } from "./IncomingCallPopup";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon } from "@/components/icons";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
@@ -64,6 +65,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         onClose={() => setSupportOpen(false)}
         onUnreadChange={setSupportUnread}
       />
+      <IncomingCallPopup />
     </div>
   );
 }

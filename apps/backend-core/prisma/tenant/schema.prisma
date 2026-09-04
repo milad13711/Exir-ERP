@@ -62,6 +62,7 @@ model User {
   qualitySamplesTaken      QualitySample[]        @relation("QualitySampleSampledBy")
   qualitySampleResultsTested QualitySampleResult[] @relation("QualitySampleResultTestedBy")
   createdAutomationRules AutomationRule[]
+  voipExtension          VoipExtension?
 
   @@map("users")
 }
@@ -1526,4 +1527,31 @@ model AutomationRunLog {
 
   @@index([ruleId, ranAt])
   @@map("automation_run_logs")
+}
+
+// ── ماژول VoIP (تماس ورودی/خروجی) ──────────────────────────────────────
+// یک گیت‌وی مرکزی، نه یک اتصال اختصاصی به یک سرویس خاص: providerCode یک
+// کد آزاد است که به VoipProviderRegistry (در کد) اشاره می‌کند — هر
+// سرویس/PBX جدید یک آداپتور کوچک در کد اضافه می‌کند، نه تغییری اینجا.
+
+model VoipProviderConfig {
+  id            String   @id @default(uuid())
+  providerCode  String
+  webhookSecret String // برای تأیید صحت وب‌هوک ورودی از سمت PBX
+  config        Json // تنظیمات خاص همان provider (base URL، کلید API و ...)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("voip_provider_config")
+}
+
+model VoipExtension {
+  id        String @id @default(uuid())
+  userId    String @unique
+  extension String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("voip_extensions")
 }
