@@ -270,6 +270,7 @@ export type ModuleCatalogItem = {
   isCore: boolean;
   version: string;
   dependsOn: string[];
+  features: string[];
   installStatus: "INSTALLED" | "TRIAL" | "DISABLED" | null;
 };
 

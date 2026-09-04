@@ -55,6 +55,7 @@ async function main() {
     isCore: boolean;
     version: string;
     dependsOn: string[];
+    features: string[];
   }> = [
     {
       code: 'tasks',
@@ -65,6 +66,7 @@ async function main() {
       isCore: true,
       version: '1.0.0',
       dependsOn: [],
+      features: ['ارجاع وظیفه به هر عضو تیم', 'یادآوری خودکار سررسید', 'اتصال وظیفه به رکورد هر ماژول دیگر'],
     },
     {
       code: 'crm',
@@ -75,6 +77,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['قیف فروش کانبان', 'سابقه‌ی کامل تماس و فعالیت هر مخاطب', 'امتیاز اعتباری خودکار مشتری'],
     },
     {
       code: 'warehouse',
@@ -85,6 +88,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['موجودی لحظه‌ای چند انباره', 'هشدار خودکار نقطه سفارش مجدد', 'ورود و خروج دسته‌ای با اکسل'],
     },
     {
       code: 'accounting',
@@ -95,6 +99,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['دفتر کل و تراز آزمایشی استاندارد', 'ثبت خودکار اسناد از سایر ماژول‌ها', 'گزارش‌های مالیاتی آماده‌ی ارسال'],
     },
     {
       code: 'hr',
@@ -105,6 +110,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['محاسبه‌ی خودکار حقوق و بیمه', 'گردش تأیید مرخصی', 'نمودار سازمانی زنده'],
     },
     {
       code: 'sales',
@@ -115,6 +121,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['crm', 'accounting'],
+      features: ['پیش‌فاکتور با لینک تأیید آنلاین برای مشتری', 'فاکتور تکرارشونده‌ی خودکار', 'اتصال مستقیم به انبار و حسابداری'],
     },
     {
       code: 'purchasing',
@@ -125,6 +132,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['crm', 'accounting', 'warehouse'],
+      features: ['گردش تأیید سفارش خرید', 'ثبت خودکار بهای تمام‌شده', 'مدیریت تأمین‌کنندگان'],
     },
     {
       code: 'checks',
@@ -135,6 +143,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['crm', 'sales'],
+      features: ['یادآوری سررسید چک', 'هشدار فوری برگشت خوردن چک', 'پشت‌نویسی و انتقال چک'],
     },
     {
       code: 'supplier-risk',
@@ -145,6 +154,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['crm'],
+      features: ['امتیاز ریسک خودکار هر تأمین‌کننده', 'روند تحویل و کیفیت در طول زمان', 'هشدار پیش از تکرار مشکل'],
     },
     {
       code: 'delivery-signature',
@@ -155,6 +165,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['sales'],
+      features: ['امضای دیجیتال روی صفحه‌ی تحویل', 'تأیید با کد پیامکی گیرنده', 'رسید تحویل قابل استناد'],
     },
     {
       code: 'production',
@@ -165,6 +176,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['warehouse'],
+      features: ['فرمولاسیون و دستور تولید', 'مراحل خط تولید قابل پیگیری', 'کسر خودکار مواد اولیه از انبار'],
     },
     {
       code: 'quality-control',
@@ -175,6 +187,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['production'],
+      features: ['نمونه‌برداری تصادفی از خط تولید', 'ثبت نتیجه در برابر بازه‌ی قابل‌قبول', 'اعلان فوری رد شدن نمونه به مدیریت'],
     },
     {
       code: 'api-access',
@@ -185,6 +198,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['کلید API با دسترسی محدودشدنی', 'مستندات کامل نقاط اتصال', 'پایه‌ی اتصال وب‌هوک و MCP'],
     },
     {
       code: 'webhooks',
@@ -195,6 +209,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['api-access'],
+      features: ['اشتراک روی رویدادهای دلخواه', 'تحویل با تلاش مجدد خودکار', 'گزارش کامل ارسال‌ها'],
     },
     {
       code: 'mcp',
@@ -205,6 +220,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: ['api-access'],
+      features: ['اتصال دستیار صوتی/چت هوش مصنوعی', 'صف تأیید انسانی پیش از هر تغییر', 'دسترسی در همه‌ی ماژول‌های اصلی'],
     },
     {
       code: 'currency-exchange',
@@ -215,6 +231,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['نرخ لحظه‌ای ارزهای خارجی', 'قیمت‌گذاری کالا به هر ارز', 'به‌روزرسانی خودکار بدون دخالت دستی'],
     },
     {
       code: 'offline-sync',
@@ -225,6 +242,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['ثبت کامل بدون نیاز به اینترنت', 'همگام‌سازی خودکار پس از اتصال مجدد', 'بدون از‌دست‌رفتن هیچ رکوردی'],
     },
     {
       code: 'voip',
@@ -235,6 +253,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['پاپ‌آپ تماس ورودی با شناسایی مخاطب', 'تماس مستقیم با مشتری از داخل ERP', 'ثبت یادداشت و وظیفه حین تماس'],
     },
     {
       code: 'automation',
@@ -245,6 +264,7 @@ async function main() {
       isCore: false,
       version: '1.0.0',
       dependsOn: [],
+      features: ['ده‌ها تریگر آماده از تمام ماژول‌ها', 'اقدام خودکار: اعلان، پیامک یا وظیفه', 'فعال‌سازی دستی یا خودکار'],
     },
   ];
   for (const m of modules) {
