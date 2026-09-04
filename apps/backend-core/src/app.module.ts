@@ -38,6 +38,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
 import { AutomationModule } from './automation/automation.module.js';
 import { VoipModule } from './voip/voip.module.js';
 import { PublicModule } from './public/public.module.js';
+import { BookingModule } from './booking/booking.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { PublicModule } from './public/public.module.js';
     AuthModule,
     TenantsModule,
     PublicModule,
+    BookingModule,
     AdminModule,
     WorkspaceModule,
     MarketingModule,

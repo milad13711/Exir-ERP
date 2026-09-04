@@ -266,6 +266,17 @@ async function main() {
       dependsOn: [],
       features: ['ده‌ها تریگر آماده از تمام ماژول‌ها', 'اقدام خودکار: اعلان، پیامک یا وظیفه', 'فعال‌سازی دستی یا خودکار'],
     },
+    {
+      code: 'booking',
+      name: 'رزرو نوبت',
+      description: 'رزرو نوبت دریافت خدمات — تعریف انواع خدمت، تخصیص کارشناس، و جلوگیری خودکار از رزرو همزمان دو نوبت برای یک کارشناس.',
+      category: 'فروش و مشتری',
+      priceMonthly: 190000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: [],
+      features: ['تعریف انواع خدمت با مدت‌زمان و قیمت', 'جلوگیری خودکار از تداخل نوبت‌ها', 'گردش تأیید، انجام و لغو نوبت'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });

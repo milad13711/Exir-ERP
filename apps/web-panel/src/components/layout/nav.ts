@@ -14,6 +14,7 @@ import {
   FactoryIcon,
   FlaskIcon,
   BoltIcon,
+  CalendarIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -34,6 +35,7 @@ export const primaryNav: NavItem[] = [
   { href: "/quality-control", label: "کنترل کیفیت", icon: FlaskIcon, moduleCode: "quality-control" },
   { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting" },
   { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks" },
+  { href: "/booking", label: "رزرو نوبت", icon: CalendarIcon, moduleCode: "booking" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon },
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation" },

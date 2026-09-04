@@ -64,6 +64,8 @@ model User {
   createdAutomationRules AutomationRule[]
   voipExtension          VoipExtension?
   decidedAiActions       AiActionRequest[]
+  providedAppointments   Appointment[] @relation("AppointmentProvider")
+  createdAppointments    Appointment[] @relation("AppointmentCreatedBy")
 
   @@map("users")
 }
@@ -305,6 +307,7 @@ model CrmContact {
   purchaseOrders PurchaseOrder[]
   partyTransactions PartyTransaction[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
+  appointments Appointment[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1580,4 +1583,54 @@ model AiActionRequest {
 
   @@index([status, createdAt])
   @@map("ai_action_requests")
+}
+
+// ── رزرو نوبت دریافت خدمات ────────────────────────────────────────────
+
+model ServiceType {
+  id              String   @id @default(uuid())
+  name            String
+  durationMinutes Int
+  price           Int      @default(0) // تومان
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  appointments Appointment[]
+
+  @@map("service_types")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  serviceTypeId   String
+  contactId       String?
+  providerUserId  String? // کارمند/کارشناس ارائه‌دهنده‌ی خدمت
+  customerName    String // مستقل از contactId — مشتری بدون سابقه هم قابل رزرو است
+  customerPhone   String?
+  startAt         DateTime
+  endAt           DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?
+  cancelReason    String?
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+  contact     CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  provider    User?       @relation("AppointmentProvider", fields: [providerUserId], references: [id], onDelete: SetNull)
+  createdBy   User?       @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([startAt])
+  @@index([providerUserId, startAt])
+  @@index([status])
+  @@map("appointments")
 }

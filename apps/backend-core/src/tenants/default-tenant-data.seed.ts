@@ -44,6 +44,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     production: FULL_ACCESS,
     'quality-control': FULL_ACCESS,
     automation: FULL_ACCESS,
+    booking: FULL_ACCESS,
   },
   'کارشناس فروش': {
     crm: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },

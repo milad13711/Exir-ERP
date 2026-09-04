@@ -2912,3 +2912,81 @@ export function approveAiAction(id: string) {
 export function rejectAiAction(id: string) {
   return apiFetch<{ success: boolean }>(`/ai-actions/${id}/reject`, { method: "POST" });
 }
+
+// ── رزرو نوبت (Booking) ──────────────────────────────────────────────────
+
+export type ServiceType = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  price: number;
+  isActive: boolean;
+};
+
+export type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+
+export type Appointment = {
+  id: string;
+  serviceTypeId: string;
+  contactId: string | null;
+  providerUserId: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  startAt: string;
+  endAt: string;
+  status: AppointmentStatus;
+  notes: string | null;
+  cancelReason: string | null;
+  serviceType: ServiceType;
+  contact: { id: string; name: string; phone: string | null } | null;
+  provider: { id: string; name: string } | null;
+};
+
+export function fetchServiceTypes(includeInactive?: boolean) {
+  return apiFetch<ServiceType[]>(`/booking/service-types${includeInactive ? "?includeInactive=true" : ""}`);
+}
+
+export function createServiceType(data: { name: string; durationMinutes: number; price?: number }) {
+  return apiFetch<ServiceType>("/booking/service-types", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateServiceType(id: string, data: Partial<{ name: string; durationMinutes: number; price: number; isActive: boolean }>) {
+  return apiFetch<ServiceType>(`/booking/service-types/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deactivateServiceType(id: string) {
+  return apiFetch<ServiceType>(`/booking/service-types/${id}/deactivate`, { method: "POST" });
+}
+
+export function fetchAppointments(params: { from?: string; to?: string; status?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<Appointment[]>(`/booking/appointments${qs ? `?${qs}` : ""}`);
+}
+
+export function createAppointment(data: {
+  serviceTypeId: string;
+  contactId?: string;
+  providerUserId?: string;
+  customerName: string;
+  customerPhone?: string;
+  startAt: string;
+  notes?: string;
+}) {
+  return apiFetch<Appointment>("/booking/appointments", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function confirmAppointment(id: string) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/confirm`, { method: "POST" });
+}
+
+export function completeAppointment(id: string) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/complete`, { method: "POST" });
+}
+
+export function noShowAppointment(id: string) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/no-show`, { method: "POST" });
+}
+
+export function cancelAppointment(id: string, reason?: string) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
