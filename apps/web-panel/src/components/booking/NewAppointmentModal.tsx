@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { toDateTimeLocalValue } from "@/lib/persian";
 import {
   createAppointment,
@@ -127,13 +128,7 @@ export function NewAppointmentModal({
 
         <div>
           <label className={labelClass}>زمان شروع</label>
-          <input
-            type="datetime-local"
-            value={startAt}
-            onChange={(e) => setStartAt(e.target.value)}
-            dir="ltr"
-            className={inputClass}
-          />
+          <JalaliDateTimeInput value={startAt} onChange={setStartAt} className={inputClass} />
         </div>
 
         <div>

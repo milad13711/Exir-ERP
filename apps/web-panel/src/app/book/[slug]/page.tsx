@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { LogoMark, CheckIcon } from "@/components/icons";
+import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { toPersianDigits, formatToman } from "@/lib/persian";
 import {
   fetchPublicServiceTypes,
@@ -145,7 +146,6 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
-  const minDateTime = new Date(Date.now() + 30 * 60_000).toISOString().slice(0, 16);
 
   return (
     <div dir="rtl" className="min-h-dvh bg-slate-50 flex flex-col">
@@ -221,12 +221,9 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
 
               <div>
                 <label className="block text-[13px] font-semibold mb-1.5">تاریخ و ساعت</label>
-                <input
-                  type="datetime-local"
+                <JalaliDateTimeInput
                   value={startAt}
-                  min={minDateTime}
-                  onChange={(e) => setStartAt(e.target.value)}
-                  dir="ltr"
+                  onChange={setStartAt}
                   className="w-full text-[13.5px] outline-none bg-white border-2 border-border focus:border-primary rounded-xl px-3.5 py-3"
                 />
               </div>
