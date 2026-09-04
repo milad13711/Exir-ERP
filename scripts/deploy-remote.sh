@@ -16,6 +16,16 @@
 set -euo pipefail
 cd /opt/exir-erp
 
+# The backend container runs as a non-root user (uid 100, gid 101 — see
+# Dockerfile's `USER exir`), which can't chown a host bind mount at
+# runtime. A freshly-created (or freshly-provisioned-on-a-new-server)
+# ./backups directory defaults to root:root, so the daily backup cron
+# fails silently with EACCES on every write until someone notices in the
+# logs — this happened for real in production. Idempotent, so safe on
+# every deploy, including the first one on a brand-new host.
+mkdir -p ./backups
+chown -R 100:101 ./backups
+
 SERVICES=("$@")
 if [ ${#SERVICES[@]} -eq 0 ]; then
   SERVICES=(backend web admin)

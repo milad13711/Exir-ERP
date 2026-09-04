@@ -106,7 +106,7 @@ export class AutomationController {
 
   @Delete('rules/:id')
   async deleteRule(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'automation');
+    await this.permissions.assertDelete(ctx, 'automation');
     const existing = await ctx.tenantDb.automationRule.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('قانون اتوماسیون یافت نشد');
     await ctx.tenantDb.automationRule.delete({ where: { id } });

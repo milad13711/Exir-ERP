@@ -70,6 +70,12 @@ services:
       BAHA24_API_KEY: ${BAHA24_API_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      # بکاپ خارج از سایت (BackupService) — خالی یعنی غیرفعال، فقط بکاپ محلی.
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
       # Zarinpal — real online payment for invoices (see ZarinpalService).
       # Empty ZARINPAL_MERCHANT_ID means the gateway is simply unavailable
       # (public pay page shows "contact support" instead of a pay button).
