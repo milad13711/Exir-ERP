@@ -69,6 +69,8 @@ model User {
   createdContracts       Contract[]
   managedProjects        Project[] @relation("ProjectManager")
   createdProjects        Project[] @relation("ProjectCreatedBy")
+  requestedStages        ProjectStage[] @relation("ProjectStageRequestedBy")
+  approvedStages         ProjectStage[] @relation("ProjectStageApprovedBy")
 
   @@map("users")
 }
@@ -395,6 +397,7 @@ model SalesInvoice {
   invoiceNo       Int                @unique @default(autoincrement())
   contactId       String
   dealId          String?
+  projectId       String?
   status          SalesInvoiceStatus @default(DRAFT)
   issuedAt        DateTime           @default(now())
   dueAt           DateTime?
@@ -432,6 +435,7 @@ model SalesInvoice {
 
   contact   CrmContact @relation(fields: [contactId], references: [id])
   deal      CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   signedBy  User?      @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
   lines     SalesInvoiceLine[]
@@ -441,6 +445,7 @@ model SalesInvoice {
 
   @@index([contactId])
   @@index([status])
+  @@index([projectId])
   @@map("sales_invoices")
 }
 
@@ -1717,8 +1722,65 @@ model Project {
   contact   CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   manager   User?       @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
   createdBy User?       @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  stages    ProjectStage[]
+  invoices  SalesInvoice[]
 
   @@index([status])
   @@index([endDate])
   @@map("projects")
+}
+
+/// یک الگوی قابل‌استفاده‌ی مجدد برای مراحل پروژه (مثلاً «وب‌سایت استاندارد»:
+/// تحلیل ← طراحی ← توسعه ← تست ← تحویل) — انتخابش موقع ساخت پروژه، مرحله‌های
+/// واقعی (ProjectStage) را با همان ترتیب می‌سازد. حذف یک الگو مراحل پروژه‌های
+/// قبلاً ساخته‌شده را دست نمی‌زند (آن‌ها رکورد مستقل خودشان را دارند).
+model ProjectStageTemplate {
+  id        String                     @id @default(uuid())
+  name      String
+  createdAt DateTime                   @default(now())
+  items     ProjectStageTemplateItem[]
+
+  @@map("project_stage_templates")
+}
+
+model ProjectStageTemplateItem {
+  id         String @id @default(uuid())
+  templateId String
+  title      String
+  order      Int
+
+  template ProjectStageTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("project_stage_template_items")
+}
+
+enum ProjectStageStatus {
+  PENDING // هنوز شروع نشده
+  AWAITING_APPROVAL // اجراکننده درخواست شروع داده، منتظر تأیید مدیر
+  IN_PROGRESS // تأییدشده و در حال اجرا
+  DONE
+  REJECTED // مدیر درخواست شروع را رد کرده
+}
+
+model ProjectStage {
+  id                String             @id @default(uuid())
+  projectId         String
+  title             String
+  order             Int
+  status            ProjectStageStatus @default(PENDING)
+  requestedAt       DateTime?
+  requestedByUserId String?
+  approvedAt        DateTime?
+  approvedByUserId  String?
+  rejectionReason   String?
+  completedAt       DateTime?
+  createdAt         DateTime           @default(now())
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedBy User?   @relation("ProjectStageRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?   @relation("ProjectStageApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("project_stages")
 }

@@ -43,6 +43,10 @@ export class CreateInvoiceDto {
   dealId?: string;
 
   @IsOptional()
+  @IsUUID()
+  projectId?: string;
+
+  @IsOptional()
   @IsISO8601()
   dueAt?: string;
 

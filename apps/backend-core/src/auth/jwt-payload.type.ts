@@ -55,3 +55,14 @@ export type BookingTicketPayload = {
   phone: string;
   tenantSlug: string;
 };
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for the public
+ * "track my project" page — issued after OTP verify, consumed by the
+ * project-listing endpoint, scoped to one tenant.
+ */
+export type TrackingTicketPayload = {
+  type: 'tracking_ticket';
+  phone: string;
+  tenantSlug: string;
+};

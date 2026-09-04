@@ -29,7 +29,7 @@ export class AppointmentsService {
 
   list(
     ctx: TenantRequestContext,
-    filters: { from?: Date; to?: Date; status?: string; providerUserId?: string },
+    filters: { from?: Date; to?: Date; status?: string; providerUserId?: string; contactId?: string },
   ) {
     return ctx.tenantDb.appointment.findMany({
       where: {
@@ -38,6 +38,7 @@ export class AppointmentsService {
           : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.providerUserId ? { providerUserId: filters.providerUserId } : {}),
+        ...(filters.contactId ? { contactId: filters.contactId } : {}),
       },
       include: APPOINTMENT_INCLUDE,
       orderBy: { startAt: 'asc' },

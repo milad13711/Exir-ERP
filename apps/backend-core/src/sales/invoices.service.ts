@@ -117,6 +117,7 @@ export class InvoicesService {
       data: {
         contactId: dto.contactId,
         dealId: dto.dealId,
+        projectId: dto.projectId,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         discount,
         subtotal,

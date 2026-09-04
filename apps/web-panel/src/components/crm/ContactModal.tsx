@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { PartyStatementSection } from "./PartyStatementSection";
+import { PartyHistorySection } from "./PartyHistorySection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
 
@@ -330,6 +331,8 @@ export function ContactModal({
           </div>
 
           <PartyStatementSection contact={contact} onChanged={reload} />
+
+          <PartyHistorySection contactId={contact.id} />
 
           <AttachmentsSection entityType="CrmContact" entityId={contact.id} />
 

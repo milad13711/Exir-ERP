@@ -48,7 +48,14 @@ export class AuthService {
     let smsSent = false;
 
     if (this.sms.isConfigured()) {
-      const message = purpose === 'SIGNUP' ? `کد تأیید ثبت‌نام شما در اکسیر ERP: ${code}` : `کد ورود شما به اکسیر ERP: ${code}`;
+      const purposeText: Record<OtpPurpose, string> = {
+        LOGIN: 'کد ورود شما',
+        TENANT_INVITE: 'کد ورود شما',
+        SIGNUP: 'کد تأیید ثبت‌نام شما',
+        BOOKING: 'کد تأیید رزرو نوبت شما',
+        TRACKING: 'کد تأیید پیگیری پروژه‌ی شما',
+      };
+      const message = `${purposeText[purpose]} در اکسیر ERP: ${code}`;
       const result = await this.sms.sendSms(phone, message);
       smsSent = result.success;
       if (!result.success) {

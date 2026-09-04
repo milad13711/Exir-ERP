@@ -28,6 +28,7 @@ function emptyLine(): DraftLine {
 export type InvoicePrefill = {
   contactId?: string;
   dealId?: string;
+  projectId?: string;
   description?: string;
   unitPrice?: number;
 };
@@ -93,6 +94,7 @@ export function NewInvoiceModal({
       const invoice = await createSalesInvoice({
         contactId,
         dealId: prefill?.dealId,
+        projectId: prefill?.projectId,
         discount: discountNum || undefined,
         isOfficial,
         taxRate: isOfficial && taxRateNum > 0 ? taxRateNum : undefined,

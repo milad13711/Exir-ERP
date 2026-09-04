@@ -37,6 +37,7 @@ enum OtpPurpose {
   TENANT_INVITE
   SIGNUP
   BOOKING
+  TRACKING
 }
 
 model OtpCode {

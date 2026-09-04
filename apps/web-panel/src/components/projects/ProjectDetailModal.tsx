@@ -1,10 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { CheckIcon, PlusIcon } from "@/components/icons";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
-import { startProject, holdProject, completeProject, cancelProject, type Project, type ProjectStatus } from "@/lib/api";
+import { NewInvoiceModal } from "@/components/sales/NewInvoiceModal";
+import {
+  startProject,
+  holdProject,
+  completeProject,
+  cancelProject,
+  addProjectStage,
+  requestStageStart,
+  approveStage,
+  rejectStage,
+  completeStage,
+  fetchProjectInvoices,
+  type Project,
+  type ProjectStatus,
+  type ProjectStage,
+  type ProjectStageStatus,
+  type ProjectInvoiceSummary,
+} from "@/lib/api";
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNING: "برنامه‌ریزی",
@@ -21,6 +39,29 @@ const STATUS_TONES: Record<ProjectStatus, "primary" | "success" | "warning" | "n
   CANCELLED: "danger",
 };
 
+const STAGE_STATUS_LABELS: Record<ProjectStageStatus, string> = {
+  PENDING: "شروع‌نشده",
+  AWAITING_APPROVAL: "منتظر تأیید مدیر",
+  IN_PROGRESS: "در حال اجرا",
+  DONE: "انجام‌شده",
+  REJECTED: "رد‌شده",
+};
+const STAGE_STATUS_TONES: Record<ProjectStageStatus, "primary" | "success" | "warning" | "neutral" | "danger"> = {
+  PENDING: "neutral",
+  AWAITING_APPROVAL: "warning",
+  IN_PROGRESS: "primary",
+  DONE: "success",
+  REJECTED: "danger",
+};
+
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "پیش‌نویس",
+  CONFIRMED: "تأییدشده",
+  PARTIALLY_PAID: "پرداخت جزئی",
+  PAID: "تسویه‌شده",
+  CANCELLED: "لغوشده",
+};
+
 export function ProjectDetailModal({
   project,
   onClose,
@@ -32,6 +73,18 @@ export function ProjectDetailModal({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stages, setStages] = useState<ProjectStage[]>(project.stages);
+  const [addStageOpen, setAddStageOpen] = useState(false);
+  const [newStageTitle, setNewStageTitle] = useState("");
+  const [rejectingStageId, setRejectingStageId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [invoices, setInvoices] = useState<ProjectInvoiceSummary[] | null>(null);
+  const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
+
+  function reloadInvoices() {
+    fetchProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([]));
+  }
+  useEffect(reloadInvoices, [project.id]);
 
   async function runAction(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -42,6 +95,56 @@ export function ProjectDetailModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "عملیات ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function replaceStage(updated: ProjectStage) {
+    setStages((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    onChanged();
+  }
+
+  async function runStageAction(fn: () => Promise<ProjectStage>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await fn();
+      replaceStage(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "عملیات ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddStage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newStageTitle.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const stage = await addProjectStage(project.id, newStageTitle.trim());
+      setStages((prev) => [...prev, stage]);
+      setNewStageTitle("");
+      setAddStageOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "افزودن مرحله ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReject(stageId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await rejectStage(project.id, stageId, rejectReason.trim() || undefined);
+      replaceStage(updated);
+      setRejectingStageId(null);
+      setRejectReason("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "رد مرحله ناموفق بود");
     } finally {
       setBusy(false);
     }
@@ -151,9 +254,168 @@ export function ProjectDetailModal({
           )}
         </div>
 
+        {/* مراحل پروژه */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12.5px] font-semibold text-ink-soft">مراحل پروژه</span>
+            <button
+              type="button"
+              onClick={() => setAddStageOpen((v) => !v)}
+              className="flex items-center gap-1 text-[11px] font-bold text-primary cursor-pointer"
+            >
+              <PlusIcon className="w-3 h-3" />
+              افزودن مرحله
+            </button>
+          </div>
+
+          {addStageOpen && (
+            <form onSubmit={handleAddStage} className="flex items-center gap-2 mb-2.5">
+              <input
+                value={newStageTitle}
+                onChange={(e) => setNewStageTitle(e.target.value)}
+                placeholder="عنوان مرحله"
+                className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2 focus:border-primary"
+              />
+              <button
+                type="submit"
+                disabled={busy || !newStageTitle.trim()}
+                className="text-[11.5px] font-bold text-white bg-primary px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                افزودن
+              </button>
+            </form>
+          )}
+
+          {stages.length === 0 ? (
+            <div className="text-[12px] text-muted bg-slate-50 rounded-xl p-3 text-center">مرحله‌ای ثبت نشده</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {stages.map((s, i) => (
+                <div key={s.id} className="bg-slate-50 border border-border rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] text-muted shrink-0">{i + 1}.</span>
+                      <span className="text-[12.5px] font-bold truncate">{s.title}</span>
+                    </div>
+                    <Badge tone={STAGE_STATUS_TONES[s.status]}>{STAGE_STATUS_LABELS[s.status]}</Badge>
+                  </div>
+                  {s.status === "REJECTED" && s.rejectionReason && (
+                    <div className="text-[11px] text-danger mt-1.5">دلیل رد: {s.rejectionReason}</div>
+                  )}
+
+                  {rejectingStageId === s.id ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="دلیل رد (اختیاری)"
+                        className="flex-1 text-[11.5px] outline-none bg-white border border-border rounded-lg px-2.5 py-1.5"
+                      />
+                      <button
+                        onClick={() => handleReject(s.id)}
+                        disabled={busy}
+                        className="text-[11px] font-bold text-white bg-danger px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                      >
+                        تأیید رد
+                      </button>
+                      <button
+                        onClick={() => setRejectingStageId(null)}
+                        className="text-[11px] font-bold text-ink-soft"
+                      >
+                        انصراف
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      {(s.status === "PENDING" || s.status === "REJECTED") && (
+                        <button
+                          onClick={() => runStageAction(() => requestStageStart(project.id, s.id))}
+                          disabled={busy}
+                          className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                        >
+                          درخواست شروع
+                        </button>
+                      )}
+                      {s.status === "AWAITING_APPROVAL" && (
+                        <>
+                          <button
+                            onClick={() => runStageAction(() => approveStage(project.id, s.id))}
+                            disabled={busy}
+                            className="flex items-center gap-1 text-[11px] font-bold text-success bg-success-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                          >
+                            <CheckIcon className="w-3 h-3" />
+                            تأیید مدیر
+                          </button>
+                          <button
+                            onClick={() => setRejectingStageId(s.id)}
+                            disabled={busy}
+                            className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                          >
+                            رد
+                          </button>
+                        </>
+                      )}
+                      {s.status === "IN_PROGRESS" && (
+                        <button
+                          onClick={() => runStageAction(() => completeStage(project.id, s.id))}
+                          disabled={busy}
+                          className="text-[11px] font-bold text-success bg-success-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                        >
+                          علامت‌گذاری به‌عنوان انجام‌شده
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* فاکتورهای پروژه */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12.5px] font-semibold text-ink-soft">فاکتورها</span>
+            <button
+              type="button"
+              onClick={() => setNewInvoiceOpen(true)}
+              className="flex items-center gap-1 text-[11px] font-bold text-primary cursor-pointer"
+            >
+              <PlusIcon className="w-3 h-3" />
+              صدور فاکتور
+            </button>
+          </div>
+          {invoices === null ? (
+            <div className="text-[12px] text-muted text-center py-2">در حال بارگذاری...</div>
+          ) : invoices.length === 0 ? (
+            <div className="text-[12px] text-muted bg-slate-50 rounded-xl p-3 text-center">فاکتوری صادر نشده</div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {invoices.map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-lg px-3 py-2">
+                  <span className="text-[12px] font-semibold">فاکتور #{inv.invoiceNo}</span>
+                  <span className="text-[11.5px] text-muted">{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</span>
+                  <span className="text-[12px] font-bold">{formatToman(inv.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <TasksSection relatedModule="project" relatedEntityId={project.id} />
         <AttachmentsSection entityType="Project" entityId={project.id} />
       </div>
+
+      {newInvoiceOpen && (
+        <NewInvoiceModal
+          onClose={() => setNewInvoiceOpen(false)}
+          onCreated={() => {
+            reloadInvoices();
+            setNewInvoiceOpen(false);
+          }}
+          prefill={{ contactId: project.contactId ?? undefined, projectId: project.id }}
+        />
+      )}
     </Modal>
   );
 }

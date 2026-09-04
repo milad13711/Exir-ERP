@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { createProject, fetchCrmContacts, fetchUsers, type CrmContact, type TenantUser } from "@/lib/api";
+import {
+  createProject,
+  fetchCrmContacts,
+  fetchUsers,
+  fetchStageTemplates,
+  type CrmContact,
+  type TenantUser,
+  type StageTemplate,
+} from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -17,12 +25,15 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [description, setDescription] = useState("");
+  const [stageTemplateId, setStageTemplateId] = useState("");
+  const [stageTemplates, setStageTemplates] = useState<StageTemplate[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchStageTemplates().then(setStageTemplates).catch(() => setStageTemplates([]));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -39,6 +50,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         description: description.trim() || undefined,
+        stageTemplateId: stageTemplateId || undefined,
       });
       onCreated();
       onClose();
@@ -81,6 +93,20 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
             ))}
           </select>
         </div>
+
+        {stageTemplates.length > 0 && (
+          <div>
+            <label className={labelClass}>قالب مراحل (اختیاری)</label>
+            <select value={stageTemplateId} onChange={(e) => setStageTemplateId(e.target.value)} className={inputClass}>
+              <option value="">بدون قالب — بدون مرحله</option>
+              {stageTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>بودجه (تومان — اختیاری)</label>

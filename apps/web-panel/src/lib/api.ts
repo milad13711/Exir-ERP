@@ -1962,6 +1962,7 @@ export function fetchSalesInvoice(id: string) {
 export function createSalesInvoice(data: {
   contactId: string;
   dealId?: string;
+  projectId?: string;
   dueAt?: string;
   discount?: number;
   notes?: string;
@@ -2958,7 +2959,7 @@ export function deactivateServiceType(id: string) {
   return apiFetch<ServiceType>(`/booking/service-types/${id}/deactivate`, { method: "POST" });
 }
 
-export function fetchAppointments(params: { from?: string; to?: string; status?: string } = {}) {
+export function fetchAppointments(params: { from?: string; to?: string; status?: string; contactId?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Appointment[]>(`/booking/appointments${qs ? `?${qs}` : ""}`);
 }
@@ -3102,6 +3103,22 @@ export function renewContract(id: string, newEndDate: string) {
 
 export type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
 
+export type ProjectStageStatus = "PENDING" | "AWAITING_APPROVAL" | "IN_PROGRESS" | "DONE" | "REJECTED";
+
+export type ProjectStage = {
+  id: string;
+  projectId: string;
+  title: string;
+  order: number;
+  status: ProjectStageStatus;
+  requestedAt: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  completedAt: string | null;
+  requestedBy: { id: string; name: string } | null;
+  approvedBy: { id: string; name: string } | null;
+};
+
 export type Project = {
   id: string;
   projectNo: number;
@@ -3118,6 +3135,7 @@ export type Project = {
   manager: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
   progress: { total: number; done: number };
+  stages: ProjectStage[];
 };
 
 export function fetchProjects(params: { status?: string; contactId?: string } = {}) {
@@ -3137,6 +3155,7 @@ export function createProject(data: {
   startDate?: string;
   endDate?: string;
   description?: string;
+  stageTemplateId?: string;
 }) {
   return apiFetch<Project>("/projects", { method: "POST", body: JSON.stringify(data) });
 }
@@ -3159,4 +3178,100 @@ export function completeProject(id: string) {
 
 export function cancelProject(id: string) {
   return apiFetch<Project>(`/projects/${id}/cancel`, { method: "POST" });
+}
+
+// ── قالب مراحل پروژه ───────────────────────────────────────────────────
+
+export type StageTemplate = {
+  id: string;
+  name: string;
+  items: { id: string; title: string; order: number }[];
+};
+
+export function fetchStageTemplates() {
+  return apiFetch<StageTemplate[]>("/projects/stage-templates");
+}
+
+export function createStageTemplate(data: { name: string; items: { title: string }[] }) {
+  return apiFetch<StageTemplate>("/projects/stage-templates", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateStageTemplate(id: string, data: { name: string; items: { title: string }[] }) {
+  return apiFetch<StageTemplate>(`/projects/stage-templates/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteStageTemplate(id: string) {
+  return apiFetch<{ success: boolean }>(`/projects/stage-templates/${id}`, { method: "DELETE" });
+}
+
+// ── مراحل پروژه ────────────────────────────────────────────────────────
+
+export function addProjectStage(projectId: string, title: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages`, { method: "POST", body: JSON.stringify({ title }) });
+}
+
+export function requestStageStart(projectId: string, stageId: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/request-start`, { method: "POST" });
+}
+
+export function approveStage(projectId: string, stageId: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/approve`, { method: "POST" });
+}
+
+export function rejectStage(projectId: string, stageId: string, reason?: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function completeStage(projectId: string, stageId: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/complete`, { method: "POST" });
+}
+
+// ── فاکتورهای پروژه ────────────────────────────────────────────────────
+
+export type ProjectInvoiceSummary = {
+  id: string;
+  invoiceNo: number;
+  status: string;
+  total: number;
+  paidAmount: number;
+  issuedAt: string;
+};
+
+export function fetchProjectInvoices(projectId: string) {
+  return apiFetch<ProjectInvoiceSummary[]>(`/projects/${projectId}/invoices`);
+}
+
+// ── پیگیری عمومی پروژه (Public tracking — no auth) ────────────────────
+
+export type PublicTrackedProject = {
+  projectNo: number;
+  name: string;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  stages: { title: string; status: ProjectStageStatus; completedAt: string | null }[];
+};
+
+export function requestTrackingOtp(slug: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/tracking/${slug}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyTrackingOtp(slug: string, phone: string, code: string) {
+  return apiFetch<{ trackingToken: string; expiresInSeconds: number }>(`/public/tracking/${slug}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function fetchTrackedProjects(slug: string, trackingToken: string) {
+  return apiFetch<PublicTrackedProject[]>(`/public/tracking/${slug}/projects`, {
+    method: "POST",
+    body: JSON.stringify({ trackingToken }),
+  });
 }

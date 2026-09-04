@@ -25,6 +25,7 @@ export class AppointmentsController {
     @Query('to') to: string | undefined,
     @Query('status') status: string | undefined,
     @Query('providerUserId') providerUserId: string | undefined,
+    @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertView(ctx, 'booking');
@@ -33,6 +34,7 @@ export class AppointmentsController {
       to: to ? new Date(to) : undefined,
       status,
       providerUserId,
+      contactId,
     });
   }
 
