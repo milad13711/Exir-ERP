@@ -3097,3 +3097,66 @@ export function terminateContract(id: string, reason?: string) {
 export function renewContract(id: string, newEndDate: string) {
   return apiFetch<Contract>(`/contracts/${id}/renew`, { method: "POST", body: JSON.stringify({ newEndDate }) });
 }
+
+// ── مدیریت پروژه (Projects) ───────────────────────────────────────────────
+
+export type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
+
+export type Project = {
+  id: string;
+  projectNo: number;
+  name: string;
+  contactId: string | null;
+  managerUserId: string | null;
+  status: ProjectStatus;
+  budget: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  createdAt: string;
+  contact: { id: string; name: string; company: string | null } | null;
+  manager: { id: string; name: string } | null;
+  createdBy: { id: string; name: string } | null;
+  progress: { total: number; done: number };
+};
+
+export function fetchProjects(params: { status?: string; contactId?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<Project[]>(`/projects${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchProject(id: string) {
+  return apiFetch<Project>(`/projects/${id}`);
+}
+
+export function createProject(data: {
+  name: string;
+  contactId?: string;
+  managerUserId?: string;
+  budget?: number;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}) {
+  return apiFetch<Project>("/projects", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateProject(id: string, data: Partial<Parameters<typeof createProject>[0]>) {
+  return apiFetch<Project>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function startProject(id: string) {
+  return apiFetch<Project>(`/projects/${id}/start`, { method: "POST" });
+}
+
+export function holdProject(id: string) {
+  return apiFetch<Project>(`/projects/${id}/hold`, { method: "POST" });
+}
+
+export function completeProject(id: string) {
+  return apiFetch<Project>(`/projects/${id}/complete`, { method: "POST" });
+}
+
+export function cancelProject(id: string) {
+  return apiFetch<Project>(`/projects/${id}/cancel`, { method: "POST" });
+}

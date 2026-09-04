@@ -67,6 +67,8 @@ model User {
   providedAppointments   Appointment[] @relation("AppointmentProvider")
   createdAppointments    Appointment[] @relation("AppointmentCreatedBy")
   createdContracts       Contract[]
+  managedProjects        Project[] @relation("ProjectManager")
+  createdProjects        Project[] @relation("ProjectCreatedBy")
 
   @@map("users")
 }
@@ -310,6 +312,7 @@ model CrmContact {
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
   appointments Appointment[]
   contracts Contract[]
+  projects Project[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1679,4 +1682,43 @@ model Contract {
   @@index([endDate])
   @@index([type])
   @@map("contracts")
+}
+
+// ── مدیریت پروژه ─────────────────────────────────────────────────────────
+// وظایف پروژه از سیستم Task عمومی همین کدبیس استفاده می‌کنند
+// (relatedModule='project', relatedEntityId=Project.id) — یک موتور وظیفه‌ی
+// موازی برای پروژه‌ها ساخته نمی‌شود. همین‌طور پیوست‌ها از مدل عمومی
+// Attachment. این ماژول فقط ظرف پروژه و گردش وضعیتش را اضافه می‌کند.
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id                String        @id @default(uuid())
+  projectNo         Int           @unique @default(autoincrement())
+  name              String
+  contactId         String?
+  managerUserId     String?
+  status            ProjectStatus @default(PLANNING)
+  budget            Int? // تومان
+  startDate         DateTime?
+  endDate           DateTime?
+  description       String?
+  overdueNotifiedAt DateTime?
+  createdByUserId   String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  contact   CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  manager   User?       @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  createdBy User?       @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([endDate])
+  @@map("projects")
 }

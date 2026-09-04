@@ -288,6 +288,17 @@ async function main() {
       dependsOn: ['crm'],
       features: ['یادآوری خودکار پیش از پایان قرارداد', 'گردش امضا، تمدید و فسخ', 'اتصال به مخاطبین CRM'],
     },
+    {
+      code: 'projects',
+      name: 'مدیریت پروژه',
+      description: 'ظرف پروژه با بودجه، بازه‌ی زمانی و مدیر مشخص — وظایف و پیشرفت از همان ماژول وظایف موجود، بدون سیستم موازی.',
+      category: 'بهره‌وری',
+      priceMonthly: 190000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['tasks'],
+      features: ['پیشرفت خودکار بر اساس وظایف تکمیل‌شده', 'هشدار خودکار عقب‌افتادن از موعد', 'گردش شروع، توقف، اتمام و لغو'],
+    },
   ];
   for (const m of modules) {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
