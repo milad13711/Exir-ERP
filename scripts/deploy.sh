@@ -49,6 +49,7 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclu
   apps/backend-core/src/ "${HOST}:${REMOTE_DIR}/apps/backend-core/src/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/backend-core/docker-entrypoint.sh "${HOST}:${REMOTE_DIR}/apps/backend-core/docker-entrypoint.sh"
+rsync -az apps/backend-core/nest-cli.json "${HOST}:${REMOTE_DIR}/apps/backend-core/nest-cli.json"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/backend-core/prisma/ "${HOST}:${REMOTE_DIR}/apps/backend-core/prisma/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
