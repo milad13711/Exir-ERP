@@ -25,9 +25,20 @@ import { useWorkspace } from "@/lib/workspace-context";
 const MCP_TOOLS_REFERENCE = [
   { name: "list_crm_deals", desc: "فهرست فرصت‌های فروش CRM" },
   { name: "create_crm_contact", desc: "ثبت مخاطب جدید در CRM" },
+  { name: "update_crm_contact", desc: "ویرایش مخاطب CRM" },
+  { name: "create_crm_deal", desc: "ثبت فرصت فروش جدید" },
+  { name: "list_sales_invoices", desc: "فهرست فاکتورهای فروش" },
+  { name: "create_sales_invoice", desc: "ثبت فاکتور فروش جدید" },
+  { name: "list_purchase_orders", desc: "فهرست سفارش‌های خرید" },
+  { name: "create_purchase_order", desc: "ثبت سفارش خرید جدید" },
+  { name: "list_products", desc: "فهرست کالاهای انبار" },
+  { name: "create_product", desc: "ثبت کالای جدید" },
+  { name: "get_accounting_summary", desc: "خلاصه‌ی وضعیت مالی" },
+  { name: "create_journal_entry", desc: "ثبت سند حسابداری" },
+  { name: "list_employees", desc: "فهرست کارمندان" },
+  { name: "create_leave_request", desc: "ثبت درخواست مرخصی" },
   { name: "list_tasks", desc: "فهرست وظایف باز" },
   { name: "create_task", desc: "ثبت وظیفه‌ی جدید" },
-  { name: "get_accounting_summary", desc: "خلاصه‌ی وضعیت مالی" },
 ];
 
 const sections = [
@@ -232,6 +243,7 @@ export default function ApiDocsSettingsPage() {
         <div className="text-[13.5px] font-bold mb-1">اتصال از طریق MCP</div>
         <p className="text-[12px] text-muted mb-3 leading-relaxed">
           ایجنت هوش مصنوعی خود را با پروتکل MCP (Streamable HTTP) به این آدرس و یکی از کلیدهای بالا وصل کنید.
+          ابزارهای فقط-خواندنی بلافاصله اجرا می‌شوند؛ ثبت/ویرایش/حذف همیشه اول منتظر تأیید شما می‌ماند — از «دستیار هوشمند (MCP)» در همین منو دنبال کنید.
         </p>
         <div className="bg-slate-50 border border-border rounded-xl p-3.5">
           <div className="text-[11px] text-muted mb-1">آدرس سرور MCP</div>

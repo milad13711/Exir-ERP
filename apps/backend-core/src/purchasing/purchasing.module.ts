@@ -12,5 +12,6 @@ import { PurchaseReturnsService } from './purchase-returns.service.js';
   imports: [PermissionsModule, WarehouseModule, ModuleGuardModule],
   controllers: [SuppliersController, PurchaseOrdersController, PurchaseReturnsController],
   providers: [PurchaseOrdersService, PurchaseReturnsService],
+  exports: [PurchaseOrdersService],
 })
 export class PurchasingModule {}

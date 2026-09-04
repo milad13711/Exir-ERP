@@ -9,6 +9,7 @@ import {
   LogIcon,
   CurrencyIcon,
   PhoneIcon,
+  BotIcon,
 } from "@/components/icons";
 
 export type SettingsNavItem = {
@@ -26,6 +27,7 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/currencies", label: "ارزها و نرخ تبدیل", icon: CurrencyIcon, moduleCode: "currency-exchange" },
   { href: "/settings/voip", label: "اتصال تلفن (VoIP)", icon: PhoneIcon, moduleCode: "voip" },
   { href: "/settings/api", label: "API، وب‌هوک و MCP", icon: DocsIcon, moduleCode: "api-access" },
+  { href: "/settings/ai-assistant", label: "دستیار هوشمند (MCP)", icon: BotIcon, moduleCode: "mcp" },
   { href: "/settings/notifications", label: "اعلان‌ها", icon: BellIcon },
   { href: "/settings/logs", label: "لاگ فعالیت‌ها و خطاها", icon: LogIcon },
 ];

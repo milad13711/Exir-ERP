@@ -63,6 +63,7 @@ model User {
   qualitySampleResultsTested QualitySampleResult[] @relation("QualitySampleResultTestedBy")
   createdAutomationRules AutomationRule[]
   voipExtension          VoipExtension?
+  decidedAiActions       AiActionRequest[]
 
   @@map("users")
 }
@@ -1554,4 +1555,29 @@ model VoipExtension {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("voip_extensions")
+}
+
+// ── صف تأیید اقدام‌های دستیار هوشمند (MCP) ────────────────────────────
+// یک ابزار MCP از نوع CREATE/UPDATE/DELETE هرگز مستقیم اجرا نمی‌شود —
+// فقط یک ردیف اینجا می‌سازد؛ اجرای واقعی فقط بعد از approve() انسانی
+// اتفاق می‌افتد (همان handler ثبت‌شده‌ی ابزار، دوباره فراخوانی می‌شود).
+
+model AiActionRequest {
+  id              String    @id @default(uuid())
+  toolName        String
+  operationType   String // CREATE | UPDATE | DELETE
+  summary         String // توضیح قابل‌فهم برای پاپ‌آپ تأیید
+  arguments       Json
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED | FAILED
+  result          Json?
+  error           String?
+  decidedByUserId String?
+  createdAt       DateTime  @default(now())
+  decidedAt       DateTime?
+  executedAt      DateTime?
+
+  decidedBy User? @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@map("ai_action_requests")
 }

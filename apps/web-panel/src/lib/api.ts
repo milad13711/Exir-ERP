@@ -2806,3 +2806,31 @@ export function saveMyVoipExtension(extension: string) {
 export function originateCall(toNumber: string, contactId?: string) {
   return apiFetch<{ success: boolean }>("/voip/originate", { method: "POST", body: JSON.stringify({ toNumber, contactId }) });
 }
+
+// ── درخواست‌های دستیار هوشمند (AI Actions) ──────────────────────────────
+
+export type AiActionStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXECUTED" | "FAILED";
+
+export type AiActionRequest = {
+  id: string;
+  toolName: string;
+  operationType: "CREATE" | "UPDATE" | "DELETE";
+  summary: string;
+  status: AiActionStatus;
+  error: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  decidedBy: { id: string; name: string } | null;
+};
+
+export function fetchAiActions() {
+  return apiFetch<AiActionRequest[]>("/ai-actions");
+}
+
+export function approveAiAction(id: string) {
+  return apiFetch<{ success: boolean; result: unknown }>(`/ai-actions/${id}/approve`, { method: "POST" });
+}
+
+export function rejectAiAction(id: string) {
+  return apiFetch<{ success: boolean }>(`/ai-actions/${id}/reject`, { method: "POST" });
+}

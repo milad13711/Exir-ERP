@@ -7,6 +7,7 @@ import { MobileNavDrawer } from "./MobileNavDrawer";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { SupportChat } from "./SupportChat";
 import { IncomingCallPopup } from "./IncomingCallPopup";
+import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon } from "@/components/icons";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
@@ -66,6 +67,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         onUnreadChange={setSupportUnread}
       />
       <IncomingCallPopup />
+      <AiActionApprovalPopup />
     </div>
   );
 }
