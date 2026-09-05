@@ -90,22 +90,26 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
           <form onSubmit={handleAdd} className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام خدمت" className={inputClass} />
             <div className="flex gap-2.5">
-              <input
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                type="number"
-                min={5}
-                placeholder="مدت‌زمان (دقیقه)"
-                className={`${inputClass} flex-1`}
-              />
-              <input
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                type="number"
-                min={0}
-                placeholder="قیمت (تومان)"
-                className={`${inputClass} flex-1`}
-              />
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">مدت‌زمان (دقیقه)</label>
+                <input
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  type="number"
+                  min={5}
+                  className={`${inputClass} w-full`}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">قیمت (تومان)</label>
+                <input
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  type="number"
+                  min={0}
+                  className={`${inputClass} w-full`}
+                />
+              </div>
             </div>
             <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
               <input type="checkbox" checked={requiresCoordination} onChange={(e) => setRequiresCoordination(e.target.checked)} />
@@ -116,14 +120,16 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
               نیاز به پرداخت بیعانه/پیش‌پرداخت
             </label>
             {requiresDeposit && (
-              <input
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                type="number"
-                min={0}
-                placeholder="مبلغ بیعانه (تومان)"
-                className={inputClass}
-              />
+              <div>
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">مبلغ بیعانه (تومان)</label>
+                <input
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  type="number"
+                  min={0}
+                  className={`${inputClass} w-full`}
+                />
+              </div>
             )}
             <button
               type="submit"

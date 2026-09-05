@@ -164,21 +164,22 @@ export function JalaliDateTimeInput({
 
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
             <span className="text-[11.5px] text-muted">ساعت</span>
-            <input
-              value={hour}
-              onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-              dir="ltr"
-              className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
-              placeholder="۰۰"
-            />
-            <span className="text-muted">:</span>
-            <input
-              value={minute}
-              onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-              dir="ltr"
-              className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
-              placeholder="۰۰"
-            />
+            {/* گروه ساعت:دقیقه به‌صورت یک بلوک LTR — وگرنه در والد RTL، ترتیب DOM (ساعت سپس دقیقه) در جایگاه بصری معکوس می‌شود و دو فیلد جابه‌جا به‌نظر می‌رسند. */}
+            <div dir="ltr" className="flex items-center gap-2">
+              <input
+                value={hour}
+                onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
+                placeholder="۰۰"
+              />
+              <span className="text-muted">:</span>
+              <input
+                value={minute}
+                onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
+                placeholder="۰۰"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 mt-2.5">
