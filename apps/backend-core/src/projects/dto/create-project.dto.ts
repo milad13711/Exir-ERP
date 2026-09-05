@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -33,4 +33,9 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   stageTemplateId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  memberUserIds?: string[];
 }

@@ -12,16 +12,19 @@ import {
   completeProject,
   cancelProject,
   addProjectStage,
+  assignProjectStage,
   requestStageStart,
   approveStage,
   rejectStage,
   completeStage,
   fetchProjectInvoices,
+  fetchUsers,
   type Project,
   type ProjectStatus,
   type ProjectStage,
   type ProjectStageStatus,
   type ProjectInvoiceSummary,
+  type TenantUser,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -80,11 +83,17 @@ export function ProjectDetailModal({
   const [rejectReason, setRejectReason] = useState("");
   const [invoices, setInvoices] = useState<ProjectInvoiceSummary[] | null>(null);
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
+  const [users, setUsers] = useState<TenantUser[]>([]);
+  const [completingStageId, setCompletingStageId] = useState<string | null>(null);
+  const [completionReport, setCompletionReport] = useState("");
 
   function reloadInvoices() {
     fetchProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([]));
   }
   useEffect(reloadInvoices, [project.id]);
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
+  }, []);
 
   async function runAction(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -130,6 +139,34 @@ export function ProjectDetailModal({
       setAddStageOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "افزودن مرحله ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAssignResponsible(stageId: string, responsibleUserId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await assignProjectStage(project.id, stageId, responsibleUserId || undefined);
+      replaceStage(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تخصیص مسئول ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleComplete(stageId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await completeStage(project.id, stageId, completionReport.trim() || undefined);
+      replaceStage(updated);
+      setCompletingStageId(null);
+      setCompletionReport("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تکمیل مرحله ناموفق بود");
     } finally {
       setBusy(false);
     }
@@ -206,6 +243,19 @@ export function ProjectDetailModal({
             </div>
           )}
         </div>
+
+        {project.members.length > 0 && (
+          <div>
+            <div className="text-[11px] text-muted mb-1.5">اعضای تیم اجرایی</div>
+            <div className="flex flex-wrap gap-1.5">
+              {project.members.map((m) => (
+                <span key={m.id} className="text-[11.5px] font-semibold bg-slate-50 border border-border rounded-lg px-2.5 py-1">
+                  {m.user.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {project.description && (
           <div className="text-[12.5px] text-ink-soft leading-relaxed bg-slate-50 rounded-xl p-3 whitespace-pre-wrap">
@@ -299,11 +349,63 @@ export function ProjectDetailModal({
                     </div>
                     <Badge tone={STAGE_STATUS_TONES[s.status]}>{STAGE_STATUS_LABELS[s.status]}</Badge>
                   </div>
+
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className="text-[11px] text-muted shrink-0">مسئول مرحله:</span>
+                    <select
+                      value={s.responsibleUserId ?? ""}
+                      onChange={(e) => handleAssignResponsible(s.id, e.target.value)}
+                      disabled={busy || s.status === "DONE"}
+                      className="flex-1 text-[11.5px] outline-none bg-white border border-border rounded-lg px-2 py-1 disabled:opacity-60"
+                    >
+                      <option value="">بدون تخصیص</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {s.status === "REJECTED" && s.rejectionReason && (
                     <div className="text-[11px] text-danger mt-1.5">دلیل رد: {s.rejectionReason}</div>
                   )}
+                  {s.status === "DONE" && s.completionReport && (
+                    <div className="text-[11.5px] text-ink-soft mt-1.5 bg-white border border-border rounded-lg p-2 whitespace-pre-wrap">
+                      <span className="text-muted">گزارش تکمیل: </span>
+                      {s.completionReport}
+                    </div>
+                  )}
 
-                  {rejectingStageId === s.id ? (
+                  {completingStageId === s.id ? (
+                    <div className="flex flex-col gap-2 mt-2">
+                      <textarea
+                        value={completionReport}
+                        onChange={(e) => setCompletionReport(e.target.value)}
+                        rows={2}
+                        placeholder="گزارش/یادداشت نتیجه‌ی این مرحله (اختیاری)"
+                        className="text-[11.5px] outline-none bg-white border border-border rounded-lg px-2.5 py-1.5"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleComplete(s.id)}
+                          disabled={busy}
+                          className="text-[11px] font-bold text-white bg-success px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                        >
+                          ثبت تکمیل مرحله
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCompletingStageId(null);
+                            setCompletionReport("");
+                          }}
+                          className="text-[11px] font-bold text-ink-soft"
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    </div>
+                  ) : rejectingStageId === s.id ? (
                     <div className="flex items-center gap-2 mt-2">
                       <input
                         value={rejectReason}
@@ -357,7 +459,10 @@ export function ProjectDetailModal({
                       )}
                       {s.status === "IN_PROGRESS" && (
                         <button
-                          onClick={() => runStageAction(() => completeStage(project.id, s.id))}
+                          onClick={() => {
+                            setCompletingStageId(s.id);
+                            setCompletionReport("");
+                          }}
                           disabled={busy}
                           className="text-[11px] font-bold text-success bg-success-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
                         >

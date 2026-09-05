@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class UpdateProjectDto {
   @IsOptional()
@@ -30,4 +30,9 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  memberUserIds?: string[];
 }

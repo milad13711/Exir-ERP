@@ -3389,12 +3389,21 @@ export type ProjectStage = {
   title: string;
   order: number;
   status: ProjectStageStatus;
+  responsibleUserId: string | null;
   requestedAt: string | null;
   approvedAt: string | null;
   rejectionReason: string | null;
   completedAt: string | null;
+  completionReport: string | null;
+  responsible: { id: string; name: string } | null;
   requestedBy: { id: string; name: string } | null;
   approvedBy: { id: string; name: string } | null;
+};
+
+export type ProjectMember = {
+  id: string;
+  userId: string;
+  user: { id: string; name: string };
 };
 
 export type Project = {
@@ -3412,6 +3421,7 @@ export type Project = {
   contact: { id: string; name: string; company: string | null } | null;
   manager: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
+  members: ProjectMember[];
   progress: { total: number; done: number };
   stages: ProjectStage[];
 };
@@ -3434,6 +3444,7 @@ export function createProject(data: {
   endDate?: string;
   description?: string;
   stageTemplateId?: string;
+  memberUserIds?: string[];
 }) {
   return apiFetch<Project>("/projects", { method: "POST", body: JSON.stringify(data) });
 }
@@ -3484,8 +3495,15 @@ export function deleteStageTemplate(id: string) {
 
 // ── مراحل پروژه ────────────────────────────────────────────────────────
 
-export function addProjectStage(projectId: string, title: string) {
-  return apiFetch<ProjectStage>(`/projects/${projectId}/stages`, { method: "POST", body: JSON.stringify({ title }) });
+export function addProjectStage(projectId: string, title: string, responsibleUserId?: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages`, { method: "POST", body: JSON.stringify({ title, responsibleUserId }) });
+}
+
+export function assignProjectStage(projectId: string, stageId: string, responsibleUserId: string | undefined) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/assign`, {
+    method: "POST",
+    body: JSON.stringify({ responsibleUserId }),
+  });
 }
 
 export function requestStageStart(projectId: string, stageId: string) {
@@ -3503,8 +3521,11 @@ export function rejectStage(projectId: string, stageId: string, reason?: string)
   });
 }
 
-export function completeStage(projectId: string, stageId: string) {
-  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/complete`, { method: "POST" });
+export function completeStage(projectId: string, stageId: string, report?: string) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ report }),
+  });
 }
 
 // ── فاکتورهای پروژه ────────────────────────────────────────────────────

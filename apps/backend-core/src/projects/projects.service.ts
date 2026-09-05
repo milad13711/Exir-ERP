@@ -5,16 +5,20 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import type { CreateProjectDto } from './dto/create-project.dto.js';
 import type { UpdateProjectDto } from './dto/update-project.dto.js';
 
+const STAGE_INCLUDE = {
+  requestedBy: { select: { id: true, name: true } },
+  approvedBy: { select: { id: true, name: true } },
+  responsible: { select: { id: true, name: true } },
+} as const;
+
 const PROJECT_INCLUDE = {
   contact: { select: { id: true, name: true, company: true } },
   manager: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  members: { include: { user: { select: { id: true, name: true } } } },
   stages: {
     orderBy: { order: 'asc' as const },
-    include: {
-      requestedBy: { select: { id: true, name: true } },
-      approvedBy: { select: { id: true, name: true } },
-    },
+    include: STAGE_INCLUDE,
   },
 } as const;
 
@@ -75,6 +79,8 @@ export class ProjectsService {
       stageItems = template.items.map((i) => ({ title: i.title, order: i.order }));
     }
 
+    const memberUserIds = [...new Set(dto.memberUserIds ?? [])];
+
     return ctx.tenantDb.project.create({
       data: {
         name: dto.name,
@@ -86,6 +92,7 @@ export class ProjectsService {
         description: dto.description,
         createdByUserId,
         ...(stageItems.length > 0 ? { stages: { create: stageItems } } : {}),
+        ...(memberUserIds.length > 0 ? { members: { create: memberUserIds.map((userId) => ({ userId })) } } : {}),
       },
       include: PROJECT_INCLUDE,
     });
@@ -96,6 +103,14 @@ export class ProjectsService {
     if (!existing) throw new NotFoundException('پروژه یافت نشد');
     if (existing.status === 'COMPLETED' || existing.status === 'CANCELLED') {
       throw new ConflictException('پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست');
+    }
+
+    if (dto.memberUserIds) {
+      const memberUserIds = [...new Set(dto.memberUserIds)];
+      await ctx.tenantDb.projectMember.deleteMany({ where: { projectId: id } });
+      if (memberUserIds.length > 0) {
+        await ctx.tenantDb.projectMember.createMany({ data: memberUserIds.map((userId) => ({ projectId: id, userId })) });
+      }
     }
 
     return ctx.tenantDb.project.update({
@@ -146,13 +161,23 @@ export class ProjectsService {
 
   // ── مراحل پروژه ──────────────────────────────────────────────────────
 
-  async addStage(ctx: TenantRequestContext, projectId: string, title: string) {
+  async addStage(ctx: TenantRequestContext, projectId: string, title: string, responsibleUserId?: string) {
     const project = await ctx.tenantDb.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('پروژه یافت نشد');
     const last = await ctx.tenantDb.projectStage.findFirst({ where: { projectId }, orderBy: { order: 'desc' } });
     return ctx.tenantDb.projectStage.create({
-      data: { projectId, title, order: (last?.order ?? -1) + 1 },
-      include: { requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } },
+      data: { projectId, title, order: (last?.order ?? -1) + 1, responsibleUserId },
+      include: STAGE_INCLUDE,
+    });
+  }
+
+  /** تغییر یا حذف مسئول یک مرحله — در هر وضعیتی از مرحله قابل انجام است. */
+  async assignStage(ctx: TenantRequestContext, projectId: string, stageId: string, responsibleUserId: string | undefined) {
+    await this.findStage(ctx, projectId, stageId);
+    return ctx.tenantDb.projectStage.update({
+      where: { id: stageId },
+      data: { responsibleUserId: responsibleUserId ?? null },
+      include: STAGE_INCLUDE,
     });
   }
 
@@ -172,7 +197,7 @@ export class ProjectsService {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'AWAITING_APPROVAL', requestedAt: new Date(), requestedByUserId, rejectionReason: null },
-      include: { requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } },
+      include: STAGE_INCLUDE,
     });
   }
 
@@ -186,7 +211,7 @@ export class ProjectsService {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'IN_PROGRESS', approvedAt: new Date(), approvedByUserId },
-      include: { requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } },
+      include: STAGE_INCLUDE,
     });
   }
 
@@ -198,19 +223,19 @@ export class ProjectsService {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'REJECTED', rejectionReason: reason },
-      include: { requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } },
+      include: STAGE_INCLUDE,
     });
   }
 
-  async completeStage(ctx: TenantRequestContext, projectId: string, stageId: string) {
+  async completeStage(ctx: TenantRequestContext, projectId: string, stageId: string, report: string | undefined) {
     const stage = await this.findStage(ctx, projectId, stageId);
     if (stage.status !== 'IN_PROGRESS') {
       throw new ConflictException('فقط مرحله‌ی در حال اجرا قابل تکمیل است');
     }
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
-      data: { status: 'DONE', completedAt: new Date() },
-      include: { requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } },
+      data: { status: 'DONE', completedAt: new Date(), completionReport: report },
+      include: STAGE_INCLUDE,
     });
   }
 

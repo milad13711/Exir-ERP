@@ -21,6 +21,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [managerUserId, setManagerUserId] = useState("");
   const [users, setUsers] = useState<TenantUser[]>([]);
+  const [memberUserIds, setMemberUserIds] = useState<string[]>([]);
   const [budget, setBudget] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -51,6 +52,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
         endDate: endDate || undefined,
         description: description.trim() || undefined,
         stageTemplateId: stageTemplateId || undefined,
+        memberUserIds: memberUserIds.length > 0 ? memberUserIds : undefined,
       });
       onCreated();
       onClose();
@@ -92,6 +94,35 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className={labelClass}>اعضای تیم اجرایی (اختیاری)</label>
+          <div className="flex flex-wrap gap-1.5 bg-slate-50 border border-border rounded-lg p-2.5 max-h-[140px] overflow-y-auto">
+            {users.length === 0 ? (
+              <span className="text-[12px] text-muted">کاربری یافت نشد</span>
+            ) : (
+              users.map((u) => {
+                const checked = memberUserIds.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    className={`flex items-center gap-1.5 text-[12px] font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer border ${checked ? "bg-primary text-white border-primary" : "bg-white text-ink-soft border-border"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) =>
+                        setMemberUserIds((prev) => (e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id)))
+                      }
+                      className="hidden"
+                    />
+                    {u.name}
+                  </label>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {stageTemplates.length > 0 && (

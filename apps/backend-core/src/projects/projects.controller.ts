@@ -12,6 +12,8 @@ import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { SaveStageTemplateDto } from './dto/save-stage-template.dto.js';
 import { AddStageDto } from './dto/add-stage.dto.js';
 import { RejectStageDto } from './dto/reject-stage.dto.js';
+import { AssignStageDto } from './dto/assign-stage.dto.js';
+import { CompleteStageDto } from './dto/complete-stage.dto.js';
 
 /**
  * The `stage-templates/*` routes are static path segments living under the
@@ -120,7 +122,18 @@ export class ProjectsController {
   @Post(':id/stages')
   async addStage(@Param('id') id: string, @Body() dto: AddStageDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
-    return this.projects.addStage(ctx, id, dto.title);
+    return this.projects.addStage(ctx, id, dto.title, dto.responsibleUserId);
+  }
+
+  @Post(':id/stages/:stageId/assign')
+  async assignStage(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body() dto: AssignStageDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    return this.projects.assignStage(ctx, id, stageId, dto.responsibleUserId);
   }
 
   @Post(':id/stages/:stageId/request-start')
@@ -152,8 +165,13 @@ export class ProjectsController {
   }
 
   @Post(':id/stages/:stageId/complete')
-  async completeStage(@Param('id') id: string, @Param('stageId') stageId: string, @Ctx() ctx: TenantRequestContext) {
+  async completeStage(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body() dto: CompleteStageDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
     await this.permissions.assertEdit(ctx, 'projects');
-    return this.projects.completeStage(ctx, id, stageId);
+    return this.projects.completeStage(ctx, id, stageId, dto.report);
   }
 }
