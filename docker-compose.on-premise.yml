@@ -138,6 +138,15 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # Server-component fetches run inside this container and must use the
+      # backend's internal Docker-network address — the container can't
+      # reliably reach the host's own public IP:port back in (no hairpin
+      # NAT here), which silently broke every page that couldn't be
+      # pre-rendered at build time. Browser-side fetches (the /configure
+      # wizard) still use the public NEXT_PUBLIC_API_URL above, baked in at
+      # build time, since a browser can never resolve "backend".
+      API_URL_INTERNAL: http://backend:3001/api
     ports:
       - "${MARKETING_EXPOSED_PORT:-8082}:3000"
 

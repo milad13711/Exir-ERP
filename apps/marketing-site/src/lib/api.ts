@@ -1,4 +1,15 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+// Server components run inside the marketing container and need the
+// backend's *internal* Docker-network address (a container generally can't
+// reach the host's own public IP:port back in — hairpin NAT isn't reliably
+// supported here, confirmed by a real 404 on every dynamic [code] route
+// once traffic left the lucky build-time-cached static pages). Client
+// components run in the visitor's browser and need the real public URL,
+// which can never resolve an internal Docker service name — so the two
+// contexts genuinely need different base URLs, not just a fallback chain.
+const API_URL =
+  typeof window === "undefined"
+    ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api");
 
 export class ApiError extends Error {
   constructor(
@@ -10,8 +21,14 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // Explicit no-store: this catalog data can change any time the tenant
+  // admin adds/edits a module, and a stale build-time-cached response
+  // (Next's fetch() defaults to force-cache) previously masked a real
+  // networking failure by quietly serving day-old data forever instead of
+  // erroring — always fetch fresh instead of trusting the framework default.
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
+    cache: "no-store",
     headers: { "Content-Type": "application/json", ...options.headers },
   });
   if (!res.ok) {
