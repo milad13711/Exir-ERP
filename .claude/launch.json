@@ -19,6 +19,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/backend-core", "run", "start:dev"],
       "port": 3001
+    },
+    {
+      "name": "marketing-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/marketing-site", "run", "dev"],
+      "port": 3003
     }
   ]
 }
