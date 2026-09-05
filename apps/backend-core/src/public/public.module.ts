@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { TenantsModule } from '../tenants/tenants.module.js';
 import { BookingModule } from '../booking/booking.module.js';
 import { ContractsModule } from '../contracts/contracts.module.js';
+import { FleetModule } from '../fleet/fleet.module.js';
 import { PublicSignupService } from './public-signup.service.js';
 import { PublicSignupController } from './public-signup.controller.js';
 import { PublicCatalogController } from './public-catalog.controller.js';
@@ -13,9 +14,13 @@ import { PublicTrackingController } from './public-tracking.controller.js';
 import { PublicContractsService } from './public-contracts.service.js';
 import { PublicContractsController } from './public-contracts.controller.js';
 import { PublicBookingPaymentController } from './public-booking-payment.controller.js';
+import { PublicFleetOfferService } from './public-fleet-offer.service.js';
+import { PublicFleetOfferController } from './public-fleet-offer.controller.js';
+import { PublicSurveyService } from './public-survey.service.js';
+import { PublicSurveyController } from './public-survey.controller.js';
 
 @Module({
-  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule],
+  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule],
   controllers: [
     PublicSignupController,
     PublicCatalogController,
@@ -23,7 +28,9 @@ import { PublicBookingPaymentController } from './public-booking-payment.control
     PublicTrackingController,
     PublicContractsController,
     PublicBookingPaymentController,
+    PublicFleetOfferController,
+    PublicSurveyController,
   ],
-  providers: [PublicSignupService, PublicBookingService, PublicTrackingService, PublicContractsService],
+  providers: [PublicSignupService, PublicBookingService, PublicTrackingService, PublicContractsService, PublicFleetOfferService, PublicSurveyService],
 })
 export class PublicModule {}

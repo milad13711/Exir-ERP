@@ -41,6 +41,7 @@ import { PublicModule } from './public/public.module.js';
 import { BookingModule } from './booking/booking.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { FleetModule } from './fleet/fleet.module.js';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { ProjectsModule } from './projects/projects.module.js';
     BookingModule,
     ContractsModule,
     ProjectsModule,
+    FleetModule,
     AdminModule,
     WorkspaceModule,
     MarketingModule,

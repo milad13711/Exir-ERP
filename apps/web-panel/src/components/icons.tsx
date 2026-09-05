@@ -352,6 +352,17 @@ export function MailIcon(props: IconProps) {
   );
 }
 
+export function TruckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M2 8h11v8H2z" />
+      <path d="M13 11h4l4 3v2h-8z" />
+      <circle cx="6" cy="18" r="1.8" />
+      <circle cx="17" cy="18" r="1.8" />
+    </svg>
+  );
+}
+
 export function BuildingIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

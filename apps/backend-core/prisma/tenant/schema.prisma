@@ -77,6 +77,7 @@ model User {
   approvedStages             ProjectStage[]             @relation("ProjectStageApprovedBy")
   responsibleForStages       ProjectStage[]             @relation("ProjectStageResponsible")
   projectMemberships         ProjectMember[]            @relation("ProjectMemberUser")
+  createdShipments           Shipment[]
 
   @@map("users")
 }
@@ -322,6 +323,7 @@ model CrmContact {
   contracts                 Contract[]
   contractsAsSecondParty    Contract[]                 @relation("ContractSecondParty")
   projects                  Project[]
+  shipments                 Shipment[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1965,4 +1967,123 @@ model ProjectStage {
 
   @@index([projectId])
   @@map("project_stages")
+}
+
+// ── ناوگان حمل و نقل (Fleet) ────────────────────────────────────────────
+// راننده‌ها + ثبت بار (دستی/از حواله انبار/از فاکتور فروش) + الگوریتم تطبیق
+// راننده مناسب + ارسال پیامکی پیشنهاد بار به‌ترتیب اولویت با فاصله‌ی ۵ دقیقه‌ای
+// (توسط FleetOfferDispatchService، هر بار cron اجرا می‌شود) + پذیرش از طریق
+// لینک عمومی بدون نیاز به OTP (اعتبار لینک، خودِ توکن یکتای غیرقابل‌حدس است —
+// همان سطح امنیتی که برای این سناریوی عملیاتی کافی است). اسناد بار (بارنامه،
+// قبض باسکول، برگ قرنطینه) از همان مدل عمومی Attachment استفاده می‌کنند
+// (entityType="Shipment") — نیازی به مدل جدید نیست. نظرسنجی پس از تحویل هم
+// همین‌جا و از همین ماژول کنترل می‌شود (نه یک ماژول نصب‌شدنی جدا).
+
+model Driver {
+  id                 String   @id @default(uuid())
+  name               String
+  phone              String
+  vehicleType        String?
+  plateNumber        String?
+  capacityKg         Int? // ظرفیت بار — کیلوگرم
+  serviceAreas       String[] // محدوده‌هایی که بار می‌برد
+  availableHoursNote String? // یادداشت آزاد درباره‌ی ساعاتی که معمولاً در دسترس است
+  reliabilityNote    String? // یادداشت درباره‌ی ویژگی‌های اخلاقی/اعتبار راننده
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  offers    ShipmentOffer[]
+  shipments Shipment[]
+
+  @@index([isActive])
+  @@map("fleet_drivers")
+}
+
+enum ShipmentSourceType {
+  MANUAL
+  STOCK_MOVEMENT
+  SALES_INVOICE
+}
+
+enum ShipmentStatus {
+  DRAFT // ثبت شده، هنوز راننده‌ای پیشنهاد نشده
+  OFFERED // پیشنهادها در حال ارسال/در انتظار پاسخ راننده‌ها
+  ACCEPTED // یک راننده پذیرفته
+  DELIVERED
+  CANCELLED
+}
+
+model Shipment {
+  id                    String             @id @default(uuid())
+  shipmentNo            Int                @unique @default(autoincrement())
+  sourceType            ShipmentSourceType @default(MANUAL)
+  sourceStockMovementId String?
+  sourceInvoiceId       String?
+  contactId             String?
+  cargoType             String
+  quantity              Int
+  unit                  String?
+  deliveryAddress       String
+  region                String? // برای تطبیق با محدوده‌ی سرویس‌دهی راننده‌ها
+  pickupAt              DateTime
+  status                ShipmentStatus     @default(DRAFT)
+  driverId              String?
+  acceptedAt            DateTime?
+  deliveredAt           DateTime?
+  createdByUserId       String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  contact   CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  driver    Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  createdBy User?           @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  offers    ShipmentOffer[]
+  survey    DeliverySurvey?
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("fleet_shipments")
+}
+
+enum ShipmentOfferStatus {
+  SCHEDULED // هنوز پیامک ارسال نشده — نوبتش طبق ترتیب و فاصله‌ی ۵ دقیقه‌ای می‌رسد
+  PENDING // پیامک ارسال شد، منتظر پاسخ راننده
+  ACCEPTED
+  EXPIRED // راننده‌ی دیگری این بار را پذیرفت
+}
+
+model ShipmentOffer {
+  id          String              @id @default(uuid())
+  shipmentId  String
+  driverId    String
+  rank        Int // ترتیب اولویت طبق الگوریتم تطبیق — کوچک‌تر یعنی مناسب‌تر
+  status      ShipmentOfferStatus @default(SCHEDULED)
+  publicToken String              @unique @default(uuid())
+  sentAt      DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  driver   Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([status])
+  @@map("fleet_shipment_offers")
+}
+
+model DeliverySurvey {
+  id            String    @id @default(uuid())
+  shipmentId    String    @unique
+  publicToken   String    @unique @default(uuid())
+  driverRating  Int? // ۱ تا ۵
+  productRating Int? // ۱ تا ۵
+  note          String?
+  sentAt        DateTime?
+  submittedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("fleet_delivery_surveys")
 }

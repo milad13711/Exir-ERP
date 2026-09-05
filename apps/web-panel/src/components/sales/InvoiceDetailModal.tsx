@@ -18,6 +18,7 @@ import {
   type SalesPaymentMethod,
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
+import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -70,6 +71,7 @@ export function InvoiceDetailModal({
   const [confirmerName, setConfirmerName] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
 
   function reload() {
     fetchSalesInvoice(invoiceId).then((inv) => {
@@ -503,6 +505,15 @@ export function InvoiceDetailModal({
               دانلود PDF
             </button>
 
+            {installedModules.has("fleet") ? (
+              <button
+                onClick={() => setShipmentModalOpen(true)}
+                className="w-full py-2.5 rounded-xl border border-border text-ink-soft text-[13px] font-bold cursor-pointer"
+              >
+                ثبت بار برای این فاکتور
+              </button>
+            ) : null}
+
             <AttachmentsSection entityType="SalesInvoice" entityId={invoice.id} />
 
             <TasksSection relatedModule="sales" relatedEntityId={invoice.id} />
@@ -517,6 +528,21 @@ export function InvoiceDetailModal({
           onCreated={() => {
             reload();
             onChanged();
+          }}
+        />
+      ) : null}
+
+      {shipmentModalOpen && invoice ? (
+        <NewShipmentModal
+          onClose={() => setShipmentModalOpen(false)}
+          onCreated={() => setShipmentModalOpen(false)}
+          prefill={{
+            contactId: invoice.contact.id,
+            cargoType: invoice.lines.map((l) => l.description).join("، "),
+            quantity: invoice.lines.reduce((sum, l) => sum + l.quantity, 0),
+            deliveryAddress: invoice.contact.address ?? undefined,
+            sourceType: "SALES_INVOICE",
+            sourceInvoiceId: invoice.id,
           }}
         />
       ) : null}

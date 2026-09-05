@@ -3574,3 +3574,190 @@ export function fetchTrackedProjects(slug: string, trackingToken: string) {
     body: JSON.stringify({ trackingToken }),
   });
 }
+
+// ── ناوگان حمل و نقل (Fleet) ────────────────────────────────────────────
+
+export type Driver = {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleType: string | null;
+  plateNumber: string | null;
+  capacityKg: number | null;
+  serviceAreas: string[];
+  availableHoursNote: string | null;
+  reliabilityNote: string | null;
+  isActive: boolean;
+  createdAt: string;
+  averageRating?: number | null;
+};
+
+export function fetchDrivers(isActive?: boolean) {
+  const qs = isActive === undefined ? "" : `?isActive=${isActive}`;
+  return apiFetch<Driver[]>(`/fleet/drivers${qs}`);
+}
+
+export function fetchDriver(id: string) {
+  return apiFetch<Driver>(`/fleet/drivers/${id}`);
+}
+
+export function createDriver(data: {
+  name: string;
+  phone: string;
+  vehicleType?: string;
+  plateNumber?: string;
+  capacityKg?: number;
+  serviceAreas?: string[];
+  availableHoursNote?: string;
+  reliabilityNote?: string;
+}) {
+  return apiFetch<Driver>("/fleet/drivers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateDriver(id: string, data: Partial<Parameters<typeof createDriver>[0]> & { isActive?: boolean }) {
+  return apiFetch<Driver>(`/fleet/drivers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deactivateDriver(id: string) {
+  return apiFetch<Driver>(`/fleet/drivers/${id}`, { method: "DELETE" });
+}
+
+export type ShipmentSourceType = "MANUAL" | "STOCK_MOVEMENT" | "SALES_INVOICE";
+export type ShipmentStatus = "DRAFT" | "OFFERED" | "ACCEPTED" | "DELIVERED" | "CANCELLED";
+export type ShipmentOfferStatus = "SCHEDULED" | "PENDING" | "ACCEPTED" | "EXPIRED";
+
+export type ShipmentOffer = {
+  id: string;
+  shipmentId: string;
+  driverId: string;
+  rank: number;
+  status: ShipmentOfferStatus;
+  publicToken: string;
+  sentAt: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+  driver: { id: string; name: string; phone: string };
+};
+
+export type DeliverySurvey = {
+  id: string;
+  shipmentId: string;
+  publicToken: string;
+  driverRating: number | null;
+  productRating: number | null;
+  note: string | null;
+  sentAt: string | null;
+  submittedAt: string | null;
+  createdAt: string;
+};
+
+export type Shipment = {
+  id: string;
+  shipmentNo: number;
+  sourceType: ShipmentSourceType;
+  sourceStockMovementId: string | null;
+  sourceInvoiceId: string | null;
+  contactId: string | null;
+  cargoType: string;
+  quantity: number;
+  unit: string | null;
+  deliveryAddress: string;
+  region: string | null;
+  pickupAt: string;
+  status: ShipmentStatus;
+  driverId: string | null;
+  acceptedAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+  contact: { id: string; name: string; company: string | null; phone: string | null } | null;
+  driver: { id: string; name: string; phone: string; plateNumber: string | null; vehicleType: string | null } | null;
+  createdBy: { id: string; name: string } | null;
+  offers: ShipmentOffer[];
+  survey: DeliverySurvey | null;
+};
+
+export type MatchCandidate = {
+  driver: { id: string; name: string; phone: string; capacityKg: number | null; serviceAreas: string[] };
+  score: number;
+  reasons: string[];
+  averageRating: number | null;
+};
+
+export function fetchShipments(status?: string) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<Shipment[]>(`/fleet/shipments${qs}`);
+}
+
+export function fetchShipment(id: string) {
+  return apiFetch<Shipment>(`/fleet/shipments/${id}`);
+}
+
+export function createShipment(data: {
+  sourceType?: ShipmentSourceType;
+  sourceStockMovementId?: string;
+  sourceInvoiceId?: string;
+  contactId?: string;
+  cargoType: string;
+  quantity: number;
+  unit?: string;
+  deliveryAddress: string;
+  region?: string;
+  pickupAt: string;
+}) {
+  return apiFetch<Shipment>("/fleet/shipments", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchMatchCandidates(shipmentId: string) {
+  return apiFetch<MatchCandidate[]>(`/fleet/shipments/${shipmentId}/match-candidates`);
+}
+
+export function sendShipmentOffers(shipmentId: string, driverIds?: string[]) {
+  return apiFetch<Shipment>(`/fleet/shipments/${shipmentId}/send-offers`, {
+    method: "POST",
+    body: JSON.stringify({ driverIds }),
+  });
+}
+
+export function cancelShipment(id: string) {
+  return apiFetch<Shipment>(`/fleet/shipments/${id}/cancel`, { method: "POST" });
+}
+
+export function deliverShipment(id: string) {
+  return apiFetch<Shipment>(`/fleet/shipments/${id}/deliver`, { method: "POST" });
+}
+
+// ── لینک عمومی پذیرش بار توسط راننده (بدون OTP) ─────────────────────────
+
+export type PublicOfferView =
+  | { status: "pending"; shipment: Shipment }
+  | { status: "accepted_by_you"; shipment: Shipment }
+  | { status: "taken_by_other" }
+  | { status: "cancelled" };
+
+export function viewPublicFleetOffer(slug: string, token: string) {
+  return apiFetch<PublicOfferView>(`/public/fleet/offer/${slug}/${token}`);
+}
+
+export function acceptPublicFleetOffer(slug: string, token: string) {
+  return apiFetch<{ status: string; shipment?: Shipment; driver?: { name: string; phone: string } }>(
+    `/public/fleet/offer/${slug}/${token}/accept`,
+    { method: "POST" },
+  );
+}
+
+// ── لینک عمومی نظرسنجی پس از تحویل (بدون OTP) ───────────────────────────
+
+export type PublicSurveyView = DeliverySurvey & {
+  shipment: { cargoType: string; quantity: number; deliveredAt: string | null; driver: { name: string } | null };
+};
+
+export function viewPublicSurvey(slug: string, token: string) {
+  return apiFetch<PublicSurveyView>(`/public/survey/${slug}/${token}`);
+}
+
+export function submitPublicSurvey(slug: string, token: string, data: { driverRating?: number; productRating?: number; note?: string }) {
+  return apiFetch<DeliverySurvey>(`/public/survey/${slug}/${token}/submit`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
