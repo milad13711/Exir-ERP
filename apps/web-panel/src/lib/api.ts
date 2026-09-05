@@ -1224,6 +1224,26 @@ export type StockMovement = {
   warehouse?: { id: string; name: string };
 };
 
+export type StockMovementRecord = {
+  id: string;
+  productId: string;
+  warehouseId: string;
+  type: string;
+  quantityDelta: number;
+  unitCost: number | null;
+  reference: string | null;
+  note: string | null;
+  createdAt: string;
+  product: { id: string; name: string; unit: string };
+  warehouse: { id: string; name: string };
+  createdBy: { id: string; name: string } | null;
+};
+
+export function fetchStockMovements(filters: { type?: string; productId?: string; warehouseId?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<StockMovementRecord[]>(`/warehouse/movements${qs ? `?${qs}` : ""}`);
+}
+
 export type WarehouseStockEntry = { warehouseId: string; warehouseName: string; quantity: number };
 
 export type ProductDetail = Product & { movements: StockMovement[]; stockByWarehouse: WarehouseStockEntry[] };

@@ -14,6 +14,7 @@ import { ProductModal } from "@/components/warehouse/ProductModal";
 import { WarehousesModal } from "@/components/warehouse/WarehousesModal";
 import { TransferStockModal } from "@/components/warehouse/TransferStockModal";
 import { CostingMethodModal } from "@/components/warehouse/CostingMethodModal";
+import { MovementsList } from "@/components/warehouse/MovementsList";
 
 export default function WarehousePage() {
   const [products, setProducts] = useState<Product[] | null>(null);
@@ -26,6 +27,7 @@ export default function WarehousePage() {
   const [warehousesModalOpen, setWarehousesModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [costingModalOpen, setCostingModalOpen] = useState(false);
+  const [view, setView] = useState<"products" | "movements">("products");
 
   function reload() {
     fetchProducts().then(setProducts).catch(() => setProducts([]));
@@ -102,66 +104,95 @@ export default function WarehousePage() {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2.5 mt-6 flex-wrap">
-        <div className="relative flex-1 min-w-[220px] max-w-[320px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی نام، کد کالا یا دسته..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+      <div className="flex items-center gap-2 mt-6 flex-wrap">
         <button
-          onClick={() => setLowStockOnly((v) => !v)}
+          onClick={() => setView("products")}
           className={clsx(
-            "text-[12px] font-bold px-3.5 py-2.5 rounded-xl border cursor-pointer transition-colors",
-            lowStockOnly ? "bg-danger-soft text-danger border-danger/30" : "bg-surface border-border text-ink-soft",
+            "text-[12.5px] font-bold px-4 py-2.5 rounded-xl border cursor-pointer transition-colors",
+            view === "products" ? "bg-primary text-white border-primary" : "bg-surface border-border text-ink-soft",
           )}
         >
-          فقط کالاهای رو به اتمام
+          کالاها
         </button>
-        <div className="mr-auto">
-          <ExcelImportExportBar exportPath="/warehouse/products/export" exportFilename="products.xlsx" importPath="/warehouse/products/import" onImported={reload} />
-        </div>
+        <button
+          onClick={() => setView("movements")}
+          className={clsx(
+            "text-[12.5px] font-bold px-4 py-2.5 rounded-xl border cursor-pointer transition-colors",
+            view === "movements" ? "bg-primary text-white border-primary" : "bg-surface border-border text-ink-soft",
+          )}
+        >
+          حواله‌های انبار
+        </button>
       </div>
 
-      <Card className="mt-5 p-2">
-        {products === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">کالایی یافت نشد</div>
-        ) : (
-          filtered.map((p, i) => (
+      {view === "movements" ? (
+        <div className="mt-5">
+          <MovementsList />
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2.5 mt-5 flex-wrap">
+            <div className="relative flex-1 min-w-[220px] max-w-[320px]">
+              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="جستجوی نام، کد کالا یا دسته..."
+                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
+              />
+            </div>
             <button
-              key={p.id}
-              onClick={() => setOpenProductId(p.id)}
+              onClick={() => setLowStockOnly((v) => !v)}
               className={clsx(
-                "w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors",
-                i < filtered.length - 1 && "border-b border-border",
+                "text-[12px] font-bold px-3.5 py-2.5 rounded-xl border cursor-pointer transition-colors",
+                lowStockOnly ? "bg-danger-soft text-danger border-danger/30" : "bg-surface border-border text-ink-soft",
               )}
             >
-              <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-                <WarehouseIcon className="w-4.5 h-4.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-bold truncate">{p.name}</div>
-                <div className="text-[11.5px] text-muted mt-0.5 flex items-center gap-2 flex-wrap">
-                  <span dir="ltr">{p.sku}</span>
-                  {p.category ? <span>· {p.category}</span> : null}
-                </div>
-              </div>
-              {p.isLowStock ? <Badge tone="danger">رو به اتمام</Badge> : null}
-              <div className="text-[13px] font-extrabold w-[110px] text-left shrink-0">
-                {formatNumber(p.stock)} <span className="text-[11px] font-normal text-muted">{p.unit}</span>
-              </div>
-              <div className="text-[12px] text-muted w-[130px] text-left shrink-0 hidden sm:block">
-                {formatToman(p.stock * p.costPrice)}
-              </div>
+              فقط کالاهای رو به اتمام
             </button>
-          ))
-        )}
-      </Card>
+            <div className="mr-auto">
+              <ExcelImportExportBar exportPath="/warehouse/products/export" exportFilename="products.xlsx" importPath="/warehouse/products/import" onImported={reload} />
+            </div>
+          </div>
+
+          <Card className="mt-5 p-2">
+            {products === null ? (
+              <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-8 text-center text-muted text-sm">کالایی یافت نشد</div>
+            ) : (
+              filtered.map((p, i) => (
+                <button
+                  key={p.id}
+                  onClick={() => setOpenProductId(p.id)}
+                  className={clsx(
+                    "w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors",
+                    i < filtered.length - 1 && "border-b border-border",
+                  )}
+                >
+                  <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+                    <WarehouseIcon className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-bold truncate">{p.name}</div>
+                    <div className="text-[11.5px] text-muted mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span dir="ltr">{p.sku}</span>
+                      {p.category ? <span>· {p.category}</span> : null}
+                    </div>
+                  </div>
+                  {p.isLowStock ? <Badge tone="danger">رو به اتمام</Badge> : null}
+                  <div className="text-[13px] font-extrabold w-[110px] text-left shrink-0">
+                    {formatNumber(p.stock)} <span className="text-[11px] font-normal text-muted">{p.unit}</span>
+                  </div>
+                  <div className="text-[12px] text-muted w-[130px] text-left shrink-0 hidden sm:block">
+                    {formatToman(p.stock * p.costPrice)}
+                  </div>
+                </button>
+              ))
+            )}
+          </Card>
+        </>
+      )}
 
       {newProductOpen ? (
         <NewProductModal

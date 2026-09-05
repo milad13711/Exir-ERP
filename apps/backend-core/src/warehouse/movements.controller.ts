@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Body, Controller, NotFoundException, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -28,6 +28,30 @@ export class MovementsController {
     private readonly permissions: PermissionsService,
     private readonly costing: CostingService,
   ) {}
+
+  @Get()
+  async list(
+    @Query('type') type: string | undefined,
+    @Query('productId') productId: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertView(ctx, 'warehouse');
+    return ctx.tenantDb.stockMovement.findMany({
+      where: {
+        ...(type ? { type: type as never } : {}),
+        ...(productId ? { productId } : {}),
+        ...(warehouseId ? { warehouseId } : {}),
+      },
+      include: {
+        product: { select: { id: true, name: true, unit: true } },
+        warehouse: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  }
 
   @Post()
   async create(@Body() dto: CreateMovementDto, @Ctx() ctx: TenantRequestContext) {
