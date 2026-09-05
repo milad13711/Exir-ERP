@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates, fetchPublicModules, fetchExchangeRate } from "@/lib/api";
 import { industryContentOf, moduleContentOf, BRAND } from "@/lib/content";
-import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, toToman } from "@/lib/pricing";
+import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman, annualSupportPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
 import { CategoryVisual } from "@/components/CategoryVisual";
@@ -44,8 +44,9 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
     .map((c) => moduleByCode.get(c))
     .filter((m): m is NonNullable<typeof m> => m != null);
 
-  const bundleUsd = sumUsdPricing(defaultModules.map((m) => usdPricingFromLicense(licenseWeightOf(m.code))));
-  const bundlePricing = toToman(bundleUsd, rate.usdToToman);
+  const moduleSum = sumUsdPricing(defaultModules.map((m) => usdPricingFromLicense(licenseWeightOf(m.code))));
+  const bundlePricing = toToman(bundleUsdPricing(moduleSum), rate.usdToToman);
+  const supportPricing = annualSupportPricing(rate.usdToToman);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -128,7 +129,11 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
 
         <div>
           <h2 className="text-[16px] font-extrabold mb-4">قیمت‌گذاری بسته‌ی پیش‌فرض این صنف</h2>
-          <PricingTable pricing={bundlePricing} title={`مجموع ${defaultModules.length} ماژول پیش‌فرض`} />
+          <PricingTable
+            pricing={bundlePricing}
+            title={`مجموع ${defaultModules.length} ماژول پیش‌فرض`}
+            annualSupport={supportPricing}
+          />
         </div>
 
         {content && content.faqs.length > 0 && (

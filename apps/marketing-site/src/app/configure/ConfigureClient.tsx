@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { formatToman } from "@/lib/persian";
+import { formatToman, formatUsd } from "@/lib/persian";
 import {
   fetchPublicPlans,
   fetchPublicModules,
@@ -15,7 +15,7 @@ import {
   type PublicIndustryTemplate,
   type PlanQuote,
 } from "@/lib/api";
-import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, toToman } from "@/lib/pricing";
+import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman, annualSupportPricing } from "@/lib/pricing";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -85,8 +85,8 @@ export function ConfigureClient() {
   const licenseQuote = useMemo(() => {
     if (billingCycle !== "license" || usdToToman == null) return null;
     const billable = (modules ?? []).filter((m) => selectedModules.includes(m.code) && !m.isCore);
-    const usd = sumUsdPricing(billable.map((m) => usdPricingFromLicense(licenseWeightOf(m.code))));
-    const toman = toToman(usd, usdToToman);
+    const moduleSum = sumUsdPricing(billable.map((m) => usdPricingFromLicense(licenseWeightOf(m.code))));
+    const toman = toToman(bundleUsdPricing(moduleSum), usdToToman);
     return {
       lines: billable.map((m) => ({
         code: m.code,
@@ -94,7 +94,7 @@ export function ConfigureClient() {
         price: toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license,
       })),
       license: toman.license,
-      annualSupport: toman.annualSupport,
+      annualSupport: annualSupportPricing(usdToToman),
     };
   }, [billingCycle, usdToToman, modules, selectedModules]);
 
@@ -123,12 +123,12 @@ export function ConfigureClient() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const estimatedValue = billingCycle === "license" ? licenseQuote!.license : quote!.total;
+      const estimatedValue = billingCycle === "license" ? licenseQuote!.license.toman : quote!.total;
       const configurationSummary =
         billingCycle === "license"
           ? `خرید لایسنس دائمی${activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""} — ماژول‌ها: ${
               licenseQuote!.lines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"
-            } — جمع لایسنس: ${licenseQuote!.license.toLocaleString("en-US")} تومان — پشتیبانی سالانه: ${licenseQuote!.annualSupport.toLocaleString("en-US")} تومان`
+            } — جمع لایسنس: ${licenseQuote!.license.toman.toLocaleString("en-US")} تومان (${formatUsd(licenseQuote!.license.usd)}) — پشتیبانی سالانه: ${licenseQuote!.annualSupport.toman.toLocaleString("en-US")} تومان (${formatUsd(licenseQuote!.annualSupport.usd)})`
           : `پلن: ${quote!.plan.name} (${billingCycle === "yearly" ? "سالانه" : "ماهانه"})${
               activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""
             } — ماژول‌ها: ${quote!.moduleLines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"} — جمع: ${quote!.total.toLocaleString("en-US")} تومان`;
@@ -214,8 +214,8 @@ export function ConfigureClient() {
             </div>
             {billingCycle === "license" ? (
               <p className="text-[11px] text-muted mt-2 leading-relaxed">
-                خرید لایسنس دائمی برای ماژول‌های انتخاب‌شده، به‌همراه پشتیبانی سالانه‌ی همان ماژول‌ها به مبلغ ۱۰٪
-                قرارداد اولیه (نه ماژول‌های جدید). قیمت براساس نرخ لحظه‌ای دلار محاسبه می‌شود.
+                خرید لایسنس دائمی برای ماژول‌های انتخاب‌شده، به‌همراه پشتیبانی سالانه‌ی ثابت {formatUsd(199)} (مستقل
+                از تعداد ماژول). قیمت لنگر دلاری است و به نرخ لحظه‌ای تبدیل می‌شود.
               </p>
             ) : null}
           </div>
@@ -253,14 +253,23 @@ export function ConfigureClient() {
                               {m.isCore ? <span className="text-[10.5px] text-muted font-normal"> (پایه)</span> : null}
                             </div>
                           </div>
-                          <div className="text-[11.5px] font-bold text-muted">
-                            {billingCycle === "license"
-                              ? usdToToman != null && licenseWeightOf(m.code) > 0
-                                ? `${formatToman(toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license)} لایسنس`
-                                : "رایگان"
-                              : m.priceMonthly > 0
-                                ? `${formatToman(m.priceMonthly)}/ماه`
-                                : "رایگان"}
+                          <div className="text-[11.5px] font-bold text-muted text-left">
+                            {billingCycle === "license" ? (
+                              usdToToman != null && licenseWeightOf(m.code) > 0 ? (
+                                <>
+                                  <div className="text-[10px] font-semibold" dir="ltr">
+                                    {formatUsd(toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license.usd)}
+                                  </div>
+                                  <div>{formatToman(toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license.toman)} لایسنس</div>
+                                </>
+                              ) : (
+                                "رایگان"
+                              )
+                            ) : m.priceMonthly > 0 ? (
+                              `${formatToman(m.priceMonthly)}/ماه`
+                            ) : (
+                              "رایگان"
+                            )}
                           </div>
                         </label>
                       ))}
@@ -281,16 +290,24 @@ export function ConfigureClient() {
                 {licenseQuote.lines.map((l) => (
                   <div key={l.code} className="flex items-center justify-between text-[12px] text-ink-soft py-2 border-b border-border">
                     <span>{l.name}</span>
-                    <span>{formatToman(l.price)}</span>
+                    <span className="text-left">
+                      <div className="text-[10px] text-muted" dir="ltr">{formatUsd(l.price.usd)}</div>
+                      <div>{formatToman(l.price.toman)}</div>
+                    </span>
                   </div>
                 ))}
-                <div className="flex items-center justify-between text-[14px] font-extrabold mt-3">
-                  <span>جمع لایسنس دائمی</span>
-                  <span>{formatToman(licenseQuote.license)}</span>
+                <div className="flex items-center justify-between mt-3">
+                  <span className="text-[14px] font-extrabold">جمع لایسنس دائمی</span>
+                  <span className="text-left">
+                    <div className="text-[11px] text-muted font-bold" dir="ltr">{formatUsd(licenseQuote.license.usd)}</div>
+                    <div className="text-[14px] font-extrabold">{formatToman(licenseQuote.license.toman)}</div>
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[12px] text-muted mt-2">
-                  <span>پشتیبانی سالانه (۱۰٪)</span>
-                  <span>{formatToman(licenseQuote.annualSupport)}</span>
+                  <span>پشتیبانی سالانه (ثابت)</span>
+                  <span className="text-left">
+                    <span dir="ltr">{formatUsd(licenseQuote.annualSupport.usd)}</span> · {formatToman(licenseQuote.annualSupport.toman)}
+                  </span>
                 </div>
               </>
             )

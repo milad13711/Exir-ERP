@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates, fetchExchangeRate } from "@/lib/api";
-import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, toToman } from "@/lib/pricing";
+import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman } from "@/lib/pricing";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
-import { formatToman } from "@/lib/persian";
+import { formatToman, formatUsd } from "@/lib/persian";
 
 export const revalidate = 0;
 
@@ -34,8 +34,8 @@ export default async function IndustriesPage() {
       <section className="max-w-[1100px] mx-auto px-6 py-14">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {industries.map((t) => {
-            const bundleUsd = sumUsdPricing(t.defaultModules.map((c) => usdPricingFromLicense(licenseWeightOf(c))));
-            const bundlePrice = toToman(bundleUsd, rate.usdToToman);
+            const moduleSum = sumUsdPricing(t.defaultModules.map((c) => usdPricingFromLicense(licenseWeightOf(c))));
+            const bundlePrice = toToman(bundleUsdPricing(moduleSum), rate.usdToToman);
             return (
               <Link
                 key={t.code}
@@ -49,9 +49,14 @@ export default async function IndustriesPage() {
                   <div className="text-[15.5px] font-extrabold">{t.name}</div>
                   <p className="text-[12.5px] text-muted leading-relaxed flex-1">{t.description}</p>
                   <div className="text-[11px] text-muted">{t.defaultModules.length} ماژول پیش‌فرض</div>
-                  {bundlePrice.monthly > 0 && (
-                    <div className="text-[13px] font-extrabold text-primary">
-                      از {formatToman(bundlePrice.monthly)} در ماه
+                  {bundlePrice.monthly.toman > 0 && (
+                    <div>
+                      <div className="text-[10.5px] text-muted font-semibold" dir="ltr">
+                        از {formatUsd(bundlePrice.monthly.usd)}/ماه
+                      </div>
+                      <div className="text-[14px] font-extrabold text-primary">
+                        از {formatToman(bundlePrice.monthly.toman)} در ماه
+                      </div>
                     </div>
                   )}
                 </div>

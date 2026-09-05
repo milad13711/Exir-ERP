@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchPublicModules, fetchExchangeRate } from "@/lib/api";
 import { moduleContentOf } from "@/lib/content";
-import { moduleTomanPricing, FULL_LICENSE_USD } from "@/lib/pricing";
+import { moduleTomanPricing, FULL_LICENSE_USD, roundTomanToNiceNumber } from "@/lib/pricing";
 import { CategoryVisual } from "@/components/CategoryVisual";
-import { formatToman } from "@/lib/persian";
+import { formatToman, formatUsd } from "@/lib/persian";
 
 export const revalidate = 0;
 
@@ -35,8 +35,11 @@ export default async function ModulesPage() {
             هر ماژول را جداگانه نصب کنید یا با یک قالب صنفی آماده شروع کنید — فقط برای چیزی که استفاده می‌کنید هزینه
             بدهید.
           </p>
-          <div className="inline-block mt-6 bg-white/15 text-[12.5px] font-bold px-4 py-2 rounded-full">
-            لایسنس دائمی کل مجموعه‌ی ماژول‌ها: {FULL_LICENSE_USD.toLocaleString("en-US")}$ (معادل تومانی لحظه‌ای)
+          <div className="inline-flex flex-col items-center gap-0.5 mt-6 bg-white/15 px-5 py-2.5 rounded-2xl">
+            <div className="text-[11px] text-white/70 font-semibold" dir="ltr">
+              لایسنس دائمی کل مجموعه‌ی ماژول‌ها: {formatUsd(FULL_LICENSE_USD)}
+            </div>
+            <div className="text-[15px] font-extrabold">{formatToman(roundTomanToNiceNumber(FULL_LICENSE_USD * rate.usdToToman))}</div>
           </div>
         </div>
       </section>
@@ -63,8 +66,19 @@ export default async function ModulesPage() {
                       <p className="text-[12px] text-primary font-semibold leading-relaxed">{content.tagline}</p>
                     ) : null}
                     <p className="text-[12px] text-muted leading-relaxed flex-1">{m.description}</p>
-                    <div className="text-[12.5px] font-bold mt-1">
-                      {pricing.monthly === 0 ? "رایگان" : `از ${formatToman(pricing.monthly)} در ماه`}
+                    <div className="mt-1">
+                      {pricing.monthly.toman === 0 ? (
+                        <div className="text-[12.5px] font-bold">رایگان</div>
+                      ) : (
+                        <>
+                          <div className="text-[10.5px] text-muted font-semibold" dir="ltr">
+                            از {formatUsd(pricing.monthly.usd)}/ماه
+                          </div>
+                          <div className="text-[13.5px] font-extrabold">
+                            از {formatToman(pricing.monthly.toman)} <span className="font-normal text-muted text-[11px]">در ماه</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </Link>
                 );

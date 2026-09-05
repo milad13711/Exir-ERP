@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate } from "@/lib/api";
 import { moduleContentOf, BRAND } from "@/lib/content";
-import { moduleTomanPricing } from "@/lib/pricing";
+import { moduleTomanPricing, annualSupportPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
 import { CategoryVisual } from "@/components/CategoryVisual";
 
@@ -38,6 +38,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
 
   const content = moduleContentOf(code);
   const pricing = moduleTomanPricing(code, rate.usdToToman);
+  const supportPricing = annualSupportPricing(rate.usdToToman);
   const bestForIndustries = industries.filter((i) => content?.bestFor.includes(i.code));
 
   const jsonLd = {
@@ -48,9 +49,9 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
     operatingSystem: "Web",
     description: content?.painPoint ?? mod.description,
     offers: [
-      { "@type": "Offer", name: "اشتراک ماهانه", price: pricing.monthly * 10, priceCurrency: "IRR" },
-      { "@type": "Offer", name: "اشتراک سالانه", price: pricing.yearly * 10, priceCurrency: "IRR" },
-      { "@type": "Offer", name: "خرید لایسنس", price: pricing.license * 10, priceCurrency: "IRR" },
+      { "@type": "Offer", name: "اشتراک ماهانه", price: pricing.monthly.toman * 10, priceCurrency: "IRR" },
+      { "@type": "Offer", name: "اشتراک سالانه", price: pricing.yearly.toman * 10, priceCurrency: "IRR" },
+      { "@type": "Offer", name: "خرید لایسنس", price: pricing.license.toman * 10, priceCurrency: "IRR" },
     ],
   };
 
@@ -94,7 +95,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
 
         <div>
           <h2 className="text-[16px] font-extrabold mb-3">قیمت‌گذاری</h2>
-          <PricingTable pricing={pricing} />
+          <PricingTable pricing={pricing} annualSupport={supportPricing} />
         </div>
 
         {bestForIndustries.length > 0 && (
