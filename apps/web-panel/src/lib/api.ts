@@ -2922,9 +2922,13 @@ export type ServiceType = {
   durationMinutes: number;
   price: number;
   isActive: boolean;
+  requiresDeposit: boolean;
+  depositAmount: number | null;
+  requiresCoordination: boolean;
 };
 
-export type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+export type AppointmentStatus = "PENDING_COORDINATION" | "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+export type AppointmentPaymentStatus = "NONE" | "PENDING" | "PAID";
 
 export type Appointment = {
   id: string;
@@ -2938,20 +2942,57 @@ export type Appointment = {
   status: AppointmentStatus;
   notes: string | null;
   cancelReason: string | null;
+  paymentStatus: AppointmentPaymentStatus;
+  depositAmount: number | null;
+  paymentRefId: number | null;
+  paidAt: string | null;
+  publicToken: string;
   serviceType: ServiceType;
   contact: { id: string; name: string; phone: string | null } | null;
-  provider: { id: string; name: string } | null;
+  provider: { id: string; name: string; phone: string | null } | null;
 };
+
+export type AppointmentReportRow = {
+  key: string;
+  serviceName: string;
+  providerName: string;
+  total: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  revenue: number;
+};
+
+export type StaffAvailabilitySlot = { id: string; userId: string; weekday: number; startMinute: number; endMinute: number };
+export type IranHoliday = { month: number; day: number; name: string };
 
 export function fetchServiceTypes(includeInactive?: boolean) {
   return apiFetch<ServiceType[]>(`/booking/service-types${includeInactive ? "?includeInactive=true" : ""}`);
 }
 
-export function createServiceType(data: { name: string; durationMinutes: number; price?: number }) {
+export function createServiceType(data: {
+  name: string;
+  durationMinutes: number;
+  price?: number;
+  requiresDeposit?: boolean;
+  depositAmount?: number;
+  requiresCoordination?: boolean;
+}) {
   return apiFetch<ServiceType>("/booking/service-types", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateServiceType(id: string, data: Partial<{ name: string; durationMinutes: number; price: number; isActive: boolean }>) {
+export function updateServiceType(
+  id: string,
+  data: Partial<{
+    name: string;
+    durationMinutes: number;
+    price: number;
+    isActive: boolean;
+    requiresDeposit: boolean;
+    depositAmount: number;
+    requiresCoordination: boolean;
+  }>,
+) {
   return apiFetch<ServiceType>(`/booking/service-types/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
@@ -2959,9 +3000,18 @@ export function deactivateServiceType(id: string) {
   return apiFetch<ServiceType>(`/booking/service-types/${id}/deactivate`, { method: "POST" });
 }
 
-export function fetchAppointments(params: { from?: string; to?: string; status?: string; contactId?: string } = {}) {
+export function fetchAppointments(params: { from?: string; to?: string; status?: string; contactId?: string; providerUserId?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Appointment[]>(`/booking/appointments${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchUpcomingAppointmentsThisWeek() {
+  return apiFetch<Appointment[]>("/booking/appointments/upcoming-this-week");
+}
+
+export function fetchAppointmentsReport(from: string, to: string) {
+  const qs = new URLSearchParams({ from, to }).toString();
+  return apiFetch<AppointmentReportRow[]>(`/booking/appointments/report?${qs}`);
 }
 
 export function createAppointment(data: {
@@ -2992,9 +3042,33 @@ export function cancelAppointment(id: string, reason?: string) {
   return apiFetch<Appointment>(`/booking/appointments/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
 }
 
+export function approveCoordination(id: string, data: { startAt?: string; providerUserId?: string }) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/approve-coordination`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function rejectCoordination(id: string, reason?: string) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/reject-coordination`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function fetchMyAvailability() {
+  return apiFetch<StaffAvailabilitySlot[]>("/booking/my-availability");
+}
+
+export function replaceMyAvailability(slots: Array<{ weekday: number; startMinute: number; endMinute: number }>) {
+  return apiFetch<StaffAvailabilitySlot[]>("/booking/my-availability", { method: "PUT", body: JSON.stringify({ slots }) });
+}
+
 // ── رزرو نوبت عمومی (Public booking wizard — no auth) ─────────────────────
 
-export type PublicServiceType = { id: string; name: string; durationMinutes: number; price: number };
+export type PublicServiceType = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  price: number;
+  requiresDeposit: boolean;
+  depositAmount: number | null;
+  requiresCoordination: boolean;
+};
 export type PublicProvider = { id: string; name: string };
 
 export function fetchPublicServiceTypes(slug: string) {
@@ -3003,6 +3077,10 @@ export function fetchPublicServiceTypes(slug: string) {
 
 export function fetchPublicProviders(slug: string) {
   return apiFetch<PublicProvider[]>(`/public/booking/${slug}/providers`);
+}
+
+export function fetchPublicHolidays(slug: string, jalaliYear: number) {
+  return apiFetch<IranHoliday[]>(`/public/booking/${slug}/holidays?year=${jalaliYear}`);
 }
 
 export function requestBookingOtp(slug: string, phone: string) {
@@ -3031,6 +3109,16 @@ export function createPublicAppointment(
   },
 ) {
   return apiFetch<Appointment>(`/public/booking/${slug}/appointments`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchPublicAppointmentPayment(slug: string, appointmentId: string) {
+  return apiFetch<{ id: string; serviceName: string; customerName: string; startAt: string; depositAmount: number | null; paymentStatus: AppointmentPaymentStatus }>(
+    `/public/booking/${slug}/appointments/${appointmentId}`,
+  );
+}
+
+export function startPublicAppointmentPayment(slug: string, appointmentId: string) {
+  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/booking/${slug}/appointments/${appointmentId}/pay`, { method: "POST" });
 }
 
 // ── مدیریت قرارداد (Contracts) ────────────────────────────────────────────

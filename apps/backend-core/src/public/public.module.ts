@@ -12,6 +12,7 @@ import { PublicTrackingService } from './public-tracking.service.js';
 import { PublicTrackingController } from './public-tracking.controller.js';
 import { PublicContractsService } from './public-contracts.service.js';
 import { PublicContractsController } from './public-contracts.controller.js';
+import { PublicBookingPaymentController } from './public-booking-payment.controller.js';
 
 @Module({
   imports: [AuthModule, TenantsModule, BookingModule, ContractsModule],
@@ -21,6 +22,7 @@ import { PublicContractsController } from './public-contracts.controller.js';
     PublicBookingController,
     PublicTrackingController,
     PublicContractsController,
+    PublicBookingPaymentController,
   ],
   providers: [PublicSignupService, PublicBookingService, PublicTrackingService, PublicContractsService],
 })

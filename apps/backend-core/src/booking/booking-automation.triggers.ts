@@ -33,5 +33,18 @@ export class BookingAutomationTriggers implements OnModuleInit {
         { key: 'startAt', label: 'زمان نوبت', type: 'STRING' },
       ],
     });
+
+    this.registry.register({
+      code: 'booking.appointment.deposit_paid',
+      moduleCode: 'booking',
+      label: 'پرداخت بیعانه نوبت',
+      description: 'وقتی بیعانه/پیش‌پرداخت یک نوبت با موفقیت پرداخت می‌شود.',
+      payloadFields: [
+        { key: 'customerName', label: 'نام مشتری', type: 'STRING' },
+        { key: 'serviceName', label: 'نوع خدمت', type: 'STRING' },
+        { key: 'startAt', label: 'زمان نوبت', type: 'STRING' },
+        { key: 'depositAmount', label: 'مبلغ بیعانه', type: 'NUMBER' },
+      ],
+    });
   }
 }

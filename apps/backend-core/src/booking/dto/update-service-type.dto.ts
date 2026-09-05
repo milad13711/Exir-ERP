@@ -19,4 +19,17 @@ export class UpdateServiceTypeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresDeposit?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  depositAmount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresCoordination?: boolean;
 }

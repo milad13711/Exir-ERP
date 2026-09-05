@@ -53,6 +53,10 @@ function d2g(jdn: number): { gy: number } {
 }
 
 export function toJalaliYearMonth(date: Date): { year: number; month: number } {
+  return toJalaliDate(date);
+}
+
+export function toJalaliDate(date: Date): { year: number; month: number; day: number } {
   const jdn = g2d(date.getFullYear(), date.getMonth() + 1, date.getDate());
   const gy = d2g(jdn).gy;
   let jy = gy - 621;
@@ -60,8 +64,13 @@ export function toJalaliYearMonth(date: Date): { year: number; month: number } {
   const jdn1f = g2d(r.gy, 3, r.march);
   let k = jdn - jdn1f;
   let month: number;
+  let day: number;
   if (k >= 0) {
-    if (k <= 185) return { year: jy, month: 1 + div(k, 31) };
+    if (k <= 185) {
+      month = 1 + div(k, 31);
+      day = mod(k, 31) + 1;
+      return { year: jy, month, day };
+    }
     k -= 186;
   } else {
     jy -= 1;
@@ -69,5 +78,6 @@ export function toJalaliYearMonth(date: Date): { year: number; month: number } {
     if (r.leap === 1) k += 1;
   }
   month = 7 + div(k, 30);
-  return { year: jy, month };
+  day = mod(k, 30) + 1;
+  return { year: jy, month, day };
 }

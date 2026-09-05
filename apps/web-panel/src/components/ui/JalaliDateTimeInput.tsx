@@ -16,11 +16,14 @@ export function JalaliDateTimeInput({
   onChange,
   placeholder = "انتخاب تاریخ و ساعت",
   className = "",
+  disabledDate,
 }: {
   value: string; // "YYYY-MM-DDTHH:mm" (local time) or ""
   onChange: (isoLocal: string) => void;
   placeholder?: string;
   className?: string;
+  /** اگر مشخص شود و برای یک روز true برگرداند، آن روز در تقویم غیرقابل انتخاب می‌شود (مثلاً تعطیلات رسمی). */
+  disabledDate?: (year: number, month: number, day: number) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -108,13 +111,13 @@ export function JalaliDateTimeInput({
 
       {open ? (
         <div className="absolute z-[60] mt-1.5 right-0 bg-surface border border-border rounded-xl shadow-xl p-3 w-[280px]" dir="rtl">
-          {/* راست‌چین: سمت راست = ماه بعد، سمت چپ = ماه قبل (قرارداد تقویم فارسی این پروژه). گلیف‌ها به‌خاطر bidi-mirroring عمداً برعکس به‌نظر می‌رسند — ‹ روی صفحه به‌صورت راست‌گرد و › به‌صورت چپ‌گرد رندر می‌شود. */}
+          {/* راست‌چین: سمت راست = ماه قبل، سمت چپ = ماه بعد (قرارداد نهایی تقویم فارسی این پروژه — مطابق چیدمان معمول تقویم‌های RTL که دکمه‌ی «قبل» در سمت راست می‌نشیند). گلیف‌ها به‌خاطر bidi-mirroring عمداً برعکس به‌نظر می‌رسند — ‹ روی صفحه به‌صورت راست‌گرد و › به‌صورت چپ‌گرد رندر می‌شود. */}
           <div className="flex items-center justify-between mb-2.5">
             <button
               type="button"
-              onClick={goNextMonth}
+              onClick={goPrevMonth}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-soft hover:bg-slate-100 cursor-pointer"
-              aria-label="ماه بعد"
+              aria-label="ماه قبل"
             >
               ‹
             </button>
@@ -123,9 +126,9 @@ export function JalaliDateTimeInput({
             </div>
             <button
               type="button"
-              onClick={goPrevMonth}
+              onClick={goNextMonth}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-soft hover:bg-slate-100 cursor-pointer"
-              aria-label="ماه قبل"
+              aria-label="ماه بعد"
             >
               ›
             </button>
@@ -141,14 +144,15 @@ export function JalaliDateTimeInput({
 
           <div className="grid grid-cols-7 gap-1">
             {cells.map((day, i) => {
-              return day == null ? (
-                <div key={i} />
-              ) : (
+              if (day == null) return <div key={i} />;
+              const disabled = disabledDate?.(viewYear, viewMonth, day) ?? false;
+              return (
                 <button
                   key={i}
                   type="button"
+                  disabled={disabled}
                   onClick={() => setPickedDay(day)}
-                  className={`w-9 h-9 rounded-lg text-[12px] font-bold cursor-pointer ${
+                  className={`w-9 h-9 rounded-lg text-[12px] font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
                     pickedDay === day ? "bg-primary text-white" : "text-ink hover:bg-slate-100"
                   }`}
                 >

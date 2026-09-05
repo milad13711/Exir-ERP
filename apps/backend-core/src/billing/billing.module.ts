@@ -11,6 +11,6 @@ import { TenantsModule } from '../tenants/tenants.module.js';
   imports: [SmsModule, TenantsModule],
   controllers: [BillingController, PublicInvoicePaymentController],
   providers: [BillingDunningService, InvoicePdfService, ZarinpalService],
-  exports: [InvoicePdfService],
+  exports: [InvoicePdfService, ZarinpalService],
 })
 export class BillingModule {}

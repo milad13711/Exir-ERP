@@ -8,13 +8,17 @@ import { toPersianDigits, formatToman } from "@/lib/persian";
 import {
   fetchPublicServiceTypes,
   fetchPublicProviders,
+  fetchPublicHolidays,
   requestBookingOtp,
   verifyBookingOtp,
   createPublicAppointment,
+  startPublicAppointmentPayment,
   ApiError,
   type PublicServiceType,
   type PublicProvider,
+  type IranHoliday,
 } from "@/lib/api";
+import { toJalali } from "@/lib/persian";
 
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 48;
@@ -43,6 +47,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
   const [customerName, setCustomerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [holidays, setHolidays] = useState<IranHoliday[]>([]);
 
   useEffect(() => {
     fetchPublicServiceTypes(slug)
@@ -51,7 +56,19 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
     fetchPublicProviders(slug)
       .then(setProviders)
       .catch(() => setProviders([]));
+    const thisYear = toJalali(new Date()).year;
+    Promise.all([fetchPublicHolidays(slug, thisYear), fetchPublicHolidays(slug, thisYear + 1)])
+      .then(([a, b]) => setHolidays([...a, ...b]))
+      .catch(() => setHolidays([]));
   }, [slug]);
+
+  function isHolidayDate(isoDateOrDateTime: string): boolean {
+    if (!isoDateOrDateTime) return false;
+    const d = new Date(isoDateOrDateTime);
+    if (Number.isNaN(d.getTime())) return false;
+    const j = toJalali(d);
+    return holidays.some((h) => h.month === j.month && h.day === j.day);
+  }
 
   useEffect(() => {
     if (step !== "otp" || secondsLeft <= 0) return;
@@ -67,6 +84,11 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
   function handleDetailsSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!startAt) return;
+    if (!selectedService?.requiresCoordination && isHolidayDate(startAt)) {
+      setError("این روز تعطیل رسمی است، لطفاً روز دیگری را انتخاب کنید");
+      return;
+    }
+    setError(null);
     setStep("phone");
   }
 
@@ -128,7 +150,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
     setError(null);
     setSubmitting(true);
     try {
-      await createPublicAppointment(slug, {
+      const appointment = await createPublicAppointment(slug, {
         bookingToken,
         serviceTypeId: selectedService.id,
         providerUserId: providerUserId || undefined,
@@ -136,6 +158,17 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
         startAt: new Date(startAt).toISOString(),
         notes: notes.trim() || undefined,
       });
+
+      if (appointment.paymentStatus === "PENDING") {
+        const res = await startPublicAppointmentPayment(slug, appointment.id);
+        if (res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        }
+        setError(res.error ?? "اتصال به درگاه پرداخت ناموفق بود");
+        return;
+      }
+
       setStep("done");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ثبت نوبت با خطا مواجه شد");
@@ -200,6 +233,16 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
               <div className="text-[13px] text-ink-soft -mt-2 mb-2">
                 خدمت انتخابی: <span className="font-bold text-ink">{selectedService.name}</span>
               </div>
+              {selectedService.requiresCoordination && (
+                <div className="text-[12.5px] text-warning bg-warning-soft rounded-xl p-3 -mt-1">
+                  این خدمت نیاز به هماهنگی اولیه دارد — زمان پیشنهادی خود را وارد کنید؛ پس از تأیید کارشناس، زمان نهایی به شما پیامک می‌شود.
+                </div>
+              )}
+              {selectedService.requiresDeposit && (
+                <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 -mt-1">
+                  این خدمت نیاز به پرداخت بیعانه‌ی {formatToman(selectedService.depositAmount ?? 0)} دارد.
+                </div>
+              )}
 
               {providers.length > 0 && (
                 <div>
@@ -224,6 +267,11 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                 <JalaliDateTimeInput
                   value={startAt}
                   onChange={setStartAt}
+                  disabledDate={
+                    selectedService.requiresCoordination
+                      ? undefined
+                      : (y, m, d) => holidays.some((h) => h.month === m && h.day === d)
+                  }
                   className="w-full text-[13.5px] outline-none bg-white border-2 border-border focus:border-primary rounded-xl px-3.5 py-3"
                 />
               </div>
@@ -237,6 +285,8 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                   className="w-full text-[13.5px] outline-none bg-white border-2 border-border focus:border-primary rounded-xl px-3.5 py-3"
                 />
               </div>
+
+              {error && <div className="text-[13px] text-danger font-semibold">{error}</div>}
 
               <button
                 type="submit"
@@ -365,7 +415,9 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
               </div>
               <div className="text-xl font-extrabold mb-2">درخواست نوبت شما ثبت شد</div>
               <p className="text-[13.5px] text-ink-soft leading-relaxed">
-                نتیجه‌ی بررسی (تأیید یا لغو) از طریق پیامک به شما اطلاع داده می‌شود.
+                {selectedService?.requiresCoordination
+                  ? "پس از هماهنگی با کارشناس، زمان نهایی نوبت شما از طریق پیامک اطلاع داده می‌شود."
+                  : "نتیجه‌ی بررسی (تأیید یا لغو) از طریق پیامک به شما اطلاع داده می‌شود."}
               </p>
             </div>
           )}

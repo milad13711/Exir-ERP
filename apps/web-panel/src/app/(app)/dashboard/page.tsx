@@ -20,10 +20,12 @@ import {
   fetchActivity,
   fetchDashboardSummary,
   fetchExpiringSoonContracts,
+  fetchUpcomingAppointmentsThisWeek,
   type ApiTask,
   type ActivityEntry,
   type DashboardSummary,
   type Contract,
+  type Appointment,
 } from "@/lib/api";
 import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
@@ -34,6 +36,7 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [expiringContracts, setExpiringContracts] = useState<Contract[] | null>(null);
+  const [weekAppointments, setWeekAppointments] = useState<Appointment[] | null>(null);
 
   useEffect(() => {
     fetchTasks().then((t) => setTasks(t.slice(0, 4))).catch(() => setTasks([]));
@@ -44,6 +47,11 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!installedModules.has("contracts")) return;
     fetchExpiringSoonContracts().then(setExpiringContracts).catch(() => setExpiringContracts([]));
+  }, [installedModules]);
+
+  useEffect(() => {
+    if (!installedModules.has("booking")) return;
+    fetchUpcomingAppointmentsThisWeek().then(setWeekAppointments).catch(() => setWeekAppointments([]));
   }, [installedModules]);
 
   async function handleToggle(id: string) {
@@ -281,6 +289,36 @@ export default function DashboardPage() {
                 </div>
               );
             })}
+          </div>
+        </Card>
+      ) : null}
+
+      {installedModules.has("booking") && weekAppointments && weekAppointments.length > 0 ? (
+        <Card className="p-5 mb-4">
+          <div className="flex items-center justify-between mb-3.5">
+            <span className="text-[14.5px] font-bold">نوبت‌های این هفته</span>
+            <a href="/booking" className="text-xs font-bold text-primary">همه</a>
+          </div>
+          <div className="flex flex-col">
+            {weekAppointments.map((a, i) => (
+              <div
+                key={a.id}
+                className={clsx(
+                  "flex items-center justify-between py-2.5",
+                  i < weekAppointments.length - 1 && "border-b border-border",
+                )}
+              >
+                <div>
+                  <div className="text-[12.5px] font-bold">
+                    {a.customerName} <span className="text-muted font-normal">— {a.serviceType.name}</span>
+                  </div>
+                  <div className="text-[11px] text-muted mt-0.5">{formatJalaliDate(a.startAt)}</div>
+                </div>
+                <Badge tone={a.status === "PENDING_COORDINATION" ? "warning" : a.status === "CONFIRMED" ? "success" : "primary"}>
+                  {a.status === "PENDING_COORDINATION" ? "در انتظار هماهنگی" : a.status === "CONFIRMED" ? "تأییدشده" : "رزروشده"}
+                </Badge>
+              </div>
+            ))}
           </div>
         </Card>
       ) : null}

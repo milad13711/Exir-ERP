@@ -66,6 +66,7 @@ model User {
   decidedAiActions           AiActionRequest[]
   providedAppointments       Appointment[]              @relation("AppointmentProvider")
   createdAppointments        Appointment[]              @relation("AppointmentCreatedBy")
+  staffAvailabilitySlots     StaffAvailabilitySlot[]
   createdContracts           Contract[]
   createdContractTemplates   ContractTemplate[]
   createdContractAmendments  ContractAmendment[]
@@ -1601,12 +1602,15 @@ model AiActionRequest {
 // ── رزرو نوبت دریافت خدمات ────────────────────────────────────────────
 
 model ServiceType {
-  id              String   @id @default(uuid())
-  name            String
-  durationMinutes Int
-  price           Int      @default(0) // تومان
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  id                   String   @id @default(uuid())
+  name                 String
+  durationMinutes      Int
+  price                Int      @default(0) // تومان
+  isActive             Boolean  @default(true)
+  requiresDeposit      Boolean  @default(false) // نیاز به واریز بیعانه/پیش‌پرداخت پیش از تأیید نهایی
+  depositAmount        Int? // تومان — مبلغ بیعانه (نه لزوماً کل مبلغ خدمت)
+  requiresCoordination Boolean  @default(false) // نیاز به هماهنگی اولیه با ارائه‌دهنده پیش از ارسال لینک نهایی ثبت
+  createdAt            DateTime @default(now())
 
   appointments Appointment[]
 
@@ -1614,11 +1618,18 @@ model ServiceType {
 }
 
 enum AppointmentStatus {
+  PENDING_COORDINATION // منتظر هماهنگی و تأیید داخلی پیش از نهایی‌شدن — فقط برای خدمات requiresCoordination
   SCHEDULED
   CONFIRMED
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+enum AppointmentPaymentStatus {
+  NONE // این نوبت نیاز به بیعانه ندارد
+  PENDING
+  PAID
 }
 
 model Appointment {
@@ -1637,6 +1648,17 @@ model Appointment {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // بیعانه/پیش‌پرداخت — همان الگوی Zarinpal مورد استفاده در پرداخت فاکتورهای کنترل‌پلین
+  paymentStatus     AppointmentPaymentStatus @default(NONE)
+  depositAmount     Int?
+  zarinpalAuthority String?
+  paymentRefId      Int?
+  paidAt            DateTime?
+  publicToken       String                   @unique @default(uuid()) // لینک عمومی رسید/تکمیل پرداخت
+
+  // هماهنگی اولیه — رزرو ابتدا PENDING_COORDINATION می‌ماند تا کارشناس/مدیر داخلی تاریخ نهایی را تأیید کند
+  coordinationRespondedAt DateTime?
+
   serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
   contact     CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   provider    User?       @relation("AppointmentProvider", fields: [providerUserId], references: [id], onDelete: SetNull)
@@ -1646,6 +1668,23 @@ model Appointment {
   @@index([providerUserId, startAt])
   @@index([status])
   @@map("appointments")
+}
+
+/// وقت‌های آزاد هفتگی هر کارشناس — اگر کارشناسی هیچ اسلاتی تعریف نکرده باشد،
+/// برای حفظ سازگاری با رفتار قبلی، «همیشه در دسترس» فرض می‌شود.
+model StaffAvailabilitySlot {
+  id          String @id @default(uuid())
+  userId      String
+  weekday     Int // 0=یکشنبه ... 6=شنبه
+  startMinute Int // دقیقه از نیمه‌شب — مثلاً ۹:۰۰ = ۵۴۰
+  endMinute   Int
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, weekday])
+  @@map("staff_availability_slots")
 }
 
 // ── مدیریت قرارداد ───────────────────────────────────────────────────────

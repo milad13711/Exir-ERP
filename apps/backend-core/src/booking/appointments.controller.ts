@@ -9,6 +9,7 @@ import { AppointmentsService } from './appointments.service.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
+import { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
 
 @Controller('booking/appointments')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -18,6 +19,18 @@ export class AppointmentsController {
     private readonly appointments: AppointmentsService,
     private readonly permissions: PermissionsService,
   ) {}
+
+  @Get('upcoming-this-week')
+  async upcomingThisWeek(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'booking');
+    return this.appointments.upcomingThisWeek(ctx);
+  }
+
+  @Get('report')
+  async report(@Query('from') from: string, @Query('to') to: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'booking');
+    return this.appointments.reportByServiceAndProvider(ctx, new Date(from), new Date(to));
+  }
 
   @Get()
   async list(
@@ -72,5 +85,17 @@ export class AppointmentsController {
   async cancel(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
     return this.appointments.cancel(ctx, id, dto.reason);
+  }
+
+  @Post(':id/approve-coordination')
+  async approveCoordination(@Param('id') id: string, @Body() dto: ApproveCoordinationDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'booking');
+    return this.appointments.approveCoordination(ctx, id, dto);
+  }
+
+  @Post(':id/reject-coordination')
+  async rejectCoordination(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'booking');
+    return this.appointments.rejectCoordination(ctx, id, dto.reason);
   }
 }

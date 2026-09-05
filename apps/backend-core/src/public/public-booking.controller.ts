@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { PublicBookingService } from './public-booking.service.js';
 import { RequestBookingOtpDto } from './dto/request-booking-otp.dto.js';
 import { VerifyBookingOtpDto } from './dto/verify-booking-otp.dto.js';
 import { CreatePublicAppointmentDto } from './dto/create-public-appointment.dto.js';
+import { iranHolidaysForYear } from '../booking/iran-holidays.js';
 
 /**
  * Unauthenticated by design — the public-facing booking wizard a tenant
@@ -23,6 +24,11 @@ export class PublicBookingController {
   @Get('providers')
   listProviders(@Param('slug') slug: string) {
     return this.booking.listProviders(slug);
+  }
+
+  @Get('holidays')
+  listHolidays(@Query('year') year: string) {
+    return iranHolidaysForYear(Number(year));
   }
 
   @Post('otp/request')

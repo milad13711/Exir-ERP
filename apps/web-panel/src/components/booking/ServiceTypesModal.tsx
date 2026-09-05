@@ -19,6 +19,9 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
   const [name, setName] = useState("");
   const [duration, setDuration] = useState("30");
   const [price, setPrice] = useState("0");
+  const [requiresDeposit, setRequiresDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("0");
+  const [requiresCoordination, setRequiresCoordination] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -32,10 +35,20 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
     if (!name.trim() || !duration) return;
     setSaving(true);
     try {
-      await createServiceType({ name: name.trim(), durationMinutes: Number(duration), price: Number(price) || 0 });
+      await createServiceType({
+        name: name.trim(),
+        durationMinutes: Number(duration),
+        price: Number(price) || 0,
+        requiresDeposit,
+        depositAmount: requiresDeposit ? Number(depositAmount) || 0 : undefined,
+        requiresCoordination,
+      });
       setName("");
       setDuration("30");
       setPrice("0");
+      setRequiresDeposit(false);
+      setDepositAmount("0");
+      setRequiresCoordination(false);
       setAddOpen(false);
       reload();
       onChanged();
@@ -94,6 +107,24 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                 className={`${inputClass} flex-1`}
               />
             </div>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
+              <input type="checkbox" checked={requiresCoordination} onChange={(e) => setRequiresCoordination(e.target.checked)} />
+              نیاز به هماهنگی اولیه با ارائه‌دهنده قبل از نهایی‌شدن رزرو
+            </label>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
+              <input type="checkbox" checked={requiresDeposit} onChange={(e) => setRequiresDeposit(e.target.checked)} />
+              نیاز به پرداخت بیعانه/پیش‌پرداخت
+            </label>
+            {requiresDeposit && (
+              <input
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                type="number"
+                min={0}
+                placeholder="مبلغ بیعانه (تومان)"
+                className={inputClass}
+              />
+            )}
             <button
               type="submit"
               disabled={saving || !name.trim()}
@@ -116,6 +147,8 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                   <div className="text-[13px] font-bold truncate">{s.name}</div>
                   <div className="text-[11.5px] text-muted mt-0.5">
                     {s.durationMinutes} دقیقه · {formatToman(s.price)}
+                    {s.requiresCoordination ? " · نیاز به هماهنگی" : ""}
+                    {s.requiresDeposit ? ` · بیعانه ${formatToman(s.depositAmount ?? 0)}` : ""}
                   </div>
                 </div>
                 <button

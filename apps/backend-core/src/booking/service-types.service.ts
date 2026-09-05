@@ -19,6 +19,9 @@ export class ServiceTypesService {
         durationMinutes: dto.durationMinutes,
         price: dto.price ?? 0,
         isActive: dto.isActive ?? true,
+        requiresDeposit: dto.requiresDeposit ?? false,
+        depositAmount: dto.depositAmount,
+        requiresCoordination: dto.requiresCoordination ?? false,
       },
     });
   }
