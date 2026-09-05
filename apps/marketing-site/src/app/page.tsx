@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
 import { BRAND } from "@/lib/content";
+import { IndustryIllustration } from "@/components/IndustryIllustration";
 
 export const revalidate = 0;
 
@@ -12,7 +13,7 @@ export default async function HomePage() {
       <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
         <div className="max-w-[1100px] mx-auto px-6 py-20 text-center">
           <div className="inline-block bg-white/15 text-[12px] font-bold px-4 py-1.5 rounded-full mb-6">
-            اولین ERP فارسی بین‌المللی با ایجنت هوش مصنوعی اختصاصی
+            اولین ERP فارسی بین‌المللی با اتصال به ChatGPT و Claude شخصی شما
           </div>
           <h1 className="text-[30px] sm:text-[42px] font-extrabold leading-[1.4]">
             نرم‌افزار مدیریت کسب‌وکار،
@@ -42,10 +43,10 @@ export default async function HomePage() {
       <section className="max-w-[1100px] mx-auto px-6 py-16 grid sm:grid-cols-3 gap-6">
         <div className="bg-surface border border-border rounded-2xl p-6">
           <div className="text-[26px] mb-3">🤖</div>
-          <div className="text-[14.5px] font-extrabold mb-2">ایجنت هوش مصنوعی شخصی هر عضو تیم</div>
+          <div className="text-[14.5px] font-extrabold mb-2">اتصال به ChatGPT و Claude شخصی شما، حتی از گوشی</div>
           <p className="text-[12.5px] text-muted leading-relaxed">
-            هر کارمند می‌تواند دستیار هوشمند اختصاصی خودش را به اکسیر وصل کند و کارها را با تأیید انسانی پیش ببرد —
-            ویژگی‌ای که در هیچ ERP فارسی دیگری وجود ندارد.
+            هر عضو تیم می‌تواند ایجنت اختصاصی ChatGPT یا Claude خودش را به اکسیر وصل کند و کارها را از همان گوشی
+            پیش ببرد — ویژگی‌ای که در هیچ ERP فارسی دیگری وجود ندارد.
           </p>
         </div>
         <div className="bg-surface border border-border rounded-2xl p-6">
@@ -77,27 +78,31 @@ export default async function HomePage() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
             {templates.map((t) => (
-              <div key={t.code} className="bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3">
-                <div
-                  className="w-11 h-11 rounded-xl"
-                  style={{ background: t.suggestedThemeColor ?? "#4338ca" }}
-                />
-                <div className="text-[15px] font-extrabold">{t.name}</div>
-                <p className="text-[12.5px] text-muted leading-relaxed flex-1">{t.description}</p>
-                <div className="text-[11px] text-muted">{t.defaultModules.length} ماژول پیش‌فرض</div>
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/industries/${t.code}`}
-                    className="flex-1 text-center py-2.5 rounded-xl border border-border text-ink-soft text-[12.5px] font-bold"
-                  >
-                    جزئیات صنف
-                  </Link>
-                  <Link
-                    href={`/configure?template=${t.code}`}
-                    className="flex-1 text-center py-2.5 rounded-xl bg-primary-soft text-primary text-[13px] font-bold"
-                  >
-                    شروع با این قالب
-                  </Link>
+              <div
+                key={t.code}
+                className="bg-surface border border-border rounded-2xl overflow-hidden flex flex-col"
+              >
+                <div className="h-[110px] overflow-hidden">
+                  <IndustryIllustration code={t.code} color={t.suggestedThemeColor ?? "#4338ca"} />
+                </div>
+                <div className="p-6 flex flex-col gap-3 flex-1">
+                  <div className="text-[15px] font-extrabold">{t.name}</div>
+                  <p className="text-[12.5px] text-muted leading-relaxed flex-1">{t.description}</p>
+                  <div className="text-[11px] text-muted">{t.defaultModules.length} ماژول پیش‌فرض</div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/industries/${t.code}`}
+                      className="flex-1 text-center py-2.5 rounded-xl border border-border text-ink-soft text-[12.5px] font-bold"
+                    >
+                      جزئیات صنف
+                    </Link>
+                    <Link
+                      href={`/configure?template=${t.code}`}
+                      className="flex-1 text-center py-2.5 rounded-xl bg-primary-soft text-primary text-[13px] font-bold"
+                    >
+                      شروع با این قالب
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}

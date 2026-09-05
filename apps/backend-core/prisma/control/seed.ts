@@ -653,6 +653,46 @@ async function main() {
       suggestedThemeColor: '#1d4ed8',
       defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'checks'],
     },
+    {
+      code: 'business-consulting',
+      name: 'مشاوره کسب‌وکار',
+      description:
+        'شرکت‌ها و افراد مشاور مدیریت، مالی، منابع انسانی و بهبود فرایند — کار پروژه‌محور با مشتریان متعدد، قرارداد مشاوره و جلسات برنامه‌ریزی‌شده.',
+      roles: [
+        {
+          name: 'مشاور',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR, crm: VIEW_ONLY },
+        },
+        {
+          name: 'مشاور ارشد',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, tasks: FULL_ACCESS },
+        },
+        {
+          name: 'مدیر پروژه‌های مشاوره',
+          permissionCodes: ['crm.manage', 'accounting.manage', 'tasks.manage'],
+          modulePermissions: { crm: FULL_ACCESS, accounting: EDITOR_ACCESS, tasks: FULL_ACCESS },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1101', name: 'مطالبات پروژه‌های مشاوره', type: 'ASSET' },
+        { code: '2101', name: 'پیش‌دریافت از مشتری', type: 'LIABILITY' },
+        { code: '4101', name: 'درآمد خدمات مشاوره', type: 'REVENUE' },
+        { code: '5101', name: 'هزینه مشاوران همکار (فریلنسر)', type: 'EXPENSE' },
+        { code: '5102', name: 'هزینه سفر و مأموریت مشاوره', type: 'EXPENSE' },
+      ],
+      productCategories: ['مشاوره مدیریت', 'مشاوره مالی و حسابداری', 'مشاوره منابع انسانی', 'مشاوره فرایند و بهبود سازمانی'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر پروژه‌های مشاوره', reportsTo: 'مدیرعامل', department: 'مشاوره' },
+        { position: 'مشاور ارشد', reportsTo: 'مدیر پروژه‌های مشاوره', department: 'مشاوره' },
+        { position: 'مشاور', reportsTo: 'مشاور ارشد', department: 'مشاوره' },
+        { position: 'مدیر ارتباط با مشتری', reportsTo: 'مدیرعامل', department: 'فروش' },
+      ],
+      suggestedThemeColor: '#b45309',
+      defaultModules: ['tasks', 'crm', 'accounting', 'projects', 'contracts', 'booking'],
+    },
   ];
 
   for (const t of industryTemplates) {

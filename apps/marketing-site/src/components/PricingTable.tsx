@@ -1,7 +1,7 @@
 import { formatToman, toPersianDigits } from "@/lib/persian";
-import type { ModulePricing } from "@/lib/pricing";
+import type { TomanPricing } from "@/lib/pricing";
 
-export function PricingTable({ pricing, title }: { pricing: ModulePricing; title?: string }) {
+export function PricingTable({ pricing, title }: { pricing: TomanPricing; title?: string }) {
   if (pricing.monthly === 0) {
     return (
       <div className="bg-success-soft text-success rounded-2xl p-5 text-center font-extrabold text-[15px]">

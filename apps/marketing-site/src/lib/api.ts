@@ -44,6 +44,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+export type ExchangeRate = { usdToToman: number; asOf: string; source: "baha24" | "fallback" };
+
+export function fetchExchangeRate() {
+  return apiFetch<ExchangeRate>("/public/catalog/exchange-rate");
+}
+
 export type PublicPlan = {
   code: string;
   name: string;

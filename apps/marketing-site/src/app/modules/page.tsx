@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { fetchPublicModules } from "@/lib/api";
+import { fetchPublicModules, fetchExchangeRate } from "@/lib/api";
 import { moduleContentOf } from "@/lib/content";
-import { deriveModulePricing } from "@/lib/pricing";
+import { moduleTomanPricing, FULL_LICENSE_USD } from "@/lib/pricing";
+import { CategoryVisual } from "@/components/CategoryVisual";
 import { formatToman } from "@/lib/persian";
 
 export const revalidate = 0;
@@ -10,11 +11,14 @@ export const revalidate = 0;
 export const metadata: Metadata = {
   title: "ماژول‌های اکسیر ERP — قیمت و امکانات هر ماژول",
   description:
-    "فهرست کامل ماژول‌های اکسیر ERP با قیمت اشتراک ماهانه، سالانه و خرید لایسنس — از CRM و انبارداری تا ناوگان حمل و نقل و اتصال ایجنت هوش مصنوعی.",
+    "فهرست کامل ماژول‌های اکسیر ERP با قیمت اشتراک ماهانه، سالانه و خرید لایسنس — از CRM و انبارداری تا ناوگان حمل و نقل و اتصال ChatGPT/Claude.",
 };
 
 export default async function ModulesPage() {
-  const modules = await fetchPublicModules().catch(() => []);
+  const [modules, rate] = await Promise.all([
+    fetchPublicModules().catch(() => []),
+    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+  ]);
   const byCategory = new Map<string, typeof modules>();
   for (const m of modules) {
     const list = byCategory.get(m.category) ?? [];
@@ -31,6 +35,9 @@ export default async function ModulesPage() {
             هر ماژول را جداگانه نصب کنید یا با یک قالب صنفی آماده شروع کنید — فقط برای چیزی که استفاده می‌کنید هزینه
             بدهید.
           </p>
+          <div className="inline-block mt-6 bg-white/15 text-[12.5px] font-bold px-4 py-2 rounded-full">
+            لایسنس دائمی کل مجموعه‌ی ماژول‌ها: {FULL_LICENSE_USD.toLocaleString("en-US")}$ (معادل تومانی لحظه‌ای)
+          </div>
         </div>
       </section>
 
@@ -40,15 +47,18 @@ export default async function ModulesPage() {
             <h2 className="text-[17px] font-extrabold mb-5 pr-3 border-r-4 border-primary">{category}</h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {list.map((m) => {
-                const pricing = deriveModulePricing(m.priceMonthly);
+                const pricing = moduleTomanPricing(m.code, rate.usdToToman);
                 const content = moduleContentOf(m.code);
                 return (
                   <Link
                     key={m.code}
                     href={`/modules/${m.code}`}
-                    className="bg-surface border border-border rounded-2xl p-5 flex flex-col gap-2.5 hover:border-primary transition-colors"
+                    className="bg-surface border border-border rounded-2xl p-5 flex flex-col gap-2.5 hover:border-primary hover:shadow-md transition-all"
                   >
-                    <div className="text-[14.5px] font-extrabold">{m.name}</div>
+                    <div className="flex items-center gap-3">
+                      <CategoryVisual category={m.category} />
+                      <div className="text-[14.5px] font-extrabold">{m.name}</div>
+                    </div>
                     {content ? (
                       <p className="text-[12px] text-primary font-semibold leading-relaxed">{content.tagline}</p>
                     ) : null}

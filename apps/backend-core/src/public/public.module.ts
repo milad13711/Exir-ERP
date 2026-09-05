@@ -18,6 +18,7 @@ import { PublicFleetOfferService } from './public-fleet-offer.service.js';
 import { PublicFleetOfferController } from './public-fleet-offer.controller.js';
 import { PublicSurveyService } from './public-survey.service.js';
 import { PublicSurveyController } from './public-survey.controller.js';
+import { PublicExchangeRateService } from './public-exchange-rate.service.js';
 
 @Module({
   imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule],
@@ -31,6 +32,14 @@ import { PublicSurveyController } from './public-survey.controller.js';
     PublicFleetOfferController,
     PublicSurveyController,
   ],
-  providers: [PublicSignupService, PublicBookingService, PublicTrackingService, PublicContractsService, PublicFleetOfferService, PublicSurveyService],
+  providers: [
+    PublicSignupService,
+    PublicBookingService,
+    PublicTrackingService,
+    PublicContractsService,
+    PublicFleetOfferService,
+    PublicSurveyService,
+    PublicExchangeRateService,
+  ],
 })
 export class PublicModule {}

@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fetchPublicModules, fetchPublicIndustryTemplates } from "@/lib/api";
+import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate } from "@/lib/api";
 import { moduleContentOf, BRAND } from "@/lib/content";
-import { deriveModulePricing } from "@/lib/pricing";
+import { moduleTomanPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
+import { CategoryVisual } from "@/components/CategoryVisual";
 
 export const revalidate = 0;
 
@@ -28,11 +29,15 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 
 export default async function ModuleDetailPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [mod, industries] = await Promise.all([getModule(code), fetchPublicIndustryTemplates().catch(() => [])]);
+  const [mod, industries, rate] = await Promise.all([
+    getModule(code),
+    fetchPublicIndustryTemplates().catch(() => []),
+    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+  ]);
   if (!mod) notFound();
 
   const content = moduleContentOf(code);
-  const pricing = deriveModulePricing(mod.priceMonthly);
+  const pricing = moduleTomanPricing(code, rate.usdToToman);
   const bestForIndustries = industries.filter((i) => content?.bestFor.includes(i.code));
 
   const jsonLd = {
@@ -55,7 +60,10 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
 
       <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
         <div className="max-w-[900px] mx-auto px-6 py-16">
-          <div className="text-[12px] font-bold text-white/70 mb-3">{mod.category}</div>
+          <div className="flex items-center gap-4 mb-4">
+            <CategoryVisual category={mod.category} size={60} />
+            <div className="text-[12px] font-bold text-white/70">{mod.category}</div>
+          </div>
           <h1 className="text-[26px] sm:text-[32px] font-extrabold leading-[1.5]">{mod.name}</h1>
           {content ? <p className="mt-3 text-[15px] text-white/90 font-semibold">{content.tagline}</p> : null}
           <p className="mt-4 text-[13.5px] text-white/80 leading-loose max-w-[640px]">{mod.description}</p>

@@ -8,12 +8,14 @@ import {
   fetchPublicModules,
   fetchPublicIndustryTemplates,
   fetchQuote,
+  fetchExchangeRate,
   ApiError,
   type PublicPlan,
   type PublicModule,
   type PublicIndustryTemplate,
   type PlanQuote,
 } from "@/lib/api";
+import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, toToman } from "@/lib/pricing";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -27,10 +29,17 @@ export function ConfigureClient() {
   const [modules, setModules] = useState<PublicModule[] | null>(null);
   const [templates, setTemplates] = useState<PublicIndustryTemplate[] | null>(null);
   const [planCode, setPlanCode] = useState("");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly" | "license">("monthly");
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [quote, setQuote] = useState<PlanQuote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [usdToToman, setUsdToToman] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchExchangeRate()
+      .then((r) => setUsdToToman(r.usdToToman))
+      .catch(() => setUsdToToman(950000));
+  }, []);
 
   const [leadOpen, setLeadOpen] = useState(false);
   const [name, setName] = useState("");
@@ -59,7 +68,7 @@ export function ConfigureClient() {
   const activeTemplate = templates?.find((t) => t.code === templateCode) ?? null;
 
   useEffect(() => {
-    if (!planCode) return;
+    if (!planCode || billingCycle === "license") return;
     setQuoteError(null);
     fetchQuote({ planCode, billingCycle, moduleCodes: selectedModules })
       .then(setQuote)
@@ -68,6 +77,26 @@ export function ConfigureClient() {
         setQuoteError(err instanceof ApiError ? err.message : "محاسبه‌ی قیمت با خطا مواجه شد");
       });
   }, [planCode, billingCycle, selectedModules]);
+
+  // حالت «خرید لایسنس» روی مدل قیمت‌گذاری دلاری/نرخ لحظه‌ای سایت حساب می‌شود
+  // (همان چیزی که در /modules و /industries نمایش داده می‌شود) — نه روی
+  // priceMonthly واقعی بک‌اند، چون آن قیمتِ اشتراک ماهانه/سالانه‌ی واقعی
+  // است و لایسنس دائمی یک مدل قیمت‌گذاری کاملاً جدا دارد.
+  const licenseQuote = useMemo(() => {
+    if (billingCycle !== "license" || usdToToman == null) return null;
+    const billable = (modules ?? []).filter((m) => selectedModules.includes(m.code) && !m.isCore);
+    const usd = sumUsdPricing(billable.map((m) => usdPricingFromLicense(licenseWeightOf(m.code))));
+    const toman = toToman(usd, usdToToman);
+    return {
+      lines: billable.map((m) => ({
+        code: m.code,
+        name: m.name,
+        price: toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license,
+      })),
+      license: toman.license,
+      annualSupport: toman.annualSupport,
+    };
+  }, [billingCycle, usdToToman, modules, selectedModules]);
 
   function toggleModule(code: string, mod: PublicModule) {
     setSelectedModules((prev) => {
@@ -90,10 +119,19 @@ export function ConfigureClient() {
 
   async function handleLeadSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!quote) return;
+    if (billingCycle === "license" ? !licenseQuote : !quote) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const estimatedValue = billingCycle === "license" ? licenseQuote!.license : quote!.total;
+      const configurationSummary =
+        billingCycle === "license"
+          ? `خرید لایسنس دائمی${activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""} — ماژول‌ها: ${
+              licenseQuote!.lines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"
+            } — جمع لایسنس: ${licenseQuote!.license.toLocaleString("en-US")} تومان — پشتیبانی سالانه: ${licenseQuote!.annualSupport.toLocaleString("en-US")} تومان`
+          : `پلن: ${quote!.plan.name} (${billingCycle === "yearly" ? "سالانه" : "ماهانه"})${
+              activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""
+            } — ماژول‌ها: ${quote!.moduleLines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"} — جمع: ${quote!.total.toLocaleString("en-US")} تومان`;
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api"}/public/catalog/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,11 +139,9 @@ export function ConfigureClient() {
           name,
           company: company || undefined,
           phone,
-          estimatedValue: quote.total,
-          configurationSummary: `پلن: ${quote.plan.name} (${billingCycle === "yearly" ? "سالانه" : "ماهانه"})${
-            activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""
-          } — ماژول‌ها: ${quote.moduleLines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"} — جمع: ${quote.total.toLocaleString("en-US")} تومان`,
-          requestedPlanCode: quote.plan.code,
+          estimatedValue,
+          configurationSummary,
+          requestedPlanCode: billingCycle === "license" ? undefined : quote!.plan.code,
           requestedIndustryTemplateCode: activeTemplate?.code,
         }),
       });
@@ -167,7 +203,21 @@ export function ConfigureClient() {
               >
                 سالانه
               </button>
+              <button
+                onClick={() => setBillingCycle("license")}
+                className={`flex-1 py-2 rounded-lg text-[12.5px] font-bold cursor-pointer ${
+                  billingCycle === "license" ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
+                }`}
+              >
+                خرید لایسنس
+              </button>
             </div>
+            {billingCycle === "license" ? (
+              <p className="text-[11px] text-muted mt-2 leading-relaxed">
+                خرید لایسنس دائمی برای ماژول‌های انتخاب‌شده، به‌همراه پشتیبانی سالانه‌ی همان ماژول‌ها به مبلغ ۱۰٪
+                قرارداد اولیه (نه ماژول‌های جدید). قیمت براساس نرخ لحظه‌ای دلار محاسبه می‌شود.
+              </p>
+            ) : null}
           </div>
 
           <div className="bg-surface border border-border rounded-2xl p-5">
@@ -204,7 +254,13 @@ export function ConfigureClient() {
                             </div>
                           </div>
                           <div className="text-[11.5px] font-bold text-muted">
-                            {m.priceMonthly > 0 ? `${formatToman(m.priceMonthly)}/ماه` : "رایگان"}
+                            {billingCycle === "license"
+                              ? usdToToman != null && licenseWeightOf(m.code) > 0
+                                ? `${formatToman(toToman(usdPricingFromLicense(licenseWeightOf(m.code)), usdToToman).license)} لایسنس`
+                                : "رایگان"
+                              : m.priceMonthly > 0
+                                ? `${formatToman(m.priceMonthly)}/ماه`
+                                : "رایگان"}
                           </div>
                         </label>
                       ))}
@@ -217,7 +273,28 @@ export function ConfigureClient() {
 
         <div className="bg-surface border border-border rounded-2xl p-5 h-fit sticky top-6">
           <div className="text-[13.5px] font-bold mb-3">خلاصه‌ی فاکتور</div>
-          {quoteError ? (
+          {billingCycle === "license" ? (
+            !licenseQuote ? (
+              <div className="text-muted text-sm py-3">در حال محاسبه...</div>
+            ) : (
+              <>
+                {licenseQuote.lines.map((l) => (
+                  <div key={l.code} className="flex items-center justify-between text-[12px] text-ink-soft py-2 border-b border-border">
+                    <span>{l.name}</span>
+                    <span>{formatToman(l.price)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-[14px] font-extrabold mt-3">
+                  <span>جمع لایسنس دائمی</span>
+                  <span>{formatToman(licenseQuote.license)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[12px] text-muted mt-2">
+                  <span>پشتیبانی سالانه (۱۰٪)</span>
+                  <span>{formatToman(licenseQuote.annualSupport)}</span>
+                </div>
+              </>
+            )
+          ) : quoteError ? (
             <div className="text-[12px] text-danger">{quoteError}</div>
           ) : !quote ? (
             <div className="text-muted text-sm py-3">در حال محاسبه...</div>
@@ -243,7 +320,7 @@ export function ConfigureClient() {
           {!leadOpen ? (
             <button
               onClick={() => setLeadOpen(true)}
-              disabled={!quote}
+              disabled={billingCycle === "license" ? !licenseQuote : !quote}
               className="mt-5 w-full py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
             >
               درخواست فعال‌سازی
