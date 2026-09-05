@@ -35,4 +35,16 @@ export class UpdateContractDto {
   @IsOptional()
   @IsString()
   terms?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  guaranteeTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  referredSignerUserId?: string;
 }

@@ -79,5 +79,7 @@ export type ContractSignTicketPayload = {
   phone: string;
   tenantSlug: string;
   contractId: string;
-  side: 'PARTY_A' | 'PARTY_B';
+  side: 'PARTY_A' | 'PARTY_B' | 'WITNESS';
+  /** فقط وقتی side==='WITNESS' — کدام رکورد ContractWitness. */
+  witnessId?: string;
 };

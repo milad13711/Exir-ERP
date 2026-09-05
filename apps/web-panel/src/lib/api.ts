@@ -3128,6 +3128,7 @@ export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "TERMINATED";
 export type ContractPartyMode = "INTERNAL" | "EXTERNAL" | "THIRD_PARTY";
 export type ContractLegalCategory = "NOTARIZED" | "LAWYER_SUPERVISED" | "GENERAL";
 export type ContractPartySide = "PARTY_A" | "PARTY_B";
+export type ContractSignerSide = ContractPartySide | "WITNESS";
 
 export type ContractEditRequest = {
   id: string;
@@ -3151,6 +3152,16 @@ export type ContractAmendment = {
   createdAt: string;
 };
 
+export type ContractWitness = {
+  id: string;
+  contractId: string;
+  name: string;
+  phone: string;
+  signedAt: string | null;
+  signatureDataUrl: string | null;
+  createdAt: string;
+};
+
 export type Contract = {
   id: string;
   contractNo: number;
@@ -3158,6 +3169,7 @@ export type Contract = {
   type: ContractType | null;
   partyMode: ContractPartyMode;
   legalCategory: ContractLegalCategory;
+  category: string | null;
   templateId: string | null;
   contactId: string | null;
   employeeId: string | null;
@@ -3172,6 +3184,8 @@ export type Contract = {
   renewalReminderDays: number;
   reminderSentAt: string | null;
   terms: string | null;
+  guaranteeTerms: string | null;
+  referredSignerUserId: string | null;
   signedAt: string | null;
   terminatedAt: string | null;
   terminationReason: string | null;
@@ -3192,6 +3206,7 @@ export type Contract = {
   createdBy: { id: string; name: string } | null;
   editRequests?: ContractEditRequest[];
   amendments?: ContractAmendment[];
+  witnesses?: ContractWitness[];
 };
 
 export type ContractTemplate = {
@@ -3204,7 +3219,7 @@ export type ContractTemplate = {
   updatedAt: string;
 };
 
-export function fetchContracts(params: { type?: string; status?: string; contactId?: string; legalCategory?: string } = {}) {
+export function fetchContracts(params: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Contract[]>(`/contracts${qs ? `?${qs}` : ""}`);
 }
@@ -3217,11 +3232,45 @@ export function fetchExpiringSoonContracts() {
   return apiFetch<Contract[]>("/contracts/expiring-soon");
 }
 
+export function fetchContractCategories() {
+  return apiFetch<string[]>("/contracts/categories");
+}
+
+export function openContractPdf(id: string): Promise<void> {
+  return fetchAndOpenPdf(`/contracts/${id}/pdf`);
+}
+
+export function fetchCompanySignature() {
+  return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature");
+}
+
+export function saveCompanySignature(data: { signatureImage?: string; stampImage?: string }) {
+  return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function fetchContractWitnesses(contractId: string) {
+  return apiFetch<ContractWitness[]>(`/contracts/${contractId}/witnesses`);
+}
+
+export function addContractWitness(contractId: string, data: { name: string; phone: string }) {
+  return apiFetch<ContractWitness>(`/contracts/${contractId}/witnesses`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function removeContractWitness(witnessId: string) {
+  return apiFetch<{ ok: true }>(`/contracts/witnesses/${witnessId}`, { method: "DELETE" });
+}
+
 export function createContract(data: {
   title: string;
   partyMode: ContractPartyMode;
   type?: ContractType;
   legalCategory?: ContractLegalCategory;
+  category?: string;
+  guaranteeTerms?: string;
+  referredSignerUserId?: string;
   templateId?: string;
   contactId?: string;
   employeeId?: string;
@@ -3238,7 +3287,7 @@ export function createContract(data: {
   return apiFetch<Contract>("/contracts", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateContract(id: string, data: Partial<Pick<Parameters<typeof createContract>[0], "title" | "contactId" | "value" | "startDate" | "endDate" | "autoRenew" | "renewalReminderDays" | "terms">>) {
+export function updateContract(id: string, data: Partial<Pick<Parameters<typeof createContract>[0], "title" | "contactId" | "value" | "startDate" | "endDate" | "autoRenew" | "renewalReminderDays" | "terms" | "category" | "guaranteeTerms" | "referredSignerUserId">>) {
   return apiFetch<Contract>(`/contracts/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
@@ -3300,7 +3349,7 @@ export function requestContractSignOtp(slug: string, publicToken: string, phone:
 }
 
 export function verifyContractSignOtp(slug: string, publicToken: string, phone: string, code: string) {
-  return apiFetch<{ ticket: string; expiresInSeconds: number; side: ContractPartySide }>(`/public/contracts/${slug}/${publicToken}/otp/verify`, {
+  return apiFetch<{ ticket: string; expiresInSeconds: number; side: ContractSignerSide; witnessId?: string }>(`/public/contracts/${slug}/${publicToken}/otp/verify`, {
     method: "POST",
     body: JSON.stringify({ phone, code }),
   });
@@ -3322,7 +3371,7 @@ export function signPublicContract(
   publicToken: string,
   data: { ticket: string; signatureDataUrl: string; signerName: string; amendmentId?: string },
 ) {
-  return apiFetch<Contract | ContractAmendment>(`/public/contracts/${slug}/${publicToken}/sign`, {
+  return apiFetch<Contract | ContractAmendment | ContractWitness>(`/public/contracts/${slug}/${publicToken}/sign`, {
     method: "POST",
     body: JSON.stringify(data),
   });

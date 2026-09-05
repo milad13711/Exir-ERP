@@ -6,12 +6,15 @@ import {
   fetchCrmContacts,
   fetchEmployees,
   fetchContractTemplates,
+  fetchContractCategories,
+  fetchUsers,
   type ContractType,
   type ContractPartyMode,
   type ContractLegalCategory,
   type ContractTemplate,
   type CrmContact,
   type Employee,
+  type TenantUser,
 } from "@/lib/api";
 
 const inputClass =
@@ -46,6 +49,11 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
 
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [category, setCategory] = useState("");
+  const [users, setUsers] = useState<TenantUser[]>([]);
+  const [referredSignerUserId, setReferredSignerUserId] = useState("");
+  const [guaranteeTerms, setGuaranteeTerms] = useState("");
 
   const [value, setValue] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -60,17 +68,19 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
     fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchEmployees().then(setEmployees).catch(() => setEmployees([]));
     fetchContractTemplates().then(setTemplates).catch(() => setTemplates([]));
+    fetchContractCategories().then(setCategories).catch(() => setCategories([]));
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
   const relevantTemplates = templates.filter((t) => t.partyMode === partyMode);
+  const selectedTemplate = templates.find((t) => t.id === templateId);
 
   function applyTemplate(id: string) {
     setTemplateId(id);
     const tpl = templates.find((t) => t.id === id);
-    if (tpl) {
-      if (tpl.type) setType(tpl.type);
-      if (!terms.trim()) setTerms(tpl.body);
-    }
+    // متن قالب اینجا در state ذخیره نمی‌شود — پیش‌نمایش خام آن نمایش داده می‌شود
+    // و جایگزینی فیلدها ({{شرکت}}، {{طرف_دوم}}، ...) سمت سرور در لحظه‌ی ثبت انجام می‌شود.
+    if (tpl?.type) setType(tpl.type);
   }
 
   const partyValid =
@@ -91,6 +101,9 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
         partyMode,
         type: partyMode === "EXTERNAL" ? type : undefined,
         legalCategory,
+        category: category.trim() || undefined,
+        guaranteeTerms: guaranteeTerms.trim() || undefined,
+        referredSignerUserId: referredSignerUserId || undefined,
         templateId: templateId || undefined,
         contactId: partyMode === "INTERNAL" ? undefined : contactId || undefined,
         employeeId: partyMode === "INTERNAL" ? employeeId : undefined,
@@ -242,15 +255,49 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
                 </option>
               ))}
             </select>
+            {selectedTemplate && (
+              <div className="text-[11.5px] text-muted leading-relaxed bg-slate-50 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap">
+                {selectedTemplate.body}
+              </div>
+            )}
           </div>
         )}
 
+        <div className="flex gap-2.5">
+          <div className="flex-1">
+            <label className={labelClass}>دسته‌بندی حقوقی</label>
+            <select value={legalCategory} onChange={(e) => setLegalCategory(e.target.value as ContractLegalCategory)} className={inputClass}>
+              {(Object.keys(LEGAL_CATEGORY_LABELS) as ContractLegalCategory[]).map((c) => (
+                <option key={c} value={c}>
+                  {LEGAL_CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className={labelClass}>دسته‌بندی کسب‌وکاری (اختیاری)</label>
+            <input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              list="contract-categories"
+              placeholder="مثلاً اجاره، پیمانکاری..."
+              className={inputClass}
+            />
+            <datalist id="contract-categories">
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+
         <div>
-          <label className={labelClass}>دسته‌بندی حقوقی</label>
-          <select value={legalCategory} onChange={(e) => setLegalCategory(e.target.value as ContractLegalCategory)} className={inputClass}>
-            {(Object.keys(LEGAL_CATEGORY_LABELS) as ContractLegalCategory[]).map((c) => (
-              <option key={c} value={c}>
-                {LEGAL_CATEGORY_LABELS[c]}
+          <label className={labelClass}>ارجاع امضای شرکت به (اختیاری)</label>
+          <select value={referredSignerUserId} onChange={(e) => setReferredSignerUserId(e.target.value)} className={inputClass}>
+            <option value="">فقط مالک/مدیر</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
               </option>
             ))}
           </select>
@@ -294,8 +341,19 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
         </div>
 
         <div>
-          <label className={labelClass}>شرح بندها و شرایط (اختیاری)</label>
+          <label className={labelClass}>شرح بندها و شرایط {selectedTemplate ? "(اختیاری — اگر خالی بماند، از قالب پر می‌شود)" : "(اختیاری)"}</label>
           <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={3} className={inputClass} />
+        </div>
+
+        <div>
+          <label className={labelClass}>ضمانت اجرا (اختیاری)</label>
+          <textarea
+            value={guaranteeTerms}
+            onChange={(e) => setGuaranteeTerms(e.target.value)}
+            rows={2}
+            placeholder="جریمه، وثیقه یا تعهدات در صورت نقض قرارداد..."
+            className={inputClass}
+          />
         </div>
 
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}

@@ -12,7 +12,7 @@ import {
   signPublicContract,
   ApiError,
   type Contract,
-  type ContractPartySide,
+  type ContractSignerSide,
 } from "@/lib/api";
 
 const OTP_LENGTH = 4;
@@ -31,7 +31,8 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const [ticket, setTicket] = useState("");
-  const [side, setSide] = useState<ContractPartySide>("PARTY_A");
+  const [side, setSide] = useState<ContractSignerSide>("PARTY_A");
+  const [witnessId, setWitnessId] = useState<string | undefined>(undefined);
   const [contract, setContract] = useState<Contract | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +89,7 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
       const c = await viewPublicContract(slug, publicToken, res.ticket);
       setTicket(res.ticket);
       setSide(res.side);
+      setWitnessId(res.witnessId);
       setContract(c);
       setStep("view");
     } catch (err) {
@@ -134,8 +136,10 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
 
-  const mySigned = contract ? (side === "PARTY_A" ? contract.partyASignedAt : contract.partyBSignedAt) : null;
-  const canSign = contract && !contract.isLocked && !mySigned && !signed;
+  const myWitness = side === "WITNESS" ? contract?.witnesses?.find((w) => w.id === witnessId) : undefined;
+  const mySigned =
+    side === "WITNESS" ? myWitness?.signedAt ?? null : contract ? (side === "PARTY_A" ? contract.partyASignedAt : contract.partyBSignedAt) : null;
+  const canSign = contract && !mySigned && !signed && (side === "WITNESS" || !contract.isLocked);
 
   return (
     <div dir="rtl" className="min-h-dvh bg-slate-50 flex flex-col">
@@ -272,14 +276,20 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
                 </div>
               </div>
 
+              {side === "WITNESS" && (
+                <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 text-center font-semibold">
+                  شما به‌عنوان شاهد این قرارداد دعوت شده‌اید
+                </div>
+              )}
+
               {error && <div className="text-[13px] text-danger font-semibold text-center">{error}</div>}
 
               {signed || mySigned ? (
                 <div className="bg-success-soft text-success text-[13px] font-bold text-center rounded-2xl p-4 flex items-center justify-center gap-2">
                   <CheckIcon className="w-4 h-4" />
-                  این قرارداد توسط شما امضا شد
+                  {side === "WITNESS" ? "شما به‌عنوان شاهد این قرارداد را امضا کردید" : "این قرارداد توسط شما امضا شد"}
                 </div>
-              ) : contract.isLocked ? (
+              ) : contract.isLocked && side !== "WITNESS" ? (
                 <div className="bg-slate-100 text-ink-soft text-[13px] font-bold text-center rounded-2xl p-4">
                   این قرارداد قبلاً توسط هر دو طرف امضا و قفل شده است
                 </div>
@@ -305,7 +315,7 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
                 )
               )}
 
-              {!contract.isLocked && !editSubmitted && (
+              {side !== "WITNESS" && !contract.isLocked && !editSubmitted && (
                 <form onSubmit={handleSubmitEditRequest} className="bg-white border border-border rounded-2xl p-4">
                   <div className="text-[12.5px] font-semibold mb-2">درخواست ویرایش (اختیاری)</div>
                   <textarea

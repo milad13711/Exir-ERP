@@ -1,17 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
-import { ContractsService } from './contracts.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { ContractsService, contractPartyName, contractSecondPartyName } from './contracts.service.js';
+import { ContractPdfService } from './contract-pdf.service.js';
 import { CreateContractDto } from './dto/create-contract.dto.js';
 import { UpdateContractDto } from './dto/update-contract.dto.js';
 import { TerminateContractDto } from './dto/terminate-contract.dto.js';
 import { RenewContractDto } from './dto/renew-contract.dto.js';
 import { SaveContractTemplateDto } from './dto/save-contract-template.dto.js';
 import { SignContractDto } from './dto/sign-contract.dto.js';
+import { AddWitnessDto } from './dto/add-witness.dto.js';
+import { SaveCompanySignatureDto } from './dto/save-company-signature.dto.js';
 
 @Controller('contracts')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -20,6 +25,8 @@ export class ContractsController {
   constructor(
     private readonly contracts: ContractsService,
     private readonly permissions: PermissionsService,
+    private readonly pdf: ContractPdfService,
+    private readonly controlDb: ControlPrismaService,
   ) {}
 
   // نکته: مسیرهای ثابت (stage-templates‌مانند) باید قبل از مسیرهای پارامتری
@@ -57,22 +64,75 @@ export class ContractsController {
     return this.contracts.expiringSoon(ctx);
   }
 
+  @Get('categories')
+  async listCategories(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'contracts');
+    return this.contracts.listCategories(ctx);
+  }
+
+  @Get('company-signature')
+  async getCompanySignature(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'contracts');
+    return this.contracts.getCompanySignature(ctx);
+  }
+
+  @Post('company-signature')
+  async saveCompanySignature(@Body() dto: SaveCompanySignatureDto, @Ctx() ctx: TenantRequestContext) {
+    return this.contracts.saveCompanySignature(ctx, dto);
+  }
+
   @Get()
   async list(
     @Query('type') type: string | undefined,
     @Query('status') status: string | undefined,
     @Query('contactId') contactId: string | undefined,
     @Query('legalCategory') legalCategory: string | undefined,
+    @Query('category') category: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertView(ctx, 'contracts');
-    return this.contracts.list(ctx, { type, status, contactId, legalCategory });
+    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'contracts');
     return this.contracts.detail(ctx, id);
+  }
+
+  @Get(':id/pdf')
+  async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'contracts');
+    const contract = await this.contracts.detail(ctx, id);
+    const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } });
+
+    const pdf = await this.pdf.render(
+      {
+        contractNo: contract.contractNo,
+        title: contract.title,
+        status: contract.status,
+        value: contract.value,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        terms: contract.terms,
+        guaranteeTerms: contract.guaranteeTerms,
+        isLocked: contract.isLocked,
+        contentHash: contract.contentHash,
+        partyASignerName: contract.partyASignerName,
+        partyASignatureDataUrl: contract.partyASignatureDataUrl,
+        partyASignedAt: contract.partyASignedAt,
+        partyBSignerName: contract.partyBSignerName,
+        partyBSignatureDataUrl: contract.partyBSignatureDataUrl,
+        partyBSignedAt: contract.partyBSignedAt,
+        firstPartyName: contractPartyName(contract),
+        secondPartyName: contractSecondPartyName(contract),
+        witnesses: contract.witnesses,
+      },
+      tenant.name,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="contract-${contract.contractNo}.pdf"`);
+    res.send(pdf);
   }
 
   @Post()
@@ -133,5 +193,24 @@ export class ContractsController {
   async signAmendment(@Param('amendmentId') amendmentId: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
     return this.contracts.signAmendmentAsCompany(ctx, amendmentId, dto);
+  }
+
+  @Get(':id/witnesses')
+  async witnesses(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'contracts');
+    return this.contracts.listWitnesses(ctx, id);
+  }
+
+  @Post(':id/witnesses')
+  async addWitness(@Param('id') id: string, @Body() dto: AddWitnessDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'contracts');
+    return this.contracts.addWitness(ctx, id, dto);
+  }
+
+  @Delete('witnesses/:witnessId')
+  async removeWitness(@Param('witnessId') witnessId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'contracts');
+    await this.contracts.removeWitness(ctx, witnessId);
+    return { ok: true };
   }
 }

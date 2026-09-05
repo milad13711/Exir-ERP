@@ -64,4 +64,17 @@ export class CreateContractDto {
   @IsOptional()
   @IsString()
   terms?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  guaranteeTerms?: string;
+
+  /** اگر مشخص شود، فقط مالک/مدیر یا همین کاربر می‌تواند به نمایندگی از شرکت این قرارداد را امضا کند. */
+  @IsOptional()
+  @IsString()
+  referredSignerUserId?: string;
 }

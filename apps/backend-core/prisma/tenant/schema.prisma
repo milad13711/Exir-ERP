@@ -68,6 +68,7 @@ model User {
   createdAppointments        Appointment[]              @relation("AppointmentCreatedBy")
   staffAvailabilitySlots     StaffAvailabilitySlot[]
   createdContracts           Contract[]
+  referredContractsToSign    Contract[]                 @relation("ContractReferredSigner")
   createdContractTemplates   ContractTemplate[]
   createdContractAmendments  ContractAmendment[]
   managedProjects            Project[]                  @relation("ProjectManager")
@@ -1741,6 +1742,7 @@ model Contract {
   type                 ContractType?
   partyMode            ContractPartyMode     @default(EXTERNAL)
   legalCategory        ContractLegalCategory @default(GENERAL)
+  category             String? // دسته‌بندی آزاد کسب‌وکاری (مثلاً «اجاره»، «پیمانکاری»، «خدمات») — مستقل از legalCategory
   templateId           String?
   contactId            String? // طرف اول — مشتری/تأمین‌کننده (EXTERNAL) یا یکی از طرفین (THIRD_PARTY)
   employeeId           String? // طرف اول برای قرارداد داخلی (INTERNAL)
@@ -1755,6 +1757,8 @@ model Contract {
   renewalReminderDays  Int                   @default(30)
   reminderSentAt       DateTime?
   terms                String? // شرح بندها و شرایط قرارداد
+  guaranteeTerms       String? // ضمانت اجرا — جریمه/وثیقه/تعهدات در صورت نقض قرارداد
+  referredSignerUserId String? // اگر مشخص شود، امضای شرکت فقط توسط مالک/مدیر یا همین کاربر ممکن است
   signedAt             DateTime?
   terminatedAt         DateTime?
   terminationReason    String?
@@ -1778,13 +1782,32 @@ model Contract {
   secondPartyContact CrmContact?           @relation("ContractSecondParty", fields: [secondPartyContactId], references: [id])
   template           ContractTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdBy          User?                 @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  referredSigner     User?                 @relation("ContractReferredSigner", fields: [referredSignerUserId], references: [id], onDelete: SetNull)
   editRequests       ContractEditRequest[]
   amendments         ContractAmendment[]
+  witnesses          ContractWitness[]
 
   @@index([status])
   @@index([endDate])
   @@index([type])
+  @@index([category])
   @@map("contracts")
+}
+
+/// شاهد قرارداد — امضای الکترونیک مستقل از طرفین اصلی، از طریق همان لینک عمومی قرارداد با OTP شماره‌ی خودش.
+model ContractWitness {
+  id               String    @id @default(uuid())
+  contractId       String
+  name             String
+  phone            String
+  signedAt         DateTime?
+  signatureDataUrl String?
+  createdAt        DateTime  @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_witnesses")
 }
 
 enum ContractPartySide {

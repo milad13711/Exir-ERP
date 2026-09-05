@@ -7,11 +7,12 @@ import { ContractsController } from './contracts.controller.js';
 import { ContractsService } from './contracts.service.js';
 import { ContractsReminderService } from './contracts-reminder.service.js';
 import { ContractsAutomationTriggers } from './contracts-automation.triggers.js';
+import { ContractPdfService } from './contract-pdf.service.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule, NotificationsModule],
   controllers: [ContractsController],
-  providers: [ContractsService, ContractsReminderService, ContractsAutomationTriggers],
+  providers: [ContractsService, ContractsReminderService, ContractsAutomationTriggers, ContractPdfService],
   exports: [ContractsService],
 })
 export class ContractsModule {}
