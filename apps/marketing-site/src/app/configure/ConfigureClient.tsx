@@ -9,6 +9,7 @@ import {
   fetchPublicIndustryTemplates,
   fetchQuote,
   fetchExchangeRate,
+  FALLBACK_USD_TOMAN_RATE,
   ApiError,
   type PublicPlan,
   type PublicModule,
@@ -38,7 +39,7 @@ export function ConfigureClient() {
   useEffect(() => {
     fetchExchangeRate()
       .then((r) => setUsdToToman(r.usdToToman))
-      .catch(() => setUsdToToman(950000));
+      .catch(() => setUsdToToman(FALLBACK_USD_TOMAN_RATE));
   }, []);
 
   const [leadOpen, setLeadOpen] = useState(false);

@@ -44,7 +44,10 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return res.json() as Promise<T>;
 }
 
-export type ExchangeRate = { usdToToman: number; asOf: string; source: "baha24" | "fallback" };
+export type ExchangeRate = { usdToToman: number; asOf: string; source: "tgju" | "baha24" | "fallback" };
+
+/** فقط برای وقتی خودِ فراخوانی /exchange-rate هم شکست بخورد (سرور بک‌اند در دسترس نباشد) — هم‌تراز با fallbackRate در PublicExchangeRateService. */
+export const FALLBACK_USD_TOMAN_RATE = 227000;
 
 export function fetchExchangeRate() {
   return apiFetch<ExchangeRate>("/public/catalog/exchange-rate");

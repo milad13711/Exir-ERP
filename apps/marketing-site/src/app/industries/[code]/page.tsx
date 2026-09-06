@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fetchPublicIndustryTemplates, fetchPublicModules, fetchExchangeRate } from "@/lib/api";
+import { fetchPublicIndustryTemplates, fetchPublicModules, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { industryContentOf, moduleContentOf, BRAND } from "@/lib/content";
 import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman, annualSupportPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
@@ -30,7 +30,7 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
   const [industry, modules, rate] = await Promise.all([
     getIndustry(code),
     fetchPublicModules().catch(() => []),
-    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+    fetchExchangeRate().catch(() => ({ usdToToman: FALLBACK_USD_TOMAN_RATE, asOf: "", source: "fallback" as const })),
   ]);
   if (!industry) notFound();
 

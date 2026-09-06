@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { fetchPublicModules, fetchExchangeRate } from "@/lib/api";
+import { fetchPublicModules, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { moduleContentOf } from "@/lib/content";
 import { moduleTomanPricing, FULL_LICENSE_USD, roundTomanToNiceNumber } from "@/lib/pricing";
 import { CategoryVisual } from "@/components/CategoryVisual";
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default async function ModulesPage() {
   const [modules, rate] = await Promise.all([
     fetchPublicModules().catch(() => []),
-    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+    fetchExchangeRate().catch(() => ({ usdToToman: FALLBACK_USD_TOMAN_RATE, asOf: "", source: "fallback" as const })),
   ]);
   const byCategory = new Map<string, typeof modules>();
   for (const m of modules) {

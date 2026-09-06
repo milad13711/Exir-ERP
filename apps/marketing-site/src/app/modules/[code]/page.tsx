@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate } from "@/lib/api";
+import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { moduleContentOf, BRAND } from "@/lib/content";
 import { moduleTomanPricing, annualSupportPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
@@ -32,7 +32,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
   const [mod, industries, rate] = await Promise.all([
     getModule(code),
     fetchPublicIndustryTemplates().catch(() => []),
-    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+    fetchExchangeRate().catch(() => ({ usdToToman: FALLBACK_USD_TOMAN_RATE, asOf: "", source: "fallback" as const })),
   ]);
   if (!mod) notFound();
 

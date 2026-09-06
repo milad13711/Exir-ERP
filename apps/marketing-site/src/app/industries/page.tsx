@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { fetchPublicIndustryTemplates, fetchExchangeRate } from "@/lib/api";
+import { fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman } from "@/lib/pricing";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
 import { formatToman, formatUsd } from "@/lib/persian";
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function IndustriesPage() {
   const [industries, rate] = await Promise.all([
     fetchPublicIndustryTemplates().catch(() => []),
-    fetchExchangeRate().catch(() => ({ usdToToman: 950000, asOf: "", source: "fallback" as const })),
+    fetchExchangeRate().catch(() => ({ usdToToman: FALLBACK_USD_TOMAN_RATE, asOf: "", source: "fallback" as const })),
   ]);
 
   return (
