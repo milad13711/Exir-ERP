@@ -12,10 +12,10 @@ import { UpdateCurrencyDto } from './dto/update-currency.dto.js';
 /**
  * نرخ‌های ارز — تومان ارز پایه‌ی ضمنی است و ردیفی اینجا ندارد. هر ارز به‌طور
  * پیش‌فرض دستی است؛ با فعال‌سازی `autoUpdate` (فیلد `autoUpdate` همین DTO)،
- * `ExchangeRatesService` هر چند ساعت یک‌بار نرخ را از baha24.com (نرخ آزاد
- * بازار) به‌روزرسانی می‌کند (نیازمند `BAHA24_API_KEY` در محیط سرور — تا
- * وقتی تنظیم نشود، به‌روزرسانی خودکار عملاً غیرفعال است و نرخ همچنان دستی
- * می‌ماند).
+ * `ExchangeRatesService` هر چند ساعت یک‌بار نرخ را از tgju.org (نرخ آزاد
+ * بازار، بدون نیاز به کلید) به‌روزرسانی می‌کند — baha24.com فقط اگر
+ * `BAHA24_API_KEY` تنظیم شده باشد و tgju برای آن ارز جواب نداد، جایگزین
+ * می‌شود.
  */
 @Controller('settings/currencies')
 @UseGuards(JwtAuthGuard, ModuleGuard)

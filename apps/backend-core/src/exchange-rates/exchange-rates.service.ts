@@ -4,12 +4,21 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 
 /**
- * Codes this system supports auto-updating — baha24.com's `GET
- * /v1/price/{symbol}` takes any uppercase symbol, so this is just the
- * subset we bother requesting (avoids one API call per obscure currency
- * code a tenant might add). Add a code here to support auto-updating it.
+ * Codes this system supports auto-updating, mapped to their tgju.org free-
+ * market indicator slug. tgju needs no API key and returns a live rate in
+ * Rial (hence ÷10 for Toman in fetchTgjuRate) — same source wired into
+ * PublicExchangeRateService for the marketing site. Add a code here (and
+ * its tgju slug) to support auto-updating it.
  */
-const SUPPORTED_CODES = ['USD', 'EUR', 'GBP', 'AED', 'TRY', 'CNY'];
+const TGJU_SLUGS: Record<string, string> = {
+  USD: 'price_dollar_rl',
+  EUR: 'price_eur',
+  GBP: 'price_gbp',
+  AED: 'price_aed',
+  TRY: 'price_try',
+  CNY: 'price_cny',
+};
+const SUPPORTED_CODES = Object.keys(TGJU_SLUGS);
 
 const BAHA24_BASE_URL = 'https://baha24.com/api';
 
@@ -51,9 +60,9 @@ function extractRate(payload: unknown): number | null {
  * به‌روزرسانی دوره‌ای نرخ ارزهایی که تننت صریحاً autoUpdate را برایشان
  * فعال کرده — همان کاری که BillingDunningService برای یادآوری تمدید
  * می‌کند: یک cron در سطح کنترل‌پلین که روی دیتابیس هر تننت وصل می‌شود.
- * بدون BAHA24_API_KEY، این سرویس کاملاً غیرفعال می‌ماند (نه خطا، فقط
- * skip) — یعنی می‌تواند بدون کلید در پروداکشن دیپلوی و بعداً با افزودن
- * فقط یک متغیر محیطی فعال شود.
+ * منبع اصلی tgju.org است (بدون نیاز به کلید، همیشه فعال)؛ baha24 فقط اگر
+ * BAHA24_API_KEY تنظیم شده باشد، برای ارزهایی که tgju نتوانست پاسخ بدهد،
+ * به‌عنوان جایگزین دوم امتحان می‌شود.
  */
 @Injectable()
 export class ExchangeRatesService {
@@ -64,17 +73,16 @@ export class ExchangeRatesService {
     private readonly tenantPrisma: TenantPrismaService,
   ) {}
 
+  /** همیشه true است چون tgju نیازی به کلید ندارد — برای سازگاری با کد/مستندات قدیمی نگه داشته شده. */
   isConfigured(): boolean {
-    return Boolean(process.env.BAHA24_API_KEY);
+    return true;
   }
 
   @Cron(CronExpression.EVERY_3_HOURS)
   async updateAllTenants(): Promise<void> {
-    if (!this.isConfigured()) return;
-
     const rates = await this.fetchRates();
     if (Object.keys(rates).length === 0) {
-      this.logger.warn('No rates fetched from baha24 this cycle — skipping tenant updates');
+      this.logger.warn('No rates fetched this cycle — skipping tenant updates');
       return;
     }
 
@@ -95,31 +103,59 @@ export class ExchangeRatesService {
     }
   }
 
-  /** One request per supported symbol — baha24 has no documented bulk endpoint field mapping we can rely on. */
-  private async fetchRates(): Promise<Record<string, number>> {
+  private async fetchTgjuRate(code: string): Promise<number | null> {
+    const slug = TGJU_SLUGS[code];
+    if (!slug) return null;
+    try {
+      const res = await fetch(`https://api.tgju.org/v1/market/indicator/profile/${slug}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) {
+        this.logger.warn(`tgju HTTP ${res.status} for ${code}`);
+        return null;
+      }
+      const body = (await res.json()) as { response?: { summary?: { price?: { plain?: unknown } } } };
+      const rial = extractRate(body.response?.summary?.price?.plain);
+      return rial !== null ? rial / 10 : null;
+    } catch (err) {
+      this.logger.warn(`tgju fetch failed for ${code}: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  private async fetchBaha24Rate(code: string): Promise<number | null> {
     const apiKey = process.env.BAHA24_API_KEY;
+    if (!apiKey) return null;
+    try {
+      const res = await fetch(`${BAHA24_BASE_URL}/v1/price/${code}`, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
+      });
+      if (!res.ok) {
+        this.logger.warn(`baha24 HTTP ${res.status} for ${code}`);
+        return null;
+      }
+      const rate = extractRate(await res.json());
+      if (rate === null) this.logger.warn(`Could not parse a rate for ${code} from baha24 response`);
+      return rate;
+    } catch (err) {
+      this.logger.warn(`Failed fetching baha24 rate for ${code}: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /** tgju اول امتحان می‌شود (بدون کلید)؛ فقط اگر شکست خورد و کلید baha24 تنظیم شده، آن را جایگزین می‌کند. */
+  private async fetchRates(): Promise<Record<string, number>> {
     const rates: Record<string, number> = {};
 
     await Promise.all(
       SUPPORTED_CODES.map(async (code) => {
-        try {
-          const res = await fetch(`${BAHA24_BASE_URL}/v1/price/${code}`, {
-            headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
-          });
-          if (!res.ok) {
-            this.logger.warn(`baha24 HTTP ${res.status} for ${code}`);
-            return;
-          }
-          const body = await res.json();
-          const rate = extractRate(body);
-          if (rate === null) {
-            this.logger.warn(`Could not parse a rate for ${code} from baha24 response: ${JSON.stringify(body)}`);
-            return;
-          }
-          rates[code] = rate;
-        } catch (err) {
-          this.logger.warn(`Failed fetching baha24 rate for ${code}: ${err instanceof Error ? err.message : err}`);
+        const tgjuRate = await this.fetchTgjuRate(code);
+        if (tgjuRate !== null) {
+          rates[code] = tgjuRate;
+          return;
         }
+        const baha24Rate = await this.fetchBaha24Rate(code);
+        if (baha24Rate !== null) rates[code] = baha24Rate;
       }),
     );
 
