@@ -10,7 +10,17 @@ import { CartButton } from "../../CartButton";
 
 type ProductWithUrls = PublicStoreProduct & { images: string[] };
 
-export function ProductClient({ slug, storeName, product }: { slug: string; storeName: string; product: ProductWithUrls }) {
+export function ProductClient({
+  slug,
+  storeName,
+  product,
+  relatedProducts,
+}: {
+  slug: string;
+  storeName: string;
+  product: ProductWithUrls;
+  relatedProducts: ProductWithUrls[];
+}) {
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
@@ -143,6 +153,38 @@ export function ProductClient({ slug, storeName, product }: { slug: string; stor
             ) : null}
           </div>
         </div>
+
+        {relatedProducts.length > 0 ? (
+          <div className="mt-14">
+            <h2 className="text-[15px] font-extrabold mb-4">کالاهای مشابه</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {relatedProducts.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/shop/${slug}/p/${p.slug}`}
+                  className="group flex flex-col rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all"
+                >
+                  <div className="aspect-square bg-slate-50 overflow-hidden flex items-center justify-center">
+                    {p.images[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.images[0]}
+                        alt={p.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="text-muted text-[11px]">بدون تصویر</div>
+                    )}
+                  </div>
+                  <div className="p-3 flex flex-col gap-1">
+                    <div className="text-[12.5px] font-bold line-clamp-2 min-h-[2.3em]">{p.name}</div>
+                    <span className="text-[12.5px] font-extrabold">{formatToman(p.price)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );

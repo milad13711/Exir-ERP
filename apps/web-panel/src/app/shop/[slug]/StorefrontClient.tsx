@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { SearchIcon } from "@/components/icons";
 import { formatToman } from "@/lib/persian";
 import { trackPublicStoreEvent, type PublicStoreInfo, type PublicStoreProduct } from "@/lib/api";
 import { getSessionToken, getCart, cartCount } from "@/lib/store-cart";
@@ -19,6 +20,8 @@ export function StorefrontClient({
   products: ProductWithUrls[];
 }) {
   const [count, setCount] = useState(() => cartCount(getCart(slug)));
+  const [category, setCategory] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const sessionToken = getSessionToken(slug);
@@ -27,6 +30,20 @@ export function StorefrontClient({
     window.addEventListener("exir-store-cart-changed", onChange);
     return () => window.removeEventListener("exir-store-cart-changed", onChange);
   }, [slug]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) if (p.category) set.add(p.category);
+    return [...set].sort((a, b) => a.localeCompare(b, "fa"));
+  }, [products]);
+
+  const visibleProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (category && p.category !== category) return false;
+      if (query.trim() && !p.name.includes(query.trim())) return false;
+      return true;
+    });
+  }, [products, category, query]);
 
   return (
     <div dir="rtl" className="min-h-dvh bg-white flex flex-col">
@@ -45,14 +62,53 @@ export function StorefrontClient({
           </div>
           <CartButton slug={slug} count={count} />
         </div>
+
+        {products.length > 0 ? (
+          <div className="max-w-[1100px] mx-auto px-5 pb-4 flex flex-col gap-3">
+            <div className="relative">
+              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5 pointer-events-none" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="جستجوی کالا..."
+                className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
+              />
+            </div>
+            {categories.length > 1 ? (
+              <div className="flex items-center gap-2 overflow-x-auto -mx-5 px-5 pb-0.5">
+                <button
+                  onClick={() => setCategory(null)}
+                  className={`shrink-0 text-[12px] font-bold px-3.5 py-2 rounded-xl cursor-pointer transition-colors ${
+                    category === null ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
+                  }`}
+                >
+                  همه
+                </button>
+                {categories.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCategory(c)}
+                    className={`shrink-0 text-[12px] font-bold px-3.5 py-2 rounded-xl cursor-pointer transition-colors ${
+                      category === c ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <main className="flex-1 max-w-[1100px] w-full mx-auto px-5 py-8">
         {products.length === 0 ? (
           <div className="text-center text-muted text-sm py-20">فعلاً کالایی برای نمایش وجود ندارد.</div>
+        ) : visibleProducts.length === 0 ? (
+          <div className="text-center text-muted text-sm py-20">کالایی با این مشخصات پیدا نشد.</div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {products.map((p) => (
+            {visibleProducts.map((p) => (
               <Link
                 key={p.id}
                 href={`/shop/${slug}/p/${p.slug}`}

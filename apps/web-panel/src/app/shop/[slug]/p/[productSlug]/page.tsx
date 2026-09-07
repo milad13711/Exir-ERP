@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { fetchPublicStoreProduct, fetchPublicStoreInfo } from "@/lib/api";
+import { fetchPublicStoreProduct, fetchPublicStoreInfo, fetchPublicStoreProducts } from "@/lib/api";
 import { ProductClient } from "./ProductClient";
 
 export const revalidate = 0;
@@ -39,14 +39,20 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string; productSlug: string }> }) {
   const { slug, productSlug } = await params;
-  const [product, info] = await Promise.all([
+  const [product, info, allProducts] = await Promise.all([
     fetchPublicStoreProduct(slug, productSlug).catch(() => null),
     fetchPublicStoreInfo(slug).catch(() => null),
+    fetchPublicStoreProducts(slug).catch(() => []),
   ]);
   if (!product) notFound();
 
   const origin = await siteOrigin();
   const imageUrls = product.images.map((_, i) => `${origin}/api/public/store/${slug}/products/${productSlug}/image/${i}`);
+
+  const relatedProducts = allProducts
+    .filter((p) => p.slug !== productSlug && p.category && p.category === product.category)
+    .slice(0, 4)
+    .map((p) => ({ ...p, images: p.images.map((_, i) => `${origin}/api/public/store/${slug}/products/${p.slug}/image/${i}`) }));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -65,7 +71,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <ProductClient slug={slug} storeName={info?.name ?? "فروشگاه"} product={{ ...product, images: imageUrls }} />
+      <ProductClient
+        slug={slug}
+        storeName={info?.name ?? "فروشگاه"}
+        product={{ ...product, images: imageUrls }}
+        relatedProducts={relatedProducts}
+      />
     </>
   );
 }
