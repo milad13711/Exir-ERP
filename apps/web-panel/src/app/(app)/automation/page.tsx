@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
+import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { PlusIcon, BoltIcon, TrashIcon } from "@/components/icons";
+import { PlusIcon, BoltIcon, TrashIcon, BellIcon, SendIcon, TasksIcon, ChevronDownIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import {
   fetchAutomationRules,
@@ -21,6 +22,12 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   NOTIFY_IN_APP: "اعلان",
   SEND_SMS: "پیامک",
   CREATE_TASK: "وظیفه",
+};
+
+const ACTION_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  NOTIFY_IN_APP: BellIcon,
+  SEND_SMS: SendIcon,
+  CREATE_TASK: TasksIcon,
 };
 
 export default function AutomationPage() {
@@ -111,16 +118,9 @@ export default function AutomationPage() {
           rules.map((rule) => {
             const trigger = triggerByCode.get(rule.triggerCode);
             return (
-              <Card key={rule.id} className="p-4">
+              <Card key={rule.id} className={clsx("p-4", !rule.isActive && "opacity-60")}>
                 <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="text-[13.5px] font-bold">{rule.name}</div>
-                    <div className="text-[11.5px] text-muted mt-0.5">
-                      تریگر: {trigger?.label ?? rule.triggerCode}
-                      {" · "}
-                      {rule.actions.length} اقدام: {rule.actions.map((a) => ACTION_TYPE_LABELS[a.type] ?? a.type).join("، ")}
-                    </div>
-                  </div>
+                  <div className="text-[13.5px] font-bold">{rule.name}</div>
                   <div className="flex items-center gap-2">
                     <Badge tone={rule.isActive ? "success" : "neutral"}>{rule.isActive ? "فعال" : "غیرفعال"}</Badge>
                     <button
@@ -137,6 +137,29 @@ export default function AutomationPage() {
                     >
                       <TrashIcon className="w-3.5 h-3.5" />
                     </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-warning-soft text-warning rounded-xl px-3 py-2 text-[12px] font-bold">
+                    <BoltIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[10px] font-semibold opacity-70">وقتی</span>
+                    {trigger?.label ?? rule.triggerCode}
+                  </div>
+                  <ChevronDownIcon className="w-3.5 h-3.5 text-muted -rotate-90 shrink-0" />
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {rule.actions.map((a, i) => {
+                      const ActionIcon = ACTION_TYPE_ICONS[a.type];
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center gap-1.5 bg-primary-soft text-primary rounded-xl px-3 py-2 text-[12px] font-bold"
+                        >
+                          {ActionIcon ? <ActionIcon className="w-3.5 h-3.5 shrink-0" /> : null}
+                          {ACTION_TYPE_LABELS[a.type] ?? a.type}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -6,7 +6,15 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CalendarIcon, PlusIcon, ChevronDownIcon, SettingsIcon, PhoneIcon, SendIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
-import { toPersianDigits, formatToman, formatJalaliDateTime, toJalali, toGregorian, JALALI_MONTHS } from "@/lib/persian";
+import {
+  toPersianDigits,
+  formatToman,
+  formatJalaliDateTime,
+  toJalali,
+  toGregorian,
+  JALALI_MONTHS,
+  WEEKDAYS_SHORT_FA,
+} from "@/lib/persian";
 import {
   fetchAppointments,
   fetchServiceTypes,
@@ -49,6 +57,20 @@ function dayBounds(date: Date) {
   const to = new Date(date);
   to.setHours(23, 59, 59, 999);
   return { from, to };
+}
+
+/** هفته‌ی ایرانی از شنبه شروع می‌شود — تاریخ شنبه‌ی همان هفته را برمی‌گرداند. */
+function startOfWeek(date: Date) {
+  const d = new Date(date);
+  const diff = (d.getDay() + 1) % 7; // فاصله تا شنبه (getDay: 0=یکشنبه..6=شنبه)
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** کلید محلی yyyy-mm-dd (نه UTC) — toISOString برای منطقه‌ی زمانی ایران می‌تواند به روز قبل لغزش کند. */
+function dateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 type ViewMode = "day" | "upcoming" | "history";
@@ -148,6 +170,7 @@ export default function BookingPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [weekCounts, setWeekCounts] = useState<Record<string, number>>({});
   const { me } = useWorkspace();
 
   async function copyBookingLink() {
@@ -182,6 +205,29 @@ export default function BookingPage() {
   useEffect(() => {
     fetchServiceTypes().then(setServiceTypes).catch(() => setServiceTypes([]));
   }, []);
+
+  const weekStart = useMemo(() => startOfWeek(selectedDate), [selectedDate]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i)),
+    [weekStart],
+  );
+
+  useEffect(() => {
+    if (viewMode !== "day") return;
+    const from = weekStart;
+    const to = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7);
+    fetchAppointments({ from: from.toISOString(), to: to.toISOString() })
+      .then((list) => {
+        const counts: Record<string, number> = {};
+        for (const a of list) {
+          if (a.status === "PENDING_COORDINATION" || a.status === "CANCELLED") continue;
+          const k = dateKey(new Date(a.startAt));
+          counts[k] = (counts[k] ?? 0) + 1;
+        }
+        setWeekCounts(counts);
+      })
+      .catch(() => setWeekCounts({}));
+  }, [weekStart, viewMode]);
 
   function shiftDay(delta: number) {
     const { year, month, day } = toJalali(selectedDate);
@@ -289,28 +335,61 @@ export default function BookingPage() {
       </div>
 
       {viewMode === "day" && (
-        <div className="flex items-center justify-between gap-3 mt-4 mb-4">
-          <button
-            onClick={() => shiftDay(-1)}
-            className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer"
-            aria-label="روز قبل"
-          >
-            <ChevronDownIcon className="w-4 h-4 -rotate-90" />
-          </button>
-          <div className="flex items-center gap-2.5">
-            <CalendarIcon className="w-4 h-4 text-muted" />
-            <div className="text-[14px] font-bold">
-              {toPersianDigits(jalali.day)} {JALALI_MONTHS[jalali.month - 1]} {toPersianDigits(jalali.year)}
-              {isToday ? <span className="text-primary text-[11.5px] font-bold mr-2">(امروز)</span> : null}
+        <div className="mt-4 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => shiftDay(-7)}
+              className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer shrink-0"
+              aria-label="هفته قبل"
+            >
+              <ChevronDownIcon className="w-4 h-4 -rotate-90" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <CalendarIcon className="w-4 h-4 text-muted" />
+              <div className="text-[14px] font-bold">
+                {toPersianDigits(jalali.day)} {JALALI_MONTHS[jalali.month - 1]} {toPersianDigits(jalali.year)}
+                {isToday ? <span className="text-primary text-[11.5px] font-bold mr-2">(امروز)</span> : null}
+              </div>
             </div>
+            <button
+              onClick={() => shiftDay(7)}
+              className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer shrink-0"
+              aria-label="هفته بعد"
+            >
+              <ChevronDownIcon className="w-4 h-4 rotate-90" />
+            </button>
           </div>
-          <button
-            onClick={() => shiftDay(1)}
-            className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-ink-soft cursor-pointer"
-            aria-label="روز بعد"
-          >
-            <ChevronDownIcon className="w-4 h-4 rotate-90" />
-          </button>
+
+          <div className="grid grid-cols-7 gap-1.5 mt-3">
+            {weekDays.map((d) => {
+              const k = dateKey(d);
+              const dj = toJalali(d);
+              const count = weekCounts[k] ?? 0;
+              const selected = dateKey(d) === dateKey(selectedDate);
+              const today = dateKey(d) === dateKey(new Date());
+              return (
+                <button
+                  key={k}
+                  onClick={() => setSelectedDate(new Date(d.getFullYear(), d.getMonth(), d.getDate()))}
+                  className={clsx(
+                    "flex flex-col items-center gap-1 rounded-xl py-2.5 cursor-pointer border transition-colors",
+                    selected ? "bg-primary border-primary text-white" : "bg-surface border-border text-ink-soft hover:border-primary/40",
+                  )}
+                >
+                  <span className="text-[10.5px] font-semibold opacity-80">{WEEKDAYS_SHORT_FA[d.getDay()]}</span>
+                  <span className={clsx("text-[13px] font-extrabold", today && !selected && "text-primary")}>
+                    {toPersianDigits(dj.day)}
+                  </span>
+                  <span
+                    className={clsx(
+                      "w-1.5 h-1.5 rounded-full",
+                      count > 0 ? (selected ? "bg-white" : "bg-primary") : "bg-transparent",
+                    )}
+                  />
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
