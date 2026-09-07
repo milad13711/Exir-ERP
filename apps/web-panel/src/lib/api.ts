@@ -1,4 +1,15 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+// Client components run in the browser and use the relative NEXT_PUBLIC_API_URL
+// (baked in as "/api" — see apps/web-panel/Dockerfile — proxied same-origin by
+// nginx). Server components (the public /shop storefront's generateMetadata
+// and initial render, added for online-store) run inside this container and a
+// relative path has no meaning to server-side fetch(); they need the backend's
+// internal Docker-network address instead — same fix already proven on the
+// marketing site (see apps/marketing-site/src/lib/api.ts) for the identical
+// hairpin-NAT limitation.
+export const API_URL =
+  typeof window === "undefined"
+    ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api");
 export const TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG ?? "exir-demo";
 
 const TOKEN_KEY = "exir_access_token";
@@ -64,6 +75,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
+      cache: "no-store",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -3777,6 +3789,146 @@ export function viewPublicSurvey(slug: string, token: string) {
 
 export function submitPublicSurvey(slug: string, token: string, data: { driverRating?: number; productRating?: number; note?: string }) {
   return apiFetch<DeliverySurvey>(`/public/survey/${slug}/${token}/submit`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ── فروشگاه آنلاین (Online Store) ────────────────────────────────────────
+
+export type StoreProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  salePrice: number;
+  available: number;
+  reservedQty: number;
+  isPubliclyListed: boolean;
+  publicSlug: string | null;
+  publicDescription: string | null;
+  publicImages: string[];
+};
+
+export type StoreOrderStatus = "PENDING" | "CONFIRMED" | "PACKED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+
+export type StoreOrderLine = {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type StoreOrder = {
+  id: string;
+  orderNo: number;
+  contactId: string | null;
+  customerName: string;
+  customerPhone: string;
+  shippingAddress: string;
+  notes: string | null;
+  status: StoreOrderStatus;
+  subtotal: number;
+  trackingCode: string | null;
+  createdAt: string;
+  confirmedAt: string | null;
+  packedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+  lines: StoreOrderLine[];
+};
+
+export type StoreAnalyticsSummary = {
+  periodDays: number;
+  uniqueVisitors: number;
+  totalOrders: number;
+  revenue: number;
+  ordersByStatus: Partial<Record<StoreOrderStatus, number>>;
+  abandonedCarts: number;
+  mostViewedProducts: { productId: string; name: string; views: number; avgDwellSeconds: number | null }[];
+};
+
+export function fetchStoreProducts() {
+  return apiFetch<StoreProduct[]>("/online-store/products");
+}
+
+export function updateStoreListing(
+  productId: string,
+  data: { isPubliclyListed: boolean; publicSlug?: string; publicDescription?: string; publicImages?: string[] },
+) {
+  return apiFetch<StoreProduct>(`/online-store/products/${productId}/listing`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function fetchStoreOrders(status?: string) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<StoreOrder[]>(`/online-store/orders${qs}`);
+}
+
+export function fetchStoreOrder(id: string) {
+  return apiFetch<StoreOrder>(`/online-store/orders/${id}`);
+}
+
+export function updateStoreOrderStatus(id: string, data: { status: StoreOrderStatus; trackingCode?: string }) {
+  return apiFetch<StoreOrder>(`/online-store/orders/${id}/status`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchStoreAnalyticsSummary(days = 7) {
+  return apiFetch<StoreAnalyticsSummary>(`/online-store/analytics/summary?days=${days}`);
+}
+
+// ── نمای عمومی فروشگاه (بدون ورود) ───────────────────────────────────────
+
+export type PublicStoreInfo = { name: string; themeColor: string | null; logoUrl: string | null };
+
+export type PublicStoreProduct = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  images: string[];
+  price: number;
+  unit: string;
+  category: string | null;
+  inStock: boolean;
+  available: number;
+};
+
+export function fetchPublicStoreInfo(slug: string) {
+  return apiFetch<PublicStoreInfo>(`/public/store/${slug}`);
+}
+
+export function fetchPublicStoreProducts(slug: string) {
+  return apiFetch<PublicStoreProduct[]>(`/public/store/${slug}/products`);
+}
+
+export function fetchPublicStoreProduct(slug: string, productSlug: string) {
+  return apiFetch<PublicStoreProduct>(`/public/store/${slug}/products/${productSlug}`);
+}
+
+export function trackPublicStoreEvent(
+  slug: string,
+  data: { sessionToken: string; type: "PAGE_VIEW" | "PRODUCT_VIEW" | "PRODUCT_DWELL" | "ADD_TO_CART" | "ORDER_PLACED"; productId?: string; meta?: Record<string, unknown> },
+) {
+  return apiFetch<{ ok: true }>(`/public/store/${slug}/track`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function placePublicStoreOrder(
+  slug: string,
+  data: {
+    customerName: string;
+    customerPhone: string;
+    shippingAddress: string;
+    notes?: string;
+    sessionToken?: string;
+    lines: { productId: string; quantity: number }[];
+  },
+) {
+  return apiFetch<{ orderNo: number; status: StoreOrderStatus }>(`/public/store/${slug}/orders`, {
     method: "POST",
     body: JSON.stringify(data),
   });

@@ -103,6 +103,12 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # Server components under /shop (the public online-store storefront)
+      # run inside this container and need the backend's internal
+      # Docker-network address — same hairpin-NAT limitation already fixed
+      # for the marketing site (see that service's identical comment below).
+      API_URL_INTERNAL: http://backend:3001/api
 
   # Internal Exir team tool (tenant directory, subscriptions, support) — NOT
   # part of what a customer's on-premise install needs; only present here

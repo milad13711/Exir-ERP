@@ -42,6 +42,7 @@ export const primaryNav: NavItem[] = [
   { href: "/contracts", label: "مدیریت قرارداد", icon: DocsIcon, moduleCode: "contracts" },
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet" },
+  { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon },
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation" },

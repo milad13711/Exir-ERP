@@ -4,6 +4,7 @@ import { TenantsModule } from '../tenants/tenants.module.js';
 import { BookingModule } from '../booking/booking.module.js';
 import { ContractsModule } from '../contracts/contracts.module.js';
 import { FleetModule } from '../fleet/fleet.module.js';
+import { OnlineStoreModule } from '../online-store/online-store.module.js';
 import { PublicSignupService } from './public-signup.service.js';
 import { PublicSignupController } from './public-signup.controller.js';
 import { PublicCatalogController } from './public-catalog.controller.js';
@@ -19,9 +20,11 @@ import { PublicFleetOfferController } from './public-fleet-offer.controller.js';
 import { PublicSurveyService } from './public-survey.service.js';
 import { PublicSurveyController } from './public-survey.controller.js';
 import { PublicExchangeRateService } from './public-exchange-rate.service.js';
+import { PublicStoreService } from './public-store.service.js';
+import { PublicStoreController } from './public-store.controller.js';
 
 @Module({
-  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule],
+  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule],
   controllers: [
     PublicSignupController,
     PublicCatalogController,
@@ -31,6 +34,7 @@ import { PublicExchangeRateService } from './public-exchange-rate.service.js';
     PublicBookingPaymentController,
     PublicFleetOfferController,
     PublicSurveyController,
+    PublicStoreController,
   ],
   providers: [
     PublicSignupService,
@@ -40,6 +44,7 @@ import { PublicExchangeRateService } from './public-exchange-rate.service.js';
     PublicFleetOfferService,
     PublicSurveyService,
     PublicExchangeRateService,
+    PublicStoreService,
   ],
 })
 export class PublicModule {}

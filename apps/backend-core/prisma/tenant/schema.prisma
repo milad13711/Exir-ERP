@@ -324,6 +324,7 @@ model CrmContact {
   contractsAsSecondParty    Contract[]                 @relation("ContractSecondParty")
   projects                  Project[]
   shipments                 Shipment[]
+  storeOrders               StoreOrder[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1044,6 +1045,16 @@ model Product {
   reorderPoint Int      @default(0) // نقطه سفارش مجدد؛ ۰ یعنی هشدار غیرفعال
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
+
+  // فروشگاه آنلاین — کالا فقط وقتی isPubliclyListed=true در سایت عمومی نشان
+  // داده می‌شود؛ reservedQty یک شمارنده‌ی مستقل از StockMovement است (نه یک
+  // تراکنش انبار واقعی) که هنگام ثبت سفارش افزایش و هنگام لغو/ارسال سفارش
+  // تسویه می‌شود — موجودی قابل‌فروش = currentStock(movements) − reservedQty.
+  isPubliclyListed  Boolean  @default(false)
+  publicSlug        String?  @unique
+  publicDescription String?
+  publicImages      String[] @default([]) // data URI هر تصویر (بدون فضای ذخیره‌سازی فایل جداگانه)
+  reservedQty       Int      @default(0)
 
   // قیمت‌گذاری ارزی — وقتی currencyId ست شده، costPrice/salePrice معادل
   // تومانی‌شان با نرخ لحظه‌ای Currency.rate محاسبه و نمایش داده می‌شود.
@@ -2086,4 +2097,86 @@ model DeliverySurvey {
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@map("fleet_delivery_surveys")
+}
+
+// ── فروشگاه آنلاین ───────────────────────────────────────────────────────
+// ماژول نصبی جدا: نمای عمومی (بدون نیاز به ورود) کالاهای isPubliclyListed
+// را نشان می‌دهد، سفارش ثبت می‌کند (بدون درگاه پرداخت — فقط ثبت سفارش،
+// طبق تصمیم صریح صاحب محصول)، و موجودی مرتبط را رزرو می‌کند تا فروش بیش
+// از ظرفیت واقعی انبار رخ ندهد. رویدادهای تحلیلی (بازدید/مکث/افزودن به
+// سبد) با یک sessionToken سمت کلاینت (بدون نیاز به ورود کاربر) ثبت می‌شوند.
+
+enum StoreOrderStatus {
+  PENDING // تازه ثبت شده — موجودی رزرو شده، هنوز تأیید نشده
+  CONFIRMED // تننت سفارش را تأیید کرد
+  PACKED // بسته‌بندی شد
+  SHIPPED // ارسال شد — رزرو به کسر واقعی موجودی (StockMovement) تبدیل می‌شود
+  DELIVERED
+  CANCELLED // رزرو موجودی آزاد می‌شود
+}
+
+model StoreOrder {
+  id              String           @id @default(uuid())
+  orderNo         Int              @unique @default(autoincrement())
+  contactId       String?
+  customerName    String
+  customerPhone   String
+  shippingAddress String
+  notes           String?
+  status          StoreOrderStatus @default(PENDING)
+  subtotal        Int // تومان — مجموع خطوط، در لحظه‌ی ثبت
+  trackingCode    String?
+  sessionToken    String? // برای اتصال این سفارش به رویدادهای تحلیلی همان بازدیدکننده
+  createdAt       DateTime         @default(now())
+  confirmedAt     DateTime?
+  packedAt        DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+
+  contact CrmContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lines   StoreOrderLine[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([contactId])
+  @@map("store_orders")
+}
+
+model StoreOrderLine {
+  id          String @id @default(uuid())
+  orderId     String
+  productId   String // بدون رابطه‌ی FK عمدی — حتی اگر بعداً کالا حذف/تغییر کرد، این خط تاریخی دست‌نخورده می‌ماند
+  productName String // اسنپ‌شات نام کالا در لحظه‌ی سفارش
+  quantity    Int
+  unitPrice   Int // تومان — اسنپ‌شات قیمت در لحظه‌ی سفارش
+  lineTotal   Int
+
+  order StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("store_order_lines")
+}
+
+enum StoreAnalyticsEventType {
+  PAGE_VIEW // باز شدن صفحه‌ی اصلی فروشگاه
+  PRODUCT_VIEW // باز شدن صفحه‌ی یک کالا
+  PRODUCT_DWELL // مدت‌زمان ماندن روی صفحه‌ی کالا (ثانیه، در meta)، هنگام ترک صفحه ارسال می‌شود
+  ADD_TO_CART
+  ORDER_PLACED
+}
+
+model StoreAnalyticsEvent {
+  id           String                  @id @default(uuid())
+  sessionToken String
+  type         StoreAnalyticsEventType
+  productId    String? // بدون رابطه‌ی FK عمدی — همان دلیل StoreOrderLine
+  meta         Json?
+  occurredAt   DateTime                @default(now())
+
+  @@index([type, occurredAt])
+  @@index([sessionToken])
+  @@index([productId])
+  @@map("store_analytics_events")
 }
