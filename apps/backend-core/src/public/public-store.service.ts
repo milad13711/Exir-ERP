@@ -6,6 +6,9 @@ import { currentStock } from '../warehouse/stock.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreateStoreOrderDto } from './dto/create-store-order.dto.js';
 import type { TrackStoreEventDto } from './dto/track-store-event.dto.js';
+import type { SubmitStoreReviewDto } from './dto/submit-store-review.dto.js';
+
+type RatingInfo = { avgRating: number | null; reviewCount: number };
 
 /**
  * بدون OTP — برخلاف رزرو نوبت که یک تراکنش مالی/زمانی حساس‌تر است، ثبت
@@ -48,6 +51,17 @@ export class PublicStoreService {
     };
   }
 
+  private async ratingsByProduct(ctx: TenantRequestContext, productIds: string[]): Promise<Map<string, RatingInfo>> {
+    if (productIds.length === 0) return new Map();
+    const grouped = await ctx.tenantDb.storeReview.groupBy({
+      by: ['productId'],
+      where: { productId: { in: productIds }, status: 'APPROVED' },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+    return new Map(grouped.map((g) => [g.productId, { avgRating: g._avg.rating, reviewCount: g._count.rating }]));
+  }
+
   async listProducts(slug: string) {
     const ctx = await this.resolveCtx(slug);
     const products = await ctx.tenantDb.product.findMany({
@@ -55,7 +69,8 @@ export class PublicStoreService {
       include: { movements: { select: { quantityDelta: true } } },
       orderBy: { name: 'asc' },
     });
-    return products.map((p) => this.toPublicShape(p));
+    const ratings = await this.ratingsByProduct(ctx, products.map((p) => p.id));
+    return products.map((p) => this.toPublicShape(p, ratings.get(p.id)));
   }
 
   async getProduct(slug: string, productSlug: string) {
@@ -67,22 +82,37 @@ export class PublicStoreService {
     if (!product || !product.isActive || !product.isPubliclyListed) {
       throw new NotFoundException('این کالا یافت نشد');
     }
-    return this.toPublicShape(product);
+    const [ratings, reviews] = await Promise.all([
+      this.ratingsByProduct(ctx, [product.id]),
+      ctx.tenantDb.storeReview.findMany({
+        where: { productId: product.id, status: 'APPROVED' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, customerName: true, rating: true, comment: true, createdAt: true },
+      }),
+    ]);
+    return { ...this.toPublicShape(product, ratings.get(product.id)), reviews };
   }
 
-  private toPublicShape(p: {
-    id: string;
-    publicSlug: string | null;
-    name: string;
-    publicDescription: string | null;
-    publicImages: string[];
-    salePrice: number;
-    unit: string;
-    category: string | null;
-    reservedQty: number;
-    movements: { quantityDelta: number }[];
-  }) {
+  private toPublicShape(
+    p: {
+      id: string;
+      publicSlug: string | null;
+      name: string;
+      publicDescription: string | null;
+      publicImages: string[];
+      salePrice: number;
+      publicCompareAtPrice: number | null;
+      unit: string;
+      category: string | null;
+      reservedQty: number;
+      createdAt: Date;
+      movements: { quantityDelta: number }[];
+    },
+    rating: RatingInfo | undefined,
+  ) {
     const available = Math.max(0, currentStock(p.movements) - p.reservedQty);
+    const hasDiscount = p.publicCompareAtPrice != null && p.publicCompareAtPrice > p.salePrice;
+    const discountPercent = hasDiscount ? Math.round((1 - p.salePrice / p.publicCompareAtPrice!) * 100) : null;
     return {
       id: p.id,
       slug: p.publicSlug,
@@ -90,10 +120,15 @@ export class PublicStoreService {
       description: p.publicDescription,
       images: p.publicImages,
       price: p.salePrice,
+      compareAtPrice: hasDiscount ? p.publicCompareAtPrice : null,
+      discountPercent,
       unit: p.unit,
       category: p.category,
+      createdAt: p.createdAt,
       inStock: available > 0,
       available,
+      avgRating: rating?.avgRating ?? null,
+      reviewCount: rating?.reviewCount ?? 0,
     };
   }
 
@@ -130,6 +165,24 @@ export class PublicStoreService {
       });
     }
     return { orderNo: order.orderNo, status: order.status };
+  }
+
+  /** ثبت‌شده با وضعیت PENDING — تا تننت آن را تأیید نکند در فروشگاه عمومی دیده نمی‌شود (جلوگیری از هرزنامه). */
+  async submitReview(slug: string, productSlug: string, dto: SubmitStoreReviewDto) {
+    const ctx = await this.resolveCtx(slug);
+    const product = await ctx.tenantDb.product.findUnique({ where: { publicSlug: productSlug } });
+    if (!product || !product.isActive || !product.isPubliclyListed) {
+      throw new NotFoundException('این کالا یافت نشد');
+    }
+    await ctx.tenantDb.storeReview.create({
+      data: {
+        productId: product.id,
+        customerName: dto.customerName,
+        rating: dto.rating,
+        comment: dto.comment,
+      },
+    });
+    return { ok: true };
   }
 
   /** فید Google Merchant/Meta Commerce Manager — https://support.google.com/merchants/answer/7052112 */

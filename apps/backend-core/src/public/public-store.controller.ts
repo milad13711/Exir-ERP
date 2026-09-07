@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { PublicStoreService } from './public-store.service.js';
 import { CreateStoreOrderDto } from './dto/create-store-order.dto.js';
 import { TrackStoreEventDto } from './dto/track-store-event.dto.js';
+import { SubmitStoreReviewDto } from './dto/submit-store-review.dto.js';
 
 @Controller('public/store/:slug')
 export class PublicStoreController {
@@ -31,6 +32,15 @@ export class PublicStoreController {
   @Post('orders')
   placeOrder(@Param('slug') slug: string, @Body() dto: CreateStoreOrderDto) {
     return this.store.placeOrder(slug, dto);
+  }
+
+  @Post('products/:productSlug/reviews')
+  submitReview(
+    @Param('slug') slug: string,
+    @Param('productSlug') productSlug: string,
+    @Body() dto: SubmitStoreReviewDto,
+  ) {
+    return this.store.submitReview(slug, productSlug, dto);
   }
 
   /**

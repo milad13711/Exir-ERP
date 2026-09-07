@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckIcon, ChevronDownIcon, TrashIcon } from "@/components/icons";
 import { formatToman, toPersianDigits } from "@/lib/persian";
@@ -13,7 +13,8 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export default function CartPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const [cart, setCart] = useState<Cart>(() => getCart(slug));
+  // مقدار اولیه‌ی خالی — دلیل را در StorefrontClient.tsx ببینید (localStorage در سرور وجود ندارد).
+  const [cart, setCart] = useState<Cart>({});
   const [step, setStep] = useState<"cart" | "checkout" | "done">("cart");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -22,6 +23,12 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderNo, setOrderNo] = useState<number | null>(null);
+
+  useEffect(() => {
+    // localStorage نیست در سرور — دلیل کامل را در StorefrontClient.tsx ببینید.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCart(getCart(slug));
+  }, [slug]);
 
   const lines = Object.values(cart);
   const total = cartTotal(cart);

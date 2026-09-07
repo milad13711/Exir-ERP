@@ -3807,6 +3807,20 @@ export type StoreProduct = {
   publicSlug: string | null;
   publicDescription: string | null;
   publicImages: string[];
+  publicCompareAtPrice: number | null;
+};
+
+export type StoreReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type StoreReview = {
+  id: string;
+  productId: string;
+  customerName: string;
+  rating: number;
+  comment: string | null;
+  status: StoreReviewStatus;
+  createdAt: string;
+  product: { name: string; publicSlug: string | null };
 };
 
 export type StoreOrderStatus = "PENDING" | "CONFIRMED" | "PACKED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
@@ -3856,12 +3870,27 @@ export function fetchStoreProducts() {
 
 export function updateStoreListing(
   productId: string,
-  data: { isPubliclyListed: boolean; publicSlug?: string; publicDescription?: string; publicImages?: string[] },
+  data: {
+    isPubliclyListed: boolean;
+    publicSlug?: string;
+    publicDescription?: string;
+    publicImages?: string[];
+    publicCompareAtPrice?: number | null;
+  },
 ) {
   return apiFetch<StoreProduct>(`/online-store/products/${productId}/listing`, {
     method: "PUT",
     body: JSON.stringify(data),
   });
+}
+
+export function fetchStoreReviews(status?: string) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<StoreReview[]>(`/online-store/reviews${qs}`);
+}
+
+export function updateStoreReviewStatus(id: string, status: "APPROVED" | "REJECTED") {
+  return apiFetch<StoreReview>(`/online-store/reviews/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
 }
 
 export function fetchStoreOrders(status?: string) {
@@ -3885,6 +3914,14 @@ export function fetchStoreAnalyticsSummary(days = 7) {
 
 export type PublicStoreInfo = { name: string; themeColor: string | null; logoUrl: string | null };
 
+export type PublicStoreReview = {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+};
+
 export type PublicStoreProduct = {
   id: string;
   slug: string | null;
@@ -3892,11 +3929,18 @@ export type PublicStoreProduct = {
   description: string | null;
   images: string[];
   price: number;
+  compareAtPrice: number | null;
+  discountPercent: number | null;
   unit: string;
   category: string | null;
+  createdAt: string;
   inStock: boolean;
   available: number;
+  avgRating: number | null;
+  reviewCount: number;
 };
+
+export type PublicStoreProductDetail = PublicStoreProduct & { reviews: PublicStoreReview[] };
 
 export function fetchPublicStoreInfo(slug: string) {
   return apiFetch<PublicStoreInfo>(`/public/store/${slug}`);
@@ -3907,7 +3951,18 @@ export function fetchPublicStoreProducts(slug: string) {
 }
 
 export function fetchPublicStoreProduct(slug: string, productSlug: string) {
-  return apiFetch<PublicStoreProduct>(`/public/store/${slug}/products/${productSlug}`);
+  return apiFetch<PublicStoreProductDetail>(`/public/store/${slug}/products/${productSlug}`);
+}
+
+export function submitPublicStoreReview(
+  slug: string,
+  productSlug: string,
+  data: { customerName: string; rating: number; comment?: string },
+) {
+  return apiFetch<{ ok: true }>(`/public/store/${slug}/products/${productSlug}/reviews`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export function trackPublicStoreEvent(

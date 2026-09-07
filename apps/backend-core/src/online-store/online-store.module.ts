@@ -7,10 +7,11 @@ import { StoreOrdersController } from './store-orders.controller.js';
 import { StoreOrdersService } from './store-orders.service.js';
 import { StoreAnalyticsController } from './store-analytics.controller.js';
 import { StoreAutomationTriggers } from './store-automation.triggers.js';
+import { StoreReviewsController } from './store-reviews.controller.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule],
-  controllers: [StoreProductsController, StoreOrdersController, StoreAnalyticsController],
+  controllers: [StoreProductsController, StoreOrdersController, StoreAnalyticsController, StoreReviewsController],
   providers: [StoreOrdersService, StoreAutomationTriggers],
   exports: [StoreOrdersService],
 })

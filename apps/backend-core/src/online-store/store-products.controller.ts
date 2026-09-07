@@ -38,6 +38,7 @@ export class StoreProductsController {
       publicSlug: p.publicSlug,
       publicDescription: p.publicDescription,
       publicImages: p.publicImages,
+      publicCompareAtPrice: p.publicCompareAtPrice,
     }));
   }
 
@@ -54,6 +55,9 @@ export class StoreProductsController {
     if (dto.isPubliclyListed && !dto.publicSlug && !product.publicSlug) {
       throw new BadRequestException('برای نمایش عمومی، کالا باید یک شناسه‌ی عمومی (publicSlug) داشته باشد');
     }
+    if (dto.publicCompareAtPrice != null && dto.publicCompareAtPrice <= product.salePrice) {
+      throw new BadRequestException('قیمت قبل از تخفیف باید از قیمت فروش فعلی بیشتر باشد');
+    }
 
     return ctx.tenantDb.product.update({
       where: { id },
@@ -62,6 +66,7 @@ export class StoreProductsController {
         publicSlug: dto.publicSlug,
         publicDescription: dto.publicDescription,
         publicImages: dto.publicImages,
+        publicCompareAtPrice: dto.publicCompareAtPrice,
       },
     });
   }

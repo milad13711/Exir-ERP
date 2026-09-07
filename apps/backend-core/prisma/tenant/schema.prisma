@@ -1050,11 +1050,14 @@ model Product {
   // داده می‌شود؛ reservedQty یک شمارنده‌ی مستقل از StockMovement است (نه یک
   // تراکنش انبار واقعی) که هنگام ثبت سفارش افزایش و هنگام لغو/ارسال سفارش
   // تسویه می‌شود — موجودی قابل‌فروش = currentStock(movements) − reservedQty.
-  isPubliclyListed  Boolean  @default(false)
-  publicSlug        String?  @unique
-  publicDescription String?
-  publicImages      String[] @default([]) // data URI هر تصویر (بدون فضای ذخیره‌سازی فایل جداگانه)
-  reservedQty       Int      @default(0)
+  isPubliclyListed     Boolean  @default(false)
+  publicSlug           String?  @unique
+  publicDescription    String?
+  publicImages         String[] @default([]) // data URI هر تصویر (بدون فضای ذخیره‌سازی فایل جداگانه)
+  reservedQty          Int      @default(0)
+  publicCompareAtPrice Int? // تومان — قیمت «قبل از تخفیف» برای نمایش نشان تخفیف در فروشگاه عمومی؛ فقط وقتی از salePrice بیشتر باشد اعمال می‌شود
+
+  reviews StoreReview[]
 
   // قیمت‌گذاری ارزی — وقتی currencyId ست شده، costPrice/salePrice معادل
   // تومانی‌شان با نرخ لحظه‌ای Currency.rate محاسبه و نمایش داده می‌شود.
@@ -2179,4 +2182,26 @@ model StoreAnalyticsEvent {
   @@index([sessionToken])
   @@index([productId])
   @@map("store_analytics_events")
+}
+
+enum StoreReviewStatus {
+  PENDING // پیش از تأیید تننت در فروشگاه عمومی نمایش داده نمی‌شود
+  APPROVED
+  REJECTED
+}
+
+model StoreReview {
+  id           String            @id @default(uuid())
+  productId    String
+  customerName String
+  rating       Int // ۱ تا ۵
+  comment      String?
+  status       StoreReviewStatus @default(PENDING)
+  createdAt    DateTime          @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, status])
+  @@index([status])
+  @@map("store_reviews")
 }

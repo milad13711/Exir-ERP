@@ -2,13 +2,91 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDownIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
-import { API_URL, type PublicStoreProduct } from "@/lib/api";
+import { ChevronDownIcon, HeartIcon, StarIcon } from "@/components/icons";
+import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { API_URL, submitPublicStoreReview, ApiError, type PublicStoreProductDetail, type PublicStoreProduct } from "@/lib/api";
 import { getSessionToken, addToCart, getCart, cartCount } from "@/lib/store-cart";
+import { getWishlist, toggleWishlist } from "@/lib/store-wishlist";
 import { CartButton } from "../../CartButton";
+import { RatingStars, PriceBlock } from "../../StoreUI";
 
-type ProductWithUrls = PublicStoreProduct & { images: string[] };
+type ProductWithUrls = PublicStoreProductDetail & { images: string[] };
+type RelatedWithUrls = PublicStoreProduct & { images: string[] };
+
+function ReviewForm({ slug, productSlug, onSubmitted }: { slug: string; productSlug: string; onSubmitted: () => void }) {
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await submitPublicStoreReview(slug, productSlug, { customerName: name.trim(), rating, comment: comment.trim() || undefined });
+      setSubmitted(true);
+      onSubmitted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ثبت نظر با خطا مواجه شد");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="bg-success-soft text-success text-[12.5px] font-semibold rounded-xl p-4 text-center">
+        نظر شما ثبت شد و پس از تأیید نمایش داده می‌شود. ممنون از وقتی که گذاشتید 🙏
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-slate-50 rounded-2xl p-4 flex flex-col gap-3">
+      <div className="text-[13px] font-bold">ثبت نظر شما</div>
+      <div dir="ltr" className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setRating(s)}
+            onMouseEnter={() => setHoverRating(s)}
+            onMouseLeave={() => setHoverRating(null)}
+            className="cursor-pointer"
+          >
+            <StarIcon className={`w-6 h-6 ${(hoverRating ?? rating) >= s ? "text-warning fill-current" : "text-border"}`} />
+          </button>
+        ))}
+      </div>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="نام شما"
+        required
+        className="text-[13px] outline-none bg-white border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors"
+      />
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="نظر شما درباره‌ی این کالا (اختیاری)"
+        rows={3}
+        className="text-[13px] outline-none bg-white border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors"
+      />
+      {error ? <div className="text-[11.5px] text-danger">{error}</div> : null}
+      <button
+        type="submit"
+        disabled={submitting}
+        className="self-start px-5 py-2.5 rounded-xl bg-primary text-white text-[12.5px] font-bold cursor-pointer disabled:opacity-50"
+      >
+        {submitting ? "در حال ارسال..." : "ثبت نظر"}
+      </button>
+    </form>
+  );
+}
 
 export function ProductClient({
   slug,
@@ -19,15 +97,22 @@ export function ProductClient({
   slug: string;
   storeName: string;
   product: ProductWithUrls;
-  relatedProducts: ProductWithUrls[];
+  relatedProducts: RelatedWithUrls[];
 }) {
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
-  const [cartCountState, setCartCountState] = useState(() => cartCount(getCart(slug)));
+  // مقدار اولیه‌ی خنثی — دلیل را در StorefrontClient.tsx ببینید (localStorage در سرور وجود ندارد).
+  const [cartCountState, setCartCountState] = useState(0);
+  const [loved, setLoved] = useState(false);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const enteredAt = useRef(0);
 
   useEffect(() => {
+    // localStorage نیست در سرور — دلیل کامل را در StorefrontClient.tsx ببینید.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCartCountState(cartCount(getCart(slug)));
+    setLoved(getWishlist(slug).includes(product.id));
     enteredAt.current = Date.now();
     const sessionToken = getSessionToken(slug);
     fetch(`${API_URL}/public/store/${slug}/track`, {
@@ -82,7 +167,19 @@ export function ProductClient({
 
         <div className="grid md:grid-cols-2 gap-8">
           <div className="flex flex-col gap-2.5">
-            <div className="aspect-square rounded-2xl bg-slate-50 overflow-hidden flex items-center justify-center">
+            <div className="relative aspect-square rounded-2xl bg-slate-50 overflow-hidden flex items-center justify-center">
+              <button
+                onClick={() => setLoved(toggleWishlist(slug, product.id).includes(product.id))}
+                className="absolute top-3 left-3 z-10 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow-sm cursor-pointer"
+                aria-label="افزودن به علاقه‌مندی‌ها"
+              >
+                <HeartIcon className={`w-4.5 h-4.5 ${loved ? "text-danger fill-current" : "text-muted"}`} />
+              </button>
+              {product.discountPercent ? (
+                <div className="absolute top-3 right-3 z-10 text-[11px] font-bold text-white bg-danger px-2.5 py-1 rounded-lg">
+                  {product.discountPercent}٪ تخفیف
+                </div>
+              ) : null}
               {product.images[activeImage] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={product.images[activeImage]} alt={product.name} className="w-full h-full object-cover" />
@@ -114,7 +211,9 @@ export function ProductClient({
               {product.category ? <div className="text-[12px] text-muted mt-1">{product.category}</div> : null}
             </div>
 
-            <div className="text-[22px] font-extrabold">{formatToman(product.price)}</div>
+            <RatingStars avgRating={product.avgRating} reviewCount={product.reviewCount} size="md" />
+
+            <PriceBlock price={product.price} compareAtPrice={product.compareAtPrice} discountPercent={product.discountPercent} size="md" />
 
             {product.inStock ? (
               <div className="text-[12px] text-success font-semibold">موجود در انبار</div>
@@ -154,6 +253,47 @@ export function ProductClient({
           </div>
         </div>
 
+        <div className="mt-14">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[15px] font-extrabold">
+              نظرات مشتریان
+              {product.reviewCount > 0 ? <span className="text-muted font-normal"> ({toPersianDigits(product.reviewCount)})</span> : null}
+            </h2>
+            {!reviewFormOpen ? (
+              <button onClick={() => setReviewFormOpen(true)} className="text-[12.5px] font-bold text-primary cursor-pointer">
+                ثبت نظر ←
+              </button>
+            ) : null}
+          </div>
+
+          {reviewFormOpen ? (
+            <div className="mb-6">
+              <ReviewForm slug={slug} productSlug={product.slug ?? ""} onSubmitted={() => {}} />
+            </div>
+          ) : null}
+
+          {product.reviews.length === 0 ? (
+            <div className="text-[12.5px] text-muted">هنوز نظری برای این کالا ثبت نشده — اولین نفر باشید.</div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {product.reviews.map((r) => (
+                <div key={r.id} className="border border-border rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-[12.5px] font-bold">{r.customerName}</span>
+                    <span className="text-[11px] text-muted">{formatJalaliDate(new Date(r.createdAt))}</span>
+                  </div>
+                  <div dir="ltr" className="flex items-center gap-0.5 text-warning mb-1.5">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <StarIcon key={i} className={`w-3.5 h-3.5 ${i < r.rating ? "fill-current" : "text-border"}`} />
+                    ))}
+                  </div>
+                  {r.comment ? <p className="text-[12.5px] text-ink-soft leading-relaxed">{r.comment}</p> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {relatedProducts.length > 0 ? (
           <div className="mt-14">
             <h2 className="text-[15px] font-extrabold mb-4">کالاهای مشابه</h2>
@@ -178,7 +318,7 @@ export function ProductClient({
                   </div>
                   <div className="p-3 flex flex-col gap-1">
                     <div className="text-[12.5px] font-bold line-clamp-2 min-h-[2.3em]">{p.name}</div>
-                    <span className="text-[12.5px] font-extrabold">{formatToman(p.price)}</span>
+                    <PriceBlock price={p.price} compareAtPrice={p.compareAtPrice} discountPercent={p.discountPercent} />
                   </div>
                 </Link>
               ))}

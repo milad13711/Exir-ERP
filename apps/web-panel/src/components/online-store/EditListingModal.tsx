@@ -40,6 +40,7 @@ export function EditListingModal({
   const [publicSlug, setPublicSlug] = useState(product.publicSlug ?? slugify(product.name));
   const [publicDescription, setPublicDescription] = useState(product.publicDescription ?? "");
   const [images, setImages] = useState<string[]>(product.publicImages);
+  const [compareAtPrice, setCompareAtPrice] = useState(product.publicCompareAtPrice ? String(product.publicCompareAtPrice) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +61,7 @@ export function EditListingModal({
         publicSlug: publicSlug.trim() || undefined,
         publicDescription: publicDescription.trim() || undefined,
         publicImages: images,
+        publicCompareAtPrice: compareAtPrice.trim() ? Number(compareAtPrice) : null,
       });
       onSaved(updated);
       onClose();
@@ -138,6 +140,18 @@ export function EditListingModal({
                 </label>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>قیمت قبل از تخفیف (تومان — اختیاری، برای نشان تخفیف)</label>
+            <input
+              value={compareAtPrice}
+              onChange={(e) => setCompareAtPrice(e.target.value.replace(/[^\d]/g, ""))}
+              dir="ltr"
+              inputMode="numeric"
+              placeholder={`باید بیشتر از ${formatToman(product.salePrice)} باشد`}
+              className={inputClass}
+            />
           </div>
 
           <div className="bg-slate-50 rounded-xl p-3.5 text-[12px] text-ink-soft flex items-center justify-between">
