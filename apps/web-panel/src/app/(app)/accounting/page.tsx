@@ -198,9 +198,14 @@ export default function AccountingPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-bold truncate">{a.name}</div>
+                  <div className="mt-1 sm:hidden">
+                    <Badge tone={ACCOUNT_TYPE_TONES[a.type]}>{ACCOUNT_TYPE_LABELS[a.type]}</Badge>
+                  </div>
                 </div>
-                <Badge tone={ACCOUNT_TYPE_TONES[a.type]}>{ACCOUNT_TYPE_LABELS[a.type]}</Badge>
-                <div className="text-[13px] font-extrabold w-[140px] text-left shrink-0">
+                <div className="hidden sm:block shrink-0">
+                  <Badge tone={ACCOUNT_TYPE_TONES[a.type]}>{ACCOUNT_TYPE_LABELS[a.type]}</Badge>
+                </div>
+                <div className="text-[13px] font-extrabold w-[110px] sm:w-[140px] text-left shrink-0">
                   {formatToman(a.balance)}
                 </div>
               </button>

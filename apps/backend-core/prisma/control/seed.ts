@@ -693,6 +693,187 @@ async function main() {
       suggestedThemeColor: '#b45309',
       defaultModules: ['tasks', 'crm', 'accounting', 'projects', 'contracts', 'booking'],
     },
+    {
+      code: 'manufacturing',
+      name: 'تولیدی و کارخانه عمومی',
+      description:
+        'کارخانه‌ها و واحدهای تولیدی عمومی (غیر از خوراک دام) — از تأمین مواد اولیه و خط تولید تا کنترل کیفیت و انبار محصول نهایی.',
+      roles: [
+        {
+          name: 'کارگر خط تولید',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'سرپرست تولید',
+          permissionCodes: ['warehouse.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: EDITOR_ACCESS, tasks: FULL_ACCESS },
+        },
+        {
+          name: 'مدیر کنترل کیفیت',
+          permissionCodes: ['warehouse.manage'],
+          modulePermissions: { warehouse: VIEW_ONLY, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدیر کارخانه',
+          permissionCodes: ['warehouse.manage', 'accounting.manage', 'tasks.manage'],
+          modulePermissions: { warehouse: FULL_ACCESS, accounting: EDITOR_ACCESS, purchasing: FULL_ACCESS, tasks: FULL_ACCESS },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1141', name: 'موجودی مواد اولیه', type: 'ASSET' },
+        { code: '1142', name: 'موجودی کالای در جریان ساخت', type: 'ASSET' },
+        { code: '1143', name: 'موجودی محصول نهایی', type: 'ASSET' },
+        { code: '5141', name: 'هزینه دستمزد مستقیم تولید', type: 'EXPENSE' },
+        { code: '5142', name: 'هزینه سربار کارخانه', type: 'EXPENSE' },
+        { code: '5143', name: 'ضایعات و افت تولید', type: 'EXPENSE' },
+        { code: '5144', name: 'هزینه نگهداری و تعمیرات ماشین‌آلات', type: 'EXPENSE' },
+      ],
+      productCategories: ['مواد اولیه', 'قطعات و اجزا', 'کالای در جریان ساخت', 'محصول نهایی', 'ضایعات قابل‌فروش'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر کارخانه', reportsTo: 'مدیرعامل', department: 'تولید' },
+        { position: 'سرپرست تولید', reportsTo: 'مدیر کارخانه', department: 'تولید' },
+        { position: 'کارگر خط تولید', reportsTo: 'سرپرست تولید', department: 'تولید' },
+        { position: 'مدیر کنترل کیفیت', reportsTo: 'مدیر کارخانه', department: 'کنترل کیفیت' },
+        { position: 'انباردار', reportsTo: 'مدیر کارخانه', department: 'انبار' },
+        { position: 'مدیر فروش', reportsTo: 'مدیرعامل', department: 'فروش' },
+        { position: 'مدیر مالی', reportsTo: 'مدیرعامل', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#475569',
+      defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'production', 'quality-control'],
+    },
+    {
+      code: 'construction',
+      name: 'ساخت‌وساز و پیمانکاری عمرانی',
+      description:
+        'شرکت‌های پیمانکاری ساختمانی و عمرانی — مدیریت پروژه‌های اجرایی، مصالح ساختمانی، قراردادهای پیمانکاری فرعی و صورت‌وضعیت.',
+      roles: [
+        {
+          name: 'سرپرست کارگاه',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: FULL_ACCESS, warehouse: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مهندس ناظر',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR, crm: VIEW_ONLY },
+        },
+        {
+          name: 'مدیر پروژه',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, warehouse: EDITOR_ACCESS, tasks: FULL_ACCESS },
+        },
+        {
+          name: 'مدیر مالی پیمانکاری',
+          permissionCodes: ['accounting.manage'],
+          modulePermissions: { accounting: FULL_ACCESS, tasks: VIEW_ONLY },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1151', name: 'مطالبات صورت‌وضعیت پروژه‌ها', type: 'ASSET' },
+        { code: '1152', name: 'موجودی مصالح ساختمانی در انبار کارگاه', type: 'ASSET' },
+        { code: '1153', name: 'پیش‌پرداخت به پیمانکاران فرعی', type: 'ASSET' },
+        { code: '1154', name: 'سپرده حسن انجام کار نزد کارفرما', type: 'ASSET' },
+        { code: '2151', name: 'پیش‌دریافت از کارفرما', type: 'LIABILITY' },
+        { code: '2152', name: 'بدهی به پیمانکاران فرعی', type: 'LIABILITY' },
+        { code: '5151', name: 'هزینه دستمزد اکیپ اجرایی', type: 'EXPENSE' },
+        { code: '5152', name: 'هزینه اجاره ماشین‌آلات و تجهیزات', type: 'EXPENSE' },
+      ],
+      productCategories: ['مصالح ساختمانی', 'میلگرد و فولاد', 'تأسیسات برق و مکانیک', 'ابزارآلات و تجهیزات کارگاهی'],
+      orgChart: [
+        { position: 'مدیرعامل', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر پروژه', reportsTo: 'مدیرعامل', department: 'اجرا' },
+        { position: 'مهندس ناظر', reportsTo: 'مدیر پروژه', department: 'اجرا' },
+        { position: 'سرپرست کارگاه', reportsTo: 'مدیر پروژه', department: 'اجرا' },
+        { position: 'اکیپ اجرایی', reportsTo: 'سرپرست کارگاه', department: 'اجرا' },
+        { position: 'مدیر مالی پیمانکاری', reportsTo: 'مدیرعامل', department: 'مالی' },
+        { position: 'انباردار کارگاه', reportsTo: 'سرپرست کارگاه', department: 'انبار' },
+      ],
+      suggestedThemeColor: '#ca8a04',
+      defaultModules: ['tasks', 'crm', 'accounting', 'projects', 'contracts', 'purchasing', 'warehouse', 'checks'],
+    },
+    {
+      code: 'medical-clinic',
+      name: 'کلینیک و مطب پزشکی',
+      description:
+        'مطب‌ها، کلینیک‌های تخصصی و مراکز درمانی — نوبت‌دهی بیماران، پرونده و پیگیری مراجعین، و مدیریت داروخانه/تجهیزات مصرفی.',
+      roles: [
+        {
+          name: 'منشی پذیرش',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { crm: OWN_CONTRIBUTOR, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'پزشک / پرستار',
+          permissionCodes: ['crm.manage', 'tasks.manage'],
+          modulePermissions: { crm: EDITOR_ACCESS, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدیر کلینیک',
+          permissionCodes: ['crm.manage', 'accounting.manage', 'warehouse.manage', 'tasks.manage'],
+          modulePermissions: { crm: FULL_ACCESS, accounting: EDITOR_ACCESS, warehouse: FULL_ACCESS, tasks: FULL_ACCESS },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1161', name: 'مطالبات از بیمه‌های تکمیلی', type: 'ASSET' },
+        { code: '1162', name: 'موجودی دارو و تجهیزات مصرفی', type: 'ASSET' },
+        { code: '4161', name: 'درآمد ویزیت و معاینه', type: 'REVENUE' },
+        { code: '4162', name: 'درآمد خدمات تشخیصی و آزمایشگاهی', type: 'REVENUE' },
+        { code: '5161', name: 'حق‌الزحمه پزشکان همکار', type: 'EXPENSE' },
+        { code: '5162', name: 'هزینه دارو و تجهیزات مصرفی', type: 'EXPENSE' },
+      ],
+      productCategories: ['دارو', 'تجهیزات مصرفی', 'لوازم آزمایشگاهی', 'تجهیزات پزشکی'],
+      orgChart: [
+        { position: 'مدیر کلینیک', reportsTo: null, department: 'مدیریت' },
+        { position: 'پزشک / پرستار', reportsTo: 'مدیر کلینیک', department: 'درمان' },
+        { position: 'منشی پذیرش', reportsTo: 'مدیر کلینیک', department: 'پذیرش' },
+        { position: 'مسئول داروخانه/انبار', reportsTo: 'مدیر کلینیک', department: 'انبار' },
+        { position: 'مسئول مالی', reportsTo: 'مدیر کلینیک', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#0d9488',
+      defaultModules: ['tasks', 'crm', 'booking', 'accounting', 'warehouse'],
+    },
+    {
+      code: 'education-institute',
+      name: 'آموزشگاه و موسسه آموزشی',
+      description:
+        'آموزشگاه‌های آزاد، موسسات کنکور و زبان، و مراکز آموزشی خصوصی — ثبت‌نام و پیگیری هنرجو، برنامه‌ریزی کلاس، شهریه و قرارداد مدرسین.',
+      roles: [
+        {
+          name: 'مسئول ثبت‌نام',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { crm: OWN_CONTRIBUTOR, tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مدرس',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR, crm: VIEW_ONLY },
+        },
+        {
+          name: 'مدیر آموزشگاه',
+          permissionCodes: ['crm.manage', 'accounting.manage', 'tasks.manage'],
+          modulePermissions: { crm: FULL_ACCESS, accounting: FULL_ACCESS, tasks: FULL_ACCESS },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1171', name: 'مطالبات شهریه هنرجویان', type: 'ASSET' },
+        { code: '2171', name: 'پیش‌دریافت شهریه دوره‌های آینده', type: 'LIABILITY' },
+        { code: '4171', name: 'درآمد شهریه دوره‌های آموزشی', type: 'REVENUE' },
+        { code: '5171', name: 'حق‌التدریس مدرسین', type: 'EXPENSE' },
+        { code: '5172', name: 'هزینه اجاره فضای آموزشی', type: 'EXPENSE' },
+      ],
+      productCategories: ['دوره مقدماتی', 'دوره متوسط', 'دوره پیشرفته', 'کلاس خصوصی'],
+      orgChart: [
+        { position: 'مدیر آموزشگاه', reportsTo: null, department: 'مدیریت' },
+        { position: 'مدیر آموزشی', reportsTo: 'مدیر آموزشگاه', department: 'آموزش' },
+        { position: 'مدرس', reportsTo: 'مدیر آموزشی', department: 'آموزش' },
+        { position: 'مسئول ثبت‌نام', reportsTo: 'مدیر آموزشگاه', department: 'پذیرش' },
+        { position: 'مسئول مالی', reportsTo: 'مدیر آموزشگاه', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#7c3aed',
+      defaultModules: ['tasks', 'crm', 'booking', 'accounting', 'contracts'],
+    },
   ];
 
   for (const t of industryTemplates) {
