@@ -33,6 +33,7 @@ import { ServiceTypesModal } from "@/components/booking/ServiceTypesModal";
 import { StaffAvailabilityModal } from "@/components/booking/StaffAvailabilityModal";
 import { AppointmentsReportModal } from "@/components/booking/AppointmentsReportModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   PENDING_COORDINATION: "در انتظار هماهنگی",
   SCHEDULED: "رزروشده",
@@ -257,7 +258,10 @@ export default function BookingPage() {
     <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">رزرو نوبت</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">رزرو نوبت</h1>
+            <ModuleHelp code="booking" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">مدیریت نوبت‌های دریافت خدمات و جلوگیری از تداخل زمانی</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

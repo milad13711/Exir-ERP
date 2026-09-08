@@ -9,6 +9,7 @@ import { fetchCampaigns, type MarketingCampaign } from "@/lib/api";
 import { CreateCampaignModal } from "@/components/marketing/CreateCampaignModal";
 import { CampaignDetailModal } from "@/components/marketing/CampaignDetailModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<string, string> = { DRAFT: "پیش‌نویس", SENDING: "در حال ارسال", SENT: "ارسال‌شده", FAILED: "ناموفق" };
 const STATUS_TONES: Record<string, "neutral" | "warning" | "success" | "danger"> = {
   DRAFT: "neutral",
@@ -40,7 +41,10 @@ export default function MarketingPage() {
     <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">بازاریابی و کمپین</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">بازاریابی و کمپین</h1>
+            <ModuleHelp code="marketing" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">ثبت، اجرا و مقایسه‌ی کمپین‌های پیامکی و محتوای اینستاگرام</p>
         </div>
         <button

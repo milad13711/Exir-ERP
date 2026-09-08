@@ -389,6 +389,16 @@ export function StarIcon(props: IconProps) {
   );
 }
 
+export function HelpIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 0 1 4.6-1.4c.5.8.4 1.8-.3 2.5l-.7.6c-.6.5-1.1 1.1-1.1 2" />
+      <circle cx="12" cy="16.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function ClockIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

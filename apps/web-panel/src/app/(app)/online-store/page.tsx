@@ -22,6 +22,7 @@ import {
 import { EditListingModal } from "@/components/online-store/EditListingModal";
 import { OrderDetailModal, STORE_ORDER_STATUS_LABELS, STORE_ORDER_STATUS_TONES } from "@/components/online-store/OrderDetailModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "summary" | "orders" | "products" | "reviews";
 
 export default function OnlineStorePage() {
@@ -67,7 +68,10 @@ export default function OnlineStorePage() {
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">فروشگاه آنلاین</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">فروشگاه آنلاین</h1>
+            <ModuleHelp code="online-store" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">نمای عمومی فروشگاه، سفارش‌ها، و تحلیل بازدید و فروش</p>
         </div>
         <button

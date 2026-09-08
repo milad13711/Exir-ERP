@@ -19,6 +19,7 @@ import { NewBomModal } from "@/components/production/NewBomModal";
 import { NewWorkCenterModal } from "@/components/production/NewWorkCenterModal";
 import { ProductionOrderDetailModal } from "@/components/production/ProductionOrderDetailModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "orders" | "boms" | "workCenters";
 
 export default function ProductionPage() {
@@ -52,7 +53,10 @@ export default function ProductionPage() {
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">تولید</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">تولید</h1>
+            <ModuleHelp code="production" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">فرمولاسیون، دستور تولید و مراحل خط تولید</p>
         </div>
         <button

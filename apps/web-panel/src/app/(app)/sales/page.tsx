@@ -28,6 +28,7 @@ import { QuotationDetailModal } from "@/components/sales/QuotationDetailModal";
 import { NewRecurringInvoiceModal } from "@/components/sales/NewRecurringInvoiceModal";
 import { RecurringInvoiceDetailModal } from "@/components/sales/RecurringInvoiceDetailModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
   WEEKLY: "هفتگی",
   MONTHLY: "ماهانه",
@@ -146,7 +147,10 @@ export default function SalesPage() {
     <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">فروش و فاکتور</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">فروش و فاکتور</h1>
+            <ModuleHelp code="sales" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">
             از سفارش فروش تا فاکتور و پرداخت — با اتصال خودکار به انبار و حسابداری
           </p>

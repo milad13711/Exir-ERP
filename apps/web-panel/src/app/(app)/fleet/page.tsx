@@ -11,6 +11,7 @@ import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { ShipmentDetailModal } from "@/components/fleet/ShipmentDetailModal";
 import { DriversModal } from "@/components/fleet/DriversModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ShipmentStatus, string> = {
   DRAFT: "ثبت‌شده",
   OFFERED: "در حال پیشنهاد",
@@ -59,7 +60,10 @@ export default function FleetPage() {
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">ناوگان حمل و نقل</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">ناوگان حمل و نقل</h1>
+            <ModuleHelp code="fleet" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">ثبت بار، تطبیق و پیشنهاد راننده، پیگیری تا تحویل</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

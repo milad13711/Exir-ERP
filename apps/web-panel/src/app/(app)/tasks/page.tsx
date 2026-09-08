@@ -9,6 +9,7 @@ import { CheckIcon, TrashIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import { fetchTasks, createTask, toggleTask, updateTask, deleteTask, fetchUsers, type ApiTask, type TenantUser } from "@/lib/api";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function TasksPage() {
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
   const [users, setUsers] = useState<TenantUser[]>([]);
@@ -79,7 +80,10 @@ export default function TasksPage() {
 
   return (
     <div className="p-5 lg:p-7 max-w-[860px] mx-auto">
-      <h1 className="text-xl font-extrabold">وظایف و یادآوری</h1>
+      <div className="flex items-center gap-1.5">
+        <h1 className="text-xl font-extrabold">وظایف و یادآوری</h1>
+        <ModuleHelp code="tasks" />
+      </div>
       <p className="text-[13.5px] text-muted mt-1">همه‌ی وظایف شما در یک‌جا، مستقل از ماژول مرتبط</p>
 
       <Card className="mt-6 p-2">

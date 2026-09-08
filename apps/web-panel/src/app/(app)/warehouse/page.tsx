@@ -16,6 +16,7 @@ import { TransferStockModal } from "@/components/warehouse/TransferStockModal";
 import { CostingMethodModal } from "@/components/warehouse/CostingMethodModal";
 import { MovementsList } from "@/components/warehouse/MovementsList";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function WarehousePage() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [summary, setSummary] = useState<WarehouseSummary | null>(null);
@@ -53,7 +54,10 @@ export default function WarehousePage() {
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">انبارداری و موجودی</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">انبارداری و موجودی</h1>
+            <ModuleHelp code="warehouse" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">کنترل موجودی، رسید و حواله، و هشدار کمبود کالا</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { CurrencyIcon, ClockIcon, WarningIcon, StarIcon, CloseIcon } from "@/components/icons";
 import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import {
   fetchFunnelSummary,
   fetchFunnelKpis,
@@ -64,7 +65,10 @@ export default function FunnelPage() {
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div>
-        <h1 className="text-xl font-extrabold">قیف سرنخ و فروش</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-xl font-extrabold">قیف سرنخ و فروش</h1>
+          <ModuleHelp code="crm-funnel" />
+        </div>
         <p className="text-[13.5px] text-muted mt-1">
           مسیر تبدیل سرنخ به مشتری، سلامت برند (تکرار خرید، سفیر برند، ریسک ریزش)، و شاخص‌های استاندارد فروش
         </p>

@@ -44,6 +44,7 @@ import { EmployeeModal } from "@/components/hr/EmployeeModal";
 import { NewLeaveModal } from "@/components/hr/NewLeaveModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "employees" | "orgchart" | "attendance" | "leave" | "payroll";
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -75,7 +76,10 @@ export default function HrPage() {
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">منابع انسانی و حقوق</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">منابع انسانی و حقوق</h1>
+            <ModuleHelp code="hr" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">پرونده پرسنلی، حضور و غیاب، مرخصی و فیش حقوقی</p>
         </div>
         <button

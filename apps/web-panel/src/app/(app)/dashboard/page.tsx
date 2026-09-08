@@ -30,6 +30,7 @@ import {
 import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function DashboardPage() {
   const { me, installedModules } = useWorkspace();
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
@@ -66,7 +67,10 @@ export default function DashboardPage() {
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
       <div className="flex items-baseline justify-between mb-5 gap-4">
         <div>
-          <h1 className="text-xl font-extrabold">سلام {firstName}، خوش برگشتی</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">سلام {firstName}، خوش برگشتی</h1>
+            <ModuleHelp code="dashboard" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">خلاصه‌ی امروز کسب‌وکار شما</p>
         </div>
       </div>

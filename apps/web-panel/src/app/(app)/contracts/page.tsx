@@ -12,6 +12,7 @@ import { ContractDetailModal } from "@/components/contracts/ContractDetailModal"
 import { ContractTemplatesModal } from "@/components/contracts/ContractTemplatesModal";
 import { CompanySignatureModal } from "@/components/contracts/CompanySignatureModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ContractStatus, string> = {
   DRAFT: "پیش‌نویس",
   ACTIVE: "فعال",
@@ -62,7 +63,10 @@ export default function ContractsPage() {
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">مدیریت قرارداد</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">مدیریت قرارداد</h1>
+            <ModuleHelp code="contracts" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">قراردادهای داخلی، خارجی و بین‌طرفین — با امضای دیجیتال دوطرفه</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

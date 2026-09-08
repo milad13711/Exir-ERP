@@ -18,6 +18,7 @@ import { PurchaseOrderDetailModal } from "@/components/purchasing/PurchaseOrderD
 import { ApprovalThresholdModal } from "@/components/purchasing/ApprovalThresholdModal";
 import { SuppliersModal } from "@/components/purchasing/SuppliersModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   DRAFT: "پیش‌نویس",
   RECEIVED: "دریافت‌شده",
@@ -71,7 +72,10 @@ export default function PurchasingPage() {
     <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">خرید و تأمین‌کننده</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">خرید و تأمین‌کننده</h1>
+            <ModuleHelp code="purchasing" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">
             از سفارش خرید تا رسید انبار و پرداخت — با اتصال خودکار به انبار و حسابداری
           </p>

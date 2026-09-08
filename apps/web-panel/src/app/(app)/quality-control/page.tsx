@@ -8,6 +8,7 @@ import { formatJalaliDateTime } from "@/lib/persian";
 import { fetchSamples, type QualitySample, type QualityVerdict } from "@/lib/api";
 import { ProductionOrderDetailModal } from "@/components/production/ProductionOrderDetailModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const VERDICT_LABELS: Record<QualityVerdict, string> = { PENDING: "در انتظار نتیجه", PASS: "قبول", FAIL: "رد" };
 const VERDICT_TONES: Record<QualityVerdict, "success" | "danger" | "neutral" | "warning"> = {
   PENDING: "warning",
@@ -38,7 +39,10 @@ export default function QualityControlPage() {
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div>
-        <h1 className="text-xl font-extrabold">کنترل کیفیت</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-xl font-extrabold">کنترل کیفیت</h1>
+          <ModuleHelp code="quality-control" />
+        </div>
         <p className="text-[13.5px] text-muted mt-1">صف کار نمونه‌های آزمایشگاهی از همه‌ی دستورهای تولید</p>
       </div>
 

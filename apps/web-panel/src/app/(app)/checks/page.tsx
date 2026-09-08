@@ -16,6 +16,7 @@ import { NewCheckModal } from "@/components/checks/NewCheckModal";
 import { CheckDetailModal } from "@/components/checks/CheckDetailModal";
 import { CheckReminderSettingsModal } from "@/components/checks/CheckReminderSettingsModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS_BY_DIRECTION: Record<CheckDirection, Record<CheckStatus, string>> = {
   RECEIVED: {
     PENDING: "ثبت‌شده",
@@ -81,7 +82,10 @@ export default function ChecksPage() {
     <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">چک‌های دریافتی و صادرشده</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">چک‌های دریافتی و صادرشده</h1>
+            <ModuleHelp code="checks" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">
             رهگیری چک با شماره صیادی و سررسید — با یادآوری خودکار پیش از موعد
           </p>

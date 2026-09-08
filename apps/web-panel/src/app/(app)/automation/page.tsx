@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { NewAutomationRuleModal } from "@/components/automation/NewAutomationRuleModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const ACTION_TYPE_LABELS: Record<string, string> = {
   NOTIFY_IN_APP: "اعلان",
   SEND_SMS: "پیامک",
@@ -92,7 +93,10 @@ export default function AutomationPage() {
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">اتوماسیون</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">اتوماسیون</h1>
+            <ModuleHelp code="automation" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">برای رویدادهای ماژول‌های نصب‌شده، اقدام خودکار (اعلان، پیامک، وظیفه) تعریف کنید</p>
         </div>
         <button

@@ -15,6 +15,7 @@ import { ContactModal } from "@/components/crm/ContactModal";
 import { NewContactModal } from "@/components/crm/NewContactModal";
 import { NewDealModal } from "@/components/crm/NewDealModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "pipeline" | "contacts";
 
 export default function CrmPage() {
@@ -77,7 +78,10 @@ export default function CrmPage() {
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">مدیریت ارتباط با مشتری</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">مدیریت ارتباط با مشتری</h1>
+            <ModuleHelp code="crm" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">پیگیری سرنخ‌ها، مخاطبین و فرصت‌های فروش در یک قیف یکپارچه</p>
         </div>
         <button

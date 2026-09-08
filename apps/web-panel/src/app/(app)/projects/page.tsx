@@ -12,6 +12,7 @@ import { NewProjectModal } from "@/components/projects/NewProjectModal";
 import { ProjectDetailModal } from "@/components/projects/ProjectDetailModal";
 import { StageTemplatesModal } from "@/components/projects/StageTemplatesModal";
 
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNING: "برنامه‌ریزی",
   ACTIVE: "در حال اجرا",
@@ -116,7 +117,10 @@ export default function ProjectsPage() {
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold">مدیریت پروژه</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">مدیریت پروژه</h1>
+            <ModuleHelp code="projects" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">پروژه‌ها، پیشرفت بر اساس وظایف، بودجه و مهلت</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
