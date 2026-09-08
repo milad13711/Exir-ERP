@@ -618,7 +618,7 @@ export default function SignupPage() {
                 </div>
 
                 <div className="bg-primary-soft rounded-xl p-3.5 text-[12.5px] text-primary font-semibold">
-                  محیط کاری شما فوراً ساخته می‌شود و ۷ روز کاملاً رایگان در اختیارتان است — هر زمان خواستید ارتقا دهید.
+                  محیط کاری شما فوراً ساخته می‌شود و ۲۴ ساعت کاملاً رایگان در اختیارتان است تا آن را بررسی کنید — هر زمان خواستید ارتقا دهید.
                 </div>
 
                 <div>

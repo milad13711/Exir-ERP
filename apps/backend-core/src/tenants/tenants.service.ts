@@ -144,16 +144,18 @@ export class TenantsService {
       const now = new Date();
 
       // مسیر ثبت‌نام عمومی: به‌جای انتظار برای تأیید دستی پرداخت، سازمان
-      // بلافاصله فعال می‌شود با ۷ روز استفاده‌ی رایگان — پیش‌فاکتور برای پلن
+      // بلافاصله فعال می‌شود با ۲۴ ساعت استفاده‌ی رایگان — پیش‌فاکتور برای پلن
       // انتخابی صادر می‌شود ولی سررسیدش تا پایان همین بازه است و ورود را
-      // مسدود نمی‌کند. پس از ۷ روز، TrialExpiryCronService سازمان‌های
-      // استفاده‌نشده را به PENDING_PAYMENT می‌برد (دقیقاً همان گیت موجود در
-      // JwtAuthGuard). تننت‌های ساخته‌شده توسط ادمین همان رفتار قبلی
-      // (یک ماه مهلت، بدون فعال‌سازی خودکار روی پلن پولی) را دارند.
+      // مسدود نمی‌کند. پس از ۲۴ ساعت، TrialExpiryCronService (هر ساعت اجرا
+      // می‌شود) سازمان‌های استفاده‌نشده را به PENDING_PAYMENT می‌برد (دقیقاً
+      // همان گیت موجود در JwtAuthGuard). ادمین می‌تواند از پنل مدیریت این
+      // بازه را دستی تمدید کند (AdminTenantsController). تننت‌های
+      // ساخته‌شده توسط ادمین همان رفتار قبلی (یک ماه مهلت، بدون فعال‌سازی
+      // خودکار روی پلن پولی) را دارند.
       const isFreeTrialSignup = !!input.isPublicSignup;
       const periodEnd = new Date(now);
       if (isFreeTrialSignup) {
-        periodEnd.setDate(periodEnd.getDate() + 7);
+        periodEnd.setHours(periodEnd.getHours() + 24);
       } else {
         periodEnd.setMonth(periodEnd.getMonth() + 1);
       }
@@ -270,15 +272,26 @@ export class TenantsService {
    * Extends the tenant's current subscription period by `months` from
    * whichever is later — today or its current expiry (so renewing early
    * adds on top instead of wasting the remaining days) — and issues a PAID
-   * invoice for the period. Reactivates a lapsed (PAST_DUE) subscription.
+   * invoice for the period. Reactivates a lapsed (PAST_DUE) subscription —
+   * and, if the tenant itself had lapsed into PENDING_PAYMENT (e.g. an
+   * expired free trial via TrialExpiryCronService), also flips Tenant.status
+   * back to ACTIVE so the renewal actually restores login, not just the
+   * subscription record. This is the admin's manual "extend the demo" and
+   * "reactivate after payment" action — same idea as settleInvoicePaid's
+   * shouldActivate check, duplicated here since renewTenant creates its own
+   * already-PAID invoice rather than going through that path.
    */
   async renewTenant(tenantId: string, months: number, actorAdminId: string) {
-    const subscription = await this.controlDb.subscription.findFirst({
-      where: { tenantId, status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE'] } },
-      orderBy: { startedAt: 'desc' },
-      include: { plan: true },
-    });
+    const [subscription, tenant] = await Promise.all([
+      this.controlDb.subscription.findFirst({
+        where: { tenantId, status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE'] } },
+        orderBy: { startedAt: 'desc' },
+        include: { plan: true },
+      }),
+      this.controlDb.tenant.findUnique({ where: { id: tenantId } }),
+    ]);
     if (!subscription) throw new NotFoundException('این تننت اشتراک فعالی ندارد');
+    const shouldActivateTenant = tenant?.status === 'PENDING_PAYMENT';
 
     const base = subscription.currentPeriodEnd > new Date() ? subscription.currentPeriodEnd : new Date();
     const newPeriodEnd = new Date(base);
@@ -310,6 +323,9 @@ export class TenantsService {
           metadata: { months, newPeriodEnd },
         },
       }),
+      ...(shouldActivateTenant
+        ? [this.controlDb.tenant.update({ where: { id: tenantId }, data: { status: 'ACTIVE' as const } })]
+        : []),
     ]);
 
     return { subscription: updated, invoice };

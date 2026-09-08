@@ -262,6 +262,7 @@ export type Subscription = {
   planCode: string;
   status: string;
   daysLeft: number;
+  hoursLeft: number;
   currentPeriodEnd: string;
   autoRenew: boolean;
 } | null;

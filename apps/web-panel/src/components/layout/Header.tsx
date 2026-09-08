@@ -75,7 +75,9 @@ export function Header({
             <span className="text-[12.5px] font-bold text-warning">استفاده رایگان</span>
             <span className="w-px h-3.5 bg-warning/20" />
             <span className="text-[12.5px] text-warning">
-              {toPersianDigits(subscription.daysLeft)} روز تا پایان دوره‌ی رایگان
+              {subscription.hoursLeft <= 48
+                ? `${toPersianDigits(Math.max(0, subscription.hoursLeft))} ساعت تا پایان دوره‌ی رایگان`
+                : `${toPersianDigits(subscription.daysLeft)} روز تا پایان دوره‌ی رایگان`}
             </span>
             <span className="border-0 bg-warning text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
               ارتقا و فعال‌سازی

@@ -23,15 +23,15 @@ export class BillingController {
     });
     if (!subscription) return null;
 
-    const daysLeft = Math.max(
-      0,
-      Math.ceil((subscription.currentPeriodEnd.getTime() - Date.now()) / 86_400_000),
-    );
+    const msLeft = Math.max(0, subscription.currentPeriodEnd.getTime() - Date.now());
+    const daysLeft = Math.ceil(msLeft / 86_400_000);
+    const hoursLeft = Math.ceil(msLeft / 3_600_000);
     return {
       planName: subscription.plan.name,
       planCode: subscription.plan.code,
       status: subscription.status,
       daysLeft,
+      hoursLeft,
       currentPeriodEnd: subscription.currentPeriodEnd,
       autoRenew: subscription.autoRenew,
     };
