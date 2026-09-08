@@ -137,10 +137,13 @@ export function verifyOtp(phone: string, code: string) {
 
 // ── Public signup (unauthenticated — no existing tenant/membership yet) ───
 
+export type IndustryBusinessCategory = "SERVICES" | "TRADE" | "PRODUCTION";
+
 export type PublicIndustryTemplate = {
   code: string;
   name: string;
   description: string | null;
+  businessCategory: IndustryBusinessCategory | null;
   suggestedThemeColor: string | null;
   defaultModules: string[];
 };
@@ -201,6 +204,7 @@ export function createPublicTenant(input: {
   ownerName: string;
   planCode: string;
   industryTemplateCode?: string;
+  extraModuleCodes?: string[];
 }) {
   return apiFetch<{
     tenant: { name: string; slug: string; status: string };

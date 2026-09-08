@@ -394,6 +394,7 @@ async function main() {
       code: 'livestock-feed',
       name: 'خوراک دام',
       description: 'تولید کنسانتره و خوراک دام، طیور و آبزیان — از تأمین مواد اولیه تا فرمولاسیون و بسته‌بندی محصول نهایی.',
+      businessCategory: 'PRODUCTION',
       roles: [
         {
           name: 'مسئول فرمولاسیون',
@@ -449,6 +450,7 @@ async function main() {
       defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'production'],
     },
     update: {
+      businessCategory: 'PRODUCTION',
       suggestedThemeColor: '#15803d',
       defaultModules: ['tasks', 'crm', 'warehouse', 'accounting', 'sales', 'purchasing', 'production'],
     },
@@ -459,6 +461,7 @@ async function main() {
     code: string;
     name: string;
     description: string;
+    businessCategory: 'SERVICES' | 'TRADE' | 'PRODUCTION';
     roles: unknown[];
     chartOfAccounts: unknown[];
     productCategories: string[];
@@ -468,6 +471,7 @@ async function main() {
   }> = [
     {
       code: 'retail-store',
+      businessCategory: 'TRADE',
       name: 'خرده‌فروشی و فروشگاه',
       description: 'فروشگاه‌های زنجیره‌ای و خرده‌فروشی — از صندوق فروش تا مدیریت موجودی و خرید از تأمین‌کننده.',
       roles: [
@@ -514,6 +518,7 @@ async function main() {
     },
     {
       code: 'restaurant-cafe',
+      businessCategory: 'SERVICES',
       name: 'رستوران و کافی‌شاپ',
       description: 'رستوران، کافی‌شاپ و فست‌فود — مدیریت مواد اولیه آشپزخانه، فروش سالن و ضایعات مواد غذایی.',
       roles: [
@@ -553,6 +558,7 @@ async function main() {
     },
     {
       code: 'technical-services',
+      businessCategory: 'SERVICES',
       name: 'خدمات فنی و پیمانکاری',
       description: 'شرکت‌های خدمات فنی، نصب و پیمانکاری — مدیریت پروژه‌محور با پیگیری مطالبات و پیش‌دریافت از کارفرما.',
       roles: [
@@ -598,6 +604,7 @@ async function main() {
     },
     {
       code: 'wholesale-distribution',
+      businessCategory: 'TRADE',
       name: 'پخش و توزیع مویرگی',
       description: 'شرکت‌های پخش و توزیع مویرگی — ویزیتوری، انبار مرکزی و پیگیری مطالبات معوق نمایندگی‌ها.',
       roles: [
@@ -652,6 +659,7 @@ async function main() {
     },
     {
       code: 'auto-service',
+      businessCategory: 'SERVICES',
       name: 'نمایندگی و تعمیرگاه خودرو',
       description: 'نمایندگی فروش و تعمیرگاه خودرو — پذیرش خودرو، مدیریت قطعات یدکی و فروش خودرو.',
       roles: [
@@ -690,6 +698,7 @@ async function main() {
     },
     {
       code: 'business-consulting',
+      businessCategory: 'SERVICES',
       name: 'مشاوره کسب‌وکار',
       description:
         'شرکت‌ها و افراد مشاور مدیریت، مالی، منابع انسانی و بهبود فرایند — کار پروژه‌محور با مشتریان متعدد، قرارداد مشاوره و جلسات برنامه‌ریزی‌شده.',
@@ -730,6 +739,7 @@ async function main() {
     },
     {
       code: 'manufacturing',
+      businessCategory: 'PRODUCTION',
       name: 'تولیدی و کارخانه عمومی',
       description:
         'کارخانه‌ها و واحدهای تولیدی عمومی (غیر از خوراک دام) — از تأمین مواد اولیه و خط تولید تا کنترل کیفیت و انبار محصول نهایی.',
@@ -780,6 +790,7 @@ async function main() {
     },
     {
       code: 'construction',
+      businessCategory: 'PRODUCTION',
       name: 'ساخت‌وساز و پیمانکاری عمرانی',
       description:
         'شرکت‌های پیمانکاری ساختمانی و عمرانی — مدیریت پروژه‌های اجرایی، مصالح ساختمانی، قراردادهای پیمانکاری فرعی و صورت‌وضعیت.',
@@ -830,6 +841,7 @@ async function main() {
     },
     {
       code: 'medical-clinic',
+      businessCategory: 'SERVICES',
       name: 'کلینیک و مطب پزشکی',
       description:
         'مطب‌ها، کلینیک‌های تخصصی و مراکز درمانی — نوبت‌دهی بیماران، پرونده و پیگیری مراجعین، و مدیریت داروخانه/تجهیزات مصرفی.',
@@ -871,6 +883,7 @@ async function main() {
     },
     {
       code: 'education-institute',
+      businessCategory: 'SERVICES',
       name: 'آموزشگاه و موسسه آموزشی',
       description:
         'آموزشگاه‌های آزاد، موسسات کنکور و زبان، و مراکز آموزشی خصوصی — ثبت‌نام و پیگیری هنرجو، برنامه‌ریزی کلاس، شهریه و قرارداد مدرسین.',
@@ -918,6 +931,7 @@ async function main() {
         code: t.code,
         name: t.name,
         description: t.description,
+        businessCategory: t.businessCategory,
         roles: t.roles as object[],
         chartOfAccounts: t.chartOfAccounts as object[],
         productCategories: t.productCategories,
@@ -928,6 +942,7 @@ async function main() {
       update: {
         name: t.name,
         description: t.description,
+        businessCategory: t.businessCategory,
         roles: t.roles as object[],
         chartOfAccounts: t.chartOfAccounts as object[],
         productCategories: t.productCategories,

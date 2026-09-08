@@ -67,6 +67,20 @@ export function Header({
                 : `${toPersianDigits(license.daysLeft)} روز تا انقضای لایسنس`}
             </span>
           </div>
+        ) : subscription?.status === "TRIAL" ? (
+          <Link
+            href="/settings/billing"
+            className="hidden sm:flex items-center gap-2.5 py-1.5 ps-3.5 pe-1.5 rounded-xl bg-warning-soft"
+          >
+            <span className="text-[12.5px] font-bold text-warning">استفاده رایگان</span>
+            <span className="w-px h-3.5 bg-warning/20" />
+            <span className="text-[12.5px] text-warning">
+              {toPersianDigits(subscription.daysLeft)} روز تا پایان دوره‌ی رایگان
+            </span>
+            <span className="border-0 bg-warning text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
+              ارتقا و فعال‌سازی
+            </span>
+          </Link>
         ) : subscription ? (
           <Link
             href="/settings/billing"

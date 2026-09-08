@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class CreatePublicTenantDto {
   /** Short-lived JWT from POST /public/signup/otp/verify, proves phone ownership. */
@@ -26,4 +26,10 @@ export class CreatePublicTenantDto {
   @IsOptional()
   @IsString()
   industryTemplateCode?: string;
+
+  /** مسیر «شخصی‌سازی برای کسب‌وکار من» — ماژول‌های اضافه‌ی دستی‌انتخاب‌شده، فراتر از پیش‌فرض‌های صنف. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  extraModuleCodes?: string[];
 }

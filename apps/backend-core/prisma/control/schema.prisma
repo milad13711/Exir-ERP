@@ -19,11 +19,11 @@ datasource db {
 // ── Identity (global, spans tenants) ───────────────────────────────────────
 
 model GlobalUser {
-  id          String   @id @default(uuid())
-  phone       String   @unique
+  id          String    @id @default(uuid())
+  phone       String    @unique
   name        String?
-  isSuperUser Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  isSuperUser Boolean   @default(false)
+  createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
   memberships    TenantMembership[]
@@ -87,10 +87,10 @@ model Tenant {
   // not here — see GeneralSettingsController. themeColor has no other home.
   themeColor String?
 
-  createdAt      DateTime  @default(now())
-  provisionedAt  DateTime?
-  suspendedAt    DateTime?
-  suspendReason  String?
+  createdAt     DateTime  @default(now())
+  provisionedAt DateTime?
+  suspendedAt   DateTime?
+  suspendReason String?
 
   memberships    TenantMembership[]
   subscriptions  Subscription[]
@@ -182,12 +182,12 @@ enum MembershipStatus {
 // (see prisma/tenant/schema.prisma → Role/Permission), since they depend on
 // which modules that tenant has installed.
 model TenantMembership {
-  id           String            @id @default(uuid())
+  id           String           @id @default(uuid())
   tenantId     String
   globalUserId String
-  role         TenantRole        @default(MEMBER)
-  status       MembershipStatus  @default(INVITED)
-  invitedAt    DateTime          @default(now())
+  role         TenantRole       @default(MEMBER)
+  status       MembershipStatus @default(INVITED)
+  invitedAt    DateTime         @default(now())
   joinedAt     DateTime?
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -200,14 +200,14 @@ model TenantMembership {
 // ── Billing ─────────────────────────────────────────────────────────────────
 
 model Plan {
-  id            String   @id @default(uuid())
-  code          String   @unique
-  name          String
-  priceMonthly  Int // Toman
-  priceYearly   Int? // Toman — null means "no yearly discount configured yet", quote falls back to priceMonthly*12
-  userLimit     Int
-  isPubliclySold Boolean @default(true)
-  createdAt     DateTime @default(now())
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  priceMonthly   Int // Toman
+  priceYearly    Int? // Toman — null means "no yearly discount configured yet", quote falls back to priceMonthly*12
+  userLimit      Int
+  isPubliclySold Boolean  @default(true)
+  createdAt      DateTime @default(now())
 
   subscriptions Subscription[]
 
@@ -245,19 +245,19 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id             String        @id @default(uuid())
-  tenantId       String
-  subscriptionId String?
-  amount         Int // Toman
-  status         InvoiceStatus @default(PENDING)
-  issuedAt       DateTime      @default(now())
-  dueAt          DateTime
-  paidAt         DateTime?
+  id                String        @id @default(uuid())
+  tenantId          String
+  subscriptionId    String?
+  amount            Int // Toman
+  status            InvoiceStatus @default(PENDING)
+  issuedAt          DateTime      @default(now())
+  dueAt             DateTime
+  paidAt            DateTime?
   // Set when a Zarinpal payment is initiated for this invoice — lets the
   // callback verify against the exact attempt it started (not just trust
   // whatever Authority a request happens to carry) and stops a stale/reused
   // Authority from marking a different invoice paid.
-  zarinpalAuthority String? @unique
+  zarinpalAuthority String?       @unique
   paymentRefId      Int? // Zarinpal's ref_id once a payment verifies successfully
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -293,11 +293,11 @@ enum TenantModuleStatus {
 }
 
 model TenantModule {
-  id          String              @id @default(uuid())
+  id          String             @id @default(uuid())
   tenantId    String
   moduleId    String
-  status      TenantModuleStatus  @default(INSTALLED)
-  installedAt DateTime            @default(now())
+  status      TenantModuleStatus @default(INSTALLED)
+  installedAt DateTime           @default(now())
 
   tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   module ModuleDefinition @relation(fields: [moduleId], references: [id])
@@ -327,8 +327,8 @@ model AdminUser {
   assignedTickets SupportTicket[]
   issuedLicenses  License[]
 
-  assignedInternalTasks InternalTask[]  @relation("AssignedInternalTasks")
-  createdInternalTasks  InternalTask[]  @relation("CreatedInternalTasks")
+  assignedInternalTasks InternalTask[]          @relation("AssignedInternalTasks")
+  createdInternalTasks  InternalTask[]          @relation("CreatedInternalTasks")
   ownedLeads            InternalLead[]
   pushSubscriptions     AdminPushSubscription[]
 
@@ -387,22 +387,22 @@ enum InternalLeadStage {
 }
 
 model InternalLead {
-  id           String            @id @default(uuid())
-  name         String
-  company      String?
-  phone        String?
-  email        String?
-  stage        InternalLeadStage @default(NEW)
-  value        Int? // estimated deal value, Toman
-  notes        String?
+  id                            String            @id @default(uuid())
+  name                          String
+  company                       String?
+  phone                         String?
+  email                         String?
+  stage                         InternalLeadStage @default(NEW)
+  value                         Int? // estimated deal value, Toman
+  notes                         String?
   // Set only for leads that came from the marketing site's plan
   // configurator — lets admin's "Convert to Tenant" prefill NewTenantModal
   // instead of staff retyping what the visitor already chose.
   requestedPlanCode             String?
   requestedIndustryTemplateCode String?
-  ownerAdminId String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  ownerAdminId                  String?
+  createdAt                     DateTime          @default(now())
+  updatedAt                     DateTime          @updatedAt
 
   owner AdminUser? @relation(fields: [ownerAdminId], references: [id])
 
@@ -424,20 +424,20 @@ enum LicenseStatus {
 }
 
 model License {
-  id             String        @id @default(uuid())
-  tenantId       String?
-  orgName        String
-  signedKey      String        @unique // the full "<payload>.<signature>" offline token
-  allowedModules String[]
-  seats          Int           @default(10)
-  status         LicenseStatus @default(ACTIVE)
-  issuedAt       DateTime      @default(now())
-  expiresAt      DateTime
-  revokedAt      DateTime?
-  revokedReason  String?
+  id              String        @id @default(uuid())
+  tenantId        String?
+  orgName         String
+  signedKey       String        @unique // the full "<payload>.<signature>" offline token
+  allowedModules  String[]
+  seats           Int           @default(10)
+  status          LicenseStatus @default(ACTIVE)
+  issuedAt        DateTime      @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  revokedReason   String?
   issuedByAdminId String?
 
-  tenant       Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenant        Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   issuedByAdmin AdminUser? @relation(fields: [issuedByAdminId], references: [id], onDelete: SetNull)
 
   @@index([expiresAt])
@@ -460,20 +460,20 @@ enum TicketPriority {
 }
 
 model SupportTicket {
-  id               String         @id @default(uuid())
-  tenantId         String
-  createdByUserId  String
-  subject          String
-  status           TicketStatus   @default(OPEN)
-  priority         TicketPriority @default(MEDIUM)
-  assignedAdminId  String?
-  createdAt        DateTime       @default(now())
-  resolvedAt       DateTime?
-  resolutionNote   String?
+  id              String         @id @default(uuid())
+  tenantId        String
+  createdByUserId String
+  subject         String
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  assignedAdminId String?
+  createdAt       DateTime       @default(now())
+  resolvedAt      DateTime?
+  resolutionNote  String?
 
-  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdByUser GlobalUser      @relation(fields: [createdByUserId], references: [id])
-  assignedAdmin AdminUser?      @relation(fields: [assignedAdminId], references: [id])
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser GlobalUser       @relation(fields: [createdByUserId], references: [id])
+  assignedAdmin AdminUser?       @relation(fields: [assignedAdminId], references: [id])
   messages      SupportMessage[]
 
   @@map("support_tickets")
@@ -486,12 +486,12 @@ enum SenderType {
 }
 
 model SupportMessage {
-  id        String     @id @default(uuid())
-  ticketId  String
+  id         String     @id @default(uuid())
+  ticketId   String
   senderType SenderType
-  senderId  String? // GlobalUser.id or AdminUser.id, depending on senderType
-  body      String
-  createdAt DateTime   @default(now())
+  senderId   String? // GlobalUser.id or AdminUser.id, depending on senderType
+  body       String
+  createdAt  DateTime   @default(now())
 
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
@@ -553,7 +553,6 @@ model ErrorLog {
  * doesn't require personalizing roles, chart-of-accounts, and org structure
  * from scratch again. Applied once, at tenant-creation time, by
  * `seedDefaultTenantData` (see apps/backend-core/src/tenants/default-tenant-data.seed.ts).
- *
  * `roles` and `chartOfAccounts` are actually seeded into the new tenant's
  * database (real Role/Permission/ModulePermission and Account rows).
  * `productCategories` and `orgChart` are reference/suggestion data only —
@@ -561,25 +560,34 @@ model ErrorLog {
  * rows into (a brand-new tenant has zero products and shouldn't get fake
  * placeholder employees), so these stay descriptive JSON for a future
  * onboarding UI to surface as suggestions.
- *
  * Authoring/editing templates (an admin-panel UI) and how a template gets
  * picked at tenant-creation time in the UI are explicitly out of scope for
  * now — templates are seeded by `prisma/control/seed.ts` today; this model
  * exists so `CreateTenantDto.industryTemplateCode` has something real to
  * look up.
  */
+/// دسته‌بندی سطح‌بالای صنف — پایه‌ی مرحله‌ی اول ویزارد ثبت‌نام عمومی
+/// («کسب‌وکارتان خدماتی، بازرگانی یا تولیدی است؟») پیش از نمایش صنف‌های
+/// همان دسته.
+enum IndustryBusinessCategory {
+  SERVICES // خدماتی
+  TRADE // بازرگانی
+  PRODUCTION // تولیدی
+}
+
 model IndustryTemplate {
-  id                String   @id @default(uuid())
-  code              String   @unique // e.g. "livestock-feed"
-  name              String // نام صنف، مثلاً «خوراک دام»
-  description       String?
-  roles             Json // Array<{ name, permissionCodes: string[], modulePermissions: Record<moduleCode, matrix> }>
-  chartOfAccounts   Json // Array<{ code, name, type, isCashAccount? }> — افزوده‌ی صنعتی روی کدینگ پایه
-  productCategories Json // string[] — دسته‌بندی‌های پیشنهادی کالا
-  orgChart          Json // Array<{ position, reportsTo: string | null, department }>
+  id                  String                    @id @default(uuid())
+  code                String                    @unique // e.g. "livestock-feed"
+  name                String // نام صنف، مثلاً «خوراک دام»
+  description         String?
+  businessCategory    IndustryBusinessCategory? // خالی فقط برای قالب‌های خیلی قدیمی/دستی — صنف‌های seed همه مقداردهی شده‌اند
+  roles               Json // Array<{ name, permissionCodes: string[], modulePermissions: Record<moduleCode, matrix> }>
+  chartOfAccounts     Json // Array<{ code, name, type, isCashAccount? }> — افزوده‌ی صنعتی روی کدینگ پایه
+  productCategories   Json // string[] — دسته‌بندی‌های پیشنهادی کالا
+  orgChart            Json // Array<{ position, reportsTo: string | null, department }>
   suggestedThemeColor String?
-  defaultModules      String[] @default([]) // ModuleDefinition.code[] installed automatically on tenant creation
-  createdAt         DateTime @default(now())
+  defaultModules      String[]                  @default([]) // ModuleDefinition.code[] installed automatically on tenant creation
+  createdAt           DateTime                  @default(now())
 
   @@map("industry_templates")
 }

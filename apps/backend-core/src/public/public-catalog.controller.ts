@@ -61,7 +61,14 @@ export class PublicCatalogController {
   @Get('industry-templates')
   listIndustryTemplates() {
     return this.controlDb.industryTemplate.findMany({
-      select: { code: true, name: true, description: true, suggestedThemeColor: true, defaultModules: true },
+      select: {
+        code: true,
+        name: true,
+        description: true,
+        businessCategory: true,
+        suggestedThemeColor: true,
+        defaultModules: true,
+      },
       orderBy: { name: 'asc' },
     });
   }

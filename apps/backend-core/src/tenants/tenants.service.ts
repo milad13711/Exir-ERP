@@ -21,6 +21,14 @@ export type CreateTenantInput = {
    * a free-paid-tenant loophole once tenant creation is reachable publicly.
    */
   isPublicSignup?: boolean;
+  /**
+   * Extra module codes to install beyond isCore + the industry template's
+   * own defaultModules — the "شخصی‌سازی برای کسب‌وکار من" wizard path, where
+   * the visitor picks a base industry for its roles/CoA but then hand-picks
+   * their own module set on top of it. Ignored for admin-created tenants
+   * that don't go through the wizard.
+   */
+  extraModuleCodes?: string[];
 };
 
 export type TenantActor = { type: 'admin_user'; id: string } | { type: 'system'; id: null };
@@ -124,7 +132,7 @@ export class TenantsService {
         },
       });
 
-      const defaultModuleCodes = industryTemplate?.defaultModules ?? [];
+      const defaultModuleCodes = [...(industryTemplate?.defaultModules ?? []), ...(input.extraModuleCodes ?? [])];
       const modulesToInstall = await this.controlDb.moduleDefinition.findMany({
         where: { OR: [{ isCore: true }, { code: { in: defaultModuleCodes } }] },
       });
@@ -134,8 +142,21 @@ export class TenantsService {
       });
 
       const now = new Date();
+
+      // مسیر ثبت‌نام عمومی: به‌جای انتظار برای تأیید دستی پرداخت، سازمان
+      // بلافاصله فعال می‌شود با ۷ روز استفاده‌ی رایگان — پیش‌فاکتور برای پلن
+      // انتخابی صادر می‌شود ولی سررسیدش تا پایان همین بازه است و ورود را
+      // مسدود نمی‌کند. پس از ۷ روز، TrialExpiryCronService سازمان‌های
+      // استفاده‌نشده را به PENDING_PAYMENT می‌برد (دقیقاً همان گیت موجود در
+      // JwtAuthGuard). تننت‌های ساخته‌شده توسط ادمین همان رفتار قبلی
+      // (یک ماه مهلت، بدون فعال‌سازی خودکار روی پلن پولی) را دارند.
+      const isFreeTrialSignup = !!input.isPublicSignup;
       const periodEnd = new Date(now);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      if (isFreeTrialSignup) {
+        periodEnd.setDate(periodEnd.getDate() + 7);
+      } else {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      }
 
       await this.controlDb.subscription.create({
         data: {
@@ -146,19 +167,17 @@ export class TenantsService {
         },
       });
 
-      // Picking an industry template means this is a real business signing
-      // up, not an internal/test tenant — it must pay for its plan before
-      // it can log in. The tenant DB is still fully provisioned either way;
-      // only `status` gates access (see JwtAuthGuard), and markInvoicePaid
-      // flips it to ACTIVE once the invoice below is settled.
-      const requiresPayment = (!!industryTemplate || !!input.isPublicSignup) && plan.priceMonthly > 0;
-      if (requiresPayment) {
+      // پیش‌فاکتورِ همان پلنی که کاربر انتخاب کرده، همیشه صادر می‌شود (چه در
+      // مسیر رایگان و چه در مسیر قدیمی) — تفاوت فقط در اینکه آیا سررسیدش
+      // ورود را مسدود می‌کند یا نه.
+      const requiresPayment = !isFreeTrialSignup && (!!industryTemplate || !!input.isPublicSignup) && plan.priceMonthly > 0;
+      if (isFreeTrialSignup ? plan.priceMonthly > 0 : requiresPayment) {
         await this.controlDb.invoice.create({
           data: {
             tenantId: tenant.id,
             amount: plan.priceMonthly,
             status: 'PENDING',
-            dueAt: now,
+            dueAt: isFreeTrialSignup ? periodEnd : now,
           },
         });
       }
