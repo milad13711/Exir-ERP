@@ -1,0 +1,226 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import type { TenantRequestContext } from '../common/request-context.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { InvoicesService } from '../sales/invoices.service.js';
+import type { CreateSessionDto } from './dto/create-session.dto.js';
+import type { UpdateSessionDto } from './dto/update-session.dto.js';
+import type { CreateSessionInvoiceDto } from './dto/create-session-invoice.dto.js';
+
+export function formatWhenFa(date: Date): string {
+  const d = date.toLocaleDateString('fa-IR');
+  const t = date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  return `${d} ساعت ${t}`;
+}
+
+const MODE_LABEL_FA: Record<string, string> = { ONLINE: 'آنلاین', PHONE: 'تلفنی', IN_PERSON: 'حضوری' };
+
+const SESSION_INCLUDE = {
+  engagement: { include: { contact: { select: { id: true, name: true, phone: true } }, advisor: { select: { id: true, name: true, phone: true } } } },
+  survey: { select: { rating: true, note: true, sentAt: true, submittedAt: true } },
+} as const;
+
+@Injectable()
+export class SessionsService {
+  constructor(
+    private readonly automation: AutomationEngineService,
+    private readonly sms: ExirSmsService,
+    private readonly invoices: InvoicesService,
+  ) {}
+
+  list(ctx: TenantRequestContext, filters: { engagementId?: string; status?: string; from?: Date; to?: Date }) {
+    return ctx.tenantDb.mentoringSession.findMany({
+      where: {
+        ...(filters.engagementId ? { engagementId: filters.engagementId } : {}),
+        ...(filters.status ? { status: filters.status as never } : {}),
+        ...(filters.from || filters.to
+          ? { scheduledAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }
+          : {}),
+      },
+      include: SESSION_INCLUDE,
+      orderBy: { scheduledAt: 'desc' },
+    });
+  }
+
+  upcomingThisWeek(ctx: TenantRequestContext) {
+    const from = new Date();
+    const to = new Date(Date.now() + 7 * 86_400_000);
+    return ctx.tenantDb.mentoringSession.findMany({
+      where: { scheduledAt: { gte: from, lte: to }, status: 'SCHEDULED' },
+      include: SESSION_INCLUDE,
+      orderBy: { scheduledAt: 'asc' },
+      take: 20,
+    });
+  }
+
+  async detail(ctx: TenantRequestContext, id: string) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id }, include: SESSION_INCLUDE });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    return session;
+  }
+
+  async create(ctx: TenantRequestContext, dto: CreateSessionDto) {
+    const engagement = await ctx.tenantDb.mentoringEngagement.findUnique({
+      where: { id: dto.engagementId },
+      include: { contact: true, advisor: true },
+    });
+    if (!engagement) throw new NotFoundException('همکاری مورد نظر یافت نشد');
+    if (engagement.status !== 'ACTIVE') throw new ConflictException('فقط برای همکاری فعال می‌توان جلسه ثبت کرد');
+
+    const scheduledAt = new Date(dto.scheduledAt);
+    if (Number.isNaN(scheduledAt.getTime())) throw new BadRequestException('زمان جلسه نامعتبر است');
+    const mode = dto.mode ?? 'ONLINE';
+    if (mode === 'IN_PERSON' && !dto.location) throw new BadRequestException('برای جلسه‌ی حضوری، آدرس الزامی است');
+
+    const createdByUserId = await resolveTenantUserId(ctx);
+    const session = await ctx.tenantDb.mentoringSession.create({
+      data: {
+        engagementId: dto.engagementId,
+        appointmentId: dto.appointmentId,
+        mode,
+        scheduledAt,
+        durationMinutes: dto.durationMinutes ?? 60,
+        location: dto.location,
+        createdByUserId,
+      },
+      include: SESSION_INCLUDE,
+    });
+
+    await this.automation.emit(ctx, 'mentoring.session.scheduled', {
+      engagementTitle: engagement.title,
+      contactName: engagement.contact.name,
+      advisorName: engagement.advisor.name,
+      scheduledAt: scheduledAt.toISOString(),
+      mode,
+    });
+
+    const whenFa = formatWhenFa(scheduledAt);
+    const modeLabel = MODE_LABEL_FA[mode];
+    if (engagement.contact.phone && this.sms.isConfigured()) {
+      const addressPart = mode === 'IN_PERSON' && dto.location ? ` — آدرس: ${dto.location}` : '';
+      await this.sms.sendSms(
+        engagement.contact.phone,
+        `جلسه‌ی «${engagement.title}» شما در تاریخ ${whenFa} به‌صورت ${modeLabel} ثبت شد.${addressPart}`,
+      );
+    }
+    if (engagement.advisor.phone && this.sms.isConfigured()) {
+      await this.sms.sendSms(
+        engagement.advisor.phone,
+        `جلسه‌ی جدید با ${engagement.contact.name} در تاریخ ${whenFa} (${modeLabel}) برایتان ثبت شد.`,
+      );
+    }
+
+    return session;
+  }
+
+  async update(ctx: TenantRequestContext, id: string, dto: UpdateSessionDto) {
+    const existing = await ctx.tenantDb.mentoringSession.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('این جلسه یافت نشد');
+    if (existing.status !== 'SCHEDULED') throw new ConflictException('فقط جلسه‌ی زمان‌بندی‌شده قابل ویرایش است');
+
+    const scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : undefined;
+    if (scheduledAt && Number.isNaN(scheduledAt.getTime())) throw new BadRequestException('زمان جلسه نامعتبر است');
+
+    return ctx.tenantDb.mentoringSession.update({
+      where: { id },
+      data: {
+        mode: dto.mode,
+        scheduledAt,
+        durationMinutes: dto.durationMinutes,
+        location: dto.location,
+        // زمان‌بندی دوباره شد — یادآور قبلی دیگر معتبر نیست، دوباره ارسال می‌شود
+        reminderSentAt: scheduledAt ? null : undefined,
+      },
+      include: SESSION_INCLUDE,
+    });
+  }
+
+  /** پس از تکمیل جلسه: صورت‌جلسه ثبت می‌شود و لینک نظرسنجی برای مشتری پیامک می‌شود. */
+  async complete(ctx: TenantRequestContext, id: string, minutesNote: string | undefined, publicWebUrl: string, tenantSlug: string) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({
+      where: { id },
+      include: { engagement: { include: { contact: true } } },
+    });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    if (session.status !== 'SCHEDULED') throw new ConflictException('فقط جلسه‌ی زمان‌بندی‌شده قابل تکمیل است');
+
+    await ctx.tenantDb.mentoringSession.update({
+      where: { id },
+      data: { status: 'COMPLETED', minutesNote },
+    });
+
+    const survey = await ctx.tenantDb.mentoringSessionSurvey.create({ data: { sessionId: id } });
+    if (session.engagement.contact.phone && this.sms.isConfigured() && publicWebUrl) {
+      const url = `${publicWebUrl}/mentoring-survey/${tenantSlug}/${survey.publicToken}`;
+      const result = await this.sms.sendSms(
+        session.engagement.contact.phone,
+        `جلسه‌ی «${session.engagement.title}» به پایان رسید. نظر شما به بهبود کیفیت جلسات کمک می‌کند: ${url}`,
+      );
+      if (result.success) {
+        await ctx.tenantDb.mentoringSessionSurvey.update({ where: { id: survey.id }, data: { sentAt: new Date() } });
+        await ctx.tenantDb.mentoringSession.update({ where: { id }, data: { surveySentAt: new Date() } });
+      }
+    }
+
+    await this.automation.emit(ctx, 'mentoring.session.completed', {
+      engagementTitle: session.engagement.title,
+      contactName: session.engagement.contact.name,
+      scheduledAt: session.scheduledAt.toISOString(),
+    });
+
+    return this.detail(ctx, id);
+  }
+
+  async cancel(ctx: TenantRequestContext, id: string, reason: string | undefined) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    if (session.status !== 'SCHEDULED') throw new ConflictException('فقط جلسه‌ی زمان‌بندی‌شده قابل لغو است');
+    return ctx.tenantDb.mentoringSession.update({
+      where: { id },
+      data: { status: 'CANCELLED', minutesNote: reason },
+      include: SESSION_INCLUDE,
+    });
+  }
+
+  async noShow(ctx: TenantRequestContext, id: string) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    if (session.status !== 'SCHEDULED') throw new ConflictException('فقط جلسه‌ی زمان‌بندی‌شده قابل ثبت به‌عنوان عدم‌حضور است');
+    return ctx.tenantDb.mentoringSession.update({ where: { id }, data: { status: 'NO_SHOW' }, include: SESSION_INCLUDE });
+  }
+
+  /** مبلغ پیشنهادی فاکتور بر اساس مدل تعرفه‌ی همکاری — فرانت این را به‌عنوان پیش‌فرض نشان می‌دهد، مبلغ نهایی دستی تأیید می‌شود. */
+  async suggestedAmount(ctx: TenantRequestContext, id: string): Promise<number | null> {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id }, include: { engagement: true } });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    const e = session.engagement;
+    if (e.pricingModel === 'HOURLY' && e.hourlyRate != null) {
+      return Math.round((e.hourlyRate * session.durationMinutes) / 60);
+    }
+    if (e.pricingModel === 'PACKAGE' && e.packagePrice != null && e.packageSessionsCount) {
+      return Math.round(e.packagePrice / e.packageSessionsCount);
+    }
+    if (e.pricingModel === 'SUBSCRIPTION' && e.subscriptionMonthlyPrice != null) {
+      return e.subscriptionMonthlyPrice;
+    }
+    return null;
+  }
+
+  /** فاکتور فروش را از طریق سرویس مرکزی فروش صادر می‌کند تا از موتور حسابداری/مالیات مشترک استفاده شود، نه ثبت مستقیم. */
+  async createInvoice(ctx: TenantRequestContext, id: string, dto: CreateSessionInvoiceDto) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id }, include: { engagement: true } });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    if (session.invoiceId) throw new ConflictException('برای این جلسه قبلاً فاکتور صادر شده است');
+
+    const invoice = await this.invoices.create(ctx, {
+      contactId: session.engagement.contactId,
+      projectId: session.engagement.projectId ?? undefined,
+      notes: `جلسه‌ی مشاوره در تاریخ ${formatWhenFa(session.scheduledAt)}`,
+      lines: [{ description: `جلسه‌ی مشاوره — ${session.engagement.title}`, quantity: 1, unitPrice: dto.amount }],
+    });
+
+    await ctx.tenantDb.mentoringSession.update({ where: { id }, data: { invoiceId: invoice.id } });
+    return invoice;
+  }
+}

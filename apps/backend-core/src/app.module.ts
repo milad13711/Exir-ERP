@@ -44,6 +44,8 @@ import { FleetModule } from './fleet/fleet.module.js';
 import { OnlineStoreModule } from './online-store/online-store.module.js';
 import { MarketingModule } from './marketing/marketing.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
+import { MentoringModule } from './mentoring/mentoring.module.js';
+import { EventsModule } from './events/events.module.js';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import { OnboardingModule } from './onboarding/onboarding.module.js';
     OnlineStoreModule,
     MarketingModule,
     OnboardingModule,
+    MentoringModule,
+    EventsModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

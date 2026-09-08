@@ -4034,7 +4034,7 @@ export type CrmFunnelStage =
   | "CHURNED";
 
 export type FunnelStageCount = { stage: string; label: string; count: number };
-export type FunnelConversionRate = { fromStage: string; toStage: string; rate: number | null };
+export type FunnelConversionRate = { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number | null };
 
 export type FunnelSummary = {
   stages: FunnelStageCount[];
@@ -4094,6 +4094,14 @@ export function updateFunnelStage(contactId: string, stage: "NEW_LEAD" | "CONTAC
     method: "POST",
     body: JSON.stringify({ stage }),
   });
+}
+
+export function fetchFunnelStageLabels() {
+  return apiFetch<Record<string, string>>("/crm/funnel/stage-labels");
+}
+
+export function updateFunnelStageLabels(labels: Record<string, string>) {
+  return apiFetch<Record<string, string>>("/crm/funnel/stage-labels", { method: "PATCH", body: JSON.stringify({ labels }) });
 }
 
 // ── بازاریابی و کمپین (Marketing Campaigns) ─────────────────────────────
@@ -4175,6 +4183,14 @@ export function sendCampaign(id: string) {
   return apiFetch<MarketingCampaign>(`/marketing/campaigns/${id}/send`, { method: "POST" });
 }
 
+export function updateCampaign(id: string, data: Partial<Parameters<typeof createCampaign>[0]>) {
+  return apiFetch<MarketingCampaign>(`/marketing/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteCampaign(id: string) {
+  return apiFetch<{ ok: true }>(`/marketing/campaigns/${id}`, { method: "DELETE" });
+}
+
 /** تصویر کمپین احراز‌هویت لازم دارد — img src مستقیم توکن نمی‌فرستد، پس به Object URL تبدیل می‌شود (همان الگوی downloadBackupExport). */
 export async function fetchCampaignImageObjectUrl(id: string): Promise<string> {
   const token = getToken();
@@ -4184,4 +4200,444 @@ export async function fetchCampaignImageObjectUrl(id: string): Promise<string> {
   if (!res.ok) throw new ApiError("ساخت تصویر کمپین ناموفق بود", res.status);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
+}
+
+// ── منتورینگ، مشاوره و کوچینگ ───────────────────────────────────────────
+
+export type MentoringPricingModel = "HOURLY" | "PACKAGE" | "PROJECT_BASED" | "SUBSCRIPTION";
+export type MentoringEngagementStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+export type MentoringSessionMode = "ONLINE" | "PHONE" | "IN_PERSON";
+export type MentoringSessionStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+export type MentoringGoalType = "QUANTITATIVE" | "QUALITATIVE";
+export type MentoringGoalStatus = "IN_PROGRESS" | "ACHIEVED" | "MISSED" | "CANCELLED";
+
+export type MentoringGoalCheckIn = {
+  id: string;
+  goalId: string;
+  sessionId: string | null;
+  value: number | null;
+  note: string | null;
+  recordedAt: string;
+};
+
+export type MentoringGoal = {
+  id: string;
+  engagementId: string;
+  title: string;
+  type: MentoringGoalType;
+  unit: string | null;
+  baselineValue: number | null;
+  targetValue: number | null;
+  targetDate: string | null;
+  status: MentoringGoalStatus;
+  createdAt: string;
+  checkIns?: MentoringGoalCheckIn[];
+};
+
+export type MentoringSession = {
+  id: string;
+  engagementId: string;
+  appointmentId: string | null;
+  mode: MentoringSessionMode;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: MentoringSessionStatus;
+  location: string | null;
+  minutesNote: string | null;
+  invoiceId: string | null;
+  reminderSentAt: string | null;
+  surveySentAt: string | null;
+  createdAt: string;
+  engagement?: { id: string; title: string; contact: { id: string; name: string; phone: string | null }; advisor: { id: string; name: string; phone: string | null } };
+  survey?: { rating: number | null; note: string | null; sentAt: string | null; submittedAt: string | null } | null;
+};
+
+export type MentoringEngagement = {
+  id: string;
+  engagementNo: number;
+  contactId: string;
+  advisorUserId: string;
+  title: string;
+  pricingModel: MentoringPricingModel;
+  hourlyRate: number | null;
+  packageSessionsCount: number | null;
+  packagePrice: number | null;
+  subscriptionMonthlyPrice: number | null;
+  status: MentoringEngagementStatus;
+  contractId: string | null;
+  projectId: string | null;
+  startDate: string;
+  endDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  contact: { id: string; name: string; phone: string | null; company: string | null };
+  advisor: { id: string; name: string };
+  contract: { id: string; contractNo: number; title: string } | null;
+  project: { id: string; projectNo: number; name: string } | null;
+  sessions?: MentoringSession[];
+  goals?: MentoringGoal[];
+};
+
+export function fetchMentoringEngagements(params: { status?: string; contactId?: string; advisorUserId?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<MentoringEngagement[]>(`/mentoring/engagements${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchMentoringEngagement(id: string) {
+  return apiFetch<MentoringEngagement>(`/mentoring/engagements/${id}`);
+}
+
+export function createMentoringEngagement(data: {
+  contactId: string;
+  advisorUserId: string;
+  title: string;
+  pricingModel: MentoringPricingModel;
+  hourlyRate?: number;
+  packageSessionsCount?: number;
+  packagePrice?: number;
+  subscriptionMonthlyPrice?: number;
+  contractId?: string;
+  projectId?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+}) {
+  return apiFetch<MentoringEngagement>("/mentoring/engagements", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateMentoringEngagement(
+  id: string,
+  data: Partial<Omit<Parameters<typeof createMentoringEngagement>[0], "contactId" | "startDate">> & { status?: MentoringEngagementStatus },
+) {
+  return apiFetch<MentoringEngagement>(`/mentoring/engagements/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function fetchMentoringSessions(params: { engagementId?: string; status?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<MentoringSession[]>(`/mentoring/sessions${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchUpcomingMentoringSessions() {
+  return apiFetch<MentoringSession[]>("/mentoring/sessions/upcoming");
+}
+
+export function createMentoringSession(data: {
+  engagementId: string;
+  appointmentId?: string;
+  mode?: MentoringSessionMode;
+  scheduledAt: string;
+  durationMinutes?: number;
+  location?: string;
+}) {
+  return apiFetch<MentoringSession>("/mentoring/sessions", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function completeMentoringSession(id: string, minutesNote?: string) {
+  return apiFetch<MentoringSession>(`/mentoring/sessions/${id}/complete`, { method: "POST", body: JSON.stringify({ minutesNote }) });
+}
+
+export function cancelMentoringSession(id: string, reason?: string) {
+  return apiFetch<MentoringSession>(`/mentoring/sessions/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function markMentoringSessionNoShow(id: string) {
+  return apiFetch<MentoringSession>(`/mentoring/sessions/${id}/no-show`, { method: "POST" });
+}
+
+export function fetchMentoringSessionSuggestedAmount(id: string) {
+  return apiFetch<{ amount: number | null }>(`/mentoring/sessions/${id}/suggested-amount`);
+}
+
+export function createMentoringSessionInvoice(id: string, amount: number) {
+  return apiFetch<{ id: string; invoiceNo: number }>(`/mentoring/sessions/${id}/invoice`, { method: "POST", body: JSON.stringify({ amount }) });
+}
+
+export function createMentoringGoal(data: {
+  engagementId: string;
+  title: string;
+  type: MentoringGoalType;
+  unit?: string;
+  baselineValue?: number;
+  targetValue?: number;
+  targetDate?: string;
+}) {
+  return apiFetch<MentoringGoal>("/mentoring/goals", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateMentoringGoal(id: string, data: Partial<Omit<Parameters<typeof createMentoringGoal>[0], "engagementId" | "type">>) {
+  return apiFetch<MentoringGoal>(`/mentoring/goals/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function addMentoringGoalCheckIn(goalId: string, data: { value?: number; note?: string; sessionId?: string }) {
+  return apiFetch<MentoringGoalCheckIn>(`/mentoring/goals/${goalId}/check-ins`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export type MentoringOverview = {
+  activeEngagements: number;
+  sessionsThisMonth: number;
+  upcomingSessions7d: number;
+  goalAchievementRate: number | null;
+  totalRevenue: number;
+  revenueThisMonth: number;
+};
+
+export function fetchMentoringOverview() {
+  return apiFetch<MentoringOverview>("/mentoring/reports/overview");
+}
+
+export type MentoringClientLifetimeRow = {
+  contactId: string;
+  contactName: string;
+  contactPhone: string | null;
+  firstEngagementAt: string;
+  lastSessionAt: string | null;
+  tenureDays: number;
+  totalSessions: number;
+  completedSessions: number;
+  totalRevenue: number;
+  activeEngagements: number;
+};
+
+export function fetchMentoringClientLifetime() {
+  return apiFetch<MentoringClientLifetimeRow[]>("/mentoring/reports/client-lifetime");
+}
+
+export type MentoringAdvisorRow = {
+  advisorUserId: string;
+  advisorName: string;
+  total: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  revenue: number;
+};
+
+export function fetchMentoringByAdvisor() {
+  return apiFetch<MentoringAdvisorRow[]>("/mentoring/reports/by-advisor");
+}
+
+// ── رویداد و بلیط‌فروشی ───────────────────────────────────────────────────
+
+export type EventStatus = "DRAFT" | "PUBLISHED" | "CANCELLED" | "COMPLETED";
+export type EventBookingStatus = "PENDING_PAYMENT" | "PAID" | "CANCELLED" | "EXPIRED";
+export type EventTicketStatus = "VALID" | "CHECKED_IN" | "CANCELLED";
+
+export type EventTicketType = {
+  id: string;
+  eventId: string;
+  name: string;
+  price: number;
+  capacity: number | null;
+  sortOrder: number;
+  sold?: number;
+  remaining?: number | null;
+};
+
+export type EventItem = {
+  id: string;
+  eventNo: number;
+  slug: string;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
+  venue: string | null;
+  isOnline: boolean;
+  onlineUrl: string | null;
+  startAt: string;
+  endAt: string;
+  registrationOpensAt: string | null;
+  registrationClosesAt: string | null;
+  capacity: number | null;
+  remainingCapacity?: number | null;
+  category: string | null;
+  status: EventStatus;
+  createdBy: { id: string; name: string } | null;
+  ticketTypes: EventTicketType[];
+};
+
+export type EventBooking = {
+  id: string;
+  bookingNo: number;
+  eventId: string;
+  ticketTypeId: string;
+  buyerName: string;
+  buyerPhone: string;
+  contactId: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  status: EventBookingStatus;
+  paidAt: string | null;
+  invoiceId: string | null;
+  createdAt: string;
+  ticketType: { name: string };
+  tickets: Array<{ id: string; attendeeName: string; status: EventTicketStatus }>;
+};
+
+export type EventTicket = {
+  id: string;
+  bookingId: string;
+  eventId: string;
+  ticketTypeId: string;
+  ticketCode: string;
+  qrToken: string;
+  attendeeName: string;
+  attendeePhone: string | null;
+  status: EventTicketStatus;
+  checkedInAt: string | null;
+  createdAt: string;
+  ticketType: { name: string };
+  booking: { buyerName: string; buyerPhone: string };
+};
+
+export function fetchEvents(params: { status?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<EventItem[]>(`/events${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchEvent(id: string) {
+  return apiFetch<EventItem>(`/events/${id}`);
+}
+
+export function createEvent(data: {
+  slug: string;
+  title: string;
+  description?: string;
+  coverImage?: string;
+  venue?: string;
+  isOnline?: boolean;
+  onlineUrl?: string;
+  startAt: string;
+  endAt: string;
+  registrationOpensAt?: string;
+  registrationClosesAt?: string;
+  capacity?: number;
+  category?: string;
+  ticketTypes: Array<{ name: string; price: number; capacity?: number; sortOrder?: number }>;
+}) {
+  return apiFetch<EventItem>("/events", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateEvent(id: string, data: Partial<Omit<Parameters<typeof createEvent>[0], "slug" | "ticketTypes">>) {
+  return apiFetch<EventItem>(`/events/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function publishEvent(id: string) {
+  return apiFetch<EventItem>(`/events/${id}/publish`, { method: "POST" });
+}
+
+export function unpublishEvent(id: string) {
+  return apiFetch<EventItem>(`/events/${id}/unpublish`, { method: "POST" });
+}
+
+export function cancelEvent(id: string) {
+  return apiFetch<EventItem>(`/events/${id}/cancel`, { method: "POST" });
+}
+
+export function createEventTicketType(eventId: string, data: { name: string; price: number; capacity?: number; sortOrder?: number }) {
+  return apiFetch<EventTicketType>(`/events/${eventId}/ticket-types`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateEventTicketType(ticketTypeId: string, data: Partial<{ name: string; price: number; capacity: number; sortOrder: number }>) {
+  return apiFetch<EventTicketType>(`/events/ticket-types/${ticketTypeId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteEventTicketType(ticketTypeId: string) {
+  return apiFetch<{ ok: true }>(`/events/ticket-types/${ticketTypeId}/delete`, { method: "POST" });
+}
+
+export function fetchEventBookings(eventId: string) {
+  return apiFetch<EventBooking[]>(`/events/${eventId}/bookings`);
+}
+
+export function fetchEventTickets(eventId: string) {
+  return apiFetch<EventTicket[]>(`/events/${eventId}/tickets`);
+}
+
+export function createManualEventBooking(
+  eventId: string,
+  data: { ticketTypeId: string; buyerName: string; buyerPhone: string; attendees: Array<{ name: string; phone?: string }> },
+) {
+  return apiFetch<EventBooking & { tickets: EventTicket[] }>(`/events/${eventId}/bookings`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function checkInEventTicket(qrToken: string) {
+  return apiFetch<EventTicket & { alreadyCheckedIn: boolean; event: { title: string }; ticketType: { name: string } }>("/events/check-in", {
+    method: "POST",
+    body: JSON.stringify({ qrToken }),
+  });
+}
+
+export function eventTicketQrImageUrl(qrToken: string): string {
+  return `${API_URL}/events/tickets/${qrToken}/qr.png`;
+}
+
+// ── رویداد — عمومی (بدون ورود) ────────────────────────────────────────────
+
+export type PublicEventItem = Omit<EventItem, "createdBy">;
+
+export function fetchPublicEvents(tenantSlug: string) {
+  return apiFetch<PublicEventItem[]>(`/public/events/${tenantSlug}`);
+}
+
+export function fetchPublicEvent(tenantSlug: string, eventSlug: string) {
+  return apiFetch<PublicEventItem>(`/public/events/${tenantSlug}/${eventSlug}`);
+}
+
+export function requestPublicEventOtp(tenantSlug: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/events/${tenantSlug}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyPublicEventOtp(tenantSlug: string, phone: string, code: string) {
+  return apiFetch<{ bookingToken: string; expiresInSeconds: number }>(`/public/events/${tenantSlug}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function createPublicEventBooking(
+  tenantSlug: string,
+  eventSlug: string,
+  data: { bookingToken: string; ticketTypeId: string; buyerName: string; attendees: Array<{ name: string; phone?: string }> },
+) {
+  return apiFetch<{ bookingId: string; requiresPayment: boolean; amount?: number }>(`/public/events/${tenantSlug}/${eventSlug}/bookings`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function fetchPublicEventBookingStatus(tenantSlug: string, bookingId: string) {
+  return apiFetch<{ status: EventBookingStatus; tickets: Array<{ qrToken: string; ticketCode: string; attendeeName: string }> }>(
+    `/public/events/${tenantSlug}/bookings/${bookingId}`,
+  );
+}
+
+export function payPublicEventBooking(tenantSlug: string, bookingId: string) {
+  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/events/${tenantSlug}/bookings/${bookingId}/pay`, { method: "POST" });
+}
+
+export type PublicEventTicket = {
+  id: string;
+  ticketCode: string;
+  qrToken: string;
+  attendeeName: string;
+  attendeePhone: string | null;
+  status: EventTicketStatus;
+  event: { title: string; startAt: string; endAt: string; venue: string | null; isOnline: boolean; onlineUrl: string | null };
+  ticketType: { name: string };
+};
+
+export function fetchPublicEventTicket(tenantSlug: string, qrToken: string) {
+  return apiFetch<PublicEventTicket>(`/public/events/${tenantSlug}/ticket/${qrToken}`);
+}
+
+export function publicEventCoverImageUrl(tenantSlug: string, eventSlug: string): string {
+  return `${API_URL}/public/events/${tenantSlug}/${eventSlug}/image`;
+}
+
+export function publicEventTicketQrImageUrl(tenantSlug: string, qrToken: string): string {
+  return `${API_URL}/public/events/${tenantSlug}/ticket/${qrToken}/qr.png`;
 }

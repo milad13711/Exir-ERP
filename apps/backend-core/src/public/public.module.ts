@@ -22,9 +22,16 @@ import { PublicSurveyController } from './public-survey.controller.js';
 import { PublicExchangeRateService } from './public-exchange-rate.service.js';
 import { PublicStoreService } from './public-store.service.js';
 import { PublicStoreController } from './public-store.controller.js';
+import { PublicMentoringSurveyService } from './public-mentoring-survey.service.js';
+import { PublicMentoringSurveyController } from './public-mentoring-survey.controller.js';
+import { EventsModule } from '../events/events.module.js';
+import { BillingModule } from '../billing/billing.module.js';
+import { PublicEventsService } from './public-events.service.js';
+import { PublicEventsController } from './public-events.controller.js';
+import { PublicEventsPaymentController } from './public-events-payment.controller.js';
 
 @Module({
-  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule],
+  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule, EventsModule, BillingModule],
   controllers: [
     PublicSignupController,
     PublicCatalogController,
@@ -35,6 +42,9 @@ import { PublicStoreController } from './public-store.controller.js';
     PublicFleetOfferController,
     PublicSurveyController,
     PublicStoreController,
+    PublicMentoringSurveyController,
+    PublicEventsController,
+    PublicEventsPaymentController,
   ],
   providers: [
     PublicSignupService,
@@ -45,6 +55,8 @@ import { PublicStoreController } from './public-store.controller.js';
     PublicSurveyService,
     PublicExchangeRateService,
     PublicStoreService,
+    PublicMentoringSurveyService,
+    PublicEventsService,
   ],
 })
 export class PublicModule {}

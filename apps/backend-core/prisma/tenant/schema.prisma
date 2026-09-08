@@ -79,6 +79,11 @@ model User {
   projectMemberships         ProjectMember[]            @relation("ProjectMemberUser")
   createdShipments           Shipment[]
   createdCampaigns           MarketingCampaign[]
+  mentoringEngagementsAsAdvisor MentoringEngagement[] @relation("MentoringAdvisor")
+  createdMentoringEngagements   MentoringEngagement[] @relation("MentoringEngagementCreatedBy")
+  createdMentoringSessions      MentoringSession[]    @relation("MentoringSessionCreatedBy")
+  createdEvents                 Event[]
+  checkedInEventTickets         EventTicket[]         @relation("EventTicketCheckedInBy")
 
   @@map("users")
 }
@@ -354,6 +359,8 @@ model CrmContact {
   projects                  Project[]
   shipments                 Shipment[]
   storeOrders               StoreOrder[]
+  mentoringEngagements      MentoringEngagement[]
+  eventBookings             EventBooking[]
   referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
@@ -505,6 +512,8 @@ model SalesInvoice {
   payments  SalesPayment[]
   checks    Check[]
   returns   SalesReturn[]
+  mentoringSessions MentoringSession[]
+  eventBookings     EventBooking[]
 
   @@index([contactId])
   @@index([status])
@@ -1735,6 +1744,7 @@ model Appointment {
   contact     CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   provider    User?       @relation("AppointmentProvider", fields: [providerUserId], references: [id], onDelete: SetNull)
   createdBy   User?       @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  mentoringSession MentoringSession?
 
   @@index([startAt])
   @@index([providerUserId, startAt])
@@ -1857,6 +1867,7 @@ model Contract {
   editRequests       ContractEditRequest[]
   amendments         ContractAmendment[]
   witnesses          ContractWitness[]
+  mentoringEngagements MentoringEngagement[]
 
   @@index([status])
   @@index([endDate])
@@ -1958,6 +1969,7 @@ model Project {
   stages    ProjectStage[]
   invoices  SalesInvoice[]
   members   ProjectMember[]
+  mentoringEngagements MentoringEngagement[]
 
   @@index([status])
   @@index([endDate])
@@ -2155,6 +2167,171 @@ model DeliverySurvey {
   @@map("fleet_delivery_surveys")
 }
 
+// ── منتورینگ، مشاوره و کوچینگ ───────────────────────────────────────────
+// یک MentoringEngagement همان «مدل همکاری» بین مشاور/مربی داخلی (User) و
+// مخاطب CRM است — تعرفه (ساعتی/بسته‌ای/پروژه‌ای/اشتراکی) و اتصال اختیاری
+// به قرارداد رسمی (Contract) و پروژه (Project) روی همین رکورد می‌نشیند.
+// هر جلسه (MentoringSession) یا از ماژول نوبت‌دهی رزرو شده (appointmentId)
+// یا دستی ثبت می‌شود — زمان/شکل برگزاری همیشه مستقل و کامل روی خود جلسه
+// نگه داشته می‌شود، دقیقاً مثل customerName مستقل از contactId در Appointment.
+
+enum MentoringPricingModel {
+  HOURLY // ساعتی
+  PACKAGE // بسته‌ای — تعداد جلسه‌ی مشخص با قیمت ثابت
+  PROJECT_BASED // پروژه‌ای — یک‌جا
+  SUBSCRIPTION // اشتراک ماهانه
+}
+
+enum MentoringEngagementStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model MentoringEngagement {
+  id                       String                     @id @default(uuid())
+  engagementNo             Int                        @unique @default(autoincrement())
+  contactId                String
+  advisorUserId            String
+  title                    String
+  pricingModel             MentoringPricingModel      @default(HOURLY)
+  hourlyRate               Int? // تومان
+  packageSessionsCount     Int?
+  packagePrice             Int?
+  subscriptionMonthlyPrice Int?
+  status                   MentoringEngagementStatus  @default(ACTIVE)
+  contractId               String?
+  projectId                String?
+  startDate                DateTime                   @default(now())
+  endDate                  DateTime?
+  notes                    String?
+  createdByUserId          String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+
+  contact   CrmContact @relation(fields: [contactId], references: [id])
+  advisor   User       @relation("MentoringAdvisor", fields: [advisorUserId], references: [id])
+  contract  Contract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation("MentoringEngagementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  sessions  MentoringSession[]
+  goals     MentoringGoal[]
+
+  @@index([contactId])
+  @@index([advisorUserId])
+  @@index([status])
+  @@map("mentoring_engagements")
+}
+
+enum MentoringSessionMode {
+  ONLINE
+  PHONE
+  IN_PERSON
+}
+
+enum MentoringSessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model MentoringSession {
+  id              String                 @id @default(uuid())
+  engagementId    String
+  appointmentId   String?                @unique // اگر از ماژول نوبت‌دهی رزرو شده
+  mode            MentoringSessionMode   @default(ONLINE)
+  scheduledAt     DateTime
+  durationMinutes Int                    @default(60)
+  status          MentoringSessionStatus @default(SCHEDULED)
+  location        String? // آدرس حضوری یا لینک آنلاین
+  minutesNote     String? // صورتجلسه
+  invoiceId       String?
+  reminderSentAt  DateTime?
+  surveySentAt    DateTime?
+  createdByUserId String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  engagement   MentoringEngagement     @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  appointment  Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  invoice      SalesInvoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdBy    User?                   @relation("MentoringSessionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  survey       MentoringSessionSurvey?
+  goalCheckIns MentoringGoalCheckIn[]
+
+  @@index([engagementId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("mentoring_sessions")
+}
+
+/// نظرسنجی پس از جلسه — همان الگوی DeliverySurvey (لینک عمومی + پیامک، بدون نیاز به ورود).
+model MentoringSessionSurvey {
+  id          String    @id @default(uuid())
+  sessionId   String    @unique
+  publicToken String    @unique @default(uuid())
+  rating      Int? // ۱ تا ۵
+  note        String?
+  sentAt      DateTime?
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  session MentoringSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("mentoring_session_surveys")
+}
+
+enum MentoringGoalType {
+  QUANTITATIVE
+  QUALITATIVE
+}
+
+enum MentoringGoalStatus {
+  IN_PROGRESS
+  ACHIEVED
+  MISSED
+  CANCELLED
+}
+
+/// هدف کمی یا کیفی تعریف‌شده برای یک قرارداد همکاری — پیشرفت با MentoringGoalCheckIn سنجیده می‌شود.
+model MentoringGoal {
+  id            String              @id @default(uuid())
+  engagementId  String
+  title         String
+  type          MentoringGoalType   @default(QUALITATIVE)
+  unit          String? // مثلاً «کیلوگرم»، «میلیون تومان فروش»
+  baselineValue Float?
+  targetValue   Float?
+  targetDate    DateTime?
+  status        MentoringGoalStatus @default(IN_PROGRESS)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  engagement MentoringEngagement    @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  checkIns   MentoringGoalCheckIn[]
+
+  @@index([engagementId])
+  @@map("mentoring_goals")
+}
+
+/// ثبت پیشرفت دوره‌ای یک هدف — برای اهداف کمی value عدد است، برای کیفی فقط note.
+model MentoringGoalCheckIn {
+  id         String   @id @default(uuid())
+  goalId     String
+  sessionId  String?
+  value      Float?
+  note       String?
+  recordedAt DateTime @default(now())
+
+  goal    MentoringGoal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  session MentoringSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([goalId])
+  @@map("mentoring_goal_check_ins")
+}
+
 // ── فروشگاه آنلاین ───────────────────────────────────────────────────────
 // ماژول نصبی جدا: نمای عمومی (بدون نیاز به ورود) کالاهای isPubliclyListed
 // را نشان می‌دهد، سفارش ثبت می‌کند (بدون درگاه پرداخت — فقط ثبت سفارش،
@@ -2327,4 +2504,139 @@ model MarketingCampaignRecipient {
   @@index([campaignId, status])
   @@index([contactId])
   @@map("marketing_campaign_recipients")
+}
+
+// ── رویداد و بلیط‌فروشی ──────────────────────────────────────────────────
+// یک صفحه‌ی عمومی قابل سئو (لیست + جزئیات رویداد، مثل فروشگاه آنلاین) که
+// بازدیدکننده بدون ورود، بلیط رزرو و پرداخت آنلاین می‌کند؛ شماره‌اش با پیامک
+// OTP تأیید می‌شود (همان الگوی JWT کوتاه‌مدت PublicBookingService — چون پول
+// واقعی رد و بدل می‌شود، نه فقط رزرو وقت رایگان). بعد از پرداخت موفق (یا
+// فوری برای بلیط رایگان)، یک CrmContact بر اساس شماره خریدار پیدا/ساخته
+// می‌شود تا فاکتور واقعی از طریق InvoicesService صادر شود — تنها ماژول
+// عمومی این کدبیس که عمداً از الگوی «بدون ساخت مخاطب» بقیه‌ی فلوهای عمومی
+// (نوبت‌دهی، فروشگاه) فاصله می‌گیرد، چون اینجا صدور فاکتور واقعی لازم است.
+// هر شرکت‌کننده یک EventTicket مستقل با qrToken خودش می‌گیرد تا حضور هرکدام
+// جدا در ورودی اسکن شود، حتی اگر چند بلیط با یک خرید ثبت شده باشند.
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventBookingStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum EventTicketStatus {
+  VALID
+  CHECKED_IN
+  CANCELLED
+}
+
+model Event {
+  id                   String      @id @default(uuid())
+  eventNo              Int         @unique @default(autoincrement())
+  slug                 String      @unique
+  title                String
+  description          String?
+  coverImage           String? // data URI — همان الگوی Product.publicImages، بدون فضای ذخیره‌سازی فایل جداگانه
+  venue                String? // آدرس حضوری
+  isOnline             Boolean     @default(false)
+  onlineUrl            String? // لینک برگزاری آنلاین — فقط بعد از تکمیل ثبت‌نام/پرداخت روی بلیط نمایش داده می‌شود
+  startAt              DateTime
+  endAt                DateTime
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  capacity             Int? // ظرفیت کل — سقف جمع ظرفیت‌های انواع بلیط؛ خالی یعنی نامحدود
+  category             String?
+  status               EventStatus @default(DRAFT)
+  createdByUserId      String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  createdBy   User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  ticketTypes EventTicketType[]
+  bookings    EventBooking[]
+  tickets     EventTicket[]
+
+  @@index([status])
+  @@index([startAt])
+  @@map("events")
+}
+
+model EventTicketType {
+  id        String   @id @default(uuid())
+  eventId   String
+  name      String // مثلاً «عادی»، «VIP»
+  price     Int      @default(0) // تومان — صفر یعنی رایگان
+  capacity  Int? // خالی یعنی فقط سقف کلی رویداد اعمال می‌شود
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  event    Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookings EventBooking[]
+  tickets  EventTicket[]
+
+  @@index([eventId])
+  @@map("event_ticket_types")
+}
+
+model EventBooking {
+  id                String              @id @default(uuid())
+  bookingNo         Int                 @unique @default(autoincrement())
+  eventId           String
+  ticketTypeId      String
+  buyerName         String
+  buyerPhone        String
+  contactId         String? // بعد از پرداخت موفق پر می‌شود (پیدا/ساخته‌شده بر اساس شماره خریدار)
+  quantity          Int
+  unitPrice         Int
+  totalAmount       Int
+  status            EventBookingStatus  @default(PENDING_PAYMENT)
+  publicToken       String              @unique @default(uuid())
+  zarinpalAuthority String?
+  paymentRefId      Int?
+  paidAt            DateTime?
+  invoiceId         String?
+  createdAt         DateTime            @default(now())
+
+  event      Event            @relation(fields: [eventId], references: [id])
+  ticketType EventTicketType  @relation(fields: [ticketTypeId], references: [id])
+  contact    CrmContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  invoice    SalesInvoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  tickets    EventTicket[]
+
+  @@index([eventId])
+  @@index([status])
+  @@map("event_bookings")
+}
+
+model EventTicket {
+  id              String             @id @default(uuid())
+  bookingId       String
+  eventId         String
+  ticketTypeId    String
+  ticketCode      String             @unique // کد کوتاه انسان‌خوان — روی بلیط چاپی/پیامکی
+  qrToken         String             @unique @default(uuid()) // محتوای واقعی QR — اسکن با همین مقدار تطبیق داده می‌شود
+  attendeeName    String
+  attendeePhone   String?
+  status          EventTicketStatus  @default(VALID)
+  checkedInAt     DateTime?
+  checkedInByUserId String?
+  createdAt       DateTime           @default(now())
+
+  booking       EventBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event         Event            @relation(fields: [eventId], references: [id])
+  ticketType    EventTicketType  @relation(fields: [ticketTypeId], references: [id])
+  checkedInBy   User?            @relation("EventTicketCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([eventId])
+  @@index([status])
+  @@map("event_tickets")
 }

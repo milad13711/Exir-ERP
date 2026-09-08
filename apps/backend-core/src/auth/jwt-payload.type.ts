@@ -57,6 +57,19 @@ export type BookingTicketPayload = {
 };
 
 /**
+ * Short-lived proof that a phone number was OTP-verified for public event
+ * ticket purchase — issued after OTP verify, consumed by the booking-create
+ * step, scoped to one tenant. Real money moves through this flow (ticket
+ * payment), so it's kept OTP-gated like booking rather than the OTP-free
+ * online-store order flow.
+ */
+export type EventBookingTicketPayload = {
+  type: 'event_booking_ticket';
+  phone: string;
+  tenantSlug: string;
+};
+
+/**
  * Short-lived proof that a phone number was OTP-verified for the public
  * "track my project" page — issued after OTP verify, consumed by the
  * project-listing endpoint, scoped to one tenant.

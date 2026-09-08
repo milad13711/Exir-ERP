@@ -20,6 +20,8 @@ import {
   TruckIcon,
   FunnelIcon,
   MegaphoneIcon,
+  CompassIcon,
+  TicketIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -45,6 +47,8 @@ export const primaryNav: NavItem[] = [
   { href: "/booking", label: "رزرو نوبت", icon: CalendarIcon, moduleCode: "booking" },
   { href: "/contracts", label: "مدیریت قرارداد", icon: DocsIcon, moduleCode: "contracts" },
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects" },
+  { href: "/mentoring", label: "منتورینگ و مشاوره", icon: CompassIcon, moduleCode: "mentoring" },
+  { href: "/events", label: "رویداد و بلیط‌فروشی", icon: TicketIcon, moduleCode: "events" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet" },
   { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },

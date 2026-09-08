@@ -1,0 +1,130 @@
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { ModuleGuard } from '../common/guards/module.guard.js';
+import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { Ctx } from '../common/decorators/ctx.decorator.js';
+import type { TenantRequestContext } from '../common/request-context.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
+import { EventsService } from './events.service.js';
+import { EventsQrService } from './events-qr.service.js';
+import { CreateEventDto } from './dto/create-event.dto.js';
+import { UpdateEventDto } from './dto/update-event.dto.js';
+import { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
+import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto.js';
+import { CheckInTicketDto } from './dto/check-in-ticket.dto.js';
+
+@Controller('events')
+@UseGuards(JwtAuthGuard, ModuleGuard)
+@RequireModule('events')
+export class EventsController {
+  constructor(
+    private readonly events: EventsService,
+    private readonly qr: EventsQrService,
+    private readonly permissions: PermissionsService,
+  ) {}
+
+  @Get()
+  async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.list(ctx, { status });
+  }
+
+  @Get(':id')
+  async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.detail(ctx, id);
+  }
+
+  @Post()
+  async create(@Body() dto: CreateEventDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'events');
+    return this.events.create(ctx, dto);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateEventDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.update(ctx, id, dto);
+  }
+
+  @Post(':id/publish')
+  async publish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.setStatus(ctx, id, 'PUBLISHED');
+  }
+
+  @Post(':id/unpublish')
+  async unpublish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.setStatus(ctx, id, 'DRAFT');
+  }
+
+  @Post(':id/cancel')
+  async cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'events');
+    return this.events.setStatus(ctx, id, 'CANCELLED');
+  }
+
+  @Post(':id/ticket-types')
+  async createTicketType(@Param('id') id: string, @Body() dto: CreateTicketTypeDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.createTicketType(ctx, id, dto);
+  }
+
+  @Patch('ticket-types/:ticketTypeId')
+  async updateTicketType(@Param('ticketTypeId') ticketTypeId: string, @Body() dto: UpdateTicketTypeDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.updateTicketType(ctx, ticketTypeId, dto);
+  }
+
+  @Post('ticket-types/:ticketTypeId/delete')
+  async deleteTicketType(@Param('ticketTypeId') ticketTypeId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'events');
+    return this.events.deleteTicketType(ctx, ticketTypeId);
+  }
+
+  @Get(':id/bookings')
+  async listBookings(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.listBookings(ctx, id);
+  }
+
+  @Get(':id/tickets')
+  async listTickets(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.listTickets(ctx, id);
+  }
+
+  /** ثبت دستی حضوری (مثلاً فروش نقدی درِ ورودی) — بلیط بلافاصله صادر می‌شود، بدون گذر از درگاه پرداخت. */
+  @Post(':id/bookings')
+  async createManualBooking(
+    @Param('id') id: string,
+    @Body() dto: { ticketTypeId: string; buyerName: string; buyerPhone: string; attendees: Array<{ name: string; phone?: string }> },
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertCreate(ctx, 'events');
+    const booking = await this.events.createBooking(ctx, { eventId: id, ...dto });
+    const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+    return this.events.finalizeBookingPayment(ctx, booking.id, publicWebUrl);
+  }
+
+  @Post('check-in')
+  async checkIn(@Body() dto: CheckInTicketDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.checkIn(ctx, dto.qrToken);
+  }
+
+  @Get('tickets/:qrToken/qr.png')
+  async ticketQrImage(@Param('qrToken') qrToken: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'events');
+    const ticket = await ctx.tenantDb.eventTicket.findUnique({ where: { qrToken } });
+    if (!ticket) {
+      res.status(404).end();
+      return;
+    }
+    const png = await this.qr.toPngBuffer(qrToken);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  }
+}
