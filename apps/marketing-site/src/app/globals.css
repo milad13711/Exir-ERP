@@ -11,12 +11,14 @@
   --color-surface: #ffffff;
   --color-border: #e2e8f0;
 
-  --color-primary: #4338ca;
-  --color-primary-dark: #3730a3;
-  --color-primary-soft: #eef2ff;
+  /* هماهنگ با هویت بصری eta.co.ir (سبز تیره + طلایی) — عمداً هم‌رنگ شده تا
+     مخاطبی که از eta.co.ir وارد می‌شود با یک فضای بصری کاملاً متفاوت مواجه نشود. */
+  --color-primary: #29574a;
+  --color-primary-dark: #1e4038;
+  --color-primary-soft: #eaf1ee;
 
-  --color-accent: #0d9488;
-  --color-accent-soft: #f0fdfa;
+  --color-accent: #d0a767;
+  --color-accent-soft: #faf3e6;
 
   --color-warning: #d97706;
   --color-warning-soft: #fffbeb;

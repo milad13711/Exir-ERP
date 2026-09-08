@@ -66,7 +66,7 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       ) : null}
 
-      <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
+      <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
         <div className="max-w-[1000px] mx-auto px-6 py-14 grid md:grid-cols-[1fr_260px] gap-8 items-center">
           <div>
             <h1 className="text-[26px] sm:text-[32px] font-extrabold leading-[1.5]">اکسیر ERP برای {industry.name}</h1>

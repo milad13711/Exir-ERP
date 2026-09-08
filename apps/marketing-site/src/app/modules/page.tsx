@@ -28,7 +28,7 @@ export default async function ModulesPage() {
 
   return (
     <main className="flex-1">
-      <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
+      <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
         <div className="max-w-[1100px] mx-auto px-6 py-16 text-center">
           <h1 className="text-[28px] sm:text-[34px] font-extrabold leading-[1.5]">ماژول‌های اکسیر ERP</h1>
           <p className="mt-4 text-[14.5px] text-white/85 max-w-[620px] mx-auto leading-loose">

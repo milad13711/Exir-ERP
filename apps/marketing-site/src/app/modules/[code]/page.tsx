@@ -59,7 +59,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
     <main className="flex-1">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
+      <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
         <div className="max-w-[900px] mx-auto px-6 py-16">
           <div className="flex items-center gap-4 mb-4">
             <CategoryVisual category={mod.category} size={60} />

@@ -10,7 +10,7 @@ export default async function HomePage() {
 
   return (
     <main className="flex-1">
-      <section className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600 text-white">
+      <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
         <div className="max-w-[1100px] mx-auto px-6 py-20 text-center">
           <div className="inline-block bg-white/15 text-[12px] font-bold px-4 py-1.5 rounded-full mb-6">
             اولین ERP فارسی بین‌المللی با اتصال به ChatGPT و Claude شخصی شما
