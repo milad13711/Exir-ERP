@@ -231,6 +231,30 @@ export function updateBranding(data: { themeColor?: string }) {
   return apiFetch<{ themeColor: string | null }>("/me/branding", { method: "PATCH", body: JSON.stringify(data) });
 }
 
+// ── Onboarding (گیمیفیکیشن شروع کار) ────────────────────────────────────
+
+export type OnboardingMission = {
+  code: string;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  href: string;
+  completed: boolean;
+};
+
+export type OnboardingStatus = {
+  dismissed: boolean;
+  missions: OnboardingMission[];
+};
+
+export function fetchOnboardingStatus() {
+  return apiFetch<OnboardingStatus>("/onboarding/status");
+}
+
+export function dismissOnboarding() {
+  return apiFetch<{ success: boolean }>("/onboarding/dismiss", { method: "POST" });
+}
+
 // ── Billing ──────────────────────────────────────────────────────────────
 
 export type Subscription = {

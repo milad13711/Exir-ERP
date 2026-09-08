@@ -6,6 +6,7 @@ import { Header } from "./Header";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { SupportChat } from "./SupportChat";
+import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
@@ -68,6 +69,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
       />
       <IncomingCallPopup />
       <AiActionApprovalPopup />
+      <OnboardingGuide />
     </div>
   );
 }
