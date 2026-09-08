@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { toPersianDigits, formatToman, formatJalaliDateTime } from "@/lib/persian";
-import { ApiError, fetchCampaignImageObjectUrl, sendCampaign, type MarketingCampaign } from "@/lib/api";
+import { ApiError, fetchCampaignImageObjectUrl, sendCampaign, deleteCampaign, type MarketingCampaign } from "@/lib/api";
+import { EditCampaignModal } from "./EditCampaignModal";
+
+const RECIPIENT_STATUS_LABELS: Record<string, string> = { PENDING: "در صف ارسال", SENT: "ارسال‌شده", FAILED: "ناموفق", SKIPPED: "رد‌شده" };
+const RECIPIENT_STATUS_TONES: Record<string, "neutral" | "success" | "danger"> = { PENDING: "neutral", SENT: "success", FAILED: "danger", SKIPPED: "neutral" };
 
 const STATUS_LABELS: Record<string, string> = { DRAFT: "پیش‌نویس", SENDING: "در حال ارسال", SENT: "ارسال‌شده", FAILED: "ناموفق" };
 const STATUS_TONES: Record<string, "neutral" | "warning" | "success" | "danger"> = {
@@ -27,6 +31,8 @@ export function CampaignDetailModal({
   const [sendError, setSendError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (campaign.channel !== "INSTAGRAM_TEMPLATE") return;
@@ -55,12 +61,36 @@ export function CampaignDetailModal({
     }
   }
 
+  async function handleDelete() {
+    if (!window.confirm("این کمپین حذف شود؟")) return;
+    setDeleting(true);
+    try {
+      await deleteCampaign(campaign.id);
+      onClose();
+    } catch (err) {
+      setSendError(err instanceof ApiError ? err.message : "حذف کمپین ناموفق بود");
+      setDeleting(false);
+    }
+  }
+
   return (
     <Modal title={campaign.name} onClose={onClose} width="max-w-[520px]">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Badge tone={STATUS_TONES[campaign.status]}>{STATUS_LABELS[campaign.status]}</Badge>
-          {campaign.sentAt ? <span className="text-[11.5px] text-muted">{formatJalaliDateTime(new Date(campaign.sentAt))}</span> : null}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Badge tone={STATUS_TONES[campaign.status]}>{STATUS_LABELS[campaign.status]}</Badge>
+            {campaign.sentAt ? <span className="text-[11.5px] text-muted">{formatJalaliDateTime(new Date(campaign.sentAt))}</span> : null}
+          </div>
+          {campaign.status === "DRAFT" && (
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setEditing(true)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-primary-soft text-primary cursor-pointer">
+                ویرایش
+              </button>
+              <button disabled={deleting} onClick={handleDelete} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-danger-soft text-danger cursor-pointer disabled:opacity-50">
+                حذف
+              </button>
+            </div>
+          )}
         </div>
 
         {campaign.channel === "INSTAGRAM_TEMPLATE" ? (
@@ -106,6 +136,25 @@ export function CampaignDetailModal({
               </div>
             ) : null}
 
+            {campaign.recipients.length > 0 && (
+              <div>
+                <div className="text-[12.5px] font-bold mb-2">مخاطبینی که پیامک برایشان ارسال می‌شود</div>
+                <div className="max-h-[220px] overflow-y-auto flex flex-col gap-1.5">
+                  {campaign.recipients.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-bold truncate">{r.contact.name}</div>
+                        <div className="text-[11px] text-muted" dir="ltr">
+                          {r.phone ?? r.contact.phone ?? "—"}
+                        </div>
+                      </div>
+                      <Badge tone={RECIPIENT_STATUS_TONES[r.status]}>{RECIPIENT_STATUS_LABELS[r.status]}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {campaign.status === "DRAFT" ? (
               <>
                 {sendError ? <div className="text-[12px] text-danger">{sendError}</div> : null}
@@ -121,6 +170,17 @@ export function CampaignDetailModal({
           </>
         )}
       </div>
+
+      {editing && (
+        <EditCampaignModal
+          campaign={campaign}
+          onClose={() => setEditing(false)}
+          onUpdated={(updated) => {
+            setEditing(false);
+            onUpdated(updated);
+          }}
+        />
+      )}
     </Modal>
   );
 }

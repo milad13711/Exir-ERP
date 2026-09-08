@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -27,6 +27,18 @@ export class FunnelController {
   @Get('kpis')
   async kpis(@Ctx() ctx: TenantRequestContext) {
     return this.kpi.getSalesKpis(ctx);
+  }
+
+  /** عنوان فعلی هر مرحله‌ی اصلی قیف — برای تنظیمات شخصی‌سازی نام مراحل. */
+  @Get('stage-labels')
+  async stageLabels(@Ctx() ctx: TenantRequestContext) {
+    return this.kpi.getStageLabels(ctx);
+  }
+
+  @Patch('stage-labels')
+  async updateStageLabels(@Body() body: { labels: Record<string, string> }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'crm');
+    return this.kpi.setStageLabels(ctx, body.labels ?? {});
   }
 
   /** برای کلیک روی هر مرحله‌ی قیف گرافیکی — لیست مخاطبین آن مرحله. */

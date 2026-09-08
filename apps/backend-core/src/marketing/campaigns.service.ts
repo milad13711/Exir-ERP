@@ -5,6 +5,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AudienceService } from './audience.service.js';
 import { CampaignImageService, type TemplateCode } from './campaign-image.service.js';
 import type { CreateCampaignDto } from './dto/create-campaign.dto.js';
+import type { UpdateCampaignDto } from './dto/update-campaign.dto.js';
 import type { AudienceFilterDto } from './dto/audience-filter.dto.js';
 
 const ATTRIBUTION_WINDOW_DAYS = 7;
@@ -53,6 +54,44 @@ export class CampaignsService {
       include: CAMPAIGN_INCLUDE,
     });
     return campaign;
+  }
+
+  /** فقط پیش‌نویس قابل ویرایش است — اگر فیلتر مخاطب عوض شود، گیرندگان قبلی حذف و از نو با فیلتر جدید محاسبه می‌شوند. */
+  async update(ctx: TenantRequestContext, id: string, dto: UpdateCampaignDto) {
+    const campaign = await ctx.tenantDb.marketingCampaign.findUnique({ where: { id } });
+    if (!campaign) throw new NotFoundException('کمپین یافت نشد');
+    if (campaign.status !== 'DRAFT') throw new BadRequestException('فقط کمپین پیش‌نویس قابل ویرایش است');
+
+    const isMessagingChannel = campaign.channel !== 'INSTAGRAM_TEMPLATE';
+    const filterChanged = dto.audienceFilter !== undefined;
+    const audienceContacts = filterChanged && isMessagingChannel ? await this.audience.resolve(ctx, dto.audienceFilter!) : null;
+
+    if (audienceContacts) {
+      await ctx.tenantDb.marketingCampaignRecipient.deleteMany({ where: { campaignId: id } });
+    }
+
+    return ctx.tenantDb.marketingCampaign.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        messageText: dto.messageText,
+        templateCode: dto.templateCode,
+        templateTitle: dto.templateTitle,
+        templateCta: dto.templateCta,
+        audienceFilter: dto.audienceFilter !== undefined ? (dto.audienceFilter as never) : undefined,
+        recipientCount: audienceContacts ? audienceContacts.length : undefined,
+        recipients: audienceContacts ? { create: audienceContacts.map((c) => ({ contactId: c.id, phone: c.phone })) } : undefined,
+      },
+      include: CAMPAIGN_INCLUDE,
+    });
+  }
+
+  async delete(ctx: TenantRequestContext, id: string) {
+    const campaign = await ctx.tenantDb.marketingCampaign.findUnique({ where: { id } });
+    if (!campaign) throw new NotFoundException('کمپین یافت نشد');
+    if (campaign.status !== 'DRAFT') throw new BadRequestException('فقط کمپین پیش‌نویس قابل حذف است');
+    await ctx.tenantDb.marketingCampaign.delete({ where: { id } });
+    return { ok: true };
   }
 
   async list(ctx: TenantRequestContext) {

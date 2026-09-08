@@ -6,13 +6,15 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { CurrencyIcon, ClockIcon, WarningIcon, StarIcon, CloseIcon } from "@/components/icons";
+import { CurrencyIcon, ClockIcon, WarningIcon, StarIcon, CloseIcon, SettingsIcon } from "@/components/icons";
 import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
+import { StageLabelsModal } from "@/components/crm/StageLabelsModal";
 import {
   fetchFunnelSummary,
   fetchFunnelKpis,
   fetchFunnelContacts,
+  fetchFunnelStageLabels,
   updateFunnelStage,
   type FunnelSummary,
   type FunnelSalesKpis,
@@ -27,21 +29,20 @@ const STAGE_COLORS: Record<string, string> = {
   REPEAT_CUSTOMER: "#4338ca",
 };
 
-const MANUAL_STAGES: { stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED"; label: string }[] = [
-  { stage: "NEW_LEAD", label: "سرنخ جدید" },
-  { stage: "CONTACTED", label: "در تماس" },
-  { stage: "QUALIFIED", label: "واجد شرایط" },
-];
+const MANUAL_STAGE_CODES: ("NEW_LEAD" | "CONTACTED" | "QUALIFIED")[] = ["NEW_LEAD", "CONTACTED", "QUALIFIED"];
 
 export default function FunnelPage() {
   const [summary, setSummary] = useState<FunnelSummary | null>(null);
   const [kpis, setKpis] = useState<FunnelSalesKpis | null>(null);
+  const [stageLabels, setStageLabels] = useState<Record<string, string> | null>(null);
+  const [labelsModalOpen, setLabelsModalOpen] = useState(false);
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [stageContacts, setStageContacts] = useState<FunnelContact[] | null>(null);
 
   function reload() {
     fetchFunnelSummary().then(setSummary).catch(() => setSummary(null));
     fetchFunnelKpis().then(setKpis).catch(() => setKpis(null));
+    fetchFunnelStageLabels().then(setStageLabels).catch(() => setStageLabels(null));
   }
 
   useEffect(reload, []);
@@ -117,11 +118,19 @@ export default function FunnelPage() {
 
       {summary ? (
         <Card className="p-6 mt-6">
-          <h2 className="text-[14px] font-extrabold mb-5">قیف تبدیل — روی هر مرحله کلیک کنید</h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-[14px] font-extrabold">قیف تبدیل — روی هر مرحله کلیک کنید</h2>
+            <button
+              onClick={() => setLabelsModalOpen(true)}
+              className="flex items-center gap-1.5 text-[11.5px] font-bold text-ink-soft cursor-pointer"
+            >
+              <SettingsIcon className="w-3.5 h-3.5" />
+              ویرایش عنوان مراحل
+            </button>
+          </div>
           <div className="flex flex-col gap-1.5">
             {summary.stages.map((s, i) => {
               const widthPercent = Math.max(18, (s.count / maxCount) * 100);
-              const inset = (100 - widthPercent) / 2;
               const rate = summary.conversionRates[i - 1];
               const isBottleneck = summary.bottleneck && rate && summary.bottleneck.toStage === s.stage;
               return (
@@ -133,16 +142,13 @@ export default function FunnelPage() {
                         isBottleneck ? "bg-danger text-white" : "bg-slate-100 text-ink-soft",
                       )}
                     >
-                      {rate.rate !== null ? `${toPersianDigits(rate.rate)}٪ تبدیل` : "—"}
+                      {rate.rate !== null ? `${rate.fromLabel} ← ${rate.toLabel} — ${toPersianDigits(rate.rate)}٪ تبدیل` : "—"}
                     </div>
                   ) : null}
                   <button
                     onClick={() => openStage(s.stage)}
-                    style={{
-                      clipPath: `polygon(${inset}% 0, ${100 - inset}% 0, ${100 - inset * 0.6}% 100%, ${inset * 0.6}% 100%)`,
-                      background: STAGE_COLORS[s.stage] ?? "#64748b",
-                    }}
-                    className="w-full h-16 flex items-center justify-center gap-2 cursor-pointer transition-transform hover:scale-[1.01]"
+                    style={{ width: `${widthPercent}%`, background: STAGE_COLORS[s.stage] ?? "#64748b" }}
+                    className="h-14 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-[transform,width] hover:scale-[1.01]"
                   >
                     <span className="text-white font-bold text-[13px]">{s.label}</span>
                     <span className="text-white/90 font-extrabold text-[15px]">{toPersianDigits(s.count)}</span>
@@ -153,6 +159,17 @@ export default function FunnelPage() {
           </div>
         </Card>
       ) : null}
+
+      {labelsModalOpen && stageLabels && (
+        <StageLabelsModal
+          labels={stageLabels}
+          onClose={() => setLabelsModalOpen(false)}
+          onSaved={(l) => {
+            setStageLabels(l);
+            reload();
+          }}
+        />
+      )}
 
       {summary ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-5">
@@ -256,19 +273,19 @@ export default function FunnelPage() {
                         {c.avgPurchaseGapDays ? ` — میانگین فاصله: ${toPersianDigits(c.avgPurchaseGapDays)} روز` : ""}
                       </div>
                     ) : null}
-                    {MANUAL_STAGES.some((m) => m.stage === c.funnelStage) ? (
+                    {stageLabels && MANUAL_STAGE_CODES.includes(c.funnelStage as never) ? (
                       <div className="flex items-center gap-1.5 mt-2.5">
-                        {MANUAL_STAGES.map((m) => (
+                        {MANUAL_STAGE_CODES.map((stage) => (
                           <button
-                            key={m.stage}
-                            onClick={() => moveStage(c.id, m.stage)}
-                            disabled={m.stage === c.funnelStage}
+                            key={stage}
+                            onClick={() => moveStage(c.id, stage)}
+                            disabled={stage === c.funnelStage}
                             className={clsx(
                               "text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer disabled:cursor-default",
-                              m.stage === c.funnelStage ? "bg-primary text-white" : "bg-slate-100 text-ink-soft",
+                              stage === c.funnelStage ? "bg-primary text-white" : "bg-slate-100 text-ink-soft",
                             )}
                           >
-                            {m.label}
+                            {stageLabels[stage]}
                           </button>
                         ))}
                       </div>

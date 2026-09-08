@@ -17,17 +17,47 @@ const ALL_STAGES = Object.keys(FUNNEL_STAGE_LABELS_FA);
 // پنج مرحله‌ی اصلیِ قیف که نرخ تبدیل و گلوگاه رویشان محاسبه می‌شود. سه‌گانه‌ی
 // پایین قیف (سفیر برند/ریسک ریزش/غیرفعال) مسیرهای انشعابی سلامت برندند، نه
 // پله‌های همین قیف خطی — با شاخص‌های جداگانه (ambassador ratio, churn count) گزارش می‌شوند.
-const MAIN_FUNNEL: { stage: string; label: string }[] = [
-  { stage: 'NEW_LEAD', label: 'سرنخ جدید' },
-  { stage: 'CONTACTED', label: 'در تماس' },
-  { stage: 'QUALIFIED', label: 'واجد شرایط' },
-  { stage: 'CUSTOMER', label: 'مشتری (حداقل ۱ خرید)' },
-  { stage: 'REPEAT_CUSTOMER', label: 'خرید تکراری (حداقل ۲ خرید)' },
-];
+// عنوان هر مرحله اینجا فقط مقدار پیش‌فرض است — هر تننت می‌تواند از طریق
+// GET/PATCH /crm/funnel/stage-labels عنوان دلخواه خودش را جایگزین کند
+// (خودِ مرحله و منطق محاسبه‌ی آن — یعنی کدام مخاطب در کدام مرحله است — تغییر
+// نمی‌کند، فقط برچسب نمایشی؛ چون این سه پله‌ی دستی و دو پله‌ی خودکار به
+// state machine واقعی FunnelService و کرون ریزش/سفیر برند گره خورده‌اند).
+const MAIN_FUNNEL_STAGES = ['NEW_LEAD', 'CONTACTED', 'QUALIFIED', 'CUSTOMER', 'REPEAT_CUSTOMER'] as const;
+const MAIN_FUNNEL_DEFAULT_LABELS: Record<string, string> = {
+  NEW_LEAD: 'سرنخ جدید',
+  CONTACTED: 'در تماس',
+  QUALIFIED: 'واجد شرایط',
+  CUSTOMER: 'مشتری (حداقل ۱ خرید)',
+  REPEAT_CUSTOMER: 'خرید تکراری (حداقل ۲ خرید)',
+};
+
+const STAGE_LABELS_SETTING = { moduleCode: 'crm', key: 'funnelStageLabels' } as const;
 
 @Injectable()
 export class FunnelKpiService {
+  /** برچسب فعلی هر مرحله‌ی اصلی — پیش‌فرض یا اگر تننت شخصی‌سازی کرده، همان. */
+  async getStageLabels(ctx: TenantRequestContext): Promise<Record<string, string>> {
+    const setting = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: STAGE_LABELS_SETTING } });
+    const overrides = (setting?.value as Record<string, string> | undefined) ?? {};
+    return Object.fromEntries(MAIN_FUNNEL_STAGES.map((s) => [s, overrides[s]?.trim() || MAIN_FUNNEL_DEFAULT_LABELS[s]]));
+  }
+
+  async setStageLabels(ctx: TenantRequestContext, labels: Record<string, string>): Promise<Record<string, string>> {
+    const sanitized: Record<string, string> = {};
+    for (const stage of MAIN_FUNNEL_STAGES) {
+      const value = labels[stage]?.trim();
+      if (value) sanitized[stage] = value;
+    }
+    await ctx.tenantDb.moduleSetting.upsert({
+      where: { moduleCode_key: STAGE_LABELS_SETTING },
+      create: { ...STAGE_LABELS_SETTING, value: sanitized },
+      update: { value: sanitized },
+    });
+    return this.getStageLabels(ctx);
+  }
+
   async getFunnelSummary(ctx: TenantRequestContext) {
+    const stageLabels = await this.getStageLabels(ctx);
     const contacts = await ctx.tenantDb.crmContact.findMany({
       select: {
         id: true,
@@ -50,28 +80,30 @@ export class FunnelKpiService {
     // محاسبه می‌شود، نه رویداد قیف — چون سرنخی که مستقیم از فروشگاه خرید کرده
     // ممکن است هرگز رویداد CONTACTED/QUALIFIED نداشته باشد، و این خودش درست است
     // (یعنی مسیر بدون گلوگاه دستی طی شده).
-    const stages = MAIN_FUNNEL.map(({ stage, label }) => {
+    const stages = MAIN_FUNNEL_STAGES.map((stage) => {
       let count: number;
       if (stage === 'NEW_LEAD') count = contacts.length;
       else if (stage === 'CONTACTED') count = contactedSet.size;
       else if (stage === 'QUALIFIED') count = qualifiedSet.size;
       else if (stage === 'CUSTOMER') count = contacts.filter((c) => c.purchaseCount >= 1).length;
       else count = contacts.filter((c) => c.purchaseCount >= 2).length;
-      return { stage, label, count };
+      return { stage, label: stageLabels[stage], count };
     });
 
-    const conversionRates: { fromStage: string; toStage: string; rate: number | null }[] = [];
+    const conversionRates: { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number | null }[] = [];
     for (let i = 1; i < stages.length; i++) {
       const prev = stages[i - 1];
       const curr = stages[i];
       conversionRates.push({
         fromStage: prev.stage,
         toStage: curr.stage,
+        fromLabel: prev.label,
+        toLabel: curr.label,
         rate: prev.count > 0 ? Math.round((curr.count / prev.count) * 1000) / 10 : null,
       });
     }
 
-    const validRates = conversionRates.filter((r) => r.rate !== null) as { fromStage: string; toStage: string; rate: number }[];
+    const validRates = conversionRates.filter((r) => r.rate !== null) as { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number }[];
     const bottleneck = validRates.length > 0 ? validRates.reduce((min, r) => (r.rate < min.rate ? r : min)) : null;
 
     const totalCustomers = contacts.filter((c) => c.purchaseCount >= 1).length;

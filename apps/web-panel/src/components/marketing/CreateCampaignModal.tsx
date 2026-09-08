@@ -5,18 +5,7 @@ import clsx from "clsx";
 import { Modal } from "@/components/ui/Modal";
 import { toPersianDigits } from "@/lib/persian";
 import { createCampaign, previewCampaignAudience, type AudienceFilter, type MarketingChannel } from "@/lib/api";
-
-type SegmentKey = "frequent" | "inactive" | "new_leads" | "due" | "product" | "ambassadors" | "all";
-
-const SEGMENTS: { key: SegmentKey; label: string; hint: string }[] = [
-  { key: "frequent", label: "مشتریان همیشگی", hint: "کسانی که هرماهه یا بیشتر خرید می‌کنند" },
-  { key: "inactive", label: "بیش از ۲ ماه خرید نکرده‌اند", hint: "فرصت یادآوری/تخفیف بازگشت" },
-  { key: "new_leads", label: "سرنخ‌های ناآشنا", hint: "هنوز مشتری نشده‌اند" },
-  { key: "due", label: "موعد خرید مجدد الان است", hint: "بر اساس میانگین فاصله‌ی خرید هر مشتری" },
-  { key: "product", label: "خریداران یک محصول خاص", hint: "برای پیشنهاد محصول مرتبط/مشابه" },
-  { key: "ambassadors", label: "سفیران برند", hint: "معرفان فعال کسب‌وکار" },
-  { key: "all", label: "همه‌ی مخاطبین", hint: "بدون فیلتر خاص" },
-];
+import { AudienceFilterBuilder } from "./AudienceFilterBuilder";
 
 const CHANNELS: { value: MarketingChannel; label: string; disabled?: boolean }[] = [
   { value: "SMS", label: "پیامک" },
@@ -25,50 +14,33 @@ const CHANNELS: { value: MarketingChannel; label: string; disabled?: boolean }[]
   { value: "INSTAGRAM_TEMPLATE", label: "تصویر پست/استوری اینستاگرام" },
 ];
 
-function buildFilter(segment: SegmentKey, productQuery: string): AudienceFilter {
-  switch (segment) {
-    case "frequent":
-      return { frequentBuyerMaxGapDays: 35 };
-    case "inactive":
-      return { minDaysSinceLastPurchase: 60 };
-    case "new_leads":
-      return { funnelStages: ["NEW_LEAD", "CONTACTED"] };
-    case "due":
-      return { dueForRepurchase: true };
-    case "product":
-      return { purchasedProductContains: productQuery };
-    case "ambassadors":
-      return { isBrandAmbassador: true };
-    case "all":
-    default:
-      return {};
-  }
-}
-
 export function CreateCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<MarketingChannel>("SMS");
-  const [segment, setSegment] = useState<SegmentKey>("frequent");
-  const [productQuery, setProductQuery] = useState("");
+  const [filter, setFilter] = useState<AudienceFilter>({ frequentBuyerMaxGapDays: 35 });
   const [messageText, setMessageText] = useState("");
   const [templateCode, setTemplateCode] = useState<"post-square" | "story">("post-square");
   const [templateTitle, setTemplateTitle] = useState("");
   const [templateCta, setTemplateCta] = useState("");
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [audienceSample, setAudienceSample] = useState<{ id: string; name: string; phone: string | null }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isMessaging = channel === "SMS" || channel === "BALE" || channel === "WHATSAPP";
 
   useEffect(() => {
-    if (!isMessaging || (segment === "product" && !productQuery.trim())) {
-      return;
-    }
-    const filter = buildFilter(segment, productQuery.trim());
+    if (!isMessaging) return;
     previewCampaignAudience(filter)
-      .then((res) => setAudienceCount(res.count))
-      .catch(() => setAudienceCount(null));
-  }, [segment, productQuery, isMessaging]);
+      .then((res) => {
+        setAudienceCount(res.count);
+        setAudienceSample(res.sample);
+      })
+      .catch(() => {
+        setAudienceCount(null);
+        setAudienceSample([]);
+      });
+  }, [filter, isMessaging]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +54,7 @@ export function CreateCampaignModal({ onClose, onCreated }: { onClose: () => voi
         templateCode: channel === "INSTAGRAM_TEMPLATE" ? templateCode : undefined,
         templateTitle: channel === "INSTAGRAM_TEMPLATE" ? templateTitle.trim() : undefined,
         templateCta: channel === "INSTAGRAM_TEMPLATE" ? templateCta.trim() : undefined,
-        audienceFilter: isMessaging ? buildFilter(segment, productQuery.trim()) : undefined,
+        audienceFilter: isMessaging ? filter : undefined,
       });
       onCreated();
     } catch (err) {
@@ -128,34 +100,21 @@ export function CreateCampaignModal({ onClose, onCreated }: { onClose: () => voi
         {isMessaging ? (
           <>
             <div>
-              <label className={labelClass}>مخاطبین هدف</label>
-              <div className="grid grid-cols-1 gap-1.5">
-                {SEGMENTS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => setSegment(s.key)}
-                    className={clsx(
-                      "text-right px-3.5 py-2.5 rounded-xl cursor-pointer transition-colors",
-                      segment === s.key ? "bg-primary-soft border border-primary/30" : "bg-slate-50 border border-transparent",
-                    )}
-                  >
-                    <div className="text-[12.5px] font-bold">{s.label}</div>
-                    <div className="text-[11px] text-muted mt-0.5">{s.hint}</div>
-                  </button>
-                ))}
-              </div>
-              {segment === "product" ? (
-                <input
-                  value={productQuery}
-                  onChange={(e) => setProductQuery(e.target.value)}
-                  placeholder="نام محصول یا بخشی از آن"
-                  className={clsx(inputClass, "mt-2")}
-                />
-              ) : null}
+              <label className={labelClass}>مخاطبین هدف — شرط‌ها را دلخواه اضافه/حذف کنید</label>
+              <AudienceFilterBuilder value={filter} onChange={setFilter} />
               <div className="text-[12px] font-semibold mt-2.5 text-ink-soft">
                 {audienceCount === null ? "—" : `${toPersianDigits(audienceCount)} نفر واجد شرایط`}
               </div>
+              {audienceSample.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {audienceSample.slice(0, 8).map((c) => (
+                    <span key={c.id} className="text-[10.5px] bg-slate-100 text-ink-soft rounded-md px-2 py-1">
+                      {c.name}
+                    </span>
+                  ))}
+                  {audienceCount != null && audienceCount > 8 && <span className="text-[10.5px] text-muted px-1 py-1">و {toPersianDigits(audienceCount - 8)} نفر دیگر</span>}
+                </div>
+              )}
             </div>
 
             <div>

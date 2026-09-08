@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -9,6 +9,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { CampaignsService } from './campaigns.service.js';
 import { CreateCampaignDto } from './dto/create-campaign.dto.js';
+import { UpdateCampaignDto } from './dto/update-campaign.dto.js';
 import { PreviewAudienceDto } from './dto/audience-filter.dto.js';
 
 @Controller('marketing/campaigns')
@@ -40,6 +41,18 @@ export class CampaignsController {
     await this.permissions.assertCreate(ctx, 'marketing');
     const userId = await resolveTenantUserId(ctx);
     return this.campaigns.create(ctx, dto, userId ?? undefined);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateCampaignDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'marketing');
+    return this.campaigns.update(ctx, id, dto);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'marketing');
+    return this.campaigns.delete(ctx, id);
   }
 
   @Post(':id/send')
