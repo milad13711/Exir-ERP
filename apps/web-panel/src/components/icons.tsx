@@ -388,3 +388,29 @@ export function StarIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </svg>
+  );
+}
+
+export function FunnelIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 4h17l-6 8v6.5l-5 2V12l-6-8z" />
+    </svg>
+  );
+}
+
+export function MegaphoneIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 10v4a1 1 0 0 0 1 1h2l1 5h2l-1-5h1l9 4V6l-9 4H4a1 1 0 0 0-1 1v-1z" />
+      <path d="M19 9.5a3 3 0 0 1 0 5" />
+    </svg>
+  );
+}

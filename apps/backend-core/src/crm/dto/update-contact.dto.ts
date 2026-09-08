@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class UpdateContactDto {
   @IsOptional()
@@ -54,4 +54,17 @@ export class UpdateContactDto {
   @IsOptional()
   @IsBoolean()
   isSupplier?: boolean;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  acquisitionCost?: number;
+
+  @IsOptional()
+  @IsString()
+  referredById?: string;
 }

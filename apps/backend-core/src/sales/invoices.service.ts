@@ -7,6 +7,7 @@ import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
+import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
@@ -76,6 +77,7 @@ export class InvoicesService {
     private readonly creditScore: CreditScoreService,
     private readonly costing: CostingService,
     private readonly automation: AutomationEngineService,
+    private readonly funnel: FunnelService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -448,6 +450,9 @@ export class InvoicesService {
       amount: dto.amount,
       remaining: updatedInvoice.total - updatedInvoice.paidAmount,
     });
+    if (newStatus === 'PAID') {
+      await this.funnel.recordPurchase(ctx, updatedInvoice.contactId, updatedInvoice.total, 'خرید مجدد (فاکتور فروش)');
+    }
     return updatedInvoice;
   }
 

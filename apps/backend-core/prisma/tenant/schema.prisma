@@ -78,6 +78,7 @@ model User {
   responsibleForStages       ProjectStage[]             @relation("ProjectStageResponsible")
   projectMemberships         ProjectMember[]            @relation("ProjectMemberUser")
   createdShipments           Shipment[]
+  createdCampaigns           MarketingCampaign[]
 
   @@map("users")
 }
@@ -279,6 +280,21 @@ enum CrmContactType {
   COMPANY
 }
 
+/// مراحل قیف سرنخ/مشتری. NEW_LEAD..CUSTOMER بخش بالای قیف (پیش از اولین خرید)
+/// است؛ REPEAT_CUSTOMER/BRAND_AMBASSADOR/CHURN_RISK/CHURNED سه‌گانه‌ی سلامت
+/// برند در پایین قیف‌اند و پس از اولین خرید، به‌صورت خودکار محاسبه می‌شوند —
+/// نه با ورودی دستی کاربر (به‌جز پیشروی دستی NEW_LEAD..QUALIFIED).
+enum CrmFunnelStage {
+  NEW_LEAD
+  CONTACTED
+  QUALIFIED
+  CUSTOMER
+  REPEAT_CUSTOMER
+  BRAND_AMBASSADOR
+  CHURN_RISK
+  CHURNED
+}
+
 /// شخص/سازمان طرف‌حساب — می‌تواند مشتری، تأمین‌کننده، یا هر دو باشد (isCustomer/isSupplier).
 /// قبلاً تأمین‌کننده‌ها مدل جدای Supplier داشتند که وقتی یک نفر هم مشتری بود هم
 /// تأمین‌کننده، گردش حسابش بین دو رکورد جدا پخش می‌شد — این‌جا یکی شده‌اند.
@@ -295,6 +311,19 @@ model CrmContact {
   isSupplier  Boolean        @default(false)
   createdAt   DateTime       @default(now())
 
+  // ── قیف سرنخ/مشتری و سلامت برند ──
+  funnelStage        CrmFunnelStage @default(NEW_LEAD)
+  source             String? // منبع آشنایی: اینستاگرام، معرفی، وب‌سایت، تلفنی، حضوری، سایر (متن آزاد)
+  acquisitionCost    Int? // هزینه‌ی جذب این سرنخ به تومان — دستی، برای KPI میانگین CAC
+  referredById       String? // چه کسی این سرنخ را معرفی کرده — معرف پس از این ارجاع سفیر برند می‌شود
+  isBrandAmbassador  Boolean        @default(false)
+  becameAmbassadorAt DateTime?
+  firstPurchaseAt    DateTime?
+  lastPurchaseAt     DateTime?
+  purchaseCount      Int            @default(0)
+  avgPurchaseGapDays Int? // میانگین فاصله‌ی روزهای بین خریدهای متوالی — مبنای پیش‌بینی خرید بعدی/ریسک ریزش
+  churnWarningAt     DateTime? // از چه زمانی هشدار ریسک غیرفعال‌شدن روی این مشتری فعال شد
+
   // برای درج روی فاکتور رسمی: اشخاص حقیقی با کد ملی، اشخاص حقوقی با کد
   // اقتصادی/شناسه ملی/شماره ثبت شناخته می‌شوند.
   address            String?
@@ -309,26 +338,50 @@ model CrmContact {
   bankAvgMonthlyTurnover Int? // میانگین گردش حساب ماهانه طبق پرینت بانکی، تومان
   creditLimitOverride    Int? // سقف اعتبار دستی — در صورت تنظیم، جایگزین محاسبه‌ی خودکار می‌شود
 
-  owner                     User?                      @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  owner                     User?                        @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   deals                     CrmDeal[]
   activities                CrmActivity[]
   invoices                  SalesInvoice[]
   quotations                SalesQuotation[]
   checks                    Check[]
-  checksEndorsedToMe        Check[]                    @relation("CheckEndorsedTo")
+  checksEndorsedToMe        Check[]                      @relation("CheckEndorsedTo")
   purchaseOrders            PurchaseOrder[]
   partyTransactions         PartyTransaction[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
   appointments              Appointment[]
   contracts                 Contract[]
-  contractsAsSecondParty    Contract[]                 @relation("ContractSecondParty")
+  contractsAsSecondParty    Contract[]                   @relation("ContractSecondParty")
   projects                  Project[]
   shipments                 Shipment[]
   storeOrders               StoreOrder[]
+  referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals                 CrmContact[]                 @relation("ContactReferral")
+  funnelStageEvents         CrmFunnelStageEvent[]
+  campaignRecipients        MarketingCampaignRecipient[]
 
   @@index([createdAt])
   @@index([isSupplier])
+  @@index([funnelStage])
+  @@index([isBrandAmbassador])
   @@map("crm_contacts")
+}
+
+/// لاگ تغییر مرحله‌ی قیف هر مخاطب — مبنای محاسبه‌ی نرخ تبدیل هر مرحله
+/// (بر اساس «حداکثر مرحله‌ای که هرکس تا به حال به آن رسیده»)، میانگین زمان
+/// در هر مرحله، و رشد ماهانه‌ی سفیران برند. مستقل از CrmActivity نگه داشته
+/// شده چون نیاز به fromStage/toStage ساخت‌یافته برای کوئری‌های تجمیعی دارد.
+model CrmFunnelStageEvent {
+  id         String          @id @default(uuid())
+  contactId  String
+  fromStage  CrmFunnelStage?
+  toStage    CrmFunnelStage
+  occurredAt DateTime        @default(now())
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([toStage, occurredAt])
+  @@map("crm_funnel_stage_events")
 }
 
 enum CrmDealStage {
@@ -2204,4 +2257,74 @@ model StoreReview {
   @@index([productId, status])
   @@index([status])
   @@map("store_reviews")
+}
+
+// ── Marketing: کمپین‌های بازاریابی چندکاناله (پیامک/بله/واتساپ/تمپلیت اینستاگرام) ──
+
+enum MarketingChannel {
+  SMS
+  BALE // ربات بله — ارسال واقعی نیازمند chat_id مخاطب است که فعلاً ثبت نمی‌شود
+  WHATSAPP // نیازمند WhatsApp Business API — فعلاً پیاده‌سازی نشده
+  INSTAGRAM_TEMPLATE // ارسال واقعی ندارد؛ فقط تصویر پست/استوری برای انتشار دستی می‌سازد
+}
+
+enum MarketingCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  FAILED
+}
+
+enum MarketingRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED // کانال برای این مخاطب قابل استفاده نبود (مثلاً بدون شماره موبایل)
+}
+
+model MarketingCampaign {
+  id              String                  @id @default(uuid())
+  name            String
+  channel         MarketingChannel
+  status          MarketingCampaignStatus @default(DRAFT)
+  messageText     String? // متن پیام برای SMS/BALE/WHATSAPP
+  templateCode    String? // کد قالب برای INSTAGRAM_TEMPLATE (post-square, story)
+  templateTitle   String? // عنوان روی تصویر تمپلیت
+  templateCta     String? // متن دکمه/فراخوان‌به‌اقدام روی تصویر تمپلیت
+  audienceFilter  Json // معیار فیلتر مخاطبین هنگام ساخت کمپین — برای بازتولید/شفافیت نگه داشته می‌شود
+  createdByUserId String?
+  createdAt       DateTime                @default(now())
+  sentAt          DateTime?
+
+  recipientCount       Int @default(0)
+  sentCount            Int @default(0)
+  failedCount          Int @default(0)
+  // عملکرد کمپین: چند نفر از گیرندگان طی ۷ روز بعد از ارسال خرید ثبت کردند —
+  // تخمین اثر کمپین، نه اسناد رسمی attribution.
+  attributedOrderCount Int @default(0)
+  attributedRevenue    Int @default(0) // تومان
+
+  createdByUser User?                        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  recipients    MarketingCampaignRecipient[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("marketing_campaigns")
+}
+
+model MarketingCampaignRecipient {
+  id         String                   @id @default(uuid())
+  campaignId String
+  contactId  String
+  phone      String? // اسنپ‌شات شماره در لحظه‌ی ارسال
+  status     MarketingRecipientStatus @default(PENDING)
+  error      String?
+  sentAt     DateTime?
+
+  campaign MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  CrmContact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([contactId])
+  @@map("marketing_campaign_recipients")
 }

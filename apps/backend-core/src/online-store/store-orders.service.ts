@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { FunnelService } from '../crm/funnel.service.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { currentStock } from '../warehouse/stock.js';
 import type { CreateStoreOrderDto } from '../public/dto/create-store-order.dto.js';
@@ -20,11 +21,15 @@ const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED']);
  */
 @Injectable()
 export class StoreOrdersService {
-  constructor(private readonly automation: AutomationEngineService) {}
+  constructor(
+    private readonly automation: AutomationEngineService,
+    private readonly funnel: FunnelService,
+  ) {}
 
   async createOrder(ctx: TenantRequestContext, dto: CreateStoreOrderDto) {
     const productIds = [...new Set(dto.lines.map((l) => l.productId))];
 
+    let createdNewContact = false;
     const order = await ctx.tenantDb.$transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: productIds } },
@@ -59,8 +64,10 @@ export class StoreOrdersService {
             phone: dto.customerPhone,
             address: dto.shippingAddress,
             isCustomer: true,
+            source: 'فروشگاه آنلاین',
           },
         });
+        createdNewContact = true;
       }
 
       const created = await tx.storeOrder.create({
@@ -89,6 +96,11 @@ export class StoreOrdersService {
       customerName: order.customerName,
       subtotal: order.subtotal,
     });
+
+    if (order.contactId) {
+      if (createdNewContact) await this.funnel.initLead(ctx, order.contactId);
+      await this.funnel.recordPurchase(ctx, order.contactId, order.subtotal, 'خرید مجدد از فروشگاه آنلاین');
+    }
 
     return order;
   }

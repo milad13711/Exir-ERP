@@ -42,6 +42,7 @@ import { ContractsModule } from './contracts/contracts.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { OnlineStoreModule } from './online-store/online-store.module.js';
+import { MarketingModule } from './marketing/marketing.module.js';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { OnlineStoreModule } from './online-store/online-store.module.js';
     ProjectsModule,
     FleetModule,
     OnlineStoreModule,
+    MarketingModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

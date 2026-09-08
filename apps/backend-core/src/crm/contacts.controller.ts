@@ -14,6 +14,7 @@ import { CreditScoreService } from './credit-score.service.js';
 import { SupplierRiskService } from './supplier-risk.service.js';
 import { PartyStatementService } from './party-statement.service.js';
 import { PartyTransactionsService } from './party-transactions.service.js';
+import { FunnelService } from './funnel.service.js';
 import { CreatePartyTransactionDto } from './dto/create-party-transaction.dto.js';
 import { CreatePartyTransferDto } from './dto/create-party-transfer.dto.js';
 import { CreateContactDto } from './dto/create-contact.dto.js';
@@ -34,6 +35,7 @@ export class ContactsController {
     private readonly supplierRisk: SupplierRiskService,
     private readonly partyStatement: PartyStatementService,
     private readonly partyTransactions: PartyTransactionsService,
+    private readonly funnel: FunnelService,
   ) {}
   @Get()
   async list(
@@ -193,7 +195,11 @@ export class ContactsController {
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'crm');
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
-    return ctx.tenantDb.crmContact.update({
+    if (dto.referredById) {
+      if (dto.referredById === id) throw new NotFoundException('مخاطب نمی‌تواند معرف خودش باشد');
+      await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.referredById } });
+    }
+    const contact = await ctx.tenantDb.crmContact.update({
       where: { id },
       data: {
         type: dto.type,
@@ -209,8 +215,15 @@ export class ContactsController {
         tags: dto.tags,
         isCustomer: dto.isCustomer,
         isSupplier: dto.isSupplier,
+        source: dto.source,
+        acquisitionCost: dto.acquisitionCost,
+        referredById: dto.referredById,
       },
     });
+    if (dto.referredById) {
+      await this.funnel.markReferrerAsAmbassador(ctx, dto.referredById);
+    }
+    return contact;
   }
 
   @Put(':id/credit-inputs')
@@ -236,6 +249,9 @@ export class ContactsController {
   async create(@Body() dto: CreateContactDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'crm');
     const ownerUserId = await resolveTenantUserId(ctx);
+    if (dto.referredById) {
+      await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.referredById } });
+    }
     const contact = await ctx.tenantDb.crmContact.create({
       data: {
         type: dto.type ?? 'INDIVIDUAL',
@@ -249,9 +265,16 @@ export class ContactsController {
         legalId: dto.legalId,
         registrationNumber: dto.registrationNumber,
         tags: dto.tags ?? [],
+        source: dto.source,
+        acquisitionCost: dto.acquisitionCost,
+        referredById: dto.referredById,
         ownerUserId,
       },
     });
+    await this.funnel.initLead(ctx, contact.id);
+    if (dto.referredById) {
+      await this.funnel.markReferrerAsAmbassador(ctx, dto.referredById);
+    }
     await ctx.tenantDb.activityLog.create({
       data: {
         userId: ownerUserId,

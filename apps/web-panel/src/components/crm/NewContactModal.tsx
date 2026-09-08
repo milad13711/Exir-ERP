@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { createCrmContact, type CrmContact } from "@/lib/api";
+import { createCrmContact, fetchCrmContacts, type CrmContact } from "@/lib/api";
+
+const SOURCE_OPTIONS = ["اینستاگرام", "معرفی", "وب‌سایت", "تلفنی", "حضوری", "سایر"];
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -20,7 +22,23 @@ export function NewContactModal({
   const [company, setCompany] = useState("");
   const [phone, setPhone] = useState(initialPhone ?? "");
   const [email, setEmail] = useState("");
+  const [source, setSource] = useState("");
+  const [acquisitionCost, setAcquisitionCost] = useState("");
+  const [referrerQuery, setReferrerQuery] = useState("");
+  const [referrerOptions, setReferrerOptions] = useState<CrmContact[]>([]);
+  const [referrer, setReferrer] = useState<CrmContact | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  async function searchReferrer(q: string) {
+    setReferrerQuery(q);
+    setReferrer(null);
+    if (q.trim().length < 2) {
+      setReferrerOptions([]);
+      return;
+    }
+    const results = await fetchCrmContacts(q.trim());
+    setReferrerOptions(results.slice(0, 6));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +51,9 @@ export function NewContactModal({
         company: company.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
+        source: source.trim() || undefined,
+        acquisitionCost: acquisitionCost.trim() ? Number(acquisitionCost) : undefined,
+        referredById: referrer?.id,
       });
       onCreated(contact);
       onClose();
@@ -101,6 +122,59 @@ export function NewContactModal({
               className={inputClass}
               dir="ltr"
             />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>منبع آشنایی (اختیاری)</label>
+          <div className="flex flex-wrap gap-1.5">
+            {SOURCE_OPTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSource(source === s ? "" : s)}
+                className={`text-[11.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer ${source === s ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>هزینه‌ی جذب (تومان، اختیاری)</label>
+            <input
+              value={acquisitionCost}
+              onChange={(e) => setAcquisitionCost(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder="0"
+              className={inputClass}
+              dir="ltr"
+            />
+          </div>
+          <div className="relative">
+            <label className={labelClass}>معرف (اختیاری)</label>
+            <input
+              value={referrer ? referrer.name : referrerQuery}
+              onChange={(e) => searchReferrer(e.target.value)}
+              placeholder="جستجوی نام مخاطب..."
+              className={inputClass}
+            />
+            {referrerOptions.length > 0 && !referrer ? (
+              <div className="absolute z-10 top-full mt-1 w-full bg-white border border-border rounded-xl shadow-lg overflow-hidden">
+                {referrerOptions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setReferrer(c);
+                      setReferrerOptions([]);
+                    }}
+                    className="w-full text-right px-3 py-2 text-[12.5px] hover:bg-slate-50 cursor-pointer"
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         <button

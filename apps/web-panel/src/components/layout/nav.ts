@@ -18,6 +18,8 @@ import {
   DocsIcon,
   BuildingIcon,
   TruckIcon,
+  FunnelIcon,
+  MegaphoneIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -31,6 +33,8 @@ export type NavItem = {
 export const primaryNav: NavItem[] = [
   { href: "/dashboard", label: "داشبورد", icon: DashboardIcon },
   { href: "/crm", label: "مشتریان (CRM)", icon: CrmIcon, moduleCode: "crm" },
+  { href: "/crm/funnel", label: "قیف فروش", icon: FunnelIcon, moduleCode: "crm" },
+  { href: "/marketing", label: "بازاریابی", icon: MegaphoneIcon, moduleCode: "marketing" },
   { href: "/sales", label: "فروش و فاکتور", icon: ReceiptIcon, moduleCode: "sales" },
   { href: "/purchasing", label: "خرید و تأمین‌کننده", icon: OrdersIcon, moduleCode: "purchasing" },
   { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon, moduleCode: "warehouse" },

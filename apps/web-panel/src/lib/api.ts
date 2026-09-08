@@ -714,6 +714,9 @@ export function createCrmContact(data: {
   legalId?: string;
   registrationNumber?: string;
   tags?: string[];
+  source?: string;
+  acquisitionCost?: number;
+  referredById?: string;
 }) {
   return apiFetch<CrmContact>("/crm/contacts", { method: "POST", body: JSON.stringify(data) });
 }
@@ -3987,4 +3990,169 @@ export function placePublicStoreOrder(
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+// ── سرنخ و قیف فروش (CRM Funnel) ─────────────────────────────────────────
+
+export type CrmFunnelStage =
+  | "NEW_LEAD"
+  | "CONTACTED"
+  | "QUALIFIED"
+  | "CUSTOMER"
+  | "REPEAT_CUSTOMER"
+  | "BRAND_AMBASSADOR"
+  | "CHURN_RISK"
+  | "CHURNED";
+
+export type FunnelStageCount = { stage: string; label: string; count: number };
+export type FunnelConversionRate = { fromStage: string; toStage: string; rate: number | null };
+
+export type FunnelSummary = {
+  stages: FunnelStageCount[];
+  conversionRates: FunnelConversionRate[];
+  bottleneck: FunnelConversionRate | null;
+  currentDistribution: Record<string, number>;
+  ambassador: {
+    totalAmbassadors: number;
+    totalCustomers: number;
+    ratioPercent: number;
+    thisMonthCount: number;
+    lastMonthCount: number;
+    growthPercent: number;
+    hasStrongBrandingPotential: boolean;
+  };
+};
+
+export type FunnelSourcePerformance = { source: string; totalLeads: number; convertedCount: number; conversionRate: number };
+
+export type FunnelSalesKpis = {
+  avgAcquisitionCost: number | null;
+  bestSource: FunnelSourcePerformance | null;
+  sourcePerformance: FunnelSourcePerformance[];
+  avgFollowUpHours: number | null;
+  salespeople: { userId: string; name: string; totalLeads: number; convertedCount: number; conversionRate: number }[];
+};
+
+export type FunnelContact = {
+  id: string;
+  name: string;
+  company: string | null;
+  phone: string | null;
+  funnelStage: CrmFunnelStage;
+  source: string | null;
+  purchaseCount: number;
+  lastPurchaseAt: string | null;
+  avgPurchaseGapDays: number | null;
+  isBrandAmbassador: boolean;
+  owner: { name: string } | null;
+};
+
+export function fetchFunnelSummary() {
+  return apiFetch<FunnelSummary>("/crm/funnel/summary");
+}
+
+export function fetchFunnelKpis() {
+  return apiFetch<FunnelSalesKpis>("/crm/funnel/kpis");
+}
+
+export function fetchFunnelContacts(stage?: string) {
+  const qs = stage ? `?stage=${stage}` : "";
+  return apiFetch<FunnelContact[]>(`/crm/funnel/contacts${qs}`);
+}
+
+export function updateFunnelStage(contactId: string, stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED") {
+  return apiFetch<FunnelContact>(`/crm/funnel/contacts/${contactId}/stage`, {
+    method: "POST",
+    body: JSON.stringify({ stage }),
+  });
+}
+
+// ── بازاریابی و کمپین (Marketing Campaigns) ─────────────────────────────
+
+export type MarketingChannel = "SMS" | "BALE" | "WHATSAPP" | "INSTAGRAM_TEMPLATE";
+export type MarketingCampaignStatus = "DRAFT" | "SENDING" | "SENT" | "FAILED";
+export type MarketingRecipientStatus = "PENDING" | "SENT" | "FAILED" | "SKIPPED";
+
+export type AudienceFilter = {
+  funnelStages?: CrmFunnelStage[];
+  minDaysSinceLastPurchase?: number;
+  maxDaysSinceLastPurchase?: number;
+  frequentBuyerMaxGapDays?: number;
+  dueForRepurchase?: boolean;
+  purchasedProductContains?: string;
+  minPurchaseCount?: number;
+  isBrandAmbassador?: boolean;
+  source?: string;
+};
+
+export type MarketingCampaignRecipient = {
+  id: string;
+  contactId: string;
+  phone: string | null;
+  status: MarketingRecipientStatus;
+  error: string | null;
+  sentAt: string | null;
+  contact: { id: string; name: string; phone: string | null };
+};
+
+export type MarketingCampaign = {
+  id: string;
+  name: string;
+  channel: MarketingChannel;
+  status: MarketingCampaignStatus;
+  messageText: string | null;
+  templateCode: string | null;
+  templateTitle: string | null;
+  templateCta: string | null;
+  audienceFilter: AudienceFilter;
+  createdAt: string;
+  sentAt: string | null;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  attributedOrderCount: number;
+  attributedRevenue: number;
+  recipients: MarketingCampaignRecipient[];
+};
+
+export function fetchCampaigns() {
+  return apiFetch<MarketingCampaign[]>("/marketing/campaigns");
+}
+
+export function fetchCampaign(id: string) {
+  return apiFetch<MarketingCampaign>(`/marketing/campaigns/${id}`);
+}
+
+export function previewCampaignAudience(filter: AudienceFilter) {
+  return apiFetch<{ count: number; sample: { id: string; name: string; phone: string | null }[] }>(
+    "/marketing/campaigns/preview-audience",
+    { method: "POST", body: JSON.stringify({ filter }) },
+  );
+}
+
+export function createCampaign(data: {
+  name: string;
+  channel: MarketingChannel;
+  messageText?: string;
+  templateCode?: "post-square" | "story";
+  templateTitle?: string;
+  templateCta?: string;
+  audienceFilter?: AudienceFilter;
+}) {
+  return apiFetch<MarketingCampaign>("/marketing/campaigns", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function sendCampaign(id: string) {
+  return apiFetch<MarketingCampaign>(`/marketing/campaigns/${id}/send`, { method: "POST" });
+}
+
+/** تصویر کمپین احراز‌هویت لازم دارد — img src مستقیم توکن نمی‌فرستد، پس به Object URL تبدیل می‌شود (همان الگوی downloadBackupExport). */
+export async function fetchCampaignImageObjectUrl(id: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/marketing/campaigns/${id}/image`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("ساخت تصویر کمپین ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }

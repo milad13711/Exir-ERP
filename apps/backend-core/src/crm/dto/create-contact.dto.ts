@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateContactDto {
   @IsOptional()
@@ -45,4 +45,17 @@ export class CreateContactDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  source?: string; // منبع آشنایی: اینستاگرام، معرفی، وب‌سایت، تلفنی، حضوری، سایر
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  acquisitionCost?: number; // هزینه‌ی جذب این سرنخ به تومان
+
+  @IsOptional()
+  @IsString()
+  referredById?: string; // شناسه‌ی مخاطبی که این سرنخ را معرفی کرده — معرف سفیر برند می‌شود
 }
