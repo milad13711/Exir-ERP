@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -19,9 +19,9 @@ export class QuotationsController {
   ) {}
 
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query('contactId') contactId: string | undefined, @Ctx() ctx: TenantRequestContext) {
     const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
-    return this.quotations.list(ctx, scope);
+    return this.quotations.list(ctx, contactId ? { ...scope, contactId } : scope);
   }
 
   @Get(':id')

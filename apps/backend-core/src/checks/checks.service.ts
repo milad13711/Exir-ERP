@@ -39,11 +39,12 @@ export class ChecksService {
 
   list(
     ctx: TenantRequestContext,
-    filters: { direction?: 'RECEIVED' | 'ISSUED'; status?: string; dueSoonDays?: number },
+    filters: { direction?: 'RECEIVED' | 'ISSUED'; status?: string; dueSoonDays?: number; contactId?: string },
   ) {
     const where: Record<string, unknown> = {};
     if (filters.direction) where.direction = filters.direction;
     if (filters.status) where.status = filters.status;
+    if (filters.contactId) where.contactId = filters.contactId;
     if (filters.dueSoonDays != null) {
       where.status = { in: ['PENDING', 'DEPOSITED'] };
       where.dueDate = { lte: new Date(Date.now() + filters.dueSoonDays * 86_400_000) };

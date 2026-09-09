@@ -105,9 +105,12 @@ export class StoreOrdersService {
     return order;
   }
 
-  async list(ctx: TenantRequestContext, status?: string) {
+  async list(ctx: TenantRequestContext, status?: string, contactId?: string) {
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (contactId) where.contactId = contactId;
     return ctx.tenantDb.storeOrder.findMany({
-      where: status ? { status: status as never } : {},
+      where,
       include: ORDER_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });

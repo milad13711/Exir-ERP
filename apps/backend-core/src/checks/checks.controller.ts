@@ -35,6 +35,7 @@ export class ChecksController {
     @Query('direction') direction: 'RECEIVED' | 'ISSUED' | undefined,
     @Query('status') status: string | undefined,
     @Query('dueSoonDays') dueSoonDays: string | undefined,
+    @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.assertViewEither(ctx);
@@ -42,6 +43,7 @@ export class ChecksController {
       direction,
       status,
       dueSoonDays: dueSoonDays ? Number(dueSoonDays) : undefined,
+      contactId,
     });
   }
 

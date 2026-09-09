@@ -2015,8 +2015,9 @@ export type SalesInvoiceDetail = SalesInvoice & {
   creditWarning: string | null;
 };
 
-export function fetchSalesInvoices() {
-  return apiFetch<SalesInvoice[]>("/sales/invoices");
+export function fetchSalesInvoices(contactId?: string) {
+  const qs = contactId ? `?contactId=${encodeURIComponent(contactId)}` : "";
+  return apiFetch<SalesInvoice[]>(`/sales/invoices${qs}`);
 }
 
 export function fetchSalesInvoice(id: string) {
@@ -2299,8 +2300,9 @@ export type SalesQuotationDetail = SalesQuotation & {
   publicToken: string;
 };
 
-export function fetchSalesQuotations() {
-  return apiFetch<SalesQuotation[]>("/sales/quotations");
+export function fetchSalesQuotations(contactId?: string) {
+  const qs = contactId ? `?contactId=${encodeURIComponent(contactId)}` : "";
+  return apiFetch<SalesQuotation[]>(`/sales/quotations${qs}`);
 }
 
 export function fetchSalesQuotation(id: string) {
@@ -2777,11 +2779,12 @@ export type Check = {
   purchaseOrder: { id: string; orderNo: number } | null;
 };
 
-export function fetchChecks(filters?: { direction?: CheckDirection; status?: CheckStatus; dueSoonDays?: number }) {
+export function fetchChecks(filters?: { direction?: CheckDirection; status?: CheckStatus; dueSoonDays?: number; contactId?: string }) {
   const params = new URLSearchParams();
   if (filters?.direction) params.set("direction", filters.direction);
   if (filters?.status) params.set("status", filters.status);
   if (filters?.dueSoonDays != null) params.set("dueSoonDays", String(filters.dueSoonDays));
+  if (filters?.contactId) params.set("contactId", filters.contactId);
   const qs = params.toString();
   return apiFetch<Check[]>(`/checks${qs ? `?${qs}` : ""}`);
 }
@@ -3779,9 +3782,12 @@ export type MatchCandidate = {
   averageRating: number | null;
 };
 
-export function fetchShipments(status?: string) {
-  const qs = status ? `?status=${status}` : "";
-  return apiFetch<Shipment[]>(`/fleet/shipments${qs}`);
+export function fetchShipments(status?: string, contactId?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (contactId) params.set("contactId", contactId);
+  const qs = params.toString();
+  return apiFetch<Shipment[]>(`/fleet/shipments${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchShipment(id: string) {
@@ -3957,9 +3963,12 @@ export function updateStoreReviewStatus(id: string, status: "APPROVED" | "REJECT
   return apiFetch<StoreReview>(`/online-store/reviews/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
 }
 
-export function fetchStoreOrders(status?: string) {
-  const qs = status ? `?status=${status}` : "";
-  return apiFetch<StoreOrder[]>(`/online-store/orders${qs}`);
+export function fetchStoreOrders(status?: string, contactId?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (contactId) params.set("contactId", contactId);
+  const qs = params.toString();
+  return apiFetch<StoreOrder[]>(`/online-store/orders${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchStoreOrder(id: string) {
@@ -4846,6 +4855,19 @@ export function fetchFormSubmissions(formId: string) {
 
 export function fetchFormStats(formId: string) {
   return apiFetch<FormStats>(`/forms/${formId}/stats`);
+}
+
+export type FormSubmissionByContact = {
+  id: string;
+  respondentName: string | null;
+  scorePercent: number | null;
+  passed: boolean | null;
+  submittedAt: string;
+  form: { id: string; title: string; slug: string; type: FormType };
+};
+
+export function fetchFormSubmissionsByContact(contactId: string) {
+  return apiFetch<FormSubmissionByContact[]>(`/forms/submissions/by-contact/${contactId}`);
 }
 
 // ── فرم — نمای عمومی (بدون ورود) ───────────────────────────────────────────

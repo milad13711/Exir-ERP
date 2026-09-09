@@ -78,6 +78,12 @@ export class FormsController {
     return this.forms.stats(ctx, id);
   }
 
+  @Get('submissions/by-contact/:contactId')
+  async listSubmissionsByContact(@Param('contactId') contactId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'forms');
+    return this.forms.listSubmissionsByContact(ctx, contactId);
+  }
+
   @Get('submissions/:submissionId')
   async submissionDetail(@Param('submissionId') submissionId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'forms');

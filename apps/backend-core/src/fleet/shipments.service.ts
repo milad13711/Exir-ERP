@@ -34,9 +34,12 @@ export class ShipmentsService {
     private readonly automation: AutomationEngineService,
   ) {}
 
-  list(ctx: TenantRequestContext, filters: { status?: string }) {
+  list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }) {
+    const where: Record<string, unknown> = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.contactId) where.contactId = filters.contactId;
     return ctx.tenantDb.shipment.findMany({
-      where: filters.status ? { status: filters.status as never } : {},
+      where,
       include: SHIPMENT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });

@@ -154,6 +154,15 @@ export class FormsService {
     });
   }
 
+  /** برای نمایش تاریخچه‌ی پاسخ‌های یک مخاطب در پروفایل CRM — همه‌ی فرم‌ها، نه فقط یکی. */
+  listSubmissionsByContact(ctx: TenantRequestContext, contactId: string) {
+    return ctx.tenantDb.formSubmission.findMany({
+      where: { contactId },
+      include: { form: { select: { id: true, title: true, slug: true, type: true } } },
+      orderBy: { submittedAt: 'desc' },
+    });
+  }
+
   async submissionDetail(ctx: TenantRequestContext, submissionId: string) {
     const submission = await ctx.tenantDb.formSubmission.findUnique({
       where: { id: submissionId },

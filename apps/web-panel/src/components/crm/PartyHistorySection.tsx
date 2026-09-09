@@ -1,25 +1,59 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { DocsIcon, BuildingIcon, CalendarIcon, CompassIcon, TicketIcon } from "@/components/icons";
-import { formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
+import {
+  DocsIcon,
+  BuildingIcon,
+  CalendarIcon,
+  CompassIcon,
+  TicketIcon,
+  ReceiptIcon,
+  OrdersIcon,
+  BillingIcon,
+  TruckIcon,
+  StoreIcon,
+  ClipboardCheckIcon,
+} from "@/components/icons";
+import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
 import {
   fetchContracts,
   fetchProjects,
   fetchAppointments,
   fetchMentoringSessions,
   fetchEventTicketsByContact,
+  fetchSalesInvoices,
+  fetchSalesQuotations,
+  fetchChecks,
+  fetchShipments,
+  fetchStoreOrders,
+  fetchFormSubmissionsByContact,
   type Contract,
   type Project,
   type Appointment,
   type MentoringSession,
   type EventTicket,
+  type SalesInvoice,
+  type SalesQuotation,
+  type Check,
+  type Shipment,
+  type StoreOrder,
+  type FormSubmissionByContact,
 } from "@/lib/api";
+
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "پیش‌نویس",
+  CONFIRMED: "تأییدشده",
+  PARTIALLY_PAID: "پرداخت جزئی",
+  PAID: "پرداخت‌شده",
+  CANCELLED: "لغوشده",
+};
 
 /**
  * A cross-module "این طرف‌حساب قبلاً چه کرده" history — every module that
  * links back to a CrmContact by contactId (contracts, projects,
- * appointments, mentoring sessions, event tickets), each from its own
- * module's existing ?contactId= filter (no new backend surface). A module a
+ * appointments, mentoring sessions, event tickets, sales invoices/quotations,
+ * checks, fleet shipments, online-store orders, form submissions), each from
+ * its own module's existing ?contactId= filter (no new backend surface
+ * beyond adding that same filter to modules that lacked it). A module a
  * tenant hasn't installed simply 403s and renders as an empty section
  * rather than an error, since not every tenant has every one of these
  * modules. This is the same phone-number identity every module already
@@ -33,6 +67,12 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [sessions, setSessions] = useState<MentoringSession[]>([]);
   const [tickets, setTickets] = useState<Array<EventTicket & { event: { id: string; title: string; slug: string; startAt: string } }>>([]);
+  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
+  const [checks, setChecks] = useState<Check[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
+  const [formSubmissions, setFormSubmissions] = useState<FormSubmissionByContact[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -45,17 +85,40 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       fetchAppointments({ contactId }),
       fetchMentoringSessions({ contactId }),
       fetchEventTicketsByContact(contactId),
-    ]).then(([c, p, a, s, t]) => {
+      fetchSalesInvoices(contactId),
+      fetchSalesQuotations(contactId),
+      fetchChecks({ contactId }),
+      fetchShipments(undefined, contactId),
+      fetchStoreOrders(undefined, contactId),
+      fetchFormSubmissionsByContact(contactId),
+    ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs]) => {
       setContracts(c.status === "fulfilled" ? c.value : []);
       setProjects(p.status === "fulfilled" ? p.value : []);
       setAppointments(a.status === "fulfilled" ? a.value : []);
       setSessions(s.status === "fulfilled" ? s.value : []);
       setTickets(t.status === "fulfilled" ? t.value : []);
+      setInvoices(inv.status === "fulfilled" ? inv.value : []);
+      setQuotations(q.status === "fulfilled" ? q.value : []);
+      setChecks(chk.status === "fulfilled" ? chk.value : []);
+      setShipments(sh.status === "fulfilled" ? sh.value : []);
+      setStoreOrders(so.status === "fulfilled" ? so.value : []);
+      setFormSubmissions(fs.status === "fulfilled" ? fs.value : []);
       setLoaded(true);
     });
   }, [contactId]);
 
-  const hasAny = contracts.length > 0 || projects.length > 0 || appointments.length > 0 || sessions.length > 0 || tickets.length > 0;
+  const hasAny =
+    contracts.length > 0 ||
+    projects.length > 0 ||
+    appointments.length > 0 ||
+    sessions.length > 0 ||
+    tickets.length > 0 ||
+    invoices.length > 0 ||
+    quotations.length > 0 ||
+    checks.length > 0 ||
+    shipments.length > 0 ||
+    storeOrders.length > 0 ||
+    formSubmissions.length > 0;
   if (loaded && !hasAny) return null;
 
   return (
@@ -98,6 +161,53 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
               <TicketIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">بلیط رویداد: {t.event.title}</span>
               <Badge tone={t.status === "CHECKED_IN" ? "success" : t.status === "CANCELLED" ? "danger" : "neutral"}>{t.ticketCode}</Badge>
+            </div>
+          ))}
+          {invoices.map((inv) => (
+            <div key={`invoice-${inv.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <ReceiptIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">فاکتور #{inv.invoiceNo}</span>
+              <span className="text-[11px] text-muted">{formatToman(inv.total)}</span>
+              <Badge tone={inv.status === "PAID" ? "success" : inv.status === "CANCELLED" ? "danger" : "neutral"}>
+                {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
+              </Badge>
+            </div>
+          ))}
+          {quotations.map((q) => (
+            <div key={`quotation-${q.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <OrdersIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">پیش‌فاکتور #{q.quotationNo}</span>
+              <span className="text-[11px] text-muted">{formatToman(q.total)}</span>
+            </div>
+          ))}
+          {checks.map((chk) => (
+            <div key={`check-${chk.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <BillingIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">
+                چک {chk.direction === "RECEIVED" ? "دریافتی" : "صادرشده"}: {formatToman(chk.amount)}
+              </span>
+              <span className="text-[11px] text-muted">سررسید {formatJalaliDate(chk.dueDate)}</span>
+            </div>
+          ))}
+          {shipments.map((sh) => (
+            <div key={`shipment-${sh.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <TruckIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">بار #{sh.shipmentNo}: {sh.cargoType}</span>
+              <Badge tone={sh.status === "DELIVERED" ? "success" : sh.status === "CANCELLED" ? "danger" : "neutral"}>{sh.status}</Badge>
+            </div>
+          ))}
+          {storeOrders.map((so) => (
+            <div key={`store-order-${so.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <StoreIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">سفارش فروشگاه #{so.orderNo}</span>
+              <span className="text-[11px] text-muted">{formatToman(so.subtotal)}</span>
+            </div>
+          ))}
+          {formSubmissions.map((fs) => (
+            <div key={`form-submission-${fs.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <ClipboardCheckIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">فرم: {fs.form.title}</span>
+              <span className="text-[11px] text-muted">{formatJalaliDateTime(fs.submittedAt)}</span>
             </div>
           ))}
         </div>

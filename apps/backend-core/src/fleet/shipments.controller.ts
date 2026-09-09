@@ -19,9 +19,13 @@ export class ShipmentsController {
   ) {}
 
   @Get()
-  async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  async list(
+    @Query('status') status: string | undefined,
+    @Query('contactId') contactId: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
     await this.permissions.assertView(ctx, 'fleet');
-    return this.shipments.list(ctx, { status });
+    return this.shipments.list(ctx, { status, contactId });
   }
 
   @Post()

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -29,9 +29,9 @@ export class InvoicesController {
   ) {}
 
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query('contactId') contactId: string | undefined, @Ctx() ctx: TenantRequestContext) {
     const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
-    return this.invoices.list(ctx, scope);
+    return this.invoices.list(ctx, contactId ? { ...scope, contactId } : scope);
   }
 
   @Get('settings/delivery-sms-template')
