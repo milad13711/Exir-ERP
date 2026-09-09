@@ -93,7 +93,7 @@ const automationStub = { emit: vi.fn() };
 describe('InvoicesService.confirm — double-entry posting', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never);
   });
 
   it('posts a balanced Dr AR / Cr Revenue entry for a simple invoice with no tax or COGS', async () => {
@@ -174,7 +174,7 @@ describe('InvoicesService.confirm — double-entry posting', () => {
 describe('InvoicesService.recordPayment', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never);
   });
 
   function invoiceStub(overrides: Record<string, unknown> = {}) {

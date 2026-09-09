@@ -6,9 +6,10 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { EventsService, withRemainingCapacity } from '../events/events.service.js';
 import { EventsQrService } from '../events/events-qr.service.js';
+import { EventsTicketPdfService } from '../events/events-ticket-pdf.service.js';
 import type { EventBookingTicketPayload } from '../auth/jwt-payload.type.js';
 import type { TenantRequestContext } from '../common/request-context.js';
-import type { CreatePublicEventBookingDto } from './dto/create-public-event-booking.dto.js';
+import type { CreatePublicEventOrderDto } from './dto/create-public-event-booking.dto.js';
 
 const BOOKING_TOKEN_TTL_SECONDS = 15 * 60;
 
@@ -27,6 +28,7 @@ export class PublicEventsService {
     private readonly auth: AuthService,
     private readonly events: EventsService,
     private readonly qr: EventsQrService,
+    private readonly pdf: EventsTicketPdfService,
     private readonly jwt: JwtService,
   ) {}
 
@@ -110,36 +112,38 @@ export class PublicEventsService {
     return payload.phone;
   }
 
-  async createBooking(slug: string, eventSlug: string, dto: CreatePublicEventBookingDto) {
+  async createOrder(slug: string, eventSlug: string, dto: CreatePublicEventOrderDto) {
     const ctx = await this.resolveTenantCtx(slug);
     const buyerPhone = await this.resolveBookingPhone(slug, dto.bookingToken);
     const event = await ctx.tenantDb.event.findUnique({ where: { slug: eventSlug } });
     if (!event) throw new NotFoundException('این رویداد یافت نشد');
 
-    const booking = await this.events.createBooking(ctx, {
+    const order = await this.events.createOrder(ctx, {
       eventId: event.id,
-      ticketTypeId: dto.ticketTypeId,
       buyerName: dto.buyerName,
       buyerPhone,
-      attendees: dto.attendees,
+      items: dto.items,
     });
 
-    if (booking.status === 'PAID') {
+    if (order.totalAmount === 0) {
       const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-      await this.events.finalizeBookingPayment(ctx, booking.id, publicWebUrl);
-      return { bookingId: booking.id, requiresPayment: false };
+      await this.events.finalizeOrderPayment(ctx, order.orderGroupId, publicWebUrl);
+      return { orderGroupId: order.orderGroupId, requiresPayment: false };
     }
-    return { bookingId: booking.id, requiresPayment: true, amount: booking.totalAmount };
+    return { orderGroupId: order.orderGroupId, requiresPayment: true, amount: order.totalAmount };
   }
 
-  async getBookingStatus(slug: string, bookingId: string) {
+  async getOrderStatus(slug: string, orderGroupId: string) {
     const ctx = await this.resolveTenantCtx(slug);
-    const booking = await ctx.tenantDb.eventBooking.findUnique({
-      where: { id: bookingId },
+    const bookings = await ctx.tenantDb.eventBooking.findMany({
+      where: { orderGroupId },
       include: { tickets: { select: { qrToken: true, ticketCode: true, attendeeName: true } } },
     });
-    if (!booking) throw new NotFoundException('این رزرو یافت نشد');
-    return { status: booking.status, tickets: booking.tickets };
+    if (bookings.length === 0) throw new NotFoundException('این سفارش یافت نشد');
+    return {
+      status: bookings[0].status,
+      tickets: bookings.flatMap((b) => b.tickets),
+    };
   }
 
   async getTicket(slug: string, qrToken: string) {
@@ -155,5 +159,19 @@ export class PublicEventsService {
   async getTicketQrPng(slug: string, qrToken: string): Promise<Buffer> {
     await this.getTicket(slug, qrToken);
     return this.qr.toPngBuffer(qrToken);
+  }
+
+  async getTicketPdf(slug: string, qrToken: string): Promise<Buffer> {
+    const ctx = await this.resolveTenantCtx(slug);
+    const ticket = await ctx.tenantDb.eventTicket.findUnique({
+      where: { qrToken },
+      include: { event: { select: { title: true, startAt: true, venue: true, isOnline: true } }, ticketType: { select: { name: true } } },
+    });
+    if (!ticket) throw new NotFoundException('این بلیط یافت نشد');
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
+    return this.pdf.render(
+      { ticketCode: ticket.ticketCode, qrToken: ticket.qrToken, attendeeName: ticket.attendeeName, ticketTypeName: ticket.ticketType.name, event: ticket.event },
+      tenant?.name ?? '',
+    );
   }
 }

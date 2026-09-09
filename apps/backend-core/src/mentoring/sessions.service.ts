@@ -29,10 +29,11 @@ export class SessionsService {
     private readonly invoices: InvoicesService,
   ) {}
 
-  list(ctx: TenantRequestContext, filters: { engagementId?: string; status?: string; from?: Date; to?: Date }) {
+  list(ctx: TenantRequestContext, filters: { engagementId?: string; contactId?: string; status?: string; from?: Date; to?: Date }) {
     return ctx.tenantDb.mentoringSession.findMany({
       where: {
         ...(filters.engagementId ? { engagementId: filters.engagementId } : {}),
+        ...(filters.contactId ? { engagement: { contactId: filters.contactId } } : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.from || filters.to
           ? { scheduledAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }

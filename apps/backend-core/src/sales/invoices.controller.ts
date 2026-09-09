@@ -92,6 +92,14 @@ export class InvoicesController {
     return this.invoices.sign(ctx, id, dto);
   }
 
+  /** لینک عمومی مشاهده/پرداخت آنلاین فاکتور را با پیامک برای مشتری می‌فرستد. */
+  @Post(':id/send-payment-link')
+  async sendPaymentLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'sales');
+    const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+    return this.invoices.sendPaymentLinkSms(ctx, id, publicWebUrl);
+  }
+
   @Post(':id/delivery/code')
   @RequireModule('delivery-signature')
   async sendDeliveryCode(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {

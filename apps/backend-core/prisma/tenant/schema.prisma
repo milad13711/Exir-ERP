@@ -503,6 +503,13 @@ model SalesInvoice {
   // آخرین باری که یادآور تکمیل وجه (مانده‌ی فاکتور) برای مشتری و مدیر ارسال شد.
   lastPaymentReminderAt DateTime?
 
+  // پرداخت آنلاین از طریق لینک عمومی فاکتور (پیامکی/دستی) — همان الگوی
+  // زرین‌پال بیعانه‌ی نوبت و بلیط رویداد؛ publicToken چون invoiceNo/id
+  // نباید برای دسترسی غیرقابل‌احراز حدس‌زدنی باشد.
+  publicToken       String    @unique @default(uuid())
+  zarinpalAuthority String?
+  paymentRefId      Int?
+
   contact   CrmContact         @relation(fields: [contactId], references: [id])
   deal      CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
   project   Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -549,6 +556,7 @@ enum SalesPaymentMethod {
   BANK_TRANSFER
   CHECK
   POS
+  ONLINE_GATEWAY
 }
 
 enum SalesQuotationStatus {
@@ -2589,6 +2597,7 @@ model EventTicketType {
 model EventBooking {
   id                String              @id @default(uuid())
   bookingNo         Int                 @unique @default(autoincrement())
+  orderGroupId      String              @default(uuid()) // چند نوع بلیط در یک خرید (مثلاً عادی+ویژه) همین مقدار مشترک را دارند — پرداخت و صدور فاکتور روی کل گروه انجام می‌شود
   eventId           String
   ticketTypeId      String
   buyerName         String
@@ -2613,6 +2622,7 @@ model EventBooking {
 
   @@index([eventId])
   @@index([status])
+  @@index([orderGroupId])
   @@map("event_bookings")
 }
 

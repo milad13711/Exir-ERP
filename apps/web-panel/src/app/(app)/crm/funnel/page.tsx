@@ -106,7 +106,7 @@ export default function FunnelPage() {
                 <WarningIcon className="w-3.5 h-3.5" /> گلوگاه قیف
               </span>
               <div className="text-sm font-extrabold mt-3 text-danger">
-                {summary.bottleneck.fromStage} ← {summary.bottleneck.toStage}
+                {summary.bottleneck.fromLabel} ← {summary.bottleneck.toLabel}
               </div>
               <div className="text-xs text-danger/80 font-semibold mt-1.5">
                 فقط {toPersianDigits(summary.bottleneck.rate ?? 0)}٪ تبدیل می‌شوند

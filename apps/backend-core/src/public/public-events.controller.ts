@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { PublicEventsService } from './public-events.service.js';
 import { RequestEventOtpDto } from './dto/request-event-otp.dto.js';
 import { VerifyEventOtpDto } from './dto/verify-event-otp.dto.js';
-import { CreatePublicEventBookingDto } from './dto/create-public-event-booking.dto.js';
+import { CreatePublicEventOrderDto } from './dto/create-public-event-booking.dto.js';
 
 @Controller('public/events/:slug')
 export class PublicEventsController {
@@ -43,13 +43,13 @@ export class PublicEventsController {
   }
 
   @Post(':eventSlug/bookings')
-  createBooking(@Param('slug') slug: string, @Param('eventSlug') eventSlug: string, @Body() dto: CreatePublicEventBookingDto) {
-    return this.events.createBooking(slug, eventSlug, dto);
+  createOrder(@Param('slug') slug: string, @Param('eventSlug') eventSlug: string, @Body() dto: CreatePublicEventOrderDto) {
+    return this.events.createOrder(slug, eventSlug, dto);
   }
 
-  @Get('bookings/:bookingId')
-  bookingStatus(@Param('slug') slug: string, @Param('bookingId') bookingId: string) {
-    return this.events.getBookingStatus(slug, bookingId);
+  @Get('bookings/:orderGroupId')
+  orderStatus(@Param('slug') slug: string, @Param('orderGroupId') orderGroupId: string) {
+    return this.events.getOrderStatus(slug, orderGroupId);
   }
 
   @Get('ticket/:qrToken')
@@ -63,5 +63,13 @@ export class PublicEventsController {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(png);
+  }
+
+  @Get('ticket/:qrToken/pdf')
+  async ticketPdf(@Param('slug') slug: string, @Param('qrToken') qrToken: string, @Res() res: Response) {
+    const pdf = await this.events.getTicketPdf(slug, qrToken);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="ticket.pdf"');
+    res.send(pdf);
   }
 }

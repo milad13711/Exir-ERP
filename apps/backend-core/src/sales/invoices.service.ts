@@ -9,6 +9,7 @@ import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { ZarinpalService } from '../billing/zarinpal.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
@@ -78,6 +79,7 @@ export class InvoicesService {
     private readonly costing: CostingService,
     private readonly automation: AutomationEngineService,
     private readonly funnel: FunnelService,
+    private readonly zarinpal: ZarinpalService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -460,5 +462,70 @@ export class InvoicesService {
     const account = await ctx.tenantDb.account.findUnique({ where: { code } });
     if (!account) throw new BadRequestException(`کدینگ حسابداری ${code} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
     return account;
+  }
+
+  /** برای صفحه‌ی عمومی مشاهده/پرداخت فاکتور — با publicToken (نه id/شماره‌ی قابل حدس) پیدا می‌شود. */
+  async findByPublicToken(ctx: TenantRequestContext, publicToken: string) {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { publicToken }, include: INVOICE_INCLUDE });
+    if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
+    return invoice;
+  }
+
+  /** لینک پرداخت آنلاین فاکتور را برای مشتری پیامک می‌کند — همان لینک عمومی که دکمه‌ی پرداخت هم رویش هست. */
+  async sendPaymentLinkSms(ctx: TenantRequestContext, id: string, publicWebUrl: string) {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { contact: true } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (!invoice.contact.phone) throw new BadRequestException('این مشتری شماره موبایل ثبت‌شده ندارد');
+    if (!this.sms.isConfigured()) throw new BadRequestException('سرویس پیامک پیکربندی نشده است');
+
+    const url = `${publicWebUrl}/invoice/${ctx.tenantSlug}/${invoice.publicToken}`;
+    const remaining = invoice.total - invoice.paidAmount;
+    const message =
+      remaining > 0
+        ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} تومان صادر شد.\nمشاهده و پرداخت آنلاین: ${url}`
+        : `فاکتور شماره ${invoice.invoiceNo} برای شما صادر شد.\nمشاهده: ${url}`;
+    const result = await this.sms.sendSms(invoice.contact.phone, message);
+    if (!result.success) throw new BadRequestException(result.error ?? 'ارسال پیامک ناموفق بود');
+    return { ok: true, url };
+  }
+
+  /** شروع پرداخت آنلاین باقی‌مانده‌ی فاکتور از طریق زرین‌پال — فقط برای فاکتور تأییدشده (همان شرط recordPayment). */
+  async initiateGatewayPayment(ctx: TenantRequestContext, id: string, callbackUrl: string): Promise<{ paymentUrl: string } | null> {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.status !== 'CONFIRMED' && invoice.status !== 'PARTIALLY_PAID') {
+      throw new BadRequestException('این فاکتور هنوز تأیید نشده و آماده‌ی پرداخت نیست');
+    }
+    const remaining = invoice.total - invoice.paidAmount;
+    if (remaining <= 0) throw new BadRequestException('این فاکتور قبلاً تسویه شده است');
+
+    const result = await this.zarinpal.requestPayment({
+      amountToman: remaining,
+      description: `فاکتور فروش شماره ${invoice.invoiceNo}`,
+      callbackUrl,
+    });
+    if (!result) return null;
+    await ctx.tenantDb.salesInvoice.update({ where: { id }, data: { zarinpalAuthority: result.authority } });
+    return { paymentUrl: result.paymentUrl };
+  }
+
+  /** بازگشت از درگاه — تأیید تراکنش و ثبت پرداخت از همان مسیر دستی recordPayment (سند حسابداری و رهگیری قیف یکسان می‌ماند). */
+  async verifyGatewayPayment(ctx: TenantRequestContext, id: string, authority: string): Promise<{ success: boolean }> {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.status === 'PAID') return { success: true }; // قبلاً تسویه شده — idempotent
+    if (!invoice.zarinpalAuthority || invoice.zarinpalAuthority !== authority) return { success: false };
+
+    const remaining = invoice.total - invoice.paidAmount;
+    const result = await this.zarinpal.verifyPayment({ amountToman: remaining, authority });
+    if (!result.success) return { success: false };
+
+    await ctx.tenantDb.salesInvoice.update({ where: { id }, data: { paymentRefId: result.refId } });
+    await this.recordPayment(ctx, id, {
+      amount: remaining,
+      method: 'ONLINE_GATEWAY',
+      note: result.refId ? `کد پیگیری زرین‌پال: ${result.refId}` : undefined,
+    });
+    return { success: true };
   }
 }

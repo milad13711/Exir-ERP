@@ -21,8 +21,14 @@ const BRAND_PAGE_HEAD = `<!doctype html><html lang="fa" dir="rtl"><head><meta ch
 </style></head><body><div class="card">`;
 const BRAND_PAGE_TAIL = `</div></body></html>`;
 
-/** Unauthenticated payment flow for an event ticket booking — mirrors PublicBookingPaymentController exactly, scoped to an EventBooking instead of an Appointment deposit. */
-@Controller('public/events/:slug/bookings/:id')
+/**
+ * Unauthenticated payment flow for an event ticket order — mirrors
+ * PublicBookingPaymentController, scoped to a whole order (orderGroupId,
+ * one or more EventBooking rows — one per ticket type in the same purchase)
+ * rather than a single Appointment deposit, since one order can cover
+ * multiple ticket types with a single Zarinpal transaction.
+ */
+@Controller('public/events/:slug/bookings/:orderGroupId')
 export class PublicEventsPaymentController {
   constructor(
     private readonly controlDb: ControlPrismaService,
@@ -41,29 +47,30 @@ export class PublicEventsPaymentController {
   }
 
   @Post('pay')
-  async pay(@Param('slug') slug: string, @Param('id') id: string) {
+  async pay(@Param('slug') slug: string, @Param('orderGroupId') orderGroupId: string) {
     const ctx = await this.resolveCtx(slug);
-    const booking = await ctx.tenantDb.eventBooking.findUnique({ where: { id }, include: { event: true } });
-    if (!booking) throw new NotFoundException('این رزرو یافت نشد');
-    if (booking.status !== 'PENDING_PAYMENT') return { error: 'این رزرو در انتظار پرداخت نیست' };
+    const bookings = await ctx.tenantDb.eventBooking.findMany({ where: { orderGroupId }, include: { event: true } });
+    if (bookings.length === 0) throw new NotFoundException('این سفارش یافت نشد');
+    if (bookings[0].status !== 'PENDING_PAYMENT') return { error: 'این سفارش در انتظار پرداخت نیست' };
 
+    const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
     const result = await this.zarinpal.requestPayment({
-      amountToman: booking.totalAmount,
-      description: `بلیط رویداد «${booking.event.title}»`,
-      callbackUrl: `${apiUrl}/public/events/${slug}/bookings/${id}/callback`,
-      mobile: booking.buyerPhone,
+      amountToman: totalAmount,
+      description: `بلیط رویداد «${bookings[0].event.title}»`,
+      callbackUrl: `${apiUrl}/public/events/${slug}/bookings/${orderGroupId}/callback`,
+      mobile: bookings[0].buyerPhone,
     });
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
 
-    await ctx.tenantDb.eventBooking.update({ where: { id }, data: { zarinpalAuthority: result.authority } });
+    await ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { zarinpalAuthority: result.authority } });
     return { paymentUrl: result.paymentUrl };
   }
 
   @Get('callback')
   async callback(
     @Param('slug') slug: string,
-    @Param('id') id: string,
+    @Param('orderGroupId') orderGroupId: string,
     @Query('Authority') authority: string | undefined,
     @Query('Status') status: string | undefined,
     @Res() res: Response,
@@ -72,32 +79,33 @@ export class PublicEventsPaymentController {
     const webUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
 
     const fail = async (message: string) => {
-      await this.events.cancelBooking(ctx, id); // ظرفیت نگه‌داشته‌شده آزاد می‌شود
+      await this.events.cancelOrder(ctx, orderGroupId); // ظرفیت نگه‌داشته‌شده آزاد می‌شود
       return res.send(`${BRAND_PAGE_HEAD}<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>${message}</p>${BRAND_PAGE_TAIL}`);
     };
 
-    const booking = await ctx.tenantDb.eventBooking.findUnique({ where: { id } });
-    if (!booking) throw new NotFoundException('این رزرو یافت نشد');
-    if (booking.status === 'PAID') {
+    const bookings = await ctx.tenantDb.eventBooking.findMany({ where: { orderGroupId } });
+    if (bookings.length === 0) throw new NotFoundException('این سفارش یافت نشد');
+    if (bookings[0].status === 'PAID') {
       return res.send(
         `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>بلیط شما پیامک شد.</p>${
-          webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${id}">مشاهده بلیط</a>` : ''
+          webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
         }${BRAND_PAGE_TAIL}`,
       );
     }
 
     if (status !== 'OK' || !authority) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
-    if (booking.zarinpalAuthority && booking.zarinpalAuthority !== authority) return fail('اطلاعات تراکنش معتبر نیست.');
+    if (bookings[0].zarinpalAuthority && bookings[0].zarinpalAuthority !== authority) return fail('اطلاعات تراکنش معتبر نیست.');
 
-    const result = await this.zarinpal.verifyPayment({ amountToman: booking.totalAmount, authority });
+    const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
+    const result = await this.zarinpal.verifyPayment({ amountToman: totalAmount, authority });
     if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
-    await ctx.tenantDb.eventBooking.update({ where: { id }, data: { paymentRefId: result.refId } });
-    await this.events.finalizeBookingPayment(ctx, id, webUrl);
+    await ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { paymentRefId: result.refId } });
+    await this.events.finalizeOrderPayment(ctx, orderGroupId, webUrl);
 
     return res.send(
       `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>بلیط شما صادر و پیامک شد.</p>${
-        webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${id}">مشاهده بلیط</a>` : ''
+        webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
       }${BRAND_PAGE_TAIL}`,
     );
   }

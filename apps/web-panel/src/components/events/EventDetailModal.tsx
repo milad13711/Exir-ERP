@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { PlusIcon } from "@/components/icons";
+import { PlusIcon, ShareIcon, WhatsAppIcon } from "@/components/icons";
 import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { copyToClipboard } from "@/lib/clipboard";
+import { EventPosterModal } from "./EventPosterModal";
 import {
   fetchEvent,
   publishEvent,
@@ -91,7 +93,11 @@ function ManualBookingForm({ event, onCreated }: { event: EventItem; onCreated: 
     setSaving(true);
     setError(null);
     try {
-      await createManualEventBooking(event.id, { ticketTypeId, buyerName: buyerName.trim(), buyerPhone: buyerPhone.trim(), attendees: [{ name: buyerName.trim(), phone: buyerPhone.trim() }] });
+      await createManualEventBooking(event.id, {
+        buyerName: buyerName.trim(),
+        buyerPhone: buyerPhone.trim(),
+        items: [{ ticketTypeId, attendees: [{ name: buyerName.trim(), phone: buyerPhone.trim() }] }],
+      });
       setBuyerName("");
       setBuyerPhone("");
       setOpen(false);
@@ -132,6 +138,8 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
   const [bookings, setBookings] = useState<EventBooking[] | null>(null);
   const [tab, setTab] = useState<"info" | "bookings" | "tickets">("info");
   const [tickets, setTickets] = useState<EventTicket[] | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [posterOpen, setPosterOpen] = useState(false);
 
   function refetch() {
     fetchEvent(eventId).then(setEvent).catch(() => setEvent(null));
@@ -203,12 +211,24 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
         {event.status === "PUBLISHED" && publicUrl && (
           <div className="flex items-center gap-2 bg-primary-soft rounded-xl p-2.5">
             <input readOnly value={publicUrl} dir="ltr" className="flex-1 bg-transparent text-[11.5px] text-primary outline-none" />
-            <button onClick={() => navigator.clipboard.writeText(publicUrl)} className="text-[11px] font-bold text-primary cursor-pointer shrink-0">
-              کپی لینک
+            <button
+              onClick={async () => {
+                const ok = await copyToClipboard(publicUrl);
+                setLinkCopied(ok);
+                if (ok) setTimeout(() => setLinkCopied(false), 2000);
+              }}
+              title="کپی لینک"
+              className="w-8 h-8 flex items-center justify-center text-primary cursor-pointer shrink-0"
+            >
+              <ShareIcon className="w-4 h-4" />
             </button>
-            <a href={`https://wa.me/?text=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-primary cursor-pointer shrink-0">
-              واتس‌اپ
+            <a href={`https://wa.me/?text=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" title="ارسال در واتس‌اپ" className="w-8 h-8 flex items-center justify-center text-[#25D366] shrink-0">
+              <WhatsAppIcon className="w-4.5 h-4.5" />
             </a>
+            <button onClick={() => setPosterOpen(true)} className="text-[11px] font-bold text-primary cursor-pointer shrink-0">
+              انتشار
+            </button>
+            {linkCopied && <span className="text-[11px] text-success font-semibold shrink-0">کپی شد</span>}
           </div>
         )}
 
@@ -289,6 +309,7 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
           </div>
         )}
       </div>
+      {posterOpen && <EventPosterModal event={event} onClose={() => setPosterOpen(false)} />}
     </Modal>
   );
 }

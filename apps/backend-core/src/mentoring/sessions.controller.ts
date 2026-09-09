@@ -30,6 +30,7 @@ export class SessionsController {
   @Get()
   async list(
     @Query('engagementId') engagementId: string | undefined,
+    @Query('contactId') contactId: string | undefined,
     @Query('status') status: string | undefined,
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
@@ -38,6 +39,7 @@ export class SessionsController {
     await this.permissions.assertView(ctx, 'mentoring');
     return this.sessions.list(ctx, {
       engagementId,
+      contactId,
       status,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,

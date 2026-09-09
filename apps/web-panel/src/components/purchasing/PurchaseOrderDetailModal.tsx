@@ -37,6 +37,7 @@ const METHOD_LABELS: Record<SalesPaymentMethod, string> = {
   CASH: "نقدی",
   BANK_TRANSFER: "انتقال بانکی",
   CHECK: "چک",
+  ONLINE_GATEWAY: "پرداخت آنلاین",
   POS: "کارت‌خوان",
 };
 

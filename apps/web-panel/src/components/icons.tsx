@@ -189,6 +189,26 @@ export function ChatIcon(props: IconProps) {
   );
 }
 
+export function ShareIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8" />
+    </svg>
+  );
+}
+
+export function WhatsAppIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M20.5 11.5a8.5 8.5 0 01-12.4 7.5L3 20.5l1.6-4.9A8.5 8.5 0 1120.5 11.5z" />
+      <path d="M8.5 8.8c.2-.5.5-.5.8-.5h.5c.2 0 .4 0 .6.5.2.5.6 1.5.6 1.6.1.1.1.3 0 .4-.1.2-.1.3-.3.4-.1.2-.3.3-.4.5-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1.2-.2.7-.8.9-1 .2-.2.4-.2.6-.1l1.6.8c.2.1.4.2.4.4.1.2.1.9-.2 1.3-.3.5-1.4 1.1-2 1.1-.5 0-1.2 0-3.6-1.5-2.6-1.6-4.2-4.3-4.4-4.5-.1-.2-1-1.3-1-2.5 0-1.1.6-1.7.8-2z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

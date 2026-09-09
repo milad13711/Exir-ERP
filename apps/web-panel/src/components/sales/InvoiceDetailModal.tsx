@@ -9,6 +9,7 @@ import {
   confirmSalesInvoice,
   recordSalesPayment,
   openSalesInvoicePdf,
+  sendSalesInvoicePaymentLink,
   signSalesInvoice,
   sendDeliveryCode,
   confirmDelivery,
@@ -44,6 +45,7 @@ const METHOD_LABELS: Record<SalesPaymentMethod, string> = {
   BANK_TRANSFER: "انتقال بانکی",
   CHECK: "چک",
   POS: "کارت‌خوان",
+  ONLINE_GATEWAY: "پرداخت آنلاین",
 };
 
 export function InvoiceDetailModal({
@@ -72,6 +74,7 @@ export function InvoiceDetailModal({
   const [devCode, setDevCode] = useState<string | null>(null);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [linkSentUrl, setLinkSentUrl] = useState<string | null>(null);
 
   function reload() {
     fetchSalesInvoice(invoiceId).then((inv) => {
@@ -116,6 +119,20 @@ export function InvoiceDetailModal({
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSendPaymentLink() {
+    setBusy(true);
+    setError(null);
+    setLinkSentUrl(null);
+    try {
+      const res = await sendSalesInvoicePaymentLink(invoiceId);
+      setLinkSentUrl(res.url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ارسال پیامک ناموفق بود");
     } finally {
       setBusy(false);
     }
@@ -498,12 +515,28 @@ export function InvoiceDetailModal({
               </button>
             ) : null}
 
-            <button
-              onClick={() => openSalesInvoicePdf(invoiceId)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 text-ink-soft text-[13px] font-bold cursor-pointer"
-            >
-              دانلود PDF
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => openSalesInvoicePdf(invoiceId)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-ink-soft text-[13px] font-bold cursor-pointer"
+              >
+                دانلود PDF
+              </button>
+              {(invoice.status === "CONFIRMED" || invoice.status === "PARTIALLY_PAID" || invoice.status === "PAID") && (
+                <button
+                  onClick={handleSendPaymentLink}
+                  disabled={busy}
+                  className="flex-1 py-2.5 rounded-xl bg-primary-soft text-primary text-[13px] font-bold cursor-pointer disabled:opacity-50"
+                >
+                  ارسال لینک فاکتور با پیامک
+                </button>
+              )}
+            </div>
+            {linkSentUrl && (
+              <div className="text-[11.5px] text-success bg-success-soft rounded-lg px-3 py-2 break-all" dir="ltr">
+                پیامک ارسال شد — {linkSentUrl}
+              </div>
+            )}
 
             {installedModules.has("fleet") ? (
               <button

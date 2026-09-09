@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -23,13 +24,8 @@ function generateTicketCode(): string {
   return code;
 }
 
-export type CreateBookingInput = {
-  eventId: string;
-  ticketTypeId: string;
-  buyerName: string;
-  buyerPhone: string;
-  attendees: Array<{ name: string; phone?: string }>;
-};
+export type OrderItemInput = { ticketTypeId: string; attendees: Array<{ name: string; phone?: string }> };
+export type CreateOrderInput = { eventId: string; buyerName: string; buyerPhone: string; items: OrderItemInput[] };
 
 /** Reused by both EventsService (admin) and PublicEventsService (public landing) so remaining-capacity math lives in one place. */
 export async function withRemainingCapacity<T extends { id: string; capacity: number | null; ticketTypes: Array<{ id: string; capacity: number | null }> }>(
@@ -64,12 +60,13 @@ export class EventsService {
     private readonly invoices: InvoicesService,
   ) {}
 
-  list(ctx: TenantRequestContext, filters: { status?: string } = {}) {
-    return ctx.tenantDb.event.findMany({
+  async list(ctx: TenantRequestContext, filters: { status?: string } = {}) {
+    const events = await ctx.tenantDb.event.findMany({
       where: filters.status ? { status: filters.status as never } : {},
       include: EVENT_INCLUDE,
       orderBy: { startAt: 'desc' },
     });
+    return Promise.all(events.map((e) => withRemainingCapacity(ctx, e)));
   }
 
   async detail(ctx: TenantRequestContext, id: string) {
@@ -180,60 +177,88 @@ export class EventsService {
     });
   }
 
-  /** رزرو خام — چه از پنل (ثبت دستی/حضوری) و چه از فلوی عمومی، هر دو از همین یک مسیر رد می‌شوند تا منطق ظرفیت یک‌جا بماند. */
-  async createBooking(ctx: TenantRequestContext, input: CreateBookingInput) {
-    const [event, ticketType] = await Promise.all([
-      ctx.tenantDb.event.findUnique({ where: { id: input.eventId } }),
-      ctx.tenantDb.eventTicketType.findUnique({ where: { id: input.ticketTypeId } }),
-    ]);
+  /** برای نمایش تاریخچه‌ی بلیط‌های یک مخاطب در پروفایل CRM — همه‌ی رویدادها، نه فقط یکی. */
+  listTicketsByContact(ctx: TenantRequestContext, contactId: string) {
+    return ctx.tenantDb.eventTicket.findMany({
+      where: { booking: { contactId } },
+      include: { event: { select: { id: true, title: true, slug: true, startAt: true } }, ticketType: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * سفارش خرید بلیط — می‌تواند چند نوع بلیط را با هم شامل شود (مثلاً ۱ عادی +
+   * ۲ ویژه در یک خرید)؛ همه با یک orderGroupId مشترک به‌عنوان چند EventBooking
+   * ساخته می‌شوند تا هم منطق ظرفیت هر نوع بلیط جدا بماند و هم پرداخت/فاکتور
+   * روی کل سفارش یک‌جا انجام شود. چه از پنل (ثبت دستی/حضوری) و چه از فلوی
+   * عمومی، هر دو از همین یک مسیر رد می‌شوند.
+   */
+  async createOrder(ctx: TenantRequestContext, input: CreateOrderInput) {
+    const event = await ctx.tenantDb.event.findUnique({ where: { id: input.eventId }, include: { ticketTypes: true } });
     if (!event || event.status !== 'PUBLISHED') throw new NotFoundException('این رویداد برای ثبت‌نام در دسترس نیست');
-    if (!ticketType || ticketType.eventId !== event.id) throw new NotFoundException('این نوع بلیط یافت نشد');
+    if (input.items.length === 0) throw new BadRequestException('حداقل یک نوع بلیط انتخاب کنید');
 
     const now = new Date();
     if (event.registrationOpensAt && now < event.registrationOpensAt) throw new BadRequestException('ثبت‌نام هنوز شروع نشده است');
     if (event.registrationClosesAt && now > event.registrationClosesAt) throw new BadRequestException('مهلت ثبت‌نام به پایان رسیده است');
     if (now > event.endAt) throw new BadRequestException('این رویداد به پایان رسیده است');
 
-    const quantity = input.attendees.length;
-    if (quantity < 1) throw new BadRequestException('حداقل یک شرکت‌کننده لازم است');
+    const ticketTypeById = new Map(event.ticketTypes.map((t) => [t.id, t]));
+    let totalQuantity = 0;
+    const quantityByType = new Map<string, number>();
+    for (const item of input.items) {
+      const tt = ticketTypeById.get(item.ticketTypeId);
+      if (!tt) throw new NotFoundException('این نوع بلیط یافت نشد');
+      if (item.attendees.length < 1) throw new BadRequestException('برای هر نوع بلیط حداقل یک شرکت‌کننده لازم است');
+      totalQuantity += item.attendees.length;
+      quantityByType.set(item.ticketTypeId, (quantityByType.get(item.ticketTypeId) ?? 0) + item.attendees.length);
+    }
 
-    const [eventHeld, typeHeld] = await Promise.all([
-      ctx.tenantDb.eventTicket.count({ where: { eventId: event.id, status: { in: [...HOLDING_TICKET_STATUSES] } } }),
-      ctx.tenantDb.eventTicket.count({ where: { ticketTypeId: ticketType.id, status: { in: [...HOLDING_TICKET_STATUSES] } } }),
-    ]);
-    if (event.capacity != null && eventHeld + quantity > event.capacity) throw new ConflictException('ظرفیت این رویداد تکمیل شده است');
-    if (ticketType.capacity != null && typeHeld + quantity > ticketType.capacity) throw new ConflictException('ظرفیت این نوع بلیط تکمیل شده است');
+    const eventHeld = await ctx.tenantDb.eventTicket.count({ where: { eventId: event.id, status: { in: [...HOLDING_TICKET_STATUSES] } } });
+    if (event.capacity != null && eventHeld + totalQuantity > event.capacity) throw new ConflictException('ظرفیت این رویداد تکمیل شده است');
 
-    const unitPrice = ticketType.price;
-    const totalAmount = unitPrice * quantity;
+    for (const [ticketTypeId, qty] of quantityByType) {
+      const tt = ticketTypeById.get(ticketTypeId)!;
+      if (tt.capacity == null) continue;
+      const typeHeld = await ctx.tenantDb.eventTicket.count({ where: { ticketTypeId, status: { in: [...HOLDING_TICKET_STATUSES] } } });
+      if (typeHeld + qty > tt.capacity) throw new ConflictException(`ظرفیت نوع بلیط «${tt.name}» تکمیل شده است`);
+    }
 
     // بلیط‌ها همین‌جا (قبل از تأیید پرداخت) با وضعیت VALID ساخته می‌شوند تا
-    // ظرفیت واقعاً نگه داشته شود؛ اگر پرداخت ناموفق/منقضی شد، cancelBooking
-    // همین بلیط‌ها را باطل و ظرفیت را آزاد می‌کند. برای بلیط رایگان (مبلغ صفر)
-    // رزرو بلافاصله PAID می‌شود و finalizeBookingPayment باید بلافاصله صدا شود.
-    const booking = await ctx.tenantDb.eventBooking.create({
-      data: {
-        eventId: event.id,
-        ticketTypeId: ticketType.id,
-        buyerName: input.buyerName,
-        buyerPhone: input.buyerPhone,
-        quantity,
-        unitPrice,
-        totalAmount,
-        status: totalAmount === 0 ? 'PAID' : 'PENDING_PAYMENT',
-        tickets: {
-          create: input.attendees.map((a) => ({
-            eventId: event.id,
-            ticketTypeId: ticketType.id,
-            ticketCode: generateTicketCode(),
-            attendeeName: a.name,
-            attendeePhone: a.phone,
-          })),
+    // ظرفیت واقعاً نگه داشته شود؛ اگر پرداخت ناموفق/منقضی شد، cancelOrder
+    // همین بلیط‌ها را باطل و ظرفیت را آزاد می‌کند.
+    const orderGroupId = randomUUID();
+    const bookings = [];
+    for (const item of input.items) {
+      const tt = ticketTypeById.get(item.ticketTypeId)!;
+      const quantity = item.attendees.length;
+      const booking = await ctx.tenantDb.eventBooking.create({
+        data: {
+          orderGroupId,
+          eventId: event.id,
+          ticketTypeId: tt.id,
+          buyerName: input.buyerName,
+          buyerPhone: input.buyerPhone,
+          quantity,
+          unitPrice: tt.price,
+          totalAmount: tt.price * quantity,
+          tickets: {
+            create: item.attendees.map((a) => ({
+              eventId: event.id,
+              ticketTypeId: tt.id,
+              ticketCode: generateTicketCode(),
+              attendeeName: a.name,
+              attendeePhone: a.phone,
+            })),
+          },
         },
-      },
-      include: { event: true, ticketType: true, tickets: true },
-    });
-    return booking;
+        include: { tickets: true },
+      });
+      bookings.push(booking);
+    }
+
+    const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
+    return { orderGroupId, totalAmount, bookings };
   }
 
   private async resolveOrCreateContact(ctx: TenantRequestContext, name: string, phone: string) {
@@ -243,64 +268,67 @@ export class EventsService {
   }
 
   /**
-   * پرداخت موفق شد (یا بلیط رایگان بود) — مخاطب پیدا/ساخته می‌شود، فاکتور
-   * واقعی صادر می‌شود (فقط اگر مبلغ صفر نباشد)، و برای بلیط‌هایی که در
-   * createBooking از قبل ساخته شده‌اند پیامک صدور بلیط ارسال می‌شود.
+   * پرداخت کل سفارش موفق شد (یا سفارش کاملاً رایگان بود) — مخاطب پیدا/ساخته
+   * می‌شود، یک فاکتور واحد برای کل سفارش صادر می‌شود (هر نوع بلیط یک ردیف)،
+   * و برای بلیط‌هایی که در createOrder از قبل ساخته شده‌اند پیامک صدور بلیط
+   * ارسال می‌شود.
    */
-  async finalizeBookingPayment(ctx: TenantRequestContext, bookingId: string, publicWebUrl: string) {
-    const booking = await ctx.tenantDb.eventBooking.findUnique({
-      where: { id: bookingId },
+  async finalizeOrderPayment(ctx: TenantRequestContext, orderGroupId: string, publicWebUrl: string) {
+    const bookings = await ctx.tenantDb.eventBooking.findMany({
+      where: { orderGroupId },
       include: { event: true, ticketType: true, tickets: true },
     });
-    if (!booking) throw new NotFoundException('این رزرو یافت نشد');
-    if (booking.paidAt) return booking; // قبلاً نهایی شده — idempotent
+    if (bookings.length === 0) throw new NotFoundException('این سفارش یافت نشد');
+    if (bookings[0].paidAt) return bookings; // قبلاً نهایی شده — idempotent
 
-    const contact = await this.resolveOrCreateContact(ctx, booking.buyerName, booking.buyerPhone);
+    const first = bookings[0];
+    const contact = await this.resolveOrCreateContact(ctx, first.buyerName, first.buyerPhone);
+    const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
 
     let invoiceId: string | undefined;
-    if (booking.totalAmount > 0) {
+    if (totalAmount > 0) {
       const invoice = await this.invoices.create(ctx, {
         contactId: contact.id,
-        notes: `بلیط رویداد «${booking.event.title}» — ${booking.quantity} عدد`,
-        lines: [{ description: `بلیط ${booking.ticketType.name} — ${booking.event.title}`, quantity: booking.quantity, unitPrice: booking.unitPrice }],
+        notes: `بلیط رویداد «${first.event.title}»`,
+        lines: bookings.map((b) => ({ description: `بلیط ${b.ticketType.name} — ${b.event.title}`, quantity: b.quantity, unitPrice: b.unitPrice })),
       });
       invoiceId = invoice.id;
     }
 
-    await ctx.tenantDb.eventBooking.update({
-      where: { id: booking.id },
+    await ctx.tenantDb.eventBooking.updateMany({
+      where: { orderGroupId },
       data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId },
     });
 
-    const tickets = booking.tickets;
     if (this.sms.isConfigured() && publicWebUrl) {
-      for (const ticket of tickets) {
-        const phone = ticket.attendeePhone || booking.buyerPhone;
-        const url = `${publicWebUrl}/events/${ctx.tenantSlug}/ticket/${ticket.qrToken}`;
-        await this.sms.sendSms(
-          phone,
-          `بلیط شما برای «${booking.event.title}» صادر شد. کد بلیط: ${ticket.ticketCode}\nمشاهده بلیط: ${url}`,
-        );
-        await this.automation.emit(ctx, 'events.ticket.issued', {
-          eventTitle: booking.event.title,
-          attendeeName: ticket.attendeeName,
-          ticketCode: ticket.ticketCode,
-        });
+      for (const booking of bookings) {
+        for (const ticket of booking.tickets) {
+          const phone = ticket.attendeePhone || booking.buyerPhone;
+          const url = `${publicWebUrl}/events/${ctx.tenantSlug}/ticket/${ticket.qrToken}`;
+          await this.sms.sendSms(
+            phone,
+            `بلیط شما برای «${booking.event.title}» صادر شد. کد بلیط: ${ticket.ticketCode}\nمشاهده بلیط: ${url}`,
+          );
+          await this.automation.emit(ctx, 'events.ticket.issued', {
+            eventTitle: booking.event.title,
+            attendeeName: ticket.attendeeName,
+            ticketCode: ticket.ticketCode,
+          });
+        }
       }
     }
 
-    return ctx.tenantDb.eventBooking.findUnique({ where: { id: booking.id }, include: { tickets: true } });
+    return ctx.tenantDb.eventBooking.findMany({ where: { orderGroupId }, include: { tickets: true } });
   }
 
-  async cancelBooking(ctx: TenantRequestContext, id: string) {
-    const booking = await ctx.tenantDb.eventBooking.findUnique({ where: { id } });
-    if (!booking) throw new NotFoundException('این رزرو یافت نشد');
-    if (booking.status === 'CANCELLED') return booking;
+  async cancelOrder(ctx: TenantRequestContext, orderGroupId: string) {
+    const bookings = await ctx.tenantDb.eventBooking.findMany({ where: { orderGroupId }, select: { id: true, status: true } });
+    if (bookings.length === 0 || bookings.every((b) => b.status === 'CANCELLED')) return;
+    const bookingIds = bookings.map((b) => b.id);
     await ctx.tenantDb.$transaction([
-      ctx.tenantDb.eventTicket.updateMany({ where: { bookingId: id }, data: { status: 'CANCELLED' } }),
-      ctx.tenantDb.eventBooking.update({ where: { id }, data: { status: 'CANCELLED' } }),
+      ctx.tenantDb.eventTicket.updateMany({ where: { bookingId: { in: bookingIds } }, data: { status: 'CANCELLED' } }),
+      ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { status: 'CANCELLED' } }),
     ]);
-    return ctx.tenantDb.eventBooking.findUnique({ where: { id } });
   }
 
   async checkIn(ctx: TenantRequestContext, qrToken: string) {

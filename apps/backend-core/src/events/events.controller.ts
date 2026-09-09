@@ -6,8 +6,10 @@ import { RequireModule } from '../common/decorators/require-module.decorator.js'
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { EventsService } from './events.service.js';
 import { EventsQrService } from './events-qr.service.js';
+import { EventsPosterService, type PosterTemplateCode } from './events-poster.service.js';
 import { CreateEventDto } from './dto/create-event.dto.js';
 import { UpdateEventDto } from './dto/update-event.dto.js';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
@@ -21,7 +23,9 @@ export class EventsController {
   constructor(
     private readonly events: EventsService,
     private readonly qr: EventsQrService,
+    private readonly poster: EventsPosterService,
     private readonly permissions: PermissionsService,
+    private readonly controlDb: ControlPrismaService,
   ) {}
 
   @Get()
@@ -96,23 +100,30 @@ export class EventsController {
     return this.events.listTickets(ctx, id);
   }
 
-  /** ثبت دستی حضوری (مثلاً فروش نقدی درِ ورودی) — بلیط بلافاصله صادر می‌شود، بدون گذر از درگاه پرداخت. */
+  /** ثبت دستی حضوری (مثلاً فروش نقدی درِ ورودی) — می‌تواند چند نوع بلیط با هم داشته باشد؛ بلیط‌ها بلافاصله صادر می‌شوند، بدون گذر از درگاه پرداخت. */
   @Post(':id/bookings')
   async createManualBooking(
     @Param('id') id: string,
-    @Body() dto: { ticketTypeId: string; buyerName: string; buyerPhone: string; attendees: Array<{ name: string; phone?: string }> },
+    @Body() dto: { buyerName: string; buyerPhone: string; items: Array<{ ticketTypeId: string; attendees: Array<{ name: string; phone?: string }> }> },
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertCreate(ctx, 'events');
-    const booking = await this.events.createBooking(ctx, { eventId: id, ...dto });
+    const order = await this.events.createOrder(ctx, { eventId: id, buyerName: dto.buyerName, buyerPhone: dto.buyerPhone, items: dto.items });
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-    return this.events.finalizeBookingPayment(ctx, booking.id, publicWebUrl);
+    return this.events.finalizeOrderPayment(ctx, order.orderGroupId, publicWebUrl);
   }
 
   @Post('check-in')
   async checkIn(@Body() dto: CheckInTicketDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
     return this.events.checkIn(ctx, dto.qrToken);
+  }
+
+  /** برای نمایش تاریخچه‌ی بلیط‌های یک مخاطب در پروفایل CRM. */
+  @Get('tickets/by-contact/:contactId')
+  async listTicketsByContact(@Param('contactId') contactId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.listTicketsByContact(ctx, contactId);
   }
 
   @Get('tickets/:qrToken/qr.png')
@@ -124,6 +135,21 @@ export class EventsController {
       return;
     }
     const png = await this.qr.toPngBuffer(qrToken);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  }
+
+  /** پوستر آماده‌ی انتشار در استوری/پست اینستاگرام یا واتس‌اپ — فقط تصویر می‌سازد، ارسال واقعی به شبکه‌ی اجتماعی وجود ندارد. */
+  @Get(':id/poster')
+  async getPoster(@Param('id') id: string, @Query('code') code: PosterTemplateCode | undefined, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'events');
+    const event = await ctx.tenantDb.event.findUnique({ where: { id } });
+    if (!event) {
+      res.status(404).end();
+      return;
+    }
+    const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId } });
+    const png = await this.poster.render(code === 'story' ? 'story' : 'post-square', event, tenant?.themeColor ?? undefined);
     res.setHeader('Content-Type', 'image/png');
     res.send(png);
   }

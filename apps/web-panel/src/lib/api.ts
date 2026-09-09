@@ -1944,7 +1944,7 @@ export function fetchWebhookDeliveries(id: string) {
 // ── Sales: سفارش فروش → فاکتور → پرداخت ────────────────────────────────
 
 export type SalesInvoiceStatus = "DRAFT" | "CONFIRMED" | "PARTIALLY_PAID" | "PAID" | "CANCELLED";
-export type SalesPaymentMethod = "CASH" | "BANK_TRANSFER" | "CHECK" | "POS";
+export type SalesPaymentMethod = "CASH" | "BANK_TRANSFER" | "CHECK" | "POS" | "ONLINE_GATEWAY";
 
 export type SalesInvoiceLine = {
   id: string;
@@ -2224,6 +2224,38 @@ async function fetchAndOpenPdf(path: string): Promise<void> {
 
 export function openSalesInvoicePdf(id: string): Promise<void> {
   return fetchAndOpenPdf(`/sales/invoices/${id}/pdf`);
+}
+
+export function sendSalesInvoicePaymentLink(id: string) {
+  return apiFetch<{ ok: true; url: string }>(`/sales/invoices/${id}/send-payment-link`, { method: "POST" });
+}
+
+// ── فاکتور فروش — نمای عمومی (بدون ورود) ──────────────────────────────────
+
+export type PublicSalesInvoiceView = {
+  invoiceNo: number;
+  status: SalesInvoiceStatus;
+  issuedAt: string;
+  dueAt: string | null;
+  subtotal: number;
+  discount: number;
+  taxAmount: number;
+  total: number;
+  paidAmount: number;
+  notes: string | null;
+  contact: { name: string; company: string | null };
+  lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
+  payments: Array<{ amount: number; method: SalesPaymentMethod; paidAt: string }>;
+  canPayOnline: boolean;
+  gatewayAvailable: boolean;
+};
+
+export function fetchPublicSalesInvoice(tenantSlug: string, token: string) {
+  return apiFetch<PublicSalesInvoiceView>(`/public/tenants/${tenantSlug}/invoices/${token}`);
+}
+
+export function payPublicSalesInvoice(tenantSlug: string, token: string) {
+  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/tenants/${tenantSlug}/invoices/${token}/pay`, { method: "POST" });
 }
 
 // ── پیش‌فاکتور (Quotation) — پیشنهاد قیمت قبل از صدور فاکتور ─────────────
@@ -4312,7 +4344,7 @@ export function updateMentoringEngagement(
   return apiFetch<MentoringEngagement>(`/mentoring/engagements/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function fetchMentoringSessions(params: { engagementId?: string; status?: string } = {}) {
+export function fetchMentoringSessions(params: { engagementId?: string; contactId?: string; status?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<MentoringSession[]>(`/mentoring/sessions${qs ? `?${qs}` : ""}`);
 }
@@ -4414,6 +4446,29 @@ export type MentoringAdvisorRow = {
 
 export function fetchMentoringByAdvisor() {
   return apiFetch<MentoringAdvisorRow[]>("/mentoring/reports/by-advisor");
+}
+
+export type PublicMentoringSurveyView = {
+  id: string;
+  rating: number | null;
+  note: string | null;
+  submittedAt: string | null;
+  session: { engagement: { title: string; advisor: { name: string } } };
+};
+
+export function viewPublicMentoringSurvey(slug: string, token: string) {
+  return apiFetch<PublicMentoringSurveyView>(`/public/mentoring-survey/${slug}/${token}`);
+}
+
+export function submitPublicMentoringSurvey(slug: string, token: string, data: { rating?: number; note?: string }) {
+  return apiFetch<{ id: string; rating: number | null; note: string | null; submittedAt: string | null }>(
+    `/public/mentoring-survey/${slug}/${token}/submit`,
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function fetchEventTicketsByContact(contactId: string) {
+  return apiFetch<Array<EventTicket & { event: { id: string; title: string; slug: string; startAt: string } }>>(`/events/tickets/by-contact/${contactId}`);
 }
 
 // ── رویداد و بلیط‌فروشی ───────────────────────────────────────────────────
@@ -4556,9 +4611,9 @@ export function fetchEventTickets(eventId: string) {
 
 export function createManualEventBooking(
   eventId: string,
-  data: { ticketTypeId: string; buyerName: string; buyerPhone: string; attendees: Array<{ name: string; phone?: string }> },
+  data: { buyerName: string; buyerPhone: string; items: Array<{ ticketTypeId: string; attendees: Array<{ name: string; phone?: string }> }> },
 ) {
-  return apiFetch<EventBooking & { tickets: EventTicket[] }>(`/events/${eventId}/bookings`, { method: "POST", body: JSON.stringify(data) });
+  return apiFetch<Array<EventBooking & { tickets: EventTicket[] }>>(`/events/${eventId}/bookings`, { method: "POST", body: JSON.stringify(data) });
 }
 
 export function checkInEventTicket(qrToken: string) {
@@ -4570,6 +4625,17 @@ export function checkInEventTicket(qrToken: string) {
 
 export function eventTicketQrImageUrl(qrToken: string): string {
   return `${API_URL}/events/tickets/${qrToken}/qr.png`;
+}
+
+/** پوستر رویداد احراز‌هویت لازم دارد — img src مستقیم توکن نمی‌فرستد، پس به Object URL تبدیل می‌شود (همان الگوی fetchCampaignImageObjectUrl). */
+export async function fetchEventPosterObjectUrl(eventId: string, code: "post-square" | "story"): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/events/${eventId}/poster?code=${code}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("ساخت پوستر ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 // ── رویداد — عمومی (بدون ورود) ────────────────────────────────────────────
@@ -4598,25 +4664,29 @@ export function verifyPublicEventOtp(tenantSlug: string, phone: string, code: st
   });
 }
 
-export function createPublicEventBooking(
+export function createPublicEventOrder(
   tenantSlug: string,
   eventSlug: string,
-  data: { bookingToken: string; ticketTypeId: string; buyerName: string; attendees: Array<{ name: string; phone?: string }> },
+  data: {
+    bookingToken: string;
+    buyerName: string;
+    items: Array<{ ticketTypeId: string; attendees: Array<{ name: string; phone?: string }> }>;
+  },
 ) {
-  return apiFetch<{ bookingId: string; requiresPayment: boolean; amount?: number }>(`/public/events/${tenantSlug}/${eventSlug}/bookings`, {
+  return apiFetch<{ orderGroupId: string; requiresPayment: boolean; amount?: number }>(`/public/events/${tenantSlug}/${eventSlug}/bookings`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export function fetchPublicEventBookingStatus(tenantSlug: string, bookingId: string) {
+export function fetchPublicEventBookingStatus(tenantSlug: string, orderGroupId: string) {
   return apiFetch<{ status: EventBookingStatus; tickets: Array<{ qrToken: string; ticketCode: string; attendeeName: string }> }>(
-    `/public/events/${tenantSlug}/bookings/${bookingId}`,
+    `/public/events/${tenantSlug}/bookings/${orderGroupId}`,
   );
 }
 
-export function payPublicEventBooking(tenantSlug: string, bookingId: string) {
-  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/events/${tenantSlug}/bookings/${bookingId}/pay`, { method: "POST" });
+export function payPublicEventBooking(tenantSlug: string, orderGroupId: string) {
+  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/events/${tenantSlug}/bookings/${orderGroupId}/pay`, { method: "POST" });
 }
 
 export type PublicEventTicket = {
@@ -4640,4 +4710,8 @@ export function publicEventCoverImageUrl(tenantSlug: string, eventSlug: string):
 
 export function publicEventTicketQrImageUrl(tenantSlug: string, qrToken: string): string {
   return `${API_URL}/public/events/${tenantSlug}/ticket/${qrToken}/qr.png`;
+}
+
+export function publicEventTicketPdfUrl(tenantSlug: string, qrToken: string): string {
+  return `${API_URL}/public/events/${tenantSlug}/ticket/${qrToken}/pdf`;
 }
