@@ -84,6 +84,7 @@ model User {
   createdMentoringSessions      MentoringSession[]    @relation("MentoringSessionCreatedBy")
   createdEvents                 Event[]
   checkedInEventTickets         EventTicket[]         @relation("EventTicketCheckedInBy")
+  createdForms                  Form[]
 
   @@map("users")
 }
@@ -361,6 +362,7 @@ model CrmContact {
   storeOrders               StoreOrder[]
   mentoringEngagements      MentoringEngagement[]
   eventBookings             EventBooking[]
+  formSubmissions           FormSubmission[]
   referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
@@ -2649,4 +2651,118 @@ model EventTicket {
   @@index([eventId])
   @@index([status])
   @@map("event_tickets")
+}
+
+// ── فرم‌ساز — نظرسنجی، آزمون آنلاین، پرسش‌نامه، ثبت‌نام ─────────────────────
+// یک فرم عمومی قابل اشتراک‌گذاری با لینک (embed در سایت خودِ تننت هم ممکن
+// است — این اپ هیچ هدر X-Frame-Options/CSP محدودکننده‌ای ست نمی‌کند)، بدون
+// نیاز به ورود کاربر پاسخ‌دهنده. اگر شماره تماس گرفته شود، پاسخ‌دهنده مثل
+// بقیه‌ی ماژول‌های عمومی (رویداد، مشاوره) با همان شماره به یک CrmContact
+// موجود/جدید متصل می‌شود — این همان هویت مشترک بر اساس شماره است.
+// برای حالت «آزمون آنلاین»، هر سؤال تک‌گزینه‌ای می‌تواند یک گزینه‌ی درست و
+// امتیاز داشته باشد؛ نمره و قبولی در لحظه‌ی ثبت محاسبه می‌شود.
+
+enum FormType {
+  SURVEY // نظرسنجی
+  QUIZ // آزمون آنلاین
+  QUESTIONNAIRE // پرسش‌نامه
+  REGISTRATION // فرم ثبت‌نام
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum FormFieldType {
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  RATING // ۱ تا ۵
+  DATE
+  PHONE
+  EMAIL
+}
+
+model Form {
+  id               String     @id @default(uuid())
+  formNo           Int        @unique @default(autoincrement())
+  slug             String     @unique
+  type             FormType   @default(QUESTIONNAIRE)
+  title            String
+  description      String?
+  coverImage       String? // data URI — همان الگوی Event.coverImage
+  status           FormStatus @default(DRAFT)
+  collectPhone     Boolean    @default(true) // شماره تماس پاسخ‌دهنده گرفته شود؟
+  requirePhone     Boolean    @default(false)
+  createContact    Boolean    @default(false) // هر پاسخ یک CrmContact بسازد/به‌روزرسانی کند — پیش‌فرض فرم ثبت‌نام
+  closesAt         DateTime?
+  passScorePercent Int? // فقط برای QUIZ — درصد قبولی
+  thankYouMessage  String?
+  createdByUserId  String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  createdBy   User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  fields      FormField[]
+  submissions FormSubmission[]
+
+  @@index([status])
+  @@map("forms")
+}
+
+model FormField {
+  id            String        @id @default(uuid())
+  formId        String
+  type          FormFieldType
+  label         String
+  helpText      String?
+  required      Boolean       @default(false)
+  sortOrder     Int           @default(0)
+  options       String[]      @default([]) // برای SINGLE_CHOICE/MULTI_CHOICE
+  correctOption String? // فقط برای QUIZ
+  points        Int? // فقط برای QUIZ
+
+  form    Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers FormAnswer[]
+
+  @@index([formId])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id              String   @id @default(uuid())
+  formId          String
+  contactId       String?
+  respondentName  String?
+  respondentPhone String?
+  scorePercent    Float? // فقط برای QUIZ
+  passed          Boolean? // فقط برای QUIZ
+  submittedAt     DateTime @default(now())
+
+  form    Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  contact CrmContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  answers FormAnswer[]
+
+  @@index([formId])
+  @@index([contactId])
+  @@map("form_submissions")
+}
+
+model FormAnswer {
+  id           String   @id @default(uuid())
+  submissionId String
+  fieldId      String
+  valueText    String? // پاسخ متنی/عدد/تاریخ/گزینه‌ی تکی
+  valueOptions String[] @default([]) // برای MULTI_CHOICE
+
+  submission FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  field      FormField      @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([fieldId])
+  @@map("form_answers")
 }

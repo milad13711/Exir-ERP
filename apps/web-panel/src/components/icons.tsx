@@ -189,6 +189,16 @@ export function ChatIcon(props: IconProps) {
   );
 }
 
+export function ClipboardCheckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
 export function ShareIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

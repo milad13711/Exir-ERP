@@ -4715,3 +4715,168 @@ export function publicEventTicketQrImageUrl(tenantSlug: string, qrToken: string)
 export function publicEventTicketPdfUrl(tenantSlug: string, qrToken: string): string {
   return `${API_URL}/public/events/${tenantSlug}/ticket/${qrToken}/pdf`;
 }
+
+// ── فرم‌ساز — نظرسنجی، آزمون آنلاین، پرسش‌نامه، ثبت‌نام ─────────────────────
+
+export type FormType = "SURVEY" | "QUIZ" | "QUESTIONNAIRE" | "REGISTRATION";
+export type FormStatus = "DRAFT" | "PUBLISHED" | "CLOSED";
+export type FormFieldType = "SHORT_TEXT" | "LONG_TEXT" | "NUMBER" | "SINGLE_CHOICE" | "MULTI_CHOICE" | "RATING" | "DATE" | "PHONE" | "EMAIL";
+
+export type FormField = {
+  id: string;
+  type: FormFieldType;
+  label: string;
+  helpText: string | null;
+  required: boolean;
+  sortOrder: number;
+  options: string[];
+  correctOption?: string | null;
+  points?: number | null;
+};
+
+export type FormItem = {
+  id: string;
+  formNo: number;
+  slug: string;
+  type: FormType;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
+  status: FormStatus;
+  collectPhone: boolean;
+  requirePhone: boolean;
+  createContact: boolean;
+  closesAt: string | null;
+  passScorePercent: number | null;
+  thankYouMessage: string | null;
+  createdAt: string;
+  createdBy: { id: string; name: string } | null;
+  fields: FormField[];
+  _count?: { submissions: number };
+};
+
+export type FormAnswer = {
+  id: string;
+  fieldId: string;
+  valueText: string | null;
+  valueOptions: string[];
+  field: { label: string; type: FormFieldType };
+};
+
+export type FormSubmission = {
+  id: string;
+  formId: string;
+  contactId: string | null;
+  respondentName: string | null;
+  respondentPhone: string | null;
+  scorePercent: number | null;
+  passed: boolean | null;
+  submittedAt: string;
+  contact: { id: string; name: string } | null;
+  answers: FormAnswer[];
+};
+
+export type FormStats = {
+  totalSubmissions: number;
+  quizStats: { avgScorePercent: number; passRate: number } | null;
+  ratingAverages: Array<{ fieldId: string; label: string; average: number | null }>;
+};
+
+export type FormFieldInput = {
+  id?: string;
+  type: FormFieldType;
+  label: string;
+  helpText?: string;
+  required?: boolean;
+  sortOrder?: number;
+  options?: string[];
+  correctOption?: string;
+  points?: number;
+};
+
+export function fetchForms(params: { status?: string; type?: string } = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return apiFetch<FormItem[]>(`/forms${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchForm(id: string) {
+  return apiFetch<FormItem>(`/forms/${id}`);
+}
+
+export function createForm(data: {
+  slug: string;
+  type: FormType;
+  title: string;
+  description?: string;
+  coverImage?: string;
+  collectPhone?: boolean;
+  requirePhone?: boolean;
+  createContact?: boolean;
+  closesAt?: string;
+  passScorePercent?: number;
+  thankYouMessage?: string;
+  fields: FormFieldInput[];
+}) {
+  return apiFetch<FormItem>("/forms", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateForm(id: string, data: Partial<Omit<Parameters<typeof createForm>[0], "slug" | "type">>) {
+  return apiFetch<FormItem>(`/forms/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function publishForm(id: string) {
+  return apiFetch<FormItem>(`/forms/${id}/publish`, { method: "POST" });
+}
+
+export function unpublishForm(id: string) {
+  return apiFetch<FormItem>(`/forms/${id}/unpublish`, { method: "POST" });
+}
+
+export function closeForm(id: string) {
+  return apiFetch<FormItem>(`/forms/${id}/close`, { method: "POST" });
+}
+
+export function deleteForm(id: string) {
+  return apiFetch<{ ok: true }>(`/forms/${id}/delete`, { method: "POST" });
+}
+
+export function fetchFormSubmissions(formId: string) {
+  return apiFetch<FormSubmission[]>(`/forms/${formId}/submissions`);
+}
+
+export function fetchFormStats(formId: string) {
+  return apiFetch<FormStats>(`/forms/${formId}/stats`);
+}
+
+// ── فرم — نمای عمومی (بدون ورود) ───────────────────────────────────────────
+
+export type PublicFormView = {
+  id: string;
+  type: FormType;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
+  collectPhone: boolean;
+  requirePhone: boolean;
+  fields: Array<Pick<FormField, "id" | "type" | "label" | "helpText" | "required" | "sortOrder" | "options">>;
+  isClosed: boolean;
+};
+
+export function fetchPublicForm(tenantSlug: string, formSlug: string) {
+  return apiFetch<PublicFormView>(`/public/forms/${tenantSlug}/${formSlug}`);
+}
+
+export function submitPublicForm(
+  tenantSlug: string,
+  formSlug: string,
+  data: { respondentName?: string; respondentPhone?: string; answers: Array<{ fieldId: string; valueText?: string; valueOptions?: string[] }> },
+) {
+  return apiFetch<{ submissionId: string; scorePercent: number | null; passed: boolean | null; thankYouMessage: string | null }>(
+    `/public/forms/${tenantSlug}/${formSlug}/submit`,
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function publicFormCoverImageUrl(tenantSlug: string, formSlug: string): string {
+  return `${API_URL}/public/forms/${tenantSlug}/${formSlug}/image`;
+}

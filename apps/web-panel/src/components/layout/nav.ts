@@ -22,6 +22,7 @@ import {
   MegaphoneIcon,
   CompassIcon,
   TicketIcon,
+  ClipboardCheckIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -49,6 +50,7 @@ export const primaryNav: NavItem[] = [
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects" },
   { href: "/mentoring", label: "منتورینگ و مشاوره", icon: CompassIcon, moduleCode: "mentoring" },
   { href: "/events", label: "رویداد و بلیط‌فروشی", icon: TicketIcon, moduleCode: "events" },
+  { href: "/forms", label: "فرم‌ساز", icon: ClipboardCheckIcon, moduleCode: "forms" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet" },
   { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },

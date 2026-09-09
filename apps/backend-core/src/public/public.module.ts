@@ -26,12 +26,15 @@ import { PublicMentoringSurveyService } from './public-mentoring-survey.service.
 import { PublicMentoringSurveyController } from './public-mentoring-survey.controller.js';
 import { EventsModule } from '../events/events.module.js';
 import { BillingModule } from '../billing/billing.module.js';
+import { AutomationModule } from '../automation/automation.module.js';
 import { PublicEventsService } from './public-events.service.js';
 import { PublicEventsController } from './public-events.controller.js';
 import { PublicEventsPaymentController } from './public-events-payment.controller.js';
+import { PublicFormsService } from './public-forms.service.js';
+import { PublicFormsController } from './public-forms.controller.js';
 
 @Module({
-  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule, EventsModule, BillingModule],
+  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule, EventsModule, BillingModule, AutomationModule],
   controllers: [
     PublicSignupController,
     PublicCatalogController,
@@ -45,6 +48,7 @@ import { PublicEventsPaymentController } from './public-events-payment.controlle
     PublicMentoringSurveyController,
     PublicEventsController,
     PublicEventsPaymentController,
+    PublicFormsController,
   ],
   providers: [
     PublicSignupService,
@@ -57,6 +61,7 @@ import { PublicEventsPaymentController } from './public-events-payment.controlle
     PublicStoreService,
     PublicMentoringSurveyService,
     PublicEventsService,
+    PublicFormsService,
   ],
 })
 export class PublicModule {}
