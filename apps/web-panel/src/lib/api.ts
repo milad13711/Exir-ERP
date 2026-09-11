@@ -4902,3 +4902,275 @@ export function submitPublicForm(
 export function publicFormCoverImageUrl(tenantSlug: string, formSlug: string): string {
   return `${API_URL}/public/forms/${tenantSlug}/${formSlug}/image`;
 }
+
+// ── گارانتی و خدمات پس از فروش ──────────────────────────────────────────────
+
+export type WarrantyCodeStatus = "PENDING" | "ACTIVE" | "EXPIRED" | "VOID";
+export type WarrantyServiceStatus = "NEW" | "REVIEWING" | "AWAITING_PRODUCT" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+export type WarrantyCode = {
+  id: string;
+  code: string;
+  productId: string | null;
+  itemDescription: string | null;
+  invoiceId: string | null;
+  invoiceLineId: string | null;
+  manualInvoiceNumber: string | null;
+  contactId: string | null;
+  serialNumber: string | null;
+  durationDays: number;
+  status: WarrantyCodeStatus;
+  issuedAt: string;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  activatedByName: string | null;
+  activatedByPhone: string | null;
+  activatedByEmail: string | null;
+  termsAcceptedAt: string | null;
+  productPhoto: string | null;
+  createdAt: string;
+  product: { id: string; name: string; sku: string } | null;
+  contact: { id: string; name: string; phone: string } | null;
+  invoice: { id: string; invoiceNo: number } | null;
+};
+
+export type WarrantyServiceRequest = {
+  id: string;
+  warrantyId: string;
+  description: string;
+  photo: string | null;
+  status: WarrantyServiceStatus;
+  staffNotes: string | null;
+  customerRating: number | null;
+  customerFeedback: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  warranty: { code: string; itemDescription: string | null; activatedByName: string | null; activatedByPhone: string | null; status: WarrantyCodeStatus };
+};
+
+export type WarrantyCodeDetail = WarrantyCode & { services: WarrantyServiceRequest[] };
+export type WarrantyServiceDetail = WarrantyServiceRequest & { warranty: WarrantyCodeDetail };
+
+export type WarrantyInvoiceGroup = {
+  invoiceId: string | null;
+  invoiceNo: number | null;
+  contactName: string | null;
+  totalCodes: number;
+  firstIssued: string;
+  lastIssued: string;
+};
+
+export type WarrantyProduct = { id: string; sku: string; name: string; warrantyEnabled: boolean; warrantyDurationDays: number | null };
+
+export type WarrantyInvoiceSummary = {
+  invoiceId: string;
+  invoiceNo: number;
+  contactId: string;
+  contactName: string;
+  lines: { id: string; productId: string | null; description: string; quantity: number; warrantyEligible: boolean; alreadyIssued: boolean }[];
+};
+
+export type WarrantyGeneralSettings = {
+  defaultDurationDays: number;
+  reminderDaysBeforeExpiry: number;
+  termsConditions: string;
+  serviceTermsConditions: string;
+};
+
+export type WarrantySmsSettings = {
+  enabled: boolean;
+  activationCustomerEnabled: boolean;
+  activationCustomerTemplate: string;
+  activationStaffEnabled: boolean;
+  activationStaffTemplate: string;
+  serviceNewStaffEnabled: boolean;
+  serviceNewStaffTemplate: string;
+  serviceStatusCustomerEnabled: boolean;
+  serviceStatusCustomerTemplate: string;
+  serviceStatusStaffEnabled: boolean;
+  serviceStatusStaffTemplate: string;
+  quickTemplates: { title: string; text: string }[];
+};
+
+export type WarrantyReportsData = {
+  totalCodes: number;
+  statusBreakdown: Partial<Record<WarrantyCodeStatus, number>>;
+  totalServices: number;
+  serviceStatusBreakdown: Partial<Record<WarrantyServiceStatus, number>>;
+  topItemsByService: { itemDescription: string; total: number }[];
+  avgRating: number | null;
+  ratingCount: number;
+  avgResolutionHours: number | null;
+  resolvedCount: number;
+  topItemsByActivation: { itemDescription: string; total: number }[];
+  topContactsByActivation: { contactId: string | null; name: string; total: number }[];
+};
+
+export function fetchWarrantyCodes(filters: { status?: string; search?: string; invoiceId?: string; noInvoice?: boolean } = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.invoiceId) params.set("invoiceId", filters.invoiceId);
+  if (filters.noInvoice) params.set("noInvoice", "true");
+  const qs = params.toString();
+  return apiFetch<WarrantyCode[]>(`/warranty/codes${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchWarrantyInvoiceGroups() {
+  return apiFetch<WarrantyInvoiceGroup[]>("/warranty/codes/invoice-groups");
+}
+
+export function fetchWarrantyCode(id: string) {
+  return apiFetch<WarrantyCodeDetail>(`/warranty/codes/${id}`);
+}
+
+export function voidWarrantyCode(id: string) {
+  return apiFetch<WarrantyCodeDetail>(`/warranty/codes/${id}/void`, { method: "POST" });
+}
+
+export function extendWarrantyCode(id: string, expiresAt: string) {
+  return apiFetch<WarrantyCodeDetail>(`/warranty/codes/${id}/extend`, { method: "POST", body: JSON.stringify({ expiresAt }) });
+}
+
+export function deleteWarrantyCodes(ids: string[]) {
+  return apiFetch<{ ok: true }>("/warranty/codes/delete", { method: "POST", body: JSON.stringify({ ids }) });
+}
+
+export function manualIssueWarrantyCodes(data: {
+  productId: string;
+  contactId?: string;
+  quantity: number;
+  durationDays?: number;
+  serialNumber?: string;
+  manualInvoiceNumber?: string;
+}) {
+  return apiFetch<{ codes: string[] }>("/warranty/codes/manual-issue", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function searchWarrantyInvoices(term: string) {
+  return apiFetch<{ id: string; label: string }[]>(`/warranty/invoices/search?term=${encodeURIComponent(term)}`);
+}
+
+export function fetchWarrantyInvoiceSummary(invoiceId: string) {
+  return apiFetch<WarrantyInvoiceSummary>(`/warranty/invoices/${invoiceId}/summary`);
+}
+
+export function issueWarrantyFromInvoiceNow(invoiceId: string, lineIds?: string[]) {
+  return apiFetch<{ issued: string[]; alreadyIssued: string[] }>(`/warranty/invoices/${invoiceId}/issue-now`, {
+    method: "POST",
+    body: JSON.stringify({ lineIds }),
+  });
+}
+
+/** چاپ لیبل احراز‌هویت لازم دارد، پس به Object URL تبدیل می‌شود (همان الگوی fetchEventPosterObjectUrl). */
+export async function printWarrantyLabelsObjectUrl(ids: string[], columns?: number): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/warranty/codes/print-labels`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ ids, columns }),
+  });
+  if (!res.ok) throw new ApiError("چاپ لیبل ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+export function fetchWarrantyProducts() {
+  return apiFetch<WarrantyProduct[]>("/warranty/products");
+}
+
+export function updateWarrantyProduct(id: string, data: { warrantyEnabled: boolean; warrantyDurationDays?: number }) {
+  return apiFetch<WarrantyProduct>(`/warranty/products/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function fetchWarrantyServices(status?: string) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<WarrantyServiceRequest[]>(`/warranty/services${qs}`);
+}
+
+export function fetchWarrantyService(id: string) {
+  return apiFetch<WarrantyServiceDetail>(`/warranty/services/${id}`);
+}
+
+export function updateWarrantyServiceStatus(id: string, data: { status: WarrantyServiceStatus; staffNotes?: string }) {
+  return apiFetch<WarrantyServiceDetail>(`/warranty/services/${id}/status`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function sendWarrantyServiceSms(id: string, message: string) {
+  return apiFetch<{ ok: true }>(`/warranty/services/${id}/sms`, { method: "POST", body: JSON.stringify({ message }) });
+}
+
+export function fetchWarrantyServiceStatusLabels() {
+  return apiFetch<Record<string, string>>("/warranty/service-status-labels");
+}
+
+export function fetchWarrantyReports() {
+  return apiFetch<WarrantyReportsData>("/warranty/reports");
+}
+
+export function fetchWarrantyGeneralSettings() {
+  return apiFetch<WarrantyGeneralSettings>("/warranty/settings/general");
+}
+
+export function updateWarrantyGeneralSettings(data: WarrantyGeneralSettings) {
+  return apiFetch<WarrantyGeneralSettings>("/warranty/settings/general", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchWarrantySmsSettings() {
+  return apiFetch<WarrantySmsSettings>("/warranty/settings/sms");
+}
+
+export function updateWarrantySmsSettings(data: WarrantySmsSettings) {
+  return apiFetch<WarrantySmsSettings>("/warranty/settings/sms", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function importLegacyWarranties(rows: Record<string, string>[]) {
+  return apiFetch<{ imported: number; skipped: number }>("/warranty/import", { method: "POST", body: JSON.stringify({ rows }) });
+}
+
+// عمومی — بدون ورود
+
+export type PublicWarrantyLookup = {
+  code: string;
+  itemDescription: string | null;
+  status: WarrantyCodeStatus;
+  issuedAt: string;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  serialNumber: string | null;
+  canRequestService: boolean;
+  latestService: { id: string; status: WarrantyServiceStatus; createdAt: string; resolvedAt: string | null } | null;
+};
+
+export function fetchPublicWarrantyLookup(tenantSlug: string, code: string) {
+  return apiFetch<PublicWarrantyLookup>(`/public/warranty/${tenantSlug}/lookup?code=${encodeURIComponent(code)}`);
+}
+
+export function fetchPublicWarrantyTerms(tenantSlug: string, kind: "terms" | "service-terms") {
+  return apiFetch<{ text: string }>(`/public/warranty/${tenantSlug}/${kind}`);
+}
+
+export function activatePublicWarranty(
+  tenantSlug: string,
+  data: { code: string; name: string; phone: string; email?: string; termsAccepted?: boolean; productPhoto?: string },
+) {
+  return apiFetch<{ success: true; warrantyId: string; expiresAt: string }>(`/public/warranty/${tenantSlug}/activate`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function requestPublicWarrantyService(tenantSlug: string, data: { code: string; description: string; photo?: string }) {
+  return apiFetch<{ success: true; serviceId: string }>(`/public/warranty/${tenantSlug}/request-service`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function submitPublicWarrantyServiceFeedback(tenantSlug: string, serviceId: string, data: { rating: number; comment?: string }) {
+  return apiFetch<{ success: true }>(`/public/warranty/${tenantSlug}/service-feedback/${serviceId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

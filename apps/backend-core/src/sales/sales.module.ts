@@ -7,6 +7,7 @@ import { WarehouseModule } from '../warehouse/warehouse.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { BillingModule } from '../billing/billing.module.js';
+import { WarrantyModule } from '../warranty/warranty.module.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './invoices.service.js';
 import { SalesInvoicePdfService } from './sales-invoice-pdf.service.js';
@@ -22,7 +23,7 @@ import { RecurringInvoicesService } from './recurring-invoices.service.js';
 import { SalesAutomationTriggers } from './sales-automation.triggers.js';
 
 @Module({
-  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule],
+  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, WarrantyModule],
   controllers: [
     InvoicesController,
     QuotationsController,

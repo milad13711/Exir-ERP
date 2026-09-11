@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -10,6 +10,7 @@ import { CreditScoreService } from '../crm/credit-score.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { WarrantyService } from '../warranty/warranty.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
@@ -73,6 +74,8 @@ const INVOICE_INCLUDE = {
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger('InvoicesService');
+
   constructor(
     private readonly sms: ExirSmsService,
     private readonly creditScore: CreditScoreService,
@@ -80,6 +83,7 @@ export class InvoicesService {
     private readonly automation: AutomationEngineService,
     private readonly funnel: FunnelService,
     private readonly zarinpal: ZarinpalService,
+    private readonly warranty: WarrantyService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -454,6 +458,12 @@ export class InvoicesService {
     });
     if (newStatus === 'PAID') {
       await this.funnel.recordPurchase(ctx, updatedInvoice.contactId, updatedInvoice.total, 'خرید مجدد (فاکتور فروش)');
+      try {
+        await this.warranty.issueForInvoicePaid(ctx, updatedInvoice.id);
+      } catch (err) {
+        // صدور گارانتی هرگز نباید ثبت پرداخت فاکتور را با شکست مواجه کند
+        this.logger.error(`Warranty issuance failed for invoice ${updatedInvoice.id}: ${err instanceof Error ? err.message : err}`);
+      }
     }
     return updatedInvoice;
   }

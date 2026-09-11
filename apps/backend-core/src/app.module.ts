@@ -47,6 +47,7 @@ import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { MentoringModule } from './mentoring/mentoring.module.js';
 import { EventsModule } from './events/events.module.js';
 import { FormsModule } from './forms/forms.module.js';
+import { WarrantyModule } from './warranty/warranty.module.js';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { FormsModule } from './forms/forms.module.js';
     MentoringModule,
     EventsModule,
     FormsModule,
+    WarrantyModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

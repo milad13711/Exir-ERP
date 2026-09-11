@@ -30,61 +30,62 @@ model User {
   status       UserStatus @default(INVITED)
   createdAt    DateTime   @default(now())
 
-  roles                      UserRole[]
-  tasks                      Task[]                     @relation("TaskAssignee")
-  activityLogs               ActivityLog[]
-  ownedContacts              CrmContact[]               @relation("CrmContactOwner")
-  ownedDeals                 CrmDeal[]                  @relation("CrmDealOwner")
-  crmActivities              CrmActivity[]
-  journalEntries             JournalEntry[]
-  stockMovements             StockMovement[]
-  reviewedLeaveRequests      LeaveRequest[]
-  notifications              Notification[]
-  notificationPreference     NotificationPreference?
-  createdInvoices            SalesInvoice[]
-  signedInvoices             SalesInvoice[]             @relation("SalesInvoiceSigner")
-  createdQuotations          SalesQuotation[]
-  createdSalesReturns        SalesReturn[]
-  createdPurchaseReturns     PurchaseReturn[]
-  createdPurchaseOrders      PurchaseOrder[]
-  approvedPurchaseOrders     PurchaseOrder[]            @relation("PurchaseOrderApprover")
-  checks                     Check[]
-  partyTransactions          PartyTransaction[]
-  bankStatementLines         BankStatementLine[]
-  recurringInvoiceTemplates  RecurringInvoiceTemplate[]
-  budgets                    Budget[]
-  fixedAssets                FixedAsset[]
-  attachments                Attachment[]
-  createdBoms                BillOfMaterial[]
-  createdProductionOrders    ProductionOrder[]          @relation("ProductionOrderCreatedBy")
-  rawMaterialApprovals       ProductionOrder[]          @relation("ProductionOrderRawApprover")
-  assignedProductionStages   ProductionOrderStage[]
-  qualitySamplesTaken        QualitySample[]            @relation("QualitySampleSampledBy")
-  qualitySampleResultsTested QualitySampleResult[]      @relation("QualitySampleResultTestedBy")
-  createdAutomationRules     AutomationRule[]
-  voipExtension              VoipExtension?
-  decidedAiActions           AiActionRequest[]
-  providedAppointments       Appointment[]              @relation("AppointmentProvider")
-  createdAppointments        Appointment[]              @relation("AppointmentCreatedBy")
-  staffAvailabilitySlots     StaffAvailabilitySlot[]
-  createdContracts           Contract[]
-  referredContractsToSign    Contract[]                 @relation("ContractReferredSigner")
-  createdContractTemplates   ContractTemplate[]
-  createdContractAmendments  ContractAmendment[]
-  managedProjects            Project[]                  @relation("ProjectManager")
-  createdProjects            Project[]                  @relation("ProjectCreatedBy")
-  requestedStages            ProjectStage[]             @relation("ProjectStageRequestedBy")
-  approvedStages             ProjectStage[]             @relation("ProjectStageApprovedBy")
-  responsibleForStages       ProjectStage[]             @relation("ProjectStageResponsible")
-  projectMemberships         ProjectMember[]            @relation("ProjectMemberUser")
-  createdShipments           Shipment[]
-  createdCampaigns           MarketingCampaign[]
-  mentoringEngagementsAsAdvisor MentoringEngagement[] @relation("MentoringAdvisor")
-  createdMentoringEngagements   MentoringEngagement[] @relation("MentoringEngagementCreatedBy")
-  createdMentoringSessions      MentoringSession[]    @relation("MentoringSessionCreatedBy")
+  roles                         UserRole[]
+  tasks                         Task[]                     @relation("TaskAssignee")
+  activityLogs                  ActivityLog[]
+  ownedContacts                 CrmContact[]               @relation("CrmContactOwner")
+  ownedDeals                    CrmDeal[]                  @relation("CrmDealOwner")
+  crmActivities                 CrmActivity[]
+  journalEntries                JournalEntry[]
+  stockMovements                StockMovement[]
+  reviewedLeaveRequests         LeaveRequest[]
+  notifications                 Notification[]
+  notificationPreference        NotificationPreference?
+  createdInvoices               SalesInvoice[]
+  signedInvoices                SalesInvoice[]             @relation("SalesInvoiceSigner")
+  createdQuotations             SalesQuotation[]
+  createdSalesReturns           SalesReturn[]
+  createdPurchaseReturns        PurchaseReturn[]
+  createdPurchaseOrders         PurchaseOrder[]
+  approvedPurchaseOrders        PurchaseOrder[]            @relation("PurchaseOrderApprover")
+  checks                        Check[]
+  partyTransactions             PartyTransaction[]
+  bankStatementLines            BankStatementLine[]
+  recurringInvoiceTemplates     RecurringInvoiceTemplate[]
+  budgets                       Budget[]
+  fixedAssets                   FixedAsset[]
+  attachments                   Attachment[]
+  createdBoms                   BillOfMaterial[]
+  createdProductionOrders       ProductionOrder[]          @relation("ProductionOrderCreatedBy")
+  rawMaterialApprovals          ProductionOrder[]          @relation("ProductionOrderRawApprover")
+  assignedProductionStages      ProductionOrderStage[]
+  qualitySamplesTaken           QualitySample[]            @relation("QualitySampleSampledBy")
+  qualitySampleResultsTested    QualitySampleResult[]      @relation("QualitySampleResultTestedBy")
+  createdAutomationRules        AutomationRule[]
+  voipExtension                 VoipExtension?
+  decidedAiActions              AiActionRequest[]
+  providedAppointments          Appointment[]              @relation("AppointmentProvider")
+  createdAppointments           Appointment[]              @relation("AppointmentCreatedBy")
+  staffAvailabilitySlots        StaffAvailabilitySlot[]
+  createdContracts              Contract[]
+  referredContractsToSign       Contract[]                 @relation("ContractReferredSigner")
+  createdContractTemplates      ContractTemplate[]
+  createdContractAmendments     ContractAmendment[]
+  managedProjects               Project[]                  @relation("ProjectManager")
+  createdProjects               Project[]                  @relation("ProjectCreatedBy")
+  requestedStages               ProjectStage[]             @relation("ProjectStageRequestedBy")
+  approvedStages                ProjectStage[]             @relation("ProjectStageApprovedBy")
+  responsibleForStages          ProjectStage[]             @relation("ProjectStageResponsible")
+  projectMemberships            ProjectMember[]            @relation("ProjectMemberUser")
+  createdShipments              Shipment[]
+  createdCampaigns              MarketingCampaign[]
+  mentoringEngagementsAsAdvisor MentoringEngagement[]      @relation("MentoringAdvisor")
+  createdMentoringEngagements   MentoringEngagement[]      @relation("MentoringEngagementCreatedBy")
+  createdMentoringSessions      MentoringSession[]         @relation("MentoringSessionCreatedBy")
   createdEvents                 Event[]
-  checkedInEventTickets         EventTicket[]         @relation("EventTicketCheckedInBy")
+  checkedInEventTickets         EventTicket[]              @relation("EventTicketCheckedInBy")
   createdForms                  Form[]
+  createdWarrantyCodes          WarrantyCode[]
 
   @@map("users")
 }
@@ -363,6 +364,7 @@ model CrmContact {
   mentoringEngagements      MentoringEngagement[]
   eventBookings             EventBooking[]
   formSubmissions           FormSubmission[]
+  warrantyCodes             WarrantyCode[]
   referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
@@ -508,21 +510,22 @@ model SalesInvoice {
   // پرداخت آنلاین از طریق لینک عمومی فاکتور (پیامکی/دستی) — همان الگوی
   // زرین‌پال بیعانه‌ی نوبت و بلیط رویداد؛ publicToken چون invoiceNo/id
   // نباید برای دسترسی غیرقابل‌احراز حدس‌زدنی باشد.
-  publicToken       String    @unique @default(uuid())
+  publicToken       String  @unique @default(uuid())
   zarinpalAuthority String?
   paymentRefId      Int?
 
-  contact   CrmContact         @relation(fields: [contactId], references: [id])
-  deal      CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  project   Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  signedBy  User?              @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
-  lines     SalesInvoiceLine[]
-  payments  SalesPayment[]
-  checks    Check[]
-  returns   SalesReturn[]
+  contact           CrmContact         @relation(fields: [contactId], references: [id])
+  deal              CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy         User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  signedBy          User?              @relation("SalesInvoiceSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
+  lines             SalesInvoiceLine[]
+  payments          SalesPayment[]
+  checks            Check[]
+  returns           SalesReturn[]
   mentoringSessions MentoringSession[]
   eventBookings     EventBooking[]
+  warrantyCodes     WarrantyCode[]
 
   @@index([contactId])
   @@index([status])
@@ -549,6 +552,8 @@ model SalesInvoiceLine {
   invoice  SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product  Product?     @relation(fields: [productId], references: [id])
   currency Currency?    @relation(fields: [currencyId], references: [id])
+
+  warrantyCodes WarrantyCode[]
 
   @@map("sales_invoice_lines")
 }
@@ -1130,6 +1135,13 @@ model Product {
   publicCompareAtPrice Int? // تومان — قیمت «قبل از تخفیف» برای نمایش نشان تخفیف در فروشگاه عمومی؛ فقط وقتی از salePrice بیشتر باشد اعمال می‌شود
 
   reviews StoreReview[]
+
+  // گارانتی و خدمات پس از فروش — وقتی warrantyEnabled باشد، به ازای هر واحد
+  // از این کالا در یک فاکتور تسویه‌شده یک کد گارانتی جدا صادر می‌شود.
+  warrantyEnabled      Boolean @default(false)
+  warrantyDurationDays Int? // خالی یعنی از مقدار پیش‌فرض کل ماژول استفاده شود
+
+  warrantyCodes WarrantyCode[]
 
   // قیمت‌گذاری ارزی — وقتی currencyId ست شده، costPrice/salePrice معادل
   // تومانی‌شان با نرخ لحظه‌ای Currency.rate محاسبه و نمایش داده می‌شود.
@@ -1750,10 +1762,10 @@ model Appointment {
   // هماهنگی اولیه — رزرو ابتدا PENDING_COORDINATION می‌ماند تا کارشناس/مدیر داخلی تاریخ نهایی را تأیید کند
   coordinationRespondedAt DateTime?
 
-  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
-  contact     CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  provider    User?       @relation("AppointmentProvider", fields: [providerUserId], references: [id], onDelete: SetNull)
-  createdBy   User?       @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  serviceType      ServiceType       @relation(fields: [serviceTypeId], references: [id])
+  contact          CrmContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  provider         User?             @relation("AppointmentProvider", fields: [providerUserId], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   mentoringSession MentoringSession?
 
   @@index([startAt])
@@ -1868,15 +1880,15 @@ model Contract {
   partyBSignatureDataUrl String?
   partyBSignerName       String?
 
-  contact            CrmContact?           @relation(fields: [contactId], references: [id])
-  employee           Employee?             @relation(fields: [employeeId], references: [id])
-  secondPartyContact CrmContact?           @relation("ContractSecondParty", fields: [secondPartyContactId], references: [id])
-  template           ContractTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  createdBy          User?                 @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  referredSigner     User?                 @relation("ContractReferredSigner", fields: [referredSignerUserId], references: [id], onDelete: SetNull)
-  editRequests       ContractEditRequest[]
-  amendments         ContractAmendment[]
-  witnesses          ContractWitness[]
+  contact              CrmContact?           @relation(fields: [contactId], references: [id])
+  employee             Employee?             @relation(fields: [employeeId], references: [id])
+  secondPartyContact   CrmContact?           @relation("ContractSecondParty", fields: [secondPartyContactId], references: [id])
+  template             ContractTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy            User?                 @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  referredSigner       User?                 @relation("ContractReferredSigner", fields: [referredSignerUserId], references: [id], onDelete: SetNull)
+  editRequests         ContractEditRequest[]
+  amendments           ContractAmendment[]
+  witnesses            ContractWitness[]
   mentoringEngagements MentoringEngagement[]
 
   @@index([status])
@@ -1973,12 +1985,12 @@ model Project {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  contact   CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  manager   User?           @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
-  createdBy User?           @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  stages    ProjectStage[]
-  invoices  SalesInvoice[]
-  members   ProjectMember[]
+  contact              CrmContact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  manager              User?                 @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  createdBy            User?                 @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  stages               ProjectStage[]
+  invoices             SalesInvoice[]
+  members              ProjectMember[]
   mentoringEngagements MentoringEngagement[]
 
   @@index([status])
@@ -2200,31 +2212,31 @@ enum MentoringEngagementStatus {
 }
 
 model MentoringEngagement {
-  id                       String                     @id @default(uuid())
-  engagementNo             Int                        @unique @default(autoincrement())
+  id                       String                    @id @default(uuid())
+  engagementNo             Int                       @unique @default(autoincrement())
   contactId                String
   advisorUserId            String
   title                    String
-  pricingModel             MentoringPricingModel      @default(HOURLY)
+  pricingModel             MentoringPricingModel     @default(HOURLY)
   hourlyRate               Int? // تومان
   packageSessionsCount     Int?
   packagePrice             Int?
   subscriptionMonthlyPrice Int?
-  status                   MentoringEngagementStatus  @default(ACTIVE)
+  status                   MentoringEngagementStatus @default(ACTIVE)
   contractId               String?
   projectId                String?
-  startDate                DateTime                   @default(now())
+  startDate                DateTime                  @default(now())
   endDate                  DateTime?
   notes                    String?
   createdByUserId          String?
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 
-  contact   CrmContact @relation(fields: [contactId], references: [id])
-  advisor   User       @relation("MentoringAdvisor", fields: [advisorUserId], references: [id])
-  contract  Contract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy User?      @relation("MentoringEngagementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contact   CrmContact         @relation(fields: [contactId], references: [id])
+  advisor   User               @relation("MentoringAdvisor", fields: [advisorUserId], references: [id])
+  contract  Contract?          @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  project   Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User?              @relation("MentoringEngagementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   sessions  MentoringSession[]
   goals     MentoringGoal[]
 
@@ -2597,9 +2609,9 @@ model EventTicketType {
 }
 
 model EventBooking {
-  id                String              @id @default(uuid())
-  bookingNo         Int                 @unique @default(autoincrement())
-  orderGroupId      String              @default(uuid()) // چند نوع بلیط در یک خرید (مثلاً عادی+ویژه) همین مقدار مشترک را دارند — پرداخت و صدور فاکتور روی کل گروه انجام می‌شود
+  id                String             @id @default(uuid())
+  bookingNo         Int                @unique @default(autoincrement())
+  orderGroupId      String             @default(uuid()) // چند نوع بلیط در یک خرید (مثلاً عادی+ویژه) همین مقدار مشترک را دارند — پرداخت و صدور فاکتور روی کل گروه انجام می‌شود
   eventId           String
   ticketTypeId      String
   buyerName         String
@@ -2608,18 +2620,18 @@ model EventBooking {
   quantity          Int
   unitPrice         Int
   totalAmount       Int
-  status            EventBookingStatus  @default(PENDING_PAYMENT)
-  publicToken       String              @unique @default(uuid())
+  status            EventBookingStatus @default(PENDING_PAYMENT)
+  publicToken       String             @unique @default(uuid())
   zarinpalAuthority String?
   paymentRefId      Int?
   paidAt            DateTime?
   invoiceId         String?
-  createdAt         DateTime            @default(now())
+  createdAt         DateTime           @default(now())
 
-  event      Event            @relation(fields: [eventId], references: [id])
-  ticketType EventTicketType  @relation(fields: [ticketTypeId], references: [id])
-  contact    CrmContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  invoice    SalesInvoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  event      Event           @relation(fields: [eventId], references: [id])
+  ticketType EventTicketType @relation(fields: [ticketTypeId], references: [id])
+  contact    CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  invoice    SalesInvoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   tickets    EventTicket[]
 
   @@index([eventId])
@@ -2629,23 +2641,23 @@ model EventBooking {
 }
 
 model EventTicket {
-  id              String             @id @default(uuid())
-  bookingId       String
-  eventId         String
-  ticketTypeId    String
-  ticketCode      String             @unique // کد کوتاه انسان‌خوان — روی بلیط چاپی/پیامکی
-  qrToken         String             @unique @default(uuid()) // محتوای واقعی QR — اسکن با همین مقدار تطبیق داده می‌شود
-  attendeeName    String
-  attendeePhone   String?
-  status          EventTicketStatus  @default(VALID)
-  checkedInAt     DateTime?
+  id                String            @id @default(uuid())
+  bookingId         String
+  eventId           String
+  ticketTypeId      String
+  ticketCode        String            @unique // کد کوتاه انسان‌خوان — روی بلیط چاپی/پیامکی
+  qrToken           String            @unique @default(uuid()) // محتوای واقعی QR — اسکن با همین مقدار تطبیق داده می‌شود
+  attendeeName      String
+  attendeePhone     String?
+  status            EventTicketStatus @default(VALID)
+  checkedInAt       DateTime?
   checkedInByUserId String?
-  createdAt       DateTime           @default(now())
+  createdAt         DateTime          @default(now())
 
-  booking       EventBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  event         Event            @relation(fields: [eventId], references: [id])
-  ticketType    EventTicketType  @relation(fields: [ticketTypeId], references: [id])
-  checkedInBy   User?            @relation("EventTicketCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+  booking     EventBooking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event       Event           @relation(fields: [eventId], references: [id])
+  ticketType  EventTicketType @relation(fields: [ticketTypeId], references: [id])
+  checkedInBy User?           @relation("EventTicketCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
 
   @@index([bookingId])
   @@index([eventId])
@@ -2765,4 +2777,104 @@ model FormAnswer {
   @@index([submissionId])
   @@index([fieldId])
   @@map("form_answers")
+}
+
+// ── گارانتی و خدمات پس از فروش ──────────────────────────────────────────────
+// یک کد گارانتی یکتا و کاملاً تصادفی (بدون هیچ الگوی قابل‌حدس‌زدن) به ازای هر
+// واحد از یک کالای مشمول گارانتی صادر می‌شود — خودکار وقتی فاکتور فروش کامل
+// تسویه می‌شود (SalesInvoice.status -> PAID)، یا دستی از فاکتور/بدون فاکتور.
+// مشتری با فرم عمومی (بدون ورود، بر اساس شماره تماس — همان هویت مشترک
+// CrmContact این سیستم) گارانتی خود را فعال و در صورت نیاز درخواست خدمات
+// پس از فروش ثبت می‌کند.
+
+enum WarrantyCodeStatus {
+  PENDING // صادرشده، هنوز توسط مشتری فعال نشده
+  ACTIVE
+  EXPIRED
+  VOID
+}
+
+enum WarrantyServiceStatus {
+  NEW
+  REVIEWING
+  AWAITING_PRODUCT // در انتظار ارسال کالا توسط مشتری
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model WarrantyCode {
+  id                  String             @id @default(uuid())
+  code                String             @unique // ۱۰ کاراکتر تصادفی، حروف بزرگ+عدد (بدون 0،1،I،O،L)
+  productId           String?
+  itemDescription     String? // برای صدور دستی بدون کالای کاتالوگ، یا اسنپ‌شات عنوان در لحظه‌ی صدور
+  invoiceId           String?
+  invoiceLineId       String? // ردیف مشخص فاکتور — کلید جلوگیری از صدور دوباره برای همان ردیف
+  manualInvoiceNumber String? // شماره فاکتور خارج از سیستم (صدور کاملاً دستی)
+  contactId           String?
+  serialNumber        String?
+  durationDays        Int                @default(365)
+  status              WarrantyCodeStatus @default(PENDING)
+  issuedAt            DateTime           @default(now())
+  activatedAt         DateTime?
+  expiresAt           DateTime?
+  activatedByName     String?
+  activatedByPhone    String?
+  activatedByEmail    String?
+  termsAcceptedAt     DateTime?
+  productPhoto        String? // data URI — عکس محصول ارسالی مشتری هنگام فعال‌سازی
+  createdByUserId     String?
+  createdAt           DateTime           @default(now())
+
+  product        Product?                 @relation(fields: [productId], references: [id], onDelete: SetNull)
+  invoice        SalesInvoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceLine    SalesInvoiceLine?        @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+  contact        CrmContact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  createdBy      User?                    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  services       WarrantyServiceRequest[]
+  activationLogs WarrantyActivationLog[]
+
+  @@index([status])
+  @@index([contactId])
+  @@index([invoiceId])
+  @@index([invoiceLineId])
+  @@map("warranty_codes")
+}
+
+model WarrantyServiceRequest {
+  id               String                @id @default(uuid())
+  warrantyId       String
+  description      String
+  photo            String? // data URI
+  status           WarrantyServiceStatus @default(NEW)
+  staffNotes       String?
+  customerRating   Int? // ۱ تا ۵
+  customerFeedback String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  resolvedAt       DateTime?
+
+  warranty WarrantyCode @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+
+  @@index([warrantyId])
+  @@index([status])
+  @@map("warranty_service_requests")
+}
+
+/// لاگ تلاش‌های استعلام/فعال‌سازی عمومی — برای rate limit و ردگیری امنیتی
+model WarrantyActivationLog {
+  id         String   @id @default(uuid())
+  warrantyId String?
+  codeTried  String?
+  ipAddress  String?
+  userAgent  String?
+  action     String // lookup | activate | request_service
+  success    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  warranty WarrantyCode? @relation(fields: [warrantyId], references: [id], onDelete: SetNull)
+
+  @@index([ipAddress])
+  @@index([warrantyId])
+  @@map("warranty_activation_logs")
 }
