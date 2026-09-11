@@ -86,6 +86,7 @@ model User {
   checkedInEventTickets         EventTicket[]              @relation("EventTicketCheckedInBy")
   createdForms                  Form[]
   createdWarrantyCodes          WarrantyCode[]
+  createdQrCodes                QrCode[]
 
   @@map("users")
 }
@@ -2877,4 +2878,23 @@ model WarrantyActivationLog {
   @@index([ipAddress])
   @@index([warrantyId])
   @@map("warranty_activation_logs")
+}
+
+// ── کد QR — برای هر لینک دلخواه (داخل یا خارج از سیستم) یک QR اختصاصی با
+// لینک واسط کوتاه می‌سازد؛ همین لینک واسط (نه لینک اصلی) داخل تصویر QR
+// رمزگذاری می‌شود تا مقصد بعداً بدون چاپ دوباره‌ی برچسب قابل تغییر باشد و
+// تعداد اسکن هم قابل شمارش شود.
+model QrCode {
+  id              String    @id @default(uuid())
+  code            String    @unique // بخش کوتاه لینک واسط عمومی
+  label           String
+  targetUrl       String
+  scanCount       Int       @default(0)
+  lastScannedAt   DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@map("qr_codes")
 }

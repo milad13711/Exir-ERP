@@ -49,6 +49,7 @@ import { EventsModule } from './events/events.module.js';
 import { FormsModule } from './forms/forms.module.js';
 import { WarrantyModule } from './warranty/warranty.module.js';
 import { AfterSalesModule } from './after-sales/after-sales.module.js';
+import { QrCodeModule } from './qr-code/qr-code.module.js';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { AfterSalesModule } from './after-sales/after-sales.module.js';
     FormsModule,
     WarrantyModule,
     AfterSalesModule,
+    QrCodeModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

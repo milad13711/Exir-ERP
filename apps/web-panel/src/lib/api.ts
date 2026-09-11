@@ -5231,3 +5231,47 @@ export function submitPublicAfterSalesFeedback(tenantSlug: string, serviceId: st
     body: JSON.stringify(data),
   });
 }
+
+// ── کد QR — ساخت QR اختصاصی برای هر لینک دلخواه (داخل یا خارج از اکسیر) ────
+
+export type QrCodeItem = {
+  id: string;
+  code: string;
+  label: string;
+  targetUrl: string;
+  scanCount: number;
+  lastScannedAt: string | null;
+  createdAt: string;
+  redirectUrl: string;
+};
+
+export function fetchQrCodes() {
+  return apiFetch<QrCodeItem[]>("/qr-codes");
+}
+
+export function fetchQrCode(id: string) {
+  return apiFetch<QrCodeItem>(`/qr-codes/${id}`);
+}
+
+export function createQrCode(data: { label: string; targetUrl: string }) {
+  return apiFetch<QrCodeItem>("/qr-codes", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateQrCode(id: string, data: { label?: string; targetUrl?: string }) {
+  return apiFetch<QrCodeItem>(`/qr-codes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteQrCode(id: string) {
+  return apiFetch<{ ok: true }>(`/qr-codes/${id}`, { method: "DELETE" });
+}
+
+/** تصویر QR احراز‌هویت لازم دارد، پس به Object URL تبدیل می‌شود (همان الگوی fetchEventPosterObjectUrl). */
+export async function fetchQrCodeImageObjectUrl(id: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/qr-codes/${id}/image.png`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("ساخت تصویر QR ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

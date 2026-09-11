@@ -38,6 +38,8 @@ import { PublicWarrantyController } from './public-warranty.controller.js';
 import { AfterSalesModule } from '../after-sales/after-sales.module.js';
 import { PublicAfterSalesService } from './public-after-sales.service.js';
 import { PublicAfterSalesController } from './public-after-sales.controller.js';
+import { QrCodeModule } from '../qr-code/qr-code.module.js';
+import { PublicQrCodeController } from './public-qr-code.controller.js';
 
 @Module({
   imports: [
@@ -52,6 +54,7 @@ import { PublicAfterSalesController } from './public-after-sales.controller.js';
     AutomationModule,
     WarrantyModule,
     AfterSalesModule,
+    QrCodeModule,
   ],
   controllers: [
     PublicSignupController,
@@ -69,6 +72,7 @@ import { PublicAfterSalesController } from './public-after-sales.controller.js';
     PublicFormsController,
     PublicWarrantyController,
     PublicAfterSalesController,
+    PublicQrCodeController,
   ],
   providers: [
     PublicSignupService,

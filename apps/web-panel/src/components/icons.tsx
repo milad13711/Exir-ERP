@@ -472,3 +472,17 @@ export function MegaphoneIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function QrCodeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3z" />
+      <path d="M19 14h2v2" />
+      <path d="M14 19h2v2" />
+      <path d="M19 19h2v2" />
+    </svg>
+  );
+}
