@@ -16,4 +16,12 @@ export class UpdateWarrantyGeneralSettingsDto {
   @IsOptional()
   @IsString()
   serviceTermsConditions?: string;
+
+  @IsOptional()
+  @IsString()
+  warrantyManagerUserId?: string;
+
+  @IsOptional()
+  @IsString()
+  serviceManagerUserId?: string;
 }

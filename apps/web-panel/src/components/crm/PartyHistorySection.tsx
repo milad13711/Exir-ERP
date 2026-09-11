@@ -12,6 +12,7 @@ import {
   TruckIcon,
   StoreIcon,
   ClipboardCheckIcon,
+  ShieldIcon,
 } from "@/components/icons";
 import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
 import {
@@ -26,6 +27,7 @@ import {
   fetchShipments,
   fetchStoreOrders,
   fetchFormSubmissionsByContact,
+  fetchWarrantyCodes,
   type Contract,
   type Project,
   type Appointment,
@@ -37,7 +39,10 @@ import {
   type Shipment,
   type StoreOrder,
   type FormSubmissionByContact,
+  type WarrantyCode,
 } from "@/lib/api";
+
+const WARRANTY_STATUS_LABELS: Record<string, string> = { PENDING: "صادرشده", ACTIVE: "فعال", EXPIRED: "منقضی", VOID: "باطل‌شده" };
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: "پیش‌نویس",
@@ -73,6 +78,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
   const [formSubmissions, setFormSubmissions] = useState<FormSubmissionByContact[]>([]);
+  const [warrantyCodes, setWarrantyCodes] = useState<WarrantyCode[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -91,7 +97,8 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       fetchShipments(undefined, contactId),
       fetchStoreOrders(undefined, contactId),
       fetchFormSubmissionsByContact(contactId),
-    ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs]) => {
+      fetchWarrantyCodes({ contactId }),
+    ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs, wc]) => {
       setContracts(c.status === "fulfilled" ? c.value : []);
       setProjects(p.status === "fulfilled" ? p.value : []);
       setAppointments(a.status === "fulfilled" ? a.value : []);
@@ -103,6 +110,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       setShipments(sh.status === "fulfilled" ? sh.value : []);
       setStoreOrders(so.status === "fulfilled" ? so.value : []);
       setFormSubmissions(fs.status === "fulfilled" ? fs.value : []);
+      setWarrantyCodes(wc.status === "fulfilled" ? wc.value : []);
       setLoaded(true);
     });
   }, [contactId]);
@@ -118,7 +126,8 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
     checks.length > 0 ||
     shipments.length > 0 ||
     storeOrders.length > 0 ||
-    formSubmissions.length > 0;
+    formSubmissions.length > 0 ||
+    warrantyCodes.length > 0;
   if (loaded && !hasAny) return null;
 
   return (
@@ -208,6 +217,15 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
               <ClipboardCheckIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">فرم: {fs.form.title}</span>
               <span className="text-[11px] text-muted">{formatJalaliDateTime(fs.submittedAt)}</span>
+            </div>
+          ))}
+          {warrantyCodes.map((w) => (
+            <div key={`warranty-${w.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <ShieldIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">
+                گارانتی: {w.itemDescription ?? w.product?.name ?? ""} — <span dir="ltr">{w.code}</span>
+              </span>
+              <Badge tone={w.status === "ACTIVE" ? "success" : w.status === "VOID" ? "danger" : "neutral"}>{WARRANTY_STATUS_LABELS[w.status] ?? w.status}</Badge>
             </div>
           ))}
         </div>

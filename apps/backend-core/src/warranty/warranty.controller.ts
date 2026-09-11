@@ -34,10 +34,11 @@ export class WarrantyController {
     @Query('search') search: string | undefined,
     @Query('invoiceId') invoiceId: string | undefined,
     @Query('noInvoice') noInvoice: string | undefined,
+    @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertView(ctx, 'warranty');
-    return this.warranty.listCodes(ctx, { status, search, invoiceId, noInvoice: noInvoice === 'true' });
+    return this.warranty.listCodes(ctx, { status, search, invoiceId, noInvoice: noInvoice === 'true', contactId });
   }
 
   @Get('codes/invoice-groups')

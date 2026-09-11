@@ -22,6 +22,8 @@ type GeneralSettings = {
   reminderDaysBeforeExpiry: number;
   termsConditions: string;
   serviceTermsConditions: string;
+  warrantyManagerUserId: string | null;
+  serviceManagerUserId: string | null;
 };
 
 const DEFAULT_GENERAL: GeneralSettings = {
@@ -29,6 +31,8 @@ const DEFAULT_GENERAL: GeneralSettings = {
   reminderDaysBeforeExpiry: 15,
   termsConditions: '',
   serviceTermsConditions: '',
+  warrantyManagerUserId: null,
+  serviceManagerUserId: null,
 };
 
 type SmsSettings = {
@@ -208,9 +212,10 @@ export class WarrantyService {
 
   /* ───────────────────────── لیست/جزئیات ───────────────────────── */
 
-  async listCodes(ctx: TenantRequestContext, filters: { status?: string; search?: string; invoiceId?: string; noInvoice?: boolean }) {
+  async listCodes(ctx: TenantRequestContext, filters: { status?: string; search?: string; invoiceId?: string; noInvoice?: boolean; contactId?: string }) {
     const where: Record<string, unknown> = {};
     if (filters.status) where.status = filters.status;
+    if (filters.contactId) where.contactId = filters.contactId;
     if (filters.noInvoice) where.invoiceId = null;
     else if (filters.invoiceId) where.invoiceId = filters.invoiceId;
 
@@ -571,24 +576,42 @@ export class WarrantyService {
 
   async triggerActivationSms(ctx: TenantRequestContext, warranty: { code: string; activatedByName: string | null; activatedByPhone: string | null }) {
     const settings = await this.getSmsSettings(ctx);
-    if (!settings.enabled) return;
+    const general = await this.getGeneralSettings(ctx);
 
-    if (settings.activationCustomerEnabled && warranty.activatedByPhone) {
+    if (settings.enabled && settings.activationCustomerEnabled && warranty.activatedByPhone) {
       const message = renderTemplate(settings.activationCustomerTemplate, { name: warranty.activatedByName ?? '', code: warranty.code });
       await this.sms.sendSms(warranty.activatedByPhone, message);
     }
 
     if (settings.activationStaffEnabled) {
-      await this.notifyManagers(ctx, `یک مشتری گارانتی خود را فعال کرد. کد گارانتی: ${warranty.code}`, '/warranty');
+      const staffMessage = settings.enabled
+        ? renderTemplate(settings.activationStaffTemplate, { name: warranty.activatedByName ?? '', code: warranty.code })
+        : undefined;
+      await this.notifyStaffOrManagers(
+        ctx,
+        general.warrantyManagerUserId,
+        `یک مشتری گارانتی خود را فعال کرد. کد گارانتی: ${warranty.code}`,
+        '/warranty',
+        settings.enabled ? staffMessage : undefined,
+      );
     }
   }
 
-  async notifyServiceRequested(ctx: TenantRequestContext, warranty: { code: string }) {
+  async notifyServiceRequested(ctx: TenantRequestContext, warranty: { code: string; activatedByName: string | null }) {
     const settings = await this.getSmsSettings(ctx);
-    if (settings.enabled && settings.serviceNewStaffEnabled) {
-      // پیامک به کارمند مسئول از طریق شماره‌ی خودِ کارمندان مدیر (نه یک شماره‌ی خاص انتخابی)
-    }
-    await this.notifyManagers(ctx, `یک مشتری درخواست خدمات پس از فروش ثبت کرد. کد گارانتی: ${warranty.code}`, '/warranty/services');
+    const general = await this.getGeneralSettings(ctx);
+
+    if (!settings.serviceNewStaffEnabled) return;
+    const staffMessage = settings.enabled
+      ? renderTemplate(settings.serviceNewStaffTemplate, { name: warranty.activatedByName ?? '', code: warranty.code })
+      : undefined;
+    await this.notifyStaffOrManagers(
+      ctx,
+      general.serviceManagerUserId,
+      `یک مشتری درخواست خدمات پس از فروش ثبت کرد. کد گارانتی: ${warranty.code}`,
+      '/warranty/services',
+      staffMessage,
+    );
   }
 
   private async triggerServiceStatusSms(
@@ -609,6 +632,39 @@ export class WarrantyService {
       });
       await this.sms.sendSms(service.warranty.activatedByPhone, message);
     }
+
+    if (settings.serviceStatusStaffEnabled) {
+      const general = await this.getGeneralSettings(ctx);
+      const staffMessage = renderTemplate(settings.serviceStatusStaffTemplate, {
+        name: service.warranty.activatedByName ?? '',
+        code: service.warranty.code,
+        status: statusLabel,
+      });
+      await this.notifyStaffOrManagers(
+        ctx,
+        general.serviceManagerUserId,
+        `وضعیت درخواست خدمات کد ${service.warranty.code} به «${statusLabel}» تغییر کرد.`,
+        '/warranty/services',
+        staffMessage,
+      );
+    }
+  }
+
+  /**
+   * اعلان داخلی + پیامک (در صورت وجود متن) به مسئول انتخاب‌شده در تنظیمات —
+   * اگر هیچ مسئولی برای پیگیری این بخش انتخاب نشده باشد، مثل رفتار قبلی
+   * (و مشابه سایر ماژول‌ها) به همه‌ی مالک/مدیرهای تننت اطلاع می‌دهد.
+   */
+  private async notifyStaffOrManagers(ctx: TenantRequestContext, staffUserId: string | null, message: string, link: string, smsText?: string) {
+    if (staffUserId) {
+      const staff = await ctx.tenantDb.user.findUnique({ where: { id: staffUserId } });
+      if (staff) {
+        await this.notifications.notify(ctx.tenantDb, { userId: staff.id, type: 'warranty.notice', title: 'گارانتی و خدمات پس از فروش', body: message, link });
+        if (smsText && staff.phone) await this.sms.sendSms(staff.phone, smsText);
+        return;
+      }
+    }
+    await this.notifyManagers(ctx, message, link);
   }
 
   private async notifyManagers(ctx: TenantRequestContext, message: string, link: string) {

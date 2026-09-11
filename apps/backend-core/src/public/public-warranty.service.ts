@@ -144,7 +144,7 @@ export class PublicWarrantyService {
       data: { warrantyId: warranty.id, description: dto.description, photo: dto.photo, status: 'NEW' },
     });
 
-    await this.warranty.notifyServiceRequested(ctx, { code: warranty.code });
+    await this.warranty.notifyServiceRequested(ctx, { code: warranty.code, activatedByName: warranty.activatedByName });
     await this.automation.emit(ctx, 'warranty.service.requested', { code: warranty.code, description: dto.description });
 
     return { success: true, serviceId: service.id };

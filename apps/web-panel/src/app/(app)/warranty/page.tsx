@@ -8,6 +8,8 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { ShieldIcon, PlusIcon, SearchIcon, CompassIcon, ReceiptIcon, StoreIcon } from "@/components/icons";
 import { toPersianDigits } from "@/lib/persian";
+import { copyToClipboard } from "@/lib/clipboard";
+import { useWorkspace } from "@/lib/workspace-context";
 import {
   fetchWarrantyCodes,
   fetchWarrantyServices,
@@ -20,6 +22,7 @@ import {
   updateWarrantyProduct,
   deleteWarrantyCodes,
   printWarrantyLabelsObjectUrl,
+  fetchUsers,
   type WarrantyCode,
   type WarrantyCodeStatus,
   type WarrantyServiceRequest,
@@ -28,6 +31,7 @@ import {
   type WarrantyReportsData,
   type WarrantyGeneralSettings,
   type WarrantySmsSettings,
+  type TenantUser,
 } from "@/lib/api";
 import { ManualIssueModal } from "@/components/warranty/ManualIssueModal";
 import { ImportLegacyModal } from "@/components/warranty/ImportLegacyModal";
@@ -417,15 +421,33 @@ function ReportList({ title, rows }: { title: string; rows: [string, number][] }
 }
 
 function SettingsTab() {
+  const { me } = useWorkspace();
   const [subTab, setSubTab] = useState<"general" | "sms">("general");
   const [general, setGeneral] = useState<WarrantyGeneralSettings | null>(null);
   const [sms, setSms] = useState<WarrantySmsSettings | null>(null);
+  const [users, setUsers] = useState<TenantUser[]>([]);
   const [saved, setSaved] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [origin, setOrigin] = useState("");
 
   useEffect(() => {
     fetchWarrantyGeneralSettings().then(setGeneral);
     fetchWarrantySmsSettings().then(setSms);
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
+    // window.location فقط بعد از mount در دسترس است — برای پرهیز از mismatch سرور/کلاینت عمداً همین‌جا ست می‌شود
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
   }, []);
+
+  const publicLink = `${origin}/warranty/${me?.tenant.slug ?? ""}`;
+
+  async function handleCopyLink() {
+    const ok = await copyToClipboard(publicLink);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }
 
   async function saveGeneral() {
     if (!general) return;
@@ -463,8 +485,51 @@ function SettingsTab() {
         </button>
       </div>
 
+      <Card className="p-4 mb-4">
+        <div className="text-[12px] font-semibold text-ink-soft mb-2">لینک عمومی صفحه ثبت/پیگیری گارانتی مشتری</div>
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={publicLink}
+            dir="ltr"
+            className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2 text-muted"
+          />
+          <button onClick={handleCopyLink} className="text-[12px] font-bold px-3.5 py-2 rounded-lg bg-primary-soft text-primary cursor-pointer shrink-0">
+            {linkCopied ? "کپی شد ✓" : "کپی لینک"}
+          </button>
+        </div>
+      </Card>
+
       {subTab === "general" && general && (
         <Card className="p-5 flex flex-col gap-3.5">
+          <SettingField label="مسئول گارانتی (برای پیگیری اعلان‌های فعال‌سازی)">
+            <select
+              value={general.warrantyManagerUserId ?? ""}
+              onChange={(e) => setGeneral({ ...general, warrantyManagerUserId: e.target.value || null })}
+              className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
+            >
+              <option value="">همه‌ی مالک/مدیران تننت</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </SettingField>
+          <SettingField label="مسئول خدمات پس از فروش (برای پیگیری درخواست‌ها)">
+            <select
+              value={general.serviceManagerUserId ?? ""}
+              onChange={(e) => setGeneral({ ...general, serviceManagerUserId: e.target.value || null })}
+              className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
+            >
+              <option value="">همه‌ی مالک/مدیران تننت</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </SettingField>
           <SettingField label="مدت گارانتی پیش‌فرض (روز)">
             <input
               type="number"
@@ -518,14 +583,18 @@ function SettingsTab() {
             onTemplateChange={(v) => setSms({ ...sms, activationCustomerTemplate: v })}
           />
           <SmsTriggerField
-            label="فعال‌سازی گارانتی → اعلان به مدیران"
+            label="فعال‌سازی گارانتی → اطلاع‌رسانی به مسئول گارانتی"
             enabled={sms.activationStaffEnabled}
             onEnabledChange={(v) => setSms({ ...sms, activationStaffEnabled: v })}
+            template={sms.activationStaffTemplate}
+            onTemplateChange={(v) => setSms({ ...sms, activationStaffTemplate: v })}
           />
           <SmsTriggerField
-            label="ثبت درخواست خدمات جدید → اعلان به مدیران"
+            label="ثبت درخواست خدمات جدید → اطلاع‌رسانی به مسئول خدمات"
             enabled={sms.serviceNewStaffEnabled}
             onEnabledChange={(v) => setSms({ ...sms, serviceNewStaffEnabled: v })}
+            template={sms.serviceNewStaffTemplate}
+            onTemplateChange={(v) => setSms({ ...sms, serviceNewStaffTemplate: v })}
           />
           <SmsTriggerField
             label="تغییر وضعیت خدمات → پیامک به مشتری"
@@ -534,6 +603,57 @@ function SettingsTab() {
             template={sms.serviceStatusCustomerTemplate}
             onTemplateChange={(v) => setSms({ ...sms, serviceStatusCustomerTemplate: v })}
           />
+          <SmsTriggerField
+            label="تغییر وضعیت خدمات → اطلاع‌رسانی به مسئول خدمات"
+            enabled={sms.serviceStatusStaffEnabled}
+            onEnabledChange={(v) => setSms({ ...sms, serviceStatusStaffEnabled: v })}
+            template={sms.serviceStatusStaffTemplate}
+            onTemplateChange={(v) => setSms({ ...sms, serviceStatusStaffTemplate: v })}
+          />
+
+          <div className="border-t border-border pt-3.5">
+            <div className="text-[12.5px] font-bold mb-2">الگوهای آماده‌ی پیامک به مشتری (در بخش خدمات پس از فروش)</div>
+            <div className="flex flex-col gap-2">
+              {sms.quickTemplates.map((t, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <input
+                      value={t.title}
+                      onChange={(e) => {
+                        const next = [...sms.quickTemplates];
+                        next[i] = { ...next[i], title: e.target.value };
+                        setSms({ ...sms, quickTemplates: next });
+                      }}
+                      placeholder="عنوان کوتاه"
+                      className="w-full text-[12px] font-bold outline-none bg-surface border border-border rounded-lg px-3 py-1.5 focus:border-primary"
+                    />
+                    <input
+                      value={t.text}
+                      onChange={(e) => {
+                        const next = [...sms.quickTemplates];
+                        next[i] = { ...next[i], text: e.target.value };
+                        setSms({ ...sms, quickTemplates: next });
+                      }}
+                      placeholder="متن پیامک..."
+                      className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-1.5 focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setSms({ ...sms, quickTemplates: sms.quickTemplates.filter((_, idx) => idx !== i) })}
+                    className="text-[11.5px] font-bold text-danger px-2 py-1.5 cursor-pointer"
+                  >
+                    حذف
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setSms({ ...sms, quickTemplates: [...sms.quickTemplates, { title: "", text: "" }] })}
+                className="self-start text-[12px] font-bold text-primary cursor-pointer"
+              >
+                + افزودن الگو
+              </button>
+            </div>
+          </div>
 
           <SaveButton onClick={saveSms} saved={saved} />
         </Card>

@@ -8,6 +8,7 @@ import {
   fetchWarrantyService,
   updateWarrantyServiceStatus,
   sendWarrantyServiceSms,
+  fetchWarrantySmsSettings,
   type WarrantyServiceDetail,
   type WarrantyServiceStatus,
 } from "@/lib/api";
@@ -29,6 +30,7 @@ export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
+  const [quickTemplates, setQuickTemplates] = useState<{ title: string; text: string }[]>([]);
 
   function reload() {
     fetchWarrantyService(id).then((s) => {
@@ -37,6 +39,9 @@ export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onC
     });
   }
   useEffect(reload, [id]);
+  useEffect(() => {
+    fetchWarrantySmsSettings().then((s) => setQuickTemplates(s.quickTemplates)).catch(() => setQuickTemplates([]));
+  }, []);
 
   async function handleStatusChange(status: WarrantyServiceStatus) {
     setBusy(true);
@@ -124,6 +129,19 @@ export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onC
         {service.warranty.activatedByPhone && (
           <div className="border-t border-border pt-4">
             <div className="text-[12px] font-semibold text-ink-soft mb-2">ارسال پیامک به مشتری</div>
+            {quickTemplates.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {quickTemplates.map((t) => (
+                  <button
+                    key={t.title}
+                    onClick={() => setSmsText(t.text)}
+                    className="text-[11.5px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100 text-ink-soft cursor-pointer"
+                  >
+                    {t.title}
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               value={smsText}
               onChange={(e) => setSmsText(e.target.value)}

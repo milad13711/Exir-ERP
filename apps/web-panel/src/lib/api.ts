@@ -4976,6 +4976,8 @@ export type WarrantyGeneralSettings = {
   reminderDaysBeforeExpiry: number;
   termsConditions: string;
   serviceTermsConditions: string;
+  warrantyManagerUserId: string | null;
+  serviceManagerUserId: string | null;
 };
 
 export type WarrantySmsSettings = {
@@ -5007,12 +5009,13 @@ export type WarrantyReportsData = {
   topContactsByActivation: { contactId: string | null; name: string; total: number }[];
 };
 
-export function fetchWarrantyCodes(filters: { status?: string; search?: string; invoiceId?: string; noInvoice?: boolean } = {}) {
+export function fetchWarrantyCodes(filters: { status?: string; search?: string; invoiceId?: string; noInvoice?: boolean; contactId?: string } = {}) {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
   if (filters.search) params.set("search", filters.search);
   if (filters.invoiceId) params.set("invoiceId", filters.invoiceId);
   if (filters.noInvoice) params.set("noInvoice", "true");
+  if (filters.contactId) params.set("contactId", filters.contactId);
   const qs = params.toString();
   return apiFetch<WarrantyCode[]>(`/warranty/codes${qs ? `?${qs}` : ""}`);
 }

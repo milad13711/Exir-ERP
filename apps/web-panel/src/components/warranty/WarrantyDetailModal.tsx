@@ -6,7 +6,14 @@ import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { CompassIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
-import { fetchWarrantyCode, voidWarrantyCode, extendWarrantyCode, type WarrantyCodeDetail, type WarrantyCodeStatus } from "@/lib/api";
+import {
+  fetchWarrantyCode,
+  voidWarrantyCode,
+  extendWarrantyCode,
+  printWarrantyLabelsObjectUrl,
+  type WarrantyCodeDetail,
+  type WarrantyCodeStatus,
+} from "@/lib/api";
 
 const STATUS_LABELS: Record<WarrantyCodeStatus, string> = { PENDING: "صادرشده، فعال نشده", ACTIVE: "فعال", EXPIRED: "منقضی", VOID: "باطل‌شده" };
 const STATUS_TONES: Record<WarrantyCodeStatus, "neutral" | "success" | "warning" | "danger"> = {
@@ -20,6 +27,7 @@ export function WarrantyDetailModal({ id, onClose, onChanged }: { id: string; on
   const [warranty, setWarranty] = useState<WarrantyCodeDetail | null>(null);
   const [extendDate, setExtendDate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   function reload() {
     fetchWarrantyCode(id).then(setWarranty).catch(() => setWarranty(null));
@@ -51,6 +59,16 @@ export function WarrantyDetailModal({ id, onClose, onChanged }: { id: string; on
     }
   }
 
+  async function handlePrint() {
+    setPrinting(true);
+    try {
+      const url = await printWarrantyLabelsObjectUrl([id], 1);
+      window.open(url, "_blank");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   if (!warranty) {
     return (
       <Modal title="جزئیات گارانتی" onClose={onClose}>
@@ -68,6 +86,18 @@ export function WarrantyDetailModal({ id, onClose, onChanged }: { id: string; on
           </span>
           <Badge tone={STATUS_TONES[warranty.status]}>{STATUS_LABELS[warranty.status]}</Badge>
         </div>
+
+        <button
+          onClick={handlePrint}
+          disabled={printing}
+          className="self-start text-[12px] font-bold px-3.5 py-2 rounded-lg bg-slate-100 text-ink-soft disabled:opacity-50 cursor-pointer"
+        >
+          {printing ? "در حال آماده‌سازی..." : "چاپ لیبل این گارانتی"}
+        </button>
+
+        {warranty.productPhoto && (
+          <img src={warranty.productPhoto} alt="عکس محصول ارسالی مشتری" className="rounded-xl border border-border max-h-56 object-contain" />
+        )}
 
         <div className="grid grid-cols-2 gap-3 text-[13px]">
           <Row label="کالا" value={warranty.itemDescription ?? warranty.product?.name ?? "—"} />
