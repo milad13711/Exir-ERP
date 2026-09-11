@@ -48,6 +48,7 @@ import { MentoringModule } from './mentoring/mentoring.module.js';
 import { EventsModule } from './events/events.module.js';
 import { FormsModule } from './forms/forms.module.js';
 import { WarrantyModule } from './warranty/warranty.module.js';
+import { AfterSalesModule } from './after-sales/after-sales.module.js';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { WarrantyModule } from './warranty/warranty.module.js';
     EventsModule,
     FormsModule,
     WarrantyModule,
+    AfterSalesModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

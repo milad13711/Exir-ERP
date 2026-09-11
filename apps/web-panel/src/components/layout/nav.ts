@@ -24,6 +24,7 @@ import {
   TicketIcon,
   ClipboardCheckIcon,
   ShieldIcon,
+  HeartIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -52,7 +53,8 @@ export const primaryNav: NavItem[] = [
   { href: "/mentoring", label: "منتورینگ و مشاوره", icon: CompassIcon, moduleCode: "mentoring" },
   { href: "/events", label: "رویداد و بلیط‌فروشی", icon: TicketIcon, moduleCode: "events" },
   { href: "/forms", label: "فرم‌ساز", icon: ClipboardCheckIcon, moduleCode: "forms" },
-  { href: "/warranty", label: "گارانتی و خدمات پس از فروش", icon: ShieldIcon, moduleCode: "warranty" },
+  { href: "/warranty", label: "گارانتی", icon: ShieldIcon, moduleCode: "warranty" },
+  { href: "/after-sales", label: "خدمات پس از فروش", icon: HeartIcon, moduleCode: "after-sales-service" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet" },
   { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },

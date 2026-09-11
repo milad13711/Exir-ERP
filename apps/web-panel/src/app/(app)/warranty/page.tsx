@@ -6,13 +6,12 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-import { ShieldIcon, PlusIcon, SearchIcon, CompassIcon, ReceiptIcon, StoreIcon } from "@/components/icons";
+import { ShieldIcon, PlusIcon, SearchIcon, StoreIcon } from "@/components/icons";
 import { toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useWorkspace } from "@/lib/workspace-context";
 import {
   fetchWarrantyCodes,
-  fetchWarrantyServices,
   fetchWarrantyProducts,
   fetchWarrantyReports,
   fetchWarrantyGeneralSettings,
@@ -25,8 +24,6 @@ import {
   fetchUsers,
   type WarrantyCode,
   type WarrantyCodeStatus,
-  type WarrantyServiceRequest,
-  type WarrantyServiceStatus,
   type WarrantyProduct,
   type WarrantyReportsData,
   type WarrantyGeneralSettings,
@@ -36,9 +33,8 @@ import {
 import { ManualIssueModal } from "@/components/warranty/ManualIssueModal";
 import { ImportLegacyModal } from "@/components/warranty/ImportLegacyModal";
 import { WarrantyDetailModal } from "@/components/warranty/WarrantyDetailModal";
-import { ServiceDetailModal } from "@/components/warranty/ServiceDetailModal";
 
-type Tab = "codes" | "services" | "products" | "reports" | "settings";
+type Tab = "codes" | "products" | "reports" | "settings";
 
 const CODE_STATUS_LABELS: Record<WarrantyCodeStatus, string> = { PENDING: "صادرشده", ACTIVE: "فعال", EXPIRED: "منقضی", VOID: "باطل‌شده" };
 const CODE_STATUS_TONES: Record<WarrantyCodeStatus, "neutral" | "success" | "warning" | "danger"> = {
@@ -47,18 +43,9 @@ const CODE_STATUS_TONES: Record<WarrantyCodeStatus, "neutral" | "success" | "war
   EXPIRED: "warning",
   VOID: "danger",
 };
-const SERVICE_STATUS_LABELS: Record<WarrantyServiceStatus, string> = {
-  NEW: "جدید",
-  REVIEWING: "در حال بررسی",
-  AWAITING_PRODUCT: "در انتظار ارسال کالا",
-  IN_PROGRESS: "در حال تعمیر",
-  RESOLVED: "برطرف‌شده",
-  CLOSED: "بسته‌شده",
-};
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "codes", label: "کدهای گارانتی" },
-  { key: "services", label: "خدمات پس از فروش" },
   { key: "products", label: "کالاها" },
   { key: "reports", label: "گزارش‌ها" },
   { key: "settings", label: "تنظیمات" },
@@ -72,10 +59,10 @@ export default function WarrantyPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-1.5">
-            <h1 className="text-xl font-extrabold">گارانتی و خدمات پس از فروش</h1>
+            <h1 className="text-xl font-extrabold">گارانتی</h1>
             <ModuleHelp code="warranty" />
           </div>
-          <p className="text-[13.5px] text-muted mt-1">صدور کد گارانتی، فعال‌سازی و استعلام مشتری، پیگیری درخواست‌های خدمات پس از فروش</p>
+          <p className="text-[13.5px] text-muted mt-1">صدور کد گارانتی و فعال‌سازی/استعلام مشتری — خدمات پس از فروش در ماژول جدا پیگیری می‌شود</p>
         </div>
       </div>
 
@@ -95,7 +82,6 @@ export default function WarrantyPage() {
       </div>
 
       {tab === "codes" && <CodesTab />}
-      {tab === "services" && <ServicesTab />}
       {tab === "products" && <ProductsTab />}
       {tab === "reports" && <ReportsTab />}
       {tab === "settings" && <SettingsTab />}
@@ -238,70 +224,6 @@ function CodesTab() {
   );
 }
 
-function ServicesTab() {
-  const [services, setServices] = useState<WarrantyServiceRequest[] | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"همه" | WarrantyServiceStatus>("همه");
-  const [detailId, setDetailId] = useState<string | null>(null);
-
-  function reload() {
-    fetchWarrantyServices(statusFilter === "همه" ? undefined : statusFilter)
-      .then(setServices)
-      .catch(() => setServices([]));
-  }
-  useEffect(reload, [statusFilter]);
-
-  return (
-    <>
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {(["همه", ...Object.keys(SERVICE_STATUS_LABELS)] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s as "همه" | WarrantyServiceStatus)}
-            className={clsx(
-              "text-[12px] font-semibold px-3.5 py-2 rounded-[10px] border transition-colors",
-              statusFilter === s ? "bg-primary text-white border-primary" : "bg-surface border-border text-ink-soft",
-            )}
-          >
-            {s === "همه" ? "همه" : SERVICE_STATUS_LABELS[s as WarrantyServiceStatus]}
-          </button>
-        ))}
-      </div>
-
-      <Card className="p-2">
-        {services === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
-        ) : services.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">درخواستی یافت نشد</div>
-        ) : (
-          services.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => setDetailId(s.id)}
-              className={clsx(
-                "w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors",
-                i < services.length - 1 && "border-b border-border",
-              )}
-            >
-              <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-                <CompassIcon className="w-4.5 h-4.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-bold truncate">{s.description}</div>
-                <div className="text-[11.5px] text-muted mt-0.5">
-                  {s.warranty.code} · {s.warranty.activatedByName ?? "—"}
-                </div>
-              </div>
-              <Badge tone="neutral">{SERVICE_STATUS_LABELS[s.status]}</Badge>
-            </button>
-          ))
-        )}
-      </Card>
-
-      {detailId && <ServiceDetailModal id={detailId} onClose={() => setDetailId(null)} onChanged={reload} />}
-    </>
-  );
-}
-
 function ProductsTab() {
   const [products, setProducts] = useState<WarrantyProduct[] | null>(null);
 
@@ -370,31 +292,12 @@ function ReportsTab() {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="کل کدهای صادرشده" value={data.totalCodes} tone="primary" icon={<ShieldIcon />} />
-        <KpiCard label="کل درخواست‌های خدمات" value={data.totalServices} tone="accent" icon={<CompassIcon />} />
-        <KpiCard
-          label="میانگین زمان رفع (ساعت)"
-          value={data.avgResolutionHours ?? 0}
-          unitSuffix={data.resolvedCount > 0 ? `از ${toPersianDigits(data.resolvedCount)} مورد` : undefined}
-          tone="success"
-          icon={<ReceiptIcon />}
-        />
-        <KpiCard
-          label="میانگین امتیاز مشتری"
-          value={data.avgRating ?? 0}
-          unitSuffix={data.ratingCount > 0 ? `از ${toPersianDigits(data.ratingCount)} نظر` : "بدون نظر"}
-          tone="warning"
-          icon={<StoreIcon />}
-        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <ReportList title="وضعیت گارانتی‌ها" rows={Object.entries(data.statusBreakdown).map(([k, v]) => [CODE_STATUS_LABELS[k as WarrantyCodeStatus] ?? k, v])} />
-        <ReportList
-          title="وضعیت درخواست‌های خدمات"
-          rows={Object.entries(data.serviceStatusBreakdown).map(([k, v]) => [SERVICE_STATUS_LABELS[k as WarrantyServiceStatus] ?? k, v])}
-        />
-        <ReportList title="پرتکرارترین کالا در درخواست خدمات" rows={data.topItemsByService.map((r) => [r.itemDescription, r.total])} />
         <ReportList title="بیشترین فعال‌سازی گارانتی" rows={data.topItemsByActivation.map((r) => [r.itemDescription, r.total])} />
+        <ReportList title="مشتریانی که بیشترین گارانتی خریداری کرده‌اند" rows={data.topContactsByActivation.map((r) => [r.name, r.total])} />
       </div>
     </div>
   );
@@ -486,7 +389,7 @@ function SettingsTab() {
       </div>
 
       <Card className="p-4 mb-4">
-        <div className="text-[12px] font-semibold text-ink-soft mb-2">لینک عمومی صفحه ثبت/پیگیری گارانتی مشتری</div>
+        <div className="text-[12px] font-semibold text-ink-soft mb-2">لینک عمومی صفحه فعال‌سازی/پیگیری گارانتی مشتری</div>
         <div className="flex items-center gap-2">
           <input
             readOnly
@@ -506,20 +409,6 @@ function SettingsTab() {
             <select
               value={general.warrantyManagerUserId ?? ""}
               onChange={(e) => setGeneral({ ...general, warrantyManagerUserId: e.target.value || null })}
-              className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
-            >
-              <option value="">همه‌ی مالک/مدیران تننت</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </SettingField>
-          <SettingField label="مسئول خدمات پس از فروش (برای پیگیری درخواست‌ها)">
-            <select
-              value={general.serviceManagerUserId ?? ""}
-              onChange={(e) => setGeneral({ ...general, serviceManagerUserId: e.target.value || null })}
               className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
             >
               <option value="">همه‌ی مالک/مدیران تننت</option>
@@ -556,14 +445,6 @@ function SettingsTab() {
               className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary resize-none"
             />
           </SettingField>
-          <SettingField label="شرایط خدمات پس از فروش (نمایش در فرم درخواست خدمات)">
-            <textarea
-              value={general.serviceTermsConditions}
-              onChange={(e) => setGeneral({ ...general, serviceTermsConditions: e.target.value })}
-              rows={3}
-              className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary resize-none"
-            />
-          </SettingField>
           <SaveButton onClick={saveGeneral} saved={saved} />
         </Card>
       )}
@@ -589,71 +470,6 @@ function SettingsTab() {
             template={sms.activationStaffTemplate}
             onTemplateChange={(v) => setSms({ ...sms, activationStaffTemplate: v })}
           />
-          <SmsTriggerField
-            label="ثبت درخواست خدمات جدید → اطلاع‌رسانی به مسئول خدمات"
-            enabled={sms.serviceNewStaffEnabled}
-            onEnabledChange={(v) => setSms({ ...sms, serviceNewStaffEnabled: v })}
-            template={sms.serviceNewStaffTemplate}
-            onTemplateChange={(v) => setSms({ ...sms, serviceNewStaffTemplate: v })}
-          />
-          <SmsTriggerField
-            label="تغییر وضعیت خدمات → پیامک به مشتری"
-            enabled={sms.serviceStatusCustomerEnabled}
-            onEnabledChange={(v) => setSms({ ...sms, serviceStatusCustomerEnabled: v })}
-            template={sms.serviceStatusCustomerTemplate}
-            onTemplateChange={(v) => setSms({ ...sms, serviceStatusCustomerTemplate: v })}
-          />
-          <SmsTriggerField
-            label="تغییر وضعیت خدمات → اطلاع‌رسانی به مسئول خدمات"
-            enabled={sms.serviceStatusStaffEnabled}
-            onEnabledChange={(v) => setSms({ ...sms, serviceStatusStaffEnabled: v })}
-            template={sms.serviceStatusStaffTemplate}
-            onTemplateChange={(v) => setSms({ ...sms, serviceStatusStaffTemplate: v })}
-          />
-
-          <div className="border-t border-border pt-3.5">
-            <div className="text-[12.5px] font-bold mb-2">الگوهای آماده‌ی پیامک به مشتری (در بخش خدمات پس از فروش)</div>
-            <div className="flex flex-col gap-2">
-              {sms.quickTemplates.map((t, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <input
-                      value={t.title}
-                      onChange={(e) => {
-                        const next = [...sms.quickTemplates];
-                        next[i] = { ...next[i], title: e.target.value };
-                        setSms({ ...sms, quickTemplates: next });
-                      }}
-                      placeholder="عنوان کوتاه"
-                      className="w-full text-[12px] font-bold outline-none bg-surface border border-border rounded-lg px-3 py-1.5 focus:border-primary"
-                    />
-                    <input
-                      value={t.text}
-                      onChange={(e) => {
-                        const next = [...sms.quickTemplates];
-                        next[i] = { ...next[i], text: e.target.value };
-                        setSms({ ...sms, quickTemplates: next });
-                      }}
-                      placeholder="متن پیامک..."
-                      className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-1.5 focus:border-primary"
-                    />
-                  </div>
-                  <button
-                    onClick={() => setSms({ ...sms, quickTemplates: sms.quickTemplates.filter((_, idx) => idx !== i) })}
-                    className="text-[11.5px] font-bold text-danger px-2 py-1.5 cursor-pointer"
-                  >
-                    حذف
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => setSms({ ...sms, quickTemplates: [...sms.quickTemplates, { title: "", text: "" }] })}
-                className="self-start text-[12px] font-bold text-primary cursor-pointer"
-              >
-                + افزودن الگو
-              </button>
-            </div>
-          </div>
 
           <SaveButton onClick={saveSms} saved={saved} />
         </Card>

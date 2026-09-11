@@ -11,7 +11,6 @@ import { WarrantyLabelPdfService } from './warranty-label-pdf.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ManualIssueDto } from './dto/manual-issue.dto.js';
 import { ExtendWarrantyDto } from './dto/extend-warranty.dto.js';
-import { UpdateServiceStatusDto } from './dto/update-service-status.dto.js';
 import { UpdateProductWarrantySettingsDto } from './dto/update-product-settings.dto.js';
 import { UpdateWarrantyGeneralSettingsDto } from './dto/update-general-settings.dto.js';
 import { UpdateWarrantySmsSettingsDto } from './dto/update-sms-settings.dto.js';
@@ -118,33 +117,10 @@ export class WarrantyController {
     return this.warranty.updateProductSettings(ctx, id, dto);
   }
 
-  @Get('services')
-  async listServices(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  @Get('invoices/:id/has-issuable-warranty')
+  async invoiceHasIssuableWarranty(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'warranty');
-    return this.warranty.listServices(ctx, status);
-  }
-
-  @Get('services/:id')
-  async serviceDetail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
-    return this.warranty.serviceDetail(ctx, id);
-  }
-
-  @Patch('services/:id/status')
-  async updateServiceStatus(@Param('id') id: string, @Body() dto: UpdateServiceStatusDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'warranty');
-    return this.warranty.updateServiceStatus(ctx, id, dto);
-  }
-
-  @Post('services/:id/sms')
-  async sendSms(@Param('id') id: string, @Body() body: { message: string }, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'warranty');
-    return this.warranty.sendCustomSmsToServiceCustomer(ctx, id, body.message ?? '');
-  }
-
-  @Get('service-status-labels')
-  serviceStatusLabels() {
-    return this.warranty.serviceStatusLabels();
+    return { hasIssuable: await this.warranty.invoiceHasIssuableWarranty(ctx, id) };
   }
 
   @Get('reports')

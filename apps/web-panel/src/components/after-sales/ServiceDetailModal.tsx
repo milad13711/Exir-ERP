@@ -5,11 +5,11 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatJalaliDateTime } from "@/lib/persian";
 import {
-  fetchWarrantyService,
-  updateWarrantyServiceStatus,
-  sendWarrantyServiceSms,
-  fetchWarrantySmsSettings,
-  type WarrantyServiceDetail,
+  fetchAfterSalesService,
+  updateAfterSalesServiceStatus,
+  sendAfterSalesServiceSms,
+  fetchAfterSalesSmsSettings,
+  type AfterSalesServiceDetail,
   type WarrantyServiceStatus,
 } from "@/lib/api";
 
@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<WarrantyServiceStatus, string> = {
 const STATUSES: WarrantyServiceStatus[] = ["NEW", "REVIEWING", "AWAITING_PRODUCT", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
 export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
-  const [service, setService] = useState<WarrantyServiceDetail | null>(null);
+  const [service, setService] = useState<AfterSalesServiceDetail | null>(null);
   const [staffNotes, setStaffNotes] = useState("");
   const [smsText, setSmsText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,20 +33,20 @@ export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onC
   const [quickTemplates, setQuickTemplates] = useState<{ title: string; text: string }[]>([]);
 
   function reload() {
-    fetchWarrantyService(id).then((s) => {
+    fetchAfterSalesService(id).then((s) => {
       setService(s);
       setStaffNotes(s.staffNotes ?? "");
     });
   }
   useEffect(reload, [id]);
   useEffect(() => {
-    fetchWarrantySmsSettings().then((s) => setQuickTemplates(s.quickTemplates)).catch(() => setQuickTemplates([]));
+    fetchAfterSalesSmsSettings().then((s) => setQuickTemplates(s.quickTemplates)).catch(() => setQuickTemplates([]));
   }, []);
 
   async function handleStatusChange(status: WarrantyServiceStatus) {
     setBusy(true);
     try {
-      await updateWarrantyServiceStatus(id, { status, staffNotes: staffNotes || undefined });
+      await updateAfterSalesServiceStatus(id, { status, staffNotes: staffNotes || undefined });
       reload();
       onChanged();
     } finally {
@@ -60,7 +60,7 @@ export function ServiceDetailModal({ id, onClose, onChanged }: { id: string; onC
     setError(null);
     setSmsSent(false);
     try {
-      await sendWarrantyServiceSms(id, smsText);
+      await sendAfterSalesServiceSms(id, smsText);
       setSmsSent(true);
       setSmsText("");
     } catch (err) {

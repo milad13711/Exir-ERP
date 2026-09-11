@@ -2,13 +2,11 @@
 
 import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogoMark, ShieldIcon, StarIcon } from "@/components/icons";
-import { formatJalaliDate } from "@/lib/persian";
+import { LogoMark, ShieldIcon } from "@/components/icons";
+import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchPublicWarrantyLookup,
   activatePublicWarranty,
-  requestPublicWarrantyService,
-  submitPublicWarrantyServiceFeedback,
   fetchPublicWarrantyTerms,
   ApiError,
   type PublicWarrantyLookup,
@@ -16,14 +14,6 @@ import {
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<WarrantyCodeStatus, string> = { PENDING: "صادرشده — هنوز فعال نشده", ACTIVE: "فعال", EXPIRED: "منقضی‌شده", VOID: "باطل‌شده" };
-const SERVICE_STATUS_LABELS: Record<string, string> = {
-  NEW: "ثبت‌شده",
-  REVIEWING: "در حال بررسی",
-  AWAITING_PRODUCT: "در انتظار ارسال کالا",
-  IN_PROGRESS: "در حال تعمیر",
-  RESOLVED: "برطرف‌شده",
-  CLOSED: "بسته‌شده",
-};
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -77,7 +67,7 @@ export default function PublicWarrantyPage({ params }: { params: Promise<{ slug:
           <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center">
             <LogoMark className="w-5 h-5 text-primary" />
           </div>
-          <span className="font-extrabold">گارانتی و خدمات پس از فروش</span>
+          <span className="font-extrabold">گارانتی</span>
         </div>
       </div>
 
@@ -132,19 +122,23 @@ function WarrantyResult({
           <span className="text-[12px] font-bold px-2.5 py-1 rounded-lg bg-primary-soft text-primary">{STATUS_LABELS[lookup.status]}</span>
         </div>
         {lookup.itemDescription && <div className="text-[13.5px] text-ink-soft mb-1">{lookup.itemDescription}</div>}
-        {lookup.expiresAt && <div className="text-[12.5px] text-muted">تا تاریخ {formatJalaliDate(lookup.expiresAt)} معتبر است</div>}
+        {lookup.status === "ACTIVE" && lookup.daysRemaining != null && (
+          <div className={`text-[13px] font-bold ${lookup.daysRemaining <= 0 ? "text-danger" : lookup.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>
+            {lookup.daysRemaining > 0 ? `${toPersianDigits(lookup.daysRemaining)} روز از گارانتی باقی مانده` : "گارانتی منقضی شده است"}
+          </div>
+        )}
+        {lookup.expiresAt && <div className="text-[12.5px] text-muted mt-1">تا تاریخ {formatJalaliDate(lookup.expiresAt)} معتبر است</div>}
       </div>
 
       {lookup.status === "PENDING" && <ActivateForm tenantSlug={tenantSlug} code={lookup.code} onActivated={onRefresh} />}
 
-      {lookup.status === "ACTIVE" && (
-        <>
-          {lookup.latestService ? (
-            <ServiceStatusCard tenantSlug={tenantSlug} status={lookup.latestService.status} serviceId={lookup.latestService.id} />
-          ) : (
-            <RequestServiceForm tenantSlug={tenantSlug} code={lookup.code} onSubmitted={onRefresh} />
-          )}
-        </>
+      {lookup.status === "ACTIVE" && lookup.afterSalesInstalled && (
+        <a
+          href={`/after-sales/${tenantSlug}?code=${encodeURIComponent(lookup.code)}`}
+          className="block text-center bg-white border border-border rounded-2xl p-4 text-[13px] font-bold text-primary"
+        >
+          درخواست خدمات پس از فروش
+        </a>
       )}
 
       <button onClick={onBack} className="w-full text-[12.5px] font-bold text-muted mt-4">
@@ -165,7 +159,7 @@ function ActivateForm({ tenantSlug, code, onActivated }: { tenantSlug: string; c
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPublicWarrantyTerms(tenantSlug, "terms").then((r) => setTerms(r.text || null));
+    fetchPublicWarrantyTerms(tenantSlug).then((r) => setTerms(r.text || null));
   }, [tenantSlug]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -234,116 +228,5 @@ function ActivateForm({ tenantSlug, code, onActivated }: { tenantSlug: string; c
         {busy ? "در حال فعال‌سازی..." : "فعال‌سازی گارانتی"}
       </button>
     </form>
-  );
-}
-
-function RequestServiceForm({ tenantSlug, code, onSubmitted }: { tenantSlug: string; code: string; onSubmitted: () => void }) {
-  const [description, setDescription] = useState("");
-  const [photo, setPhoto] = useState<string | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await requestPublicWarrantyService(tenantSlug, { code, description, photo });
-      onSubmitted();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "ثبت درخواست ناموفق بود");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="bg-white border border-border rounded-2xl p-5 flex flex-col gap-3">
-      <div className="text-[14px] font-extrabold mb-1">درخواست خدمات پس از فروش</div>
-      <textarea
-        placeholder="شرح مشکل محصول را بنویسید..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        rows={4}
-        required
-        className="w-full text-[13.5px] outline-none border-2 border-border rounded-xl px-4 py-3 focus:border-primary resize-none"
-      />
-      <label className="flex flex-col gap-1.5">
-        <span className="text-[12px] text-muted">عکس مشکل (اختیاری)</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (file) setPhoto(await fileToDataUrl(file));
-          }}
-          className="text-[12.5px]"
-        />
-      </label>
-
-      {error && <div className="text-[13px] text-danger font-semibold text-center">{error}</div>}
-
-      <button type="submit" disabled={busy || !description.trim()} className="w-full py-3.5 rounded-2xl bg-primary text-white text-[14px] font-bold disabled:opacity-50">
-        {busy ? "در حال ثبت..." : "ثبت درخواست"}
-      </button>
-    </form>
-  );
-}
-
-function ServiceStatusCard({ tenantSlug, status, serviceId }: { tenantSlug: string; status: string; serviceId: string }) {
-  const isClosed = status === "RESOLVED" || status === "CLOSED";
-  return (
-    <div className="bg-white border border-border rounded-2xl p-5">
-      <div className="text-[14px] font-extrabold mb-2">وضعیت درخواست خدمات پس از فروش</div>
-      <div className="text-[13.5px] text-primary font-bold mb-3">{SERVICE_STATUS_LABELS[status] ?? status}</div>
-      {isClosed && <FeedbackForm tenantSlug={tenantSlug} serviceId={serviceId} />}
-    </div>
-  );
-}
-
-function FeedbackForm({ tenantSlug, serviceId }: { tenantSlug: string; serviceId: string }) {
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState("");
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function handleSubmit() {
-    if (rating === 0) return;
-    setBusy(true);
-    try {
-      await submitPublicWarrantyServiceFeedback(tenantSlug, serviceId, { rating, comment: comment || undefined });
-      setSent(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (sent) return <div className="text-[13px] text-success font-semibold text-center py-2">از نظر شما سپاسگزاریم 🙏</div>;
-
-  return (
-    <div className="border-t border-border pt-4 mt-2">
-      <div className="text-[13px] text-ink-soft mb-2">به کیفیت خدمات پس از فروش چه امتیازی می‌دهید؟</div>
-      <div className="flex items-center gap-1 justify-center mb-3" dir="ltr">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} onClick={() => setRating(n)} className="p-1">
-            <StarIcon className={`w-7 h-7 ${n <= rating ? "text-warning fill-current" : "fill-none text-border"}`} />
-          </button>
-        ))}
-      </div>
-      <textarea
-        placeholder="نظر شما (اختیاری)"
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        rows={2}
-        className="w-full text-[13px] outline-none border-2 border-border rounded-xl px-4 py-3 focus:border-primary resize-none mb-3"
-      />
-      <button
-        onClick={handleSubmit}
-        disabled={rating === 0 || busy}
-        className="w-full py-3 rounded-2xl bg-primary text-white text-[13.5px] font-bold disabled:opacity-50"
-      >
-        ثبت نظر
-      </button>
-    </div>
   );
 }

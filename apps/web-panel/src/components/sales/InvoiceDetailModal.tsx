@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchSalesInvoice,
   confirmSalesInvoice,
@@ -13,6 +13,8 @@ import {
   signSalesInvoice,
   sendDeliveryCode,
   confirmDelivery,
+  fetchWarrantyInvoiceHasIssuable,
+  issueWarrantyFromInvoiceNow,
   ApiError,
   type SalesInvoiceDetail,
   type SalesInvoiceStatus,
@@ -75,14 +77,39 @@ export function InvoiceDetailModal({
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
   const [linkSentUrl, setLinkSentUrl] = useState<string | null>(null);
+  const [hasIssuableWarranty, setHasIssuableWarranty] = useState(false);
+  const [issuingWarranty, setIssuingWarranty] = useState(false);
+  const [warrantyIssuedCount, setWarrantyIssuedCount] = useState<number | null>(null);
 
   function reload() {
     fetchSalesInvoice(invoiceId).then((inv) => {
       setInvoice(inv);
       setPayAmount(String(inv.total - inv.paidAmount));
     });
+    if (installedModules.has("warranty")) {
+      fetchWarrantyInvoiceHasIssuable(invoiceId)
+        .then((r) => setHasIssuableWarranty(r.hasIssuable))
+        .catch(() => setHasIssuableWarranty(false));
+    }
   }
+  // installedModules از context گرفته می‌شود و در طول عمر این مودال ثابت است — عمداً در dependency نیست
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reload, [invoiceId]);
+
+  async function handleIssueWarranty() {
+    setIssuingWarranty(true);
+    setError(null);
+    setWarrantyIssuedCount(null);
+    try {
+      const res = await issueWarrantyFromInvoiceNow(invoiceId);
+      setWarrantyIssuedCount(res.issued.length);
+      setHasIssuableWarranty(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "صدور گارانتی ناموفق بود");
+    } finally {
+      setIssuingWarranty(false);
+    }
+  }
 
   async function handleConfirm() {
     setBusy(true);
@@ -546,6 +573,21 @@ export function InvoiceDetailModal({
                 ثبت بار برای این فاکتور
               </button>
             ) : null}
+
+            {installedModules.has("warranty") && hasIssuableWarranty ? (
+              <button
+                onClick={handleIssueWarranty}
+                disabled={issuingWarranty}
+                className="w-full py-2.5 rounded-xl border border-border text-ink-soft text-[13px] font-bold cursor-pointer disabled:opacity-50"
+              >
+                {issuingWarranty ? "در حال صدور..." : "صدور گارانتی برای اقلام این فاکتور"}
+              </button>
+            ) : null}
+            {warrantyIssuedCount != null && (
+              <div className="text-[12px] text-success bg-success-soft rounded-lg px-3 py-2">
+                {toPersianDigits(warrantyIssuedCount)} کد گارانتی صادر شد — از ماژول «گارانتی» قابل مشاهده است
+              </div>
+            )}
 
             <AttachmentsSection entityType="SalesInvoice" entityId={invoice.id} />
 

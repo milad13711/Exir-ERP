@@ -35,9 +35,24 @@ import { PublicFormsController } from './public-forms.controller.js';
 import { WarrantyModule } from '../warranty/warranty.module.js';
 import { PublicWarrantyService } from './public-warranty.service.js';
 import { PublicWarrantyController } from './public-warranty.controller.js';
+import { AfterSalesModule } from '../after-sales/after-sales.module.js';
+import { PublicAfterSalesService } from './public-after-sales.service.js';
+import { PublicAfterSalesController } from './public-after-sales.controller.js';
 
 @Module({
-  imports: [AuthModule, TenantsModule, BookingModule, ContractsModule, FleetModule, OnlineStoreModule, EventsModule, BillingModule, AutomationModule, WarrantyModule],
+  imports: [
+    AuthModule,
+    TenantsModule,
+    BookingModule,
+    ContractsModule,
+    FleetModule,
+    OnlineStoreModule,
+    EventsModule,
+    BillingModule,
+    AutomationModule,
+    WarrantyModule,
+    AfterSalesModule,
+  ],
   controllers: [
     PublicSignupController,
     PublicCatalogController,
@@ -53,6 +68,7 @@ import { PublicWarrantyController } from './public-warranty.controller.js';
     PublicEventsPaymentController,
     PublicFormsController,
     PublicWarrantyController,
+    PublicAfterSalesController,
   ],
   providers: [
     PublicSignupService,
@@ -67,6 +83,7 @@ import { PublicWarrantyController } from './public-warranty.controller.js';
     PublicEventsService,
     PublicFormsService,
     PublicWarrantyService,
+    PublicAfterSalesService,
   ],
 })
 export class PublicModule {}

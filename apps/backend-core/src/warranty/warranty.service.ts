@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -7,32 +7,27 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { generateWarrantyCode } from './warranty-code.util.js';
 import type { ManualIssueDto } from './dto/manual-issue.dto.js';
-import type { UpdateServiceStatusDto } from './dto/update-service-status.dto.js';
 import type { UpdateProductWarrantySettingsDto } from './dto/update-product-settings.dto.js';
 import type { UpdateWarrantyGeneralSettingsDto } from './dto/update-general-settings.dto.js';
 import type { UpdateWarrantySmsSettingsDto } from './dto/update-sms-settings.dto.js';
 import type { ImportLegacyWarrantyRowDto } from './dto/import-legacy.dto.js';
 
-const MODULE_CODE = 'warranty';
-const GENERAL_KEY = { moduleCode: MODULE_CODE, key: 'general' } as const;
-const SMS_KEY = { moduleCode: MODULE_CODE, key: 'sms' } as const;
+export const WARRANTY_MODULE_CODE = 'warranty';
+const GENERAL_KEY = { moduleCode: WARRANTY_MODULE_CODE, key: 'general' } as const;
+const SMS_KEY = { moduleCode: WARRANTY_MODULE_CODE, key: 'sms' } as const;
 
 type GeneralSettings = {
   defaultDurationDays: number;
   reminderDaysBeforeExpiry: number;
   termsConditions: string;
-  serviceTermsConditions: string;
   warrantyManagerUserId: string | null;
-  serviceManagerUserId: string | null;
 };
 
 const DEFAULT_GENERAL: GeneralSettings = {
   defaultDurationDays: 365,
   reminderDaysBeforeExpiry: 15,
   termsConditions: '',
-  serviceTermsConditions: '',
   warrantyManagerUserId: null,
-  serviceManagerUserId: null,
 };
 
 type SmsSettings = {
@@ -41,13 +36,6 @@ type SmsSettings = {
   activationCustomerTemplate: string;
   activationStaffEnabled: boolean;
   activationStaffTemplate: string;
-  serviceNewStaffEnabled: boolean;
-  serviceNewStaffTemplate: string;
-  serviceStatusCustomerEnabled: boolean;
-  serviceStatusCustomerTemplate: string;
-  serviceStatusStaffEnabled: boolean;
-  serviceStatusStaffTemplate: string;
-  quickTemplates: { title: string; text: string }[];
 };
 
 const DEFAULT_SMS: SmsSettings = {
@@ -56,27 +44,6 @@ const DEFAULT_SMS: SmsSettings = {
   activationCustomerTemplate: 'مشتری گرامی {name}، گارانتی محصول شما با کد {code} با موفقیت فعال شد.',
   activationStaffEnabled: true,
   activationStaffTemplate: 'گارانتی با کد {code} توسط مشتری {name} فعال شد.',
-  serviceNewStaffEnabled: true,
-  serviceNewStaffTemplate: 'درخواست خدمات پس از فروش جدید برای کد گارانتی {code} ثبت شد.',
-  serviceStatusCustomerEnabled: true,
-  serviceStatusCustomerTemplate: 'مشتری گرامی {name}، وضعیت درخواست خدمات پس از فروش شما (کد {code}) به «{status}» تغییر کرد.',
-  serviceStatusStaffEnabled: false,
-  serviceStatusStaffTemplate: 'وضعیت درخواست خدمات کد {code} به «{status}» تغییر کرد.',
-  quickTemplates: [
-    { title: 'کالا دریافت شد', text: 'مشتری گرامی {name}، کالای شما (کد گارانتی {code}) دریافت شد و بررسی آغاز شد.' },
-    { title: 'در حال تعمیر', text: 'مشتری گرامی {name}، کالای شما (کد {code}) در حال تعمیر/بررسی است.' },
-    { title: 'برطرف شد، آماده تحویل', text: 'مشتری گرامی {name}، مشکل کالای شما (کد {code}) برطرف شد و آماده ارسال/تحویل است.' },
-    { title: 'یادآوری ارسال کالا', text: 'مشتری گرامی {name}، لطفاً کالای مرتبط با کد گارانتی {code} را برای بررسی خدمات پس از فروش ارسال کنید.' },
-  ],
-};
-
-const SERVICE_STATUS_LABELS: Record<string, string> = {
-  NEW: 'جدید',
-  REVIEWING: 'در حال بررسی',
-  AWAITING_PRODUCT: 'در انتظار ارسال کالا',
-  IN_PROGRESS: 'در حال تعمیر',
-  RESOLVED: 'برطرف‌شده',
-  CLOSED: 'بسته‌شده',
 };
 
 const CODE_INCLUDE = {
@@ -124,17 +91,13 @@ export class WarrantyService {
   }
 
   async setSmsSettings(ctx: TenantRequestContext, dto: UpdateWarrantySmsSettingsDto): Promise<SmsSettings> {
-    const value = { ...dto, quickTemplates: dto.quickTemplates.map((t) => ({ title: t.title, text: t.text })) };
+    const value = { ...dto };
     await ctx.tenantDb.moduleSetting.upsert({
       where: { moduleCode_key: SMS_KEY },
       update: { value },
       create: { ...SMS_KEY, value },
     });
     return this.getSmsSettings(ctx);
-  }
-
-  serviceStatusLabels(): Record<string, string> {
-    return SERVICE_STATUS_LABELS;
   }
 
   /* ───────────────────────── صدور خودکار از فاکتور ───────────────────────── */
@@ -150,7 +113,7 @@ export class WarrantyService {
    */
   async issueForInvoicePaid(ctx: TenantRequestContext, invoiceId: string): Promise<void> {
     const installed = await this.controlDb.tenantModule.findFirst({
-      where: { tenantId: ctx.tenantId, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: MODULE_CODE } },
+      where: { tenantId: ctx.tenantId, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: WARRANTY_MODULE_CODE } },
     });
     if (!installed) return;
 
@@ -208,6 +171,13 @@ export class WarrantyService {
     }
 
     return { issued, alreadyIssued };
+  }
+
+  /** برای دکمه‌ی «صدور گارانتی» روی خودِ فاکتور — آیا این فاکتور حداقل یک قلم واجد گارانتی و هنوز صادرنشده دارد؟ */
+  async invoiceHasIssuableWarranty(ctx: TenantRequestContext, invoiceId: string): Promise<boolean> {
+    const summary = await this.invoiceSummary(ctx, invoiceId).catch(() => null);
+    if (!summary) return false;
+    return summary.lines.some((l) => l.warrantyEligible && !l.alreadyIssued);
   }
 
   /* ───────────────────────── لیست/جزئیات ───────────────────────── */
@@ -388,106 +358,35 @@ export class WarrantyService {
     });
   }
 
-  /* ───────────────────────── خدمات پس از فروش ───────────────────────── */
-
-  async listServices(ctx: TenantRequestContext, status?: string) {
-    return ctx.tenantDb.warrantyServiceRequest.findMany({
-      where: status ? { status: status as never } : {},
-      include: { warranty: { select: { code: true, itemDescription: true, activatedByName: true, activatedByPhone: true, status: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async serviceDetail(ctx: TenantRequestContext, id: string) {
-    const service = await ctx.tenantDb.warrantyServiceRequest.findUnique({
-      where: { id },
-      include: { warranty: { include: CODE_INCLUDE } },
-    });
-    if (!service) throw new NotFoundException('این درخواست خدمات یافت نشد');
-    return service;
-  }
-
-  async updateServiceStatus(ctx: TenantRequestContext, id: string, dto: UpdateServiceStatusDto) {
-    const existing = await ctx.tenantDb.warrantyServiceRequest.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('این درخواست خدمات یافت نشد');
-
-    const resolvedAt = !existing.resolvedAt && (dto.status === 'RESOLVED' || dto.status === 'CLOSED') ? new Date() : undefined;
-
-    await ctx.tenantDb.warrantyServiceRequest.update({
-      where: { id },
-      data: { status: dto.status, staffNotes: dto.staffNotes, resolvedAt },
-    });
-
-    const service = await this.serviceDetail(ctx, id);
-    await this.triggerServiceStatusSms(ctx, service, dto.status);
-    return service;
-  }
-
-  async sendCustomSmsToServiceCustomer(ctx: TenantRequestContext, serviceId: string, message: string) {
-    const service = await this.serviceDetail(ctx, serviceId);
-    const warranty = service.warranty;
-    if (!warranty.activatedByPhone) throw new BadRequestException('برای این گارانتی شماره موبایلی ثبت نشده است');
-
-    const rendered = renderTemplate(message, { name: warranty.activatedByName ?? '', code: warranty.code });
-    const result = await this.sms.sendSms(warranty.activatedByPhone, rendered);
-    if (!result.success) throw new BadRequestException(result.error);
-    return { ok: true };
-  }
-
   /* ───────────────────────── گزارش‌ها ───────────────────────── */
 
   async getReportsData(ctx: TenantRequestContext) {
-    const [totalCodes, statusRows, totalServices, serviceStatusRows, topItemsByService, ratingAgg, resolutionAgg, topItemsByActivation, topContacts] =
-      await Promise.all([
-        ctx.tenantDb.warrantyCode.count(),
-        ctx.tenantDb.warrantyCode.groupBy({ by: ['status'], _count: { _all: true } }),
-        ctx.tenantDb.warrantyServiceRequest.count(),
-        ctx.tenantDb.warrantyServiceRequest.groupBy({ by: ['status'], _count: { _all: true } }),
-        ctx.tenantDb.warrantyServiceRequest.groupBy({
-          by: ['warrantyId'],
-          _count: { _all: true },
-          orderBy: { _count: { warrantyId: 'desc' } },
-          take: 5,
-        }),
-        ctx.tenantDb.warrantyServiceRequest.aggregate({ _avg: { customerRating: true }, _count: { customerRating: true } }),
-        ctx.tenantDb.$queryRaw<{ avg_hours: number | null; resolved_count: bigint }[]>`
-          SELECT AVG(EXTRACT(EPOCH FROM ("resolvedAt" - "createdAt")) / 3600) as avg_hours, COUNT(*) as resolved_count
-          FROM warranty_service_requests WHERE "resolvedAt" IS NOT NULL
-        `,
-        ctx.tenantDb.warrantyCode.groupBy({
-          by: ['productId', 'itemDescription'],
-          where: { activatedAt: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { productId: 'desc' } },
-          take: 10,
-        }),
-        ctx.tenantDb.warrantyCode.groupBy({
-          by: ['contactId'],
-          where: { invoiceId: { not: null }, contactId: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { contactId: 'desc' } },
-          take: 10,
-        }),
-      ]);
+    const [totalCodes, statusRows, topItemsByActivation, topContacts] = await Promise.all([
+      ctx.tenantDb.warrantyCode.count(),
+      ctx.tenantDb.warrantyCode.groupBy({ by: ['status'], _count: { _all: true } }),
+      ctx.tenantDb.warrantyCode.groupBy({
+        by: ['productId', 'itemDescription'],
+        where: { activatedAt: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { productId: 'desc' } },
+        take: 10,
+      }),
+      ctx.tenantDb.warrantyCode.groupBy({
+        by: ['contactId'],
+        where: { invoiceId: { not: null }, contactId: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { contactId: 'desc' } },
+        take: 10,
+      }),
+    ]);
 
     const contactIds = topContacts.map((c) => c.contactId).filter((id): id is string => id != null);
     const contacts = contactIds.length ? await ctx.tenantDb.crmContact.findMany({ where: { id: { in: contactIds } }, select: { id: true, name: true } }) : [];
     const contactById = new Map(contacts.map((c) => [c.id, c.name]));
 
-    const warrantyIds = topItemsByService.map((r) => r.warrantyId);
-    const warranties = warrantyIds.length ? await ctx.tenantDb.warrantyCode.findMany({ where: { id: { in: warrantyIds } }, select: { id: true, itemDescription: true } }) : [];
-    const warrantyDescById = new Map(warranties.map((w) => [w.id, w.itemDescription]));
-
     return {
       totalCodes,
       statusBreakdown: Object.fromEntries(statusRows.map((r) => [r.status, r._count._all])),
-      totalServices,
-      serviceStatusBreakdown: Object.fromEntries(serviceStatusRows.map((r) => [r.status, r._count._all])),
-      topItemsByService: topItemsByService.map((r) => ({ itemDescription: warrantyDescById.get(r.warrantyId) ?? '', total: r._count._all })),
-      avgRating: ratingAgg._avg.customerRating != null ? Math.round(ratingAgg._avg.customerRating * 10) / 10 : null,
-      ratingCount: ratingAgg._count.customerRating,
-      avgResolutionHours: resolutionAgg[0]?.avg_hours != null ? Math.round(Number(resolutionAgg[0].avg_hours) * 10) / 10 : null,
-      resolvedCount: resolutionAgg[0] ? Number(resolutionAgg[0].resolved_count) : 0,
       topItemsByActivation: topItemsByActivation.map((r) => ({ itemDescription: r.itemDescription ?? '', total: r._count._all })),
       topContactsByActivation: topContacts.map((r) => ({ contactId: r.contactId, name: r.contactId ? contactById.get(r.contactId) ?? '' : '', total: r._count._all })),
     };
@@ -597,59 +496,6 @@ export class WarrantyService {
     }
   }
 
-  async notifyServiceRequested(ctx: TenantRequestContext, warranty: { code: string; activatedByName: string | null }) {
-    const settings = await this.getSmsSettings(ctx);
-    const general = await this.getGeneralSettings(ctx);
-
-    if (!settings.serviceNewStaffEnabled) return;
-    const staffMessage = settings.enabled
-      ? renderTemplate(settings.serviceNewStaffTemplate, { name: warranty.activatedByName ?? '', code: warranty.code })
-      : undefined;
-    await this.notifyStaffOrManagers(
-      ctx,
-      general.serviceManagerUserId,
-      `یک مشتری درخواست خدمات پس از فروش ثبت کرد. کد گارانتی: ${warranty.code}`,
-      '/warranty/services',
-      staffMessage,
-    );
-  }
-
-  private async triggerServiceStatusSms(
-    ctx: TenantRequestContext,
-    service: { status: string; warranty: { code: string; activatedByName: string | null; activatedByPhone: string | null } },
-    newStatus: string,
-  ) {
-    const settings = await this.getSmsSettings(ctx);
-    if (!settings.enabled) return;
-
-    const statusLabel = SERVICE_STATUS_LABELS[newStatus] ?? newStatus;
-
-    if (settings.serviceStatusCustomerEnabled && service.warranty.activatedByPhone) {
-      const message = renderTemplate(settings.serviceStatusCustomerTemplate, {
-        name: service.warranty.activatedByName ?? '',
-        code: service.warranty.code,
-        status: statusLabel,
-      });
-      await this.sms.sendSms(service.warranty.activatedByPhone, message);
-    }
-
-    if (settings.serviceStatusStaffEnabled) {
-      const general = await this.getGeneralSettings(ctx);
-      const staffMessage = renderTemplate(settings.serviceStatusStaffTemplate, {
-        name: service.warranty.activatedByName ?? '',
-        code: service.warranty.code,
-        status: statusLabel,
-      });
-      await this.notifyStaffOrManagers(
-        ctx,
-        general.serviceManagerUserId,
-        `وضعیت درخواست خدمات کد ${service.warranty.code} به «${statusLabel}» تغییر کرد.`,
-        '/warranty/services',
-        staffMessage,
-      );
-    }
-  }
-
   /**
    * اعلان داخلی + پیامک (در صورت وجود متن) به مسئول انتخاب‌شده در تنظیمات —
    * اگر هیچ مسئولی برای پیگیری این بخش انتخاب نشده باشد، مثل رفتار قبلی
@@ -659,24 +505,14 @@ export class WarrantyService {
     if (staffUserId) {
       const staff = await ctx.tenantDb.user.findUnique({ where: { id: staffUserId } });
       if (staff) {
-        await this.notifications.notify(ctx.tenantDb, { userId: staff.id, type: 'warranty.notice', title: 'گارانتی و خدمات پس از فروش', body: message, link });
+        await this.notifications.notify(ctx.tenantDb, { userId: staff.id, type: 'warranty.notice', title: 'گارانتی', body: message, link });
         if (smsText && staff.phone) await this.sms.sendSms(staff.phone, smsText);
         return;
       }
     }
-    await this.notifyManagers(ctx, message, link);
-  }
-
-  private async notifyManagers(ctx: TenantRequestContext, message: string, link: string) {
     const managers = await getManagerUsers(this.controlDb, ctx.tenantDb, ctx.tenantId);
     for (const manager of managers) {
-      await this.notifications.notify(ctx.tenantDb, {
-        userId: manager.tenantUserId,
-        type: 'warranty.notice',
-        title: 'گارانتی و خدمات پس از فروش',
-        body: message,
-        link,
-      });
+      await this.notifications.notify(ctx.tenantDb, { userId: manager.tenantUserId, type: 'warranty.notice', title: 'گارانتی', body: message, link });
     }
   }
 }
