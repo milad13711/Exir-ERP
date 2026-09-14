@@ -1,0 +1,645 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { Badge } from "@/components/ui/Badge";
+import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
+import { copyToClipboard } from "@/lib/clipboard";
+import { useWorkspace } from "@/lib/workspace-context";
+import { toPersianDigits, formatJalaliDateTime, formatToman } from "@/lib/persian";
+import {
+  fetchApplicant,
+  specialistDecision,
+  managementDecision,
+  hireApplicant,
+  scheduleInterview,
+  recordInterviewReport,
+  createOrUpdateOffer,
+  sendOffer,
+  signOffer,
+  openOfferPdf,
+  fetchUsers,
+  ApiError,
+  type JobApplicant,
+  type ApplicantStage,
+  type TenantUser,
+} from "@/lib/api";
+
+const STAGE_LABELS: Record<ApplicantStage, string> = {
+  NEW: "جدید",
+  INTERVIEW_SCHEDULED: "مصاحبه زمان‌بندی‌شده",
+  INTERVIEWED: "مصاحبه‌شده",
+  SPECIALIST_APPROVED: "تأیید کارشناس",
+  SPECIALIST_REJECTED: "رد کارشناس",
+  MANAGEMENT_APPROVED: "تأیید مدیریت",
+  MANAGEMENT_REJECTED: "رد مدیریت",
+  HIRED: "جذب‌شده",
+};
+const STAGE_TONES: Record<ApplicantStage, "neutral" | "success" | "warning" | "danger" | "primary"> = {
+  NEW: "neutral",
+  INTERVIEW_SCHEDULED: "primary",
+  INTERVIEWED: "primary",
+  SPECIALIST_APPROVED: "warning",
+  SPECIALIST_REJECTED: "danger",
+  MANAGEMENT_APPROVED: "success",
+  MANAGEMENT_REJECTED: "danger",
+  HIRED: "success",
+};
+
+export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const { me } = useWorkspace();
+  const [applicant, setApplicant] = useState<JobApplicant | null>(null);
+  const [users, setUsers] = useState<TenantUser[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function reload() {
+    fetchApplicant(id).then(setApplicant);
+  }
+  useEffect(reload, [id]);
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
+  }, []);
+
+  function afterAction() {
+    reload();
+    onChanged();
+  }
+
+  if (!applicant) {
+    return (
+      <Modal title="جزئیات متقاضی" onClose={onClose}>
+        <div className="text-center text-muted py-6">در حال بارگذاری...</div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title={applicant.name} onClose={onClose} width="max-w-[620px]">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="text-[12.5px] text-muted">
+            {applicant.jobPosting.title} · {applicant.phone}
+          </div>
+          <Badge tone={STAGE_TONES[applicant.stage]}>{STAGE_LABELS[applicant.stage]}</Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+          <div>
+            <span className="text-muted">رشته‌ی تحصیلی: </span>
+            {applicant.educationField ?? "—"}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-muted">تخصص‌ها: </span>
+            {applicant.skillTags.length > 0 ? applicant.skillTags.map((t) => <Badge key={t} tone="neutral">{t}</Badge>) : "—"}
+          </div>
+        </div>
+
+        {applicant.resumeFile && (
+          <a href={applicant.resumeFile} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-primary">
+            مشاهده‌ی رزومه
+          </a>
+        )}
+
+        {error && <div className="text-[12.5px] text-danger">{error}</div>}
+
+        {/* مصاحبه‌ها */}
+        <InterviewsSection
+          applicant={applicant}
+          users={users}
+          onScheduled={afterAction}
+          onReported={afterAction}
+          setBusy={setBusy}
+          setError={setError}
+          busy={busy}
+        />
+
+        {/* تأیید کارشناس */}
+        {applicant.stage === "INTERVIEWED" && (
+          <DecisionBox
+            title="تأیید یا رد اولیه (کارشناس)"
+            busy={busy}
+            onDecide={async (approved, reason) => {
+              setBusy(true);
+              setError(null);
+              try {
+                await specialistDecision(applicant.id, { approved, reason });
+                afterAction();
+              } catch (err) {
+                setError(err instanceof ApiError ? err.message : "ثبت تصمیم ناموفق بود");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        )}
+        {(applicant.stage === "SPECIALIST_APPROVED" || applicant.stage === "SPECIALIST_REJECTED" || applicant.stage === "MANAGEMENT_APPROVED" || applicant.stage === "MANAGEMENT_REJECTED" || applicant.stage === "HIRED") && applicant.specialist && (
+          <div className="text-[11.5px] text-muted">
+            تصمیم کارشناس: {applicant.specialist.name}
+            {applicant.specialistDecisionReason ? ` — «${applicant.specialistDecisionReason}»` : ""}
+          </div>
+        )}
+
+        {/* تأیید مدیریت */}
+        {applicant.stage === "SPECIALIST_APPROVED" && (
+          <DecisionBox
+            title="تأیید یا رد نهایی (مدیریت)"
+            busy={busy}
+            onDecide={async (approved, reason) => {
+              setBusy(true);
+              setError(null);
+              try {
+                await managementDecision(applicant.id, { approved, reason });
+                afterAction();
+              } catch (err) {
+                setError(err instanceof ApiError ? err.message : "ثبت تصمیم ناموفق بود");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        )}
+        {applicant.management && (
+          <div className="text-[11.5px] text-muted">
+            تصمیم مدیریت: {applicant.management.name}
+            {applicant.managementDecisionReason ? ` — «${applicant.managementDecisionReason}»` : ""}
+          </div>
+        )}
+
+        {/* شرایط همکاری */}
+        {(applicant.stage === "MANAGEMENT_APPROVED" || applicant.stage === "HIRED") && (
+          <OfferSection tenantSlug={me?.tenant.slug ?? ""} applicant={applicant} onChanged={afterAction} />
+        )}
+
+        {/* جذب نهایی */}
+        {applicant.stage === "MANAGEMENT_APPROVED" && applicant.offer?.status === "SIGNED" && (
+          <HireSection applicantId={applicant.id} onHired={afterAction} />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function DecisionBox({ title, onDecide, busy }: { title: string; onDecide: (approved: boolean, reason?: string) => void; busy: boolean }) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className="border border-border rounded-xl p-3.5">
+      <div className="text-[12.5px] font-bold mb-2">{title}</div>
+      <textarea
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="دلیل (در صورت رد الزامی است)"
+        rows={2}
+        className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 mb-2 focus:border-primary resize-none"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onDecide(true, reason.trim() || undefined)}
+          disabled={busy}
+          className="flex-1 text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-success-soft text-success disabled:opacity-50 cursor-pointer"
+        >
+          تأیید
+        </button>
+        <button
+          onClick={() => onDecide(false, reason.trim() || undefined)}
+          disabled={busy || !reason.trim()}
+          className="flex-1 text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-danger-soft text-danger disabled:opacity-50 cursor-pointer"
+        >
+          رد
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InterviewsSection({
+  applicant,
+  users,
+  onScheduled,
+  onReported,
+  busy,
+  setBusy,
+  setError,
+}: {
+  applicant: JobApplicant;
+  users: TenantUser[];
+  onScheduled: () => void;
+  onReported: () => void;
+  busy: boolean;
+  setBusy: (v: boolean) => void;
+  setError: (v: string | null) => void;
+}) {
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [duration, setDuration] = useState("30");
+  const [interviewerUserId, setInterviewerUserId] = useState("");
+  const [reportingId, setReportingId] = useState<string | null>(null);
+
+  async function handleSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!scheduledAt) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await scheduleInterview({
+        applicantId: applicant.id,
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        durationMinutes: Number(duration) || undefined,
+        interviewerUserId: interviewerUserId || undefined,
+      });
+      setScheduling(false);
+      setScheduledAt("");
+      onScheduled();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "زمان‌بندی مصاحبه ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[12px] font-semibold text-ink-soft">مصاحبه‌ها</div>
+        {!scheduling && (
+          <button onClick={() => setScheduling(true)} className="text-[11.5px] font-bold text-primary cursor-pointer">
+            + زمان‌بندی مصاحبه
+          </button>
+        )}
+      </div>
+
+      {scheduling && (
+        <form onSubmit={handleSchedule} className="border border-border rounded-xl p-3 mb-2 flex flex-col gap-2">
+          <JalaliDateTimeInput value={scheduledAt} onChange={setScheduledAt} placeholder="زمان مصاحبه" />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              min={5}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="مدت (دقیقه)"
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            />
+            <select
+              value={interviewerUserId}
+              onChange={(e) => setInterviewerUserId(e.target.value)}
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            >
+              <option value="">مصاحبه‌گیرنده...</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="submit" disabled={busy || !scheduledAt} className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer">
+              ثبت زمان مصاحبه
+            </button>
+            <button type="button" onClick={() => setScheduling(false)} className="text-[12px] font-bold text-muted px-3 py-2 cursor-pointer">
+              انصراف
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        {applicant.interviews.length === 0 ? (
+          <div className="text-[12px] text-muted">مصاحبه‌ای ثبت نشده است</div>
+        ) : (
+          applicant.interviews.map((iv) => (
+            <div key={iv.id} className="bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-semibold">
+                  {formatJalaliDateTime(iv.scheduledAt)} · {toPersianDigits(iv.durationMinutes)} دقیقه
+                  {iv.interviewer ? ` · ${iv.interviewer.name}` : ""}
+                </span>
+                <Badge tone={iv.status === "DONE" ? "success" : iv.status === "SCHEDULED" ? "neutral" : "danger"}>
+                  {iv.status === "SCHEDULED" ? "زمان‌بندی‌شده" : iv.status === "DONE" ? "برگزارشده" : iv.status === "CANCELLED" ? "لغوشده" : "عدم حضور"}
+                </Badge>
+              </div>
+              {iv.scoreItems.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {iv.scoreItems.map((s) => (
+                    <Badge key={s.id} tone="primary">
+                      {s.criterion}: {toPersianDigits(s.score)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {iv.overallNote && <div className="text-[11.5px] text-muted mt-1">{iv.overallNote}</div>}
+              {iv.status === "SCHEDULED" && (
+                <button onClick={() => setReportingId(reportingId === iv.id ? null : iv.id)} className="text-[11.5px] font-bold text-primary mt-1.5 cursor-pointer">
+                  ثبت گزارش مصاحبه
+                </button>
+              )}
+              {reportingId === iv.id && (
+                <InterviewReportForm
+                  interviewId={iv.id}
+                  busy={busy}
+                  onSubmit={async (data) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      await recordInterviewReport(iv.id, data);
+                      setReportingId(null);
+                      onReported();
+                    } catch (err) {
+                      setError(err instanceof ApiError ? err.message : "ثبت گزارش ناموفق بود");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InterviewReportForm({
+  onSubmit,
+  busy,
+}: {
+  interviewId: string;
+  busy: boolean;
+  onSubmit: (data: { scores: { criterion: string; score: number }[]; overallNote?: string; status: "DONE" | "NO_SHOW" }) => void;
+}) {
+  const [criteria, setCriteria] = useState([{ criterion: "دانش فنی", score: 3 }, { criterion: "ارتباطات", score: 3 }]);
+  const [note, setNote] = useState("");
+
+  return (
+    <div className="mt-2 border-t border-border pt-2 flex flex-col gap-2">
+      {criteria.map((c, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            value={c.criterion}
+            onChange={(e) => setCriteria((prev) => prev.map((x, idx) => (idx === i ? { ...x, criterion: e.target.value } : x)))}
+            className="flex-1 text-[12px] outline-none bg-surface border border-border rounded-lg px-2.5 py-1.5 focus:border-primary"
+          />
+          <select
+            value={c.score}
+            onChange={(e) => setCriteria((prev) => prev.map((x, idx) => (idx === i ? { ...x, score: Number(e.target.value) } : x)))}
+            className="text-[12px] bg-surface border border-border rounded-lg px-2 py-1.5 outline-none"
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>
+                {toPersianDigits(n)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+      <button onClick={() => setCriteria((prev) => [...prev, { criterion: "", score: 3 }])} className="self-start text-[11px] font-bold text-primary cursor-pointer">
+        + معیار جدید
+      </button>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="یادداشت کلی مصاحبه"
+        rows={2}
+        className="w-full text-[12px] outline-none bg-surface border border-border rounded-lg px-2.5 py-1.5 focus:border-primary resize-none"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onSubmit({ scores: criteria.filter((c) => c.criterion.trim()), overallNote: note.trim() || undefined, status: "DONE" })}
+          disabled={busy}
+          className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer"
+        >
+          ثبت — برگزار شد
+        </button>
+        <button
+          onClick={() => onSubmit({ scores: [], overallNote: note.trim() || undefined, status: "NO_SHOW" })}
+          disabled={busy}
+          className="text-[12px] font-bold px-3 py-2 rounded-lg bg-danger-soft text-danger disabled:opacity-50 cursor-pointer"
+        >
+          عدم حضور
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string; applicant: JobApplicant; onChanged: () => void }) {
+  const offer = applicant.offer;
+  const [editing, setEditing] = useState(!offer);
+  const [jobDescription, setJobDescription] = useState(offer?.jobDescription ?? "");
+  const [collaborationType, setCollaborationType] = useState(offer?.collaborationType ?? "");
+  const [workingHours, setWorkingHours] = useState(offer?.workingHours ?? "");
+  const [salary, setSalary] = useState(offer?.salary ? String(offer.salary) : "");
+  const [benefits, setBenefits] = useState(offer?.benefits ?? "");
+  const [durationMonths, setDurationMonths] = useState(offer?.durationMonths ? String(offer.durationMonths) : "");
+  const [startDate, setStartDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    try {
+      await createOrUpdateOffer(applicant.id, {
+        jobDescription: jobDescription.trim(),
+        collaborationType: collaborationType.trim(),
+        workingHours: workingHours.trim() || undefined,
+        salary: Number(salary) || 0,
+        benefits: benefits.trim() || undefined,
+        durationMonths: durationMonths ? Number(durationMonths) : undefined,
+        startDate: startDate || undefined,
+      });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ذخیره ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSend() {
+    if (!offer) return;
+    setBusy(true);
+    try {
+      await sendOffer(offer.id);
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSign() {
+    if (!offer) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await signOffer(offer.id);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "امضا ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!offer) return;
+    const url = `${window.location.origin}/offer/${tenantSlug}/${offer.publicToken}`;
+    const ok = await copyToClipboard(url);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }
+
+  return (
+    <div className="border border-border rounded-xl p-3.5">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[12.5px] font-bold">شرایط همکاری</div>
+        {offer && <Badge tone={offer.status === "SIGNED" ? "success" : offer.status === "ACCEPTED" ? "primary" : "neutral"}>
+          {offer.status === "DRAFT" ? "پیش‌نویس" : offer.status === "SENT" ? "ارسال‌شده" : offer.status === "ACCEPTED" ? "تأییدشده توسط متقاضی" : "امضاشده"}
+        </Badge>}
+      </div>
+
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder="شرح وظایف"
+            rows={2}
+            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary resize-none"
+          />
+          <input
+            value={collaborationType}
+            onChange={(e) => setCollaborationType(e.target.value)}
+            placeholder="نحوه‌ی همکاری"
+            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={workingHours}
+              onChange={(e) => setWorkingHours(e.target.value)}
+              placeholder="ساعت حضور"
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            />
+            <input
+              type="number"
+              value={salary}
+              onChange={(e) => setSalary(e.target.value)}
+              placeholder="حقوق (تومان)"
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            />
+          </div>
+          <input
+            value={benefits}
+            onChange={(e) => setBenefits(e.target.value)}
+            placeholder="سایر تسهیلات"
+            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              value={durationMonths}
+              onChange={(e) => setDurationMonths(e.target.value)}
+              placeholder="مدت همکاری (ماه)"
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            />
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+            />
+          </div>
+          {error && <div className="text-[12px] text-danger">{error}</div>}
+          <button onClick={handleSave} disabled={busy} className="text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer">
+            ذخیره شرایط همکاری
+          </button>
+        </div>
+      ) : offer ? (
+        <div className="flex flex-col gap-2">
+          <div className="text-[12.5px]">{offer.jobDescription}</div>
+          <div className="text-[12px] text-muted">
+            {offer.collaborationType} · {formatToman(offer.salary)}
+            {offer.workingHours ? ` · ${offer.workingHours}` : ""}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => setEditing(true)} className="text-[11.5px] font-bold text-ink-soft cursor-pointer">
+              ویرایش
+            </button>
+            {offer.status === "DRAFT" && (
+              <button onClick={handleSend} disabled={busy} className="text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50">
+                ارسال برای متقاضی
+              </button>
+            )}
+            {offer.status !== "DRAFT" && (
+              <button onClick={handleCopyLink} className="text-[11.5px] font-bold text-primary cursor-pointer">
+                {linkCopied ? "کپی شد ✓" : "کپی لینک برای متقاضی"}
+              </button>
+            )}
+            {offer.status === "ACCEPTED" && (
+              <button onClick={handleSign} disabled={busy} className="text-[11.5px] font-bold text-success cursor-pointer disabled:opacity-50">
+                امضا و تأیید نهایی (مدیر)
+              </button>
+            )}
+            {offer.status === "SIGNED" && (
+              <button onClick={() => openOfferPdf(offer.id)} className="text-[11.5px] font-bold text-ink-soft cursor-pointer">
+                دانلود PDF
+              </button>
+            )}
+          </div>
+          {error && <div className="text-[12px] text-danger">{error}</div>}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function HireSection({ applicantId, onHired }: { applicantId: string; onHired: () => void }) {
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [department, setDepartment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleHire() {
+    if (!employeeCode.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await hireApplicant(applicantId, { employeeCode: employeeCode.trim(), department: department.trim() || undefined });
+      onHired();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "جذب ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border-2 border-success/30 bg-success-soft rounded-xl p-3.5">
+      <div className="text-[12.5px] font-bold mb-2">جذب نهایی — ورود به منابع انسانی</div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <input
+          value={employeeCode}
+          onChange={(e) => setEmployeeCode(e.target.value)}
+          placeholder="کد پرسنلی"
+          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+        />
+        <input
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          placeholder="واحد (اختیاری)"
+          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+        />
+      </div>
+      {error && <div className="text-[12px] text-danger mb-2">{error}</div>}
+      <button onClick={handleHire} disabled={busy || !employeeCode.trim()} className="w-full text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-success text-white disabled:opacity-50 cursor-pointer">
+        جذب و ایجاد پرونده‌ی پرسنلی
+      </button>
+    </div>
+  );
+}

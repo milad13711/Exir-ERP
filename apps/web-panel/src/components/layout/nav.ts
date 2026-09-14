@@ -26,6 +26,7 @@ import {
   ShieldIcon,
   HeartIcon,
   QrCodeIcon,
+  BriefcaseIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -59,6 +60,7 @@ export const primaryNav: NavItem[] = [
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet" },
   { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store" },
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr" },
+  { href: "/recruitment", label: "استخدام و جذب نیرو", icon: BriefcaseIcon, moduleCode: "recruitment" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon },
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation" },
   { href: "/qr-code", label: "کد QR", icon: QrCodeIcon, moduleCode: "qr-code" },

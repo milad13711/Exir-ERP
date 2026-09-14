@@ -87,6 +87,11 @@ model User {
   createdForms                  Form[]
   createdWarrantyCodes          WarrantyCode[]
   createdQrCodes                QrCode[]
+  createdJobPostings            JobPosting[]
+  jobApplicantsAsSpecialist     JobApplicant[]             @relation("ApplicantSpecialist")
+  jobApplicantsAsManagement     JobApplicant[]             @relation("ApplicantManagement")
+  jobInterviewsAsInterviewer    JobInterview[]
+  signedJobOffers               JobOffer[]
 
   @@map("users")
 }
@@ -366,6 +371,7 @@ model CrmContact {
   eventBookings             EventBooking[]
   formSubmissions           FormSubmission[]
   warrantyCodes             WarrantyCode[]
+  jobApplications           JobApplicant[]
   referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
@@ -1226,18 +1232,20 @@ enum EmploymentStatus {
 }
 
 model Employee {
-  id           String           @id @default(uuid())
-  employeeCode String           @unique
-  fullName     String
-  nationalId   String?
-  position     String // سمت شغلی
-  department   String?
-  phone        String?
-  email        String?
-  hireDate     DateTime
-  baseSalary   Int              @default(0) // تومان — حقوق پایه ماهانه
-  status       EmploymentStatus @default(ACTIVE)
-  createdAt    DateTime         @default(now())
+  id                String           @id @default(uuid())
+  employeeCode      String           @unique
+  fullName          String
+  nationalId        String?
+  position          String // سمت شغلی
+  department        String?
+  phone             String?
+  email             String?
+  hireDate          DateTime
+  baseSalary        Int              @default(0) // تومان — حقوق پایه ماهانه
+  status            EmploymentStatus @default(ACTIVE)
+  terminationReason String? // دلیل پایان همکاری
+  terminatedAt      DateTime?
+  createdAt         DateTime         @default(now())
 
   // Links this HR record to the actual login account, so the system knows
   // whose direct reports a logged-in manager is allowed to approve for.
@@ -2897,4 +2905,154 @@ model QrCode {
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@map("qr_codes")
+}
+
+// ── استخدام — چرخه‌ی کامل جذب نیرو ───────────────────────────────────────────
+// آگهی → متقاضی (رزومه) → مصاحبه (زمان‌بندی + امتیازدهی) → تأیید/رد کارشناس →
+// تأیید/رد نهایی مدیریت → شرایط همکاری (آنلاین قابل تأیید توسط متقاضی، پرینت
+// PDF با مهر/امضا) → در صورت جذب، اتصال به ماژول HR (Employee.userId همان
+// اتصال موجود بین کارمند و اکانت ورود است).
+
+enum JobEmploymentType {
+  INTERN // کارآموز
+  PROJECT_BASED // پروژه‌ای
+  PART_TIME // پاره‌وقت
+  FULL_TIME // تمام‌وقت
+}
+
+enum JobPostingStatus {
+  OPEN
+  CLOSED
+}
+
+enum ApplicantStage {
+  NEW
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  SPECIALIST_APPROVED
+  SPECIALIST_REJECTED
+  MANAGEMENT_APPROVED
+  MANAGEMENT_REJECTED
+  HIRED
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  DONE
+  CANCELLED
+  NO_SHOW
+}
+
+enum JobOfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  SIGNED
+}
+
+model JobPosting {
+  id              String            @id @default(uuid())
+  postingNo       Int               @unique @default(autoincrement())
+  title           String
+  jobField        String // زمینه‌ی شغلی
+  employmentType  JobEmploymentType
+  capacity        Int // ظرفیت جذب
+  publishChannel  String?
+  publishBudget   Int? // تومان
+  description     String?
+  status          JobPostingStatus  @default(OPEN)
+  closedAt        DateTime?
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+
+  createdBy  User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  applicants JobApplicant[]
+
+  @@index([status])
+  @@map("recruitment_job_postings")
+}
+
+model JobApplicant {
+  id                       String         @id @default(uuid())
+  jobPostingId             String
+  name                     String
+  phone                    String
+  educationField           String?
+  skillTags                String[]       @default([])
+  resumeFile               String? // data URI
+  stage                    ApplicantStage @default(NEW)
+  specialistDecisionReason String?
+  specialistDecisionAt     DateTime?
+  specialistUserId         String?
+  managementDecisionReason String?
+  managementDecisionAt     DateTime?
+  managementUserId         String?
+  contactId                String? // اتصال به CrmContact بر اساس شماره — همان هویت مشترک این سیستم
+  createdAt                DateTime       @default(now())
+
+  jobPosting JobPosting     @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  specialist User?          @relation("ApplicantSpecialist", fields: [specialistUserId], references: [id], onDelete: SetNull)
+  management User?          @relation("ApplicantManagement", fields: [managementUserId], references: [id], onDelete: SetNull)
+  contact    CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  interviews JobInterview[]
+  offer      JobOffer?
+
+  @@index([jobPostingId])
+  @@index([stage])
+  @@map("recruitment_applicants")
+}
+
+model JobInterview {
+  id                String          @id @default(uuid())
+  applicantId       String
+  scheduledAt       DateTime
+  durationMinutes   Int             @default(30)
+  interviewerUserId String?
+  status            InterviewStatus @default(SCHEDULED)
+  overallNote       String?
+  createdAt         DateTime        @default(now())
+
+  applicant   JobApplicant        @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  interviewer User?               @relation(fields: [interviewerUserId], references: [id], onDelete: SetNull)
+  scoreItems  JobInterviewScore[]
+
+  @@index([applicantId])
+  @@index([scheduledAt])
+  @@map("recruitment_interviews")
+}
+
+model JobInterviewScore {
+  id          String  @id @default(uuid())
+  interviewId String
+  criterion   String
+  score       Int // ۱ تا ۵
+  note        String?
+
+  interview JobInterview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+  @@map("recruitment_interview_scores")
+}
+
+model JobOffer {
+  id                  String         @id @default(uuid())
+  applicantId         String         @unique
+  jobDescription      String
+  collaborationType   String // نحوه‌ی همکاری
+  workingHours        String?
+  salary              Int // تومان
+  benefits            String?
+  durationMonths      Int?
+  startDate           DateTime?
+  status              JobOfferStatus @default(DRAFT)
+  publicToken         String         @unique @default(uuid())
+  candidateAcceptedAt DateTime?
+  signedByUserId      String?
+  signedAt            DateTime?
+  createdAt           DateTime       @default(now())
+
+  applicant JobApplicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  signedBy  User?        @relation(fields: [signedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("recruitment_offers")
 }

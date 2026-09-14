@@ -220,11 +220,14 @@ export class EmployeesController {
    * instead, same pattern as Product.isActive.
    */
   @Post(':id/terminate')
-  async terminate(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+  async terminate(@Param('id') id: string, @Body() body: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
-    const updated = await ctx.tenantDb.employee.update({ where: { id }, data: { status: 'TERMINATED' } });
+    const updated = await ctx.tenantDb.employee.update({
+      where: { id },
+      data: { status: 'TERMINATED', terminationReason: body?.reason, terminatedAt: new Date() },
+    });
     await this.automation.emit(ctx, 'hr.employee.terminated', {
       employeeName: updated.fullName,
       employeeCode: updated.employeeCode,

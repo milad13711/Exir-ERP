@@ -1627,6 +1627,8 @@ export type Employee = {
   hireDate: string;
   baseSalary: number;
   status: EmploymentStatus;
+  terminationReason: string | null;
+  terminatedAt: string | null;
   managerId: string | null;
   createdAt: string;
 };
@@ -1756,8 +1758,8 @@ export function updateEmployee(
   return apiFetch<Employee>(`/hr/employees/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function terminateEmployee(id: string) {
-  return apiFetch<Employee>(`/hr/employees/${id}/terminate`, { method: "POST" });
+export function terminateEmployee(id: string, reason?: string) {
+  return apiFetch<Employee>(`/hr/employees/${id}/terminate`, { method: "POST", body: JSON.stringify({ reason }) });
 }
 
 export function reactivateEmployee(id: string) {
@@ -5274,4 +5276,299 @@ export async function fetchQrCodeImageObjectUrl(id: string): Promise<string> {
   if (!res.ok) throw new ApiError("ساخت تصویر QR ناموفق بود", res.status);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
+}
+
+// ── استخدام و جذب نیرو ──────────────────────────────────────────────────────
+
+export type JobEmploymentType = "INTERN" | "PROJECT_BASED" | "PART_TIME" | "FULL_TIME";
+export type JobPostingStatus = "OPEN" | "CLOSED";
+export type ApplicantStage =
+  | "NEW"
+  | "INTERVIEW_SCHEDULED"
+  | "INTERVIEWED"
+  | "SPECIALIST_APPROVED"
+  | "SPECIALIST_REJECTED"
+  | "MANAGEMENT_APPROVED"
+  | "MANAGEMENT_REJECTED"
+  | "HIRED";
+export type InterviewStatus = "SCHEDULED" | "DONE" | "CANCELLED" | "NO_SHOW";
+export type JobOfferStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SIGNED";
+
+export type JobPosting = {
+  id: string;
+  postingNo: number;
+  title: string;
+  jobField: string;
+  employmentType: JobEmploymentType;
+  capacity: number;
+  publishChannel: string | null;
+  publishBudget: number | null;
+  description: string | null;
+  status: JobPostingStatus;
+  closedAt: string | null;
+  createdAt: string;
+  _count?: { applicants: number };
+};
+
+export type JobInterviewScoreItem = { id: string; interviewId: string; criterion: string; score: number; note: string | null };
+
+export type JobInterview = {
+  id: string;
+  applicantId: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  interviewerUserId: string | null;
+  status: InterviewStatus;
+  overallNote: string | null;
+  createdAt: string;
+  interviewer: { id: string; name: string } | null;
+  scoreItems: JobInterviewScoreItem[];
+  applicant?: { id: string; name: string; phone: string; jobPosting: { title: string } };
+};
+
+export type JobOffer = {
+  id: string;
+  applicantId: string;
+  jobDescription: string;
+  collaborationType: string;
+  workingHours: string | null;
+  salary: number;
+  benefits: string | null;
+  durationMonths: number | null;
+  startDate: string | null;
+  status: JobOfferStatus;
+  publicToken: string;
+  candidateAcceptedAt: string | null;
+  signedByUserId: string | null;
+  signedAt: string | null;
+  createdAt: string;
+};
+
+export type JobApplicant = {
+  id: string;
+  jobPostingId: string;
+  name: string;
+  phone: string;
+  educationField: string | null;
+  skillTags: string[];
+  resumeFile: string | null;
+  stage: ApplicantStage;
+  specialistDecisionReason: string | null;
+  specialistDecisionAt: string | null;
+  specialistUserId: string | null;
+  managementDecisionReason: string | null;
+  managementDecisionAt: string | null;
+  managementUserId: string | null;
+  contactId: string | null;
+  createdAt: string;
+  jobPosting: { id: string; title: string; postingNo: number };
+  specialist: { id: string; name: string } | null;
+  management: { id: string; name: string } | null;
+  interviews: JobInterview[];
+  offer: JobOffer | null;
+};
+
+export type RecruitmentPostingReport = {
+  postingId: string;
+  title: string;
+  capacity: number;
+  totalApplicants: number;
+  hired: number;
+  remainingCapacity: number;
+  stageBreakdown: Partial<Record<ApplicantStage, number>>;
+  status: JobPostingStatus;
+  closedAt: string | null;
+};
+
+export type RecruitmentGeneralSettings = { defaultInterviewMinutes: number; bufferMinutesBetweenInterviews: number };
+export type RecruitmentSmsSettings = {
+  enabled: boolean;
+  specialistApprovedTemplate: string;
+  specialistRejectedTemplate: string;
+  managementApprovedTemplate: string;
+  managementRejectedTemplate: string;
+  interviewInvitationTemplate: string;
+};
+export type RecruitmentCompanySeal = { signatureImage?: string; stampImage?: string };
+
+export function fetchJobPostings(status?: string) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<JobPosting[]>(`/recruitment/postings${qs}`);
+}
+
+export function fetchJobPosting(id: string) {
+  return apiFetch<JobPosting & { applicants: JobApplicant[] }>(`/recruitment/postings/${id}`);
+}
+
+export function fetchPostingReport(id: string) {
+  return apiFetch<RecruitmentPostingReport>(`/recruitment/postings/${id}/report`);
+}
+
+export function createJobPosting(data: {
+  title: string;
+  jobField: string;
+  employmentType: JobEmploymentType;
+  capacity: number;
+  publishChannel?: string;
+  publishBudget?: number;
+  description?: string;
+}) {
+  return apiFetch<JobPosting>("/recruitment/postings", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateJobPosting(id: string, data: Partial<Parameters<typeof createJobPosting>[0]>) {
+  return apiFetch<JobPosting>(`/recruitment/postings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function closeJobPosting(id: string) {
+  return apiFetch<JobPosting>(`/recruitment/postings/${id}/close`, { method: "POST" });
+}
+
+export function fetchApplicants(filters: { jobPostingId?: string; stage?: string; search?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.jobPostingId) params.set("jobPostingId", filters.jobPostingId);
+  if (filters.stage) params.set("stage", filters.stage);
+  if (filters.search) params.set("search", filters.search);
+  const qs = params.toString();
+  return apiFetch<JobApplicant[]>(`/recruitment/applicants${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchApplicant(id: string) {
+  return apiFetch<JobApplicant>(`/recruitment/applicants/${id}`);
+}
+
+export function createApplicant(data: {
+  jobPostingId: string;
+  name: string;
+  phone: string;
+  educationField?: string;
+  skillTags?: string[];
+  resumeFile?: string;
+}) {
+  return apiFetch<JobApplicant>("/recruitment/applicants", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateApplicant(id: string, data: Partial<Omit<Parameters<typeof createApplicant>[0], "jobPostingId">>) {
+  return apiFetch<JobApplicant>(`/recruitment/applicants/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function specialistDecision(applicantId: string, data: { approved: boolean; reason?: string }) {
+  return apiFetch<JobApplicant>(`/recruitment/applicants/${applicantId}/specialist-decision`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function managementDecision(applicantId: string, data: { approved: boolean; reason?: string }) {
+  return apiFetch<JobApplicant>(`/recruitment/applicants/${applicantId}/management-decision`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function hireApplicant(applicantId: string, data: { employeeCode: string; department?: string; createLogin?: boolean; roleId?: string }) {
+  return apiFetch<Employee>(`/recruitment/applicants/${applicantId}/hire`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchInterviews(filters: { from?: string; to?: string; interviewerUserId?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.interviewerUserId) params.set("interviewerUserId", filters.interviewerUserId);
+  const qs = params.toString();
+  return apiFetch<JobInterview[]>(`/recruitment/interviews${qs ? `?${qs}` : ""}`);
+}
+
+export function scheduleInterview(data: { applicantId: string; scheduledAt: string; durationMinutes?: number; interviewerUserId?: string }) {
+  return apiFetch<JobInterview>("/recruitment/interviews", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateInterview(
+  id: string,
+  data: Partial<{ scheduledAt: string; durationMinutes: number; interviewerUserId: string; status: InterviewStatus }>,
+) {
+  return apiFetch<JobInterview>(`/recruitment/interviews/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function cancelInterview(id: string) {
+  return apiFetch<JobInterview>(`/recruitment/interviews/${id}/cancel`, { method: "POST" });
+}
+
+export function recordInterviewReport(
+  id: string,
+  data: { scores: { criterion: string; score: number; note?: string }[]; overallNote?: string; status: "DONE" | "NO_SHOW" },
+) {
+  return apiFetch<JobInterview>(`/recruitment/interviews/${id}/report`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchOffer(applicantId: string) {
+  return apiFetch<JobOffer>(`/recruitment/applicants/${applicantId}/offer`);
+}
+
+export function createOrUpdateOffer(applicantId: string, data: {
+  jobDescription: string;
+  collaborationType: string;
+  workingHours?: string;
+  salary: number;
+  benefits?: string;
+  durationMonths?: number;
+  startDate?: string;
+}) {
+  return apiFetch<JobOffer>(`/recruitment/applicants/${applicantId}/offer`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function sendOffer(offerId: string) {
+  return apiFetch<JobOffer>(`/recruitment/offers/${offerId}/send`, { method: "POST" });
+}
+
+export function signOffer(offerId: string) {
+  return apiFetch<JobOffer>(`/recruitment/offers/${offerId}/sign`, { method: "POST" });
+}
+
+export function openOfferPdf(offerId: string): void {
+  fetchAndOpenPdf(`/recruitment/offers/${offerId}/pdf`);
+}
+
+export function fetchRecruitmentGeneralSettings() {
+  return apiFetch<RecruitmentGeneralSettings>("/recruitment/settings/general");
+}
+
+export function updateRecruitmentGeneralSettings(data: RecruitmentGeneralSettings) {
+  return apiFetch<RecruitmentGeneralSettings>("/recruitment/settings/general", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchRecruitmentSmsSettings() {
+  return apiFetch<RecruitmentSmsSettings>("/recruitment/settings/sms");
+}
+
+export function updateRecruitmentSmsSettings(data: RecruitmentSmsSettings) {
+  return apiFetch<RecruitmentSmsSettings>("/recruitment/settings/sms", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchRecruitmentCompanySeal() {
+  return apiFetch<RecruitmentCompanySeal>("/recruitment/settings/company-seal");
+}
+
+export function updateRecruitmentCompanySeal(data: RecruitmentCompanySeal) {
+  return apiFetch<RecruitmentCompanySeal>("/recruitment/settings/company-seal", { method: "PUT", body: JSON.stringify(data) });
+}
+
+// عمومی — بدون ورود
+
+export type PublicJobOfferView = {
+  applicantName: string;
+  jobDescription: string;
+  collaborationType: string;
+  workingHours: string | null;
+  salary: number;
+  benefits: string | null;
+  durationMonths: number | null;
+  startDate: string | null;
+  status: JobOfferStatus;
+  candidateAcceptedAt: string | null;
+};
+
+export function fetchPublicJobOffer(tenantSlug: string, token: string) {
+  return apiFetch<PublicJobOfferView>(`/public/recruitment/${tenantSlug}/offer/${token}`);
+}
+
+export function respondToPublicJobOffer(tenantSlug: string, token: string, accepted: boolean) {
+  return apiFetch<{ success: true; accepted: boolean }>(`/public/recruitment/${tenantSlug}/offer/${token}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ accepted }),
+  });
 }

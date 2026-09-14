@@ -105,10 +105,15 @@ export function EmployeeModal({
   async function handleToggleStatus() {
     if (!employee) return;
     const terminating = employee.status === "ACTIVE";
-    if (terminating && !window.confirm("این کارمند به وضعیت غیرفعال (پایان همکاری) منتقل شود؟")) return;
+    let reason: string | undefined;
+    if (terminating) {
+      const input = window.prompt("دلیل پایان همکاری را وارد کنید (اختیاری):");
+      if (input === null) return; // انصراف
+      reason = input.trim() || undefined;
+    }
     setTogglingStatus(true);
     try {
-      if (terminating) await terminateEmployee(employeeId);
+      if (terminating) await terminateEmployee(employeeId, reason);
       else await reactivateEmployee(employeeId);
       reload();
       onChanged?.();
@@ -219,6 +224,9 @@ export function EmployeeModal({
                   <div className="text-[11px] text-muted mt-1" dir="ltr">
                     {employee.employeeCode}
                   </div>
+                  {employee.status === "TERMINATED" && employee.terminationReason ? (
+                    <div className="text-[11.5px] text-danger mt-1">دلیل: {employee.terminationReason}</div>
+                  ) : null}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
