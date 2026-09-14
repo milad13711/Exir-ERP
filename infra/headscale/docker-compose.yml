@@ -14,8 +14,8 @@ services:
       - ./data:/var/lib/headscale
     ports:
       - "8083:8080"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+    # No healthcheck: this image is distroless-minimal (no wget/curl/nc/sh —
+    # confirmed by exec'ing in), so there's no tool available inside the
+    # container to run one. `docker ps` will always show this as having no
+    # health status, which is fine — nothing else depends on it being
+    # healthy (no other service uses condition: service_healthy on this).
