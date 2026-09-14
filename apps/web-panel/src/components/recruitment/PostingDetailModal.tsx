@@ -4,7 +4,17 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { toPersianDigits, formatToman } from "@/lib/persian";
-import { fetchJobPosting, fetchPostingReport, closeJobPosting, type JobPosting, type JobApplicant, type RecruitmentPostingReport, type ApplicantStage } from "@/lib/api";
+import {
+  fetchJobPosting,
+  fetchPostingReport,
+  closeJobPosting,
+  createApplicant,
+  ApiError,
+  type JobPosting,
+  type JobApplicant,
+  type RecruitmentPostingReport,
+  type ApplicantStage,
+} from "@/lib/api";
 
 const STAGE_LABELS: Record<ApplicantStage, string> = {
   NEW: "جدید",
@@ -39,11 +49,48 @@ export function PostingDetailModal({
   const [report, setReport] = useState<RecruitmentPostingReport | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [addingApplicant, setAddingApplicant] = useState(false);
+  const [applicantName, setApplicantName] = useState("");
+  const [applicantPhone, setApplicantPhone] = useState("");
+  const [applicantEducationField, setApplicantEducationField] = useState("");
+  const [applicantSkillTags, setApplicantSkillTags] = useState("");
+  const [applicantError, setApplicantError] = useState<string | null>(null);
+
   function reload() {
     fetchJobPosting(id).then(setPosting);
     fetchPostingReport(id).then(setReport).catch(() => setReport(null));
   }
   useEffect(reload, [id]);
+
+  async function handleAddApplicant(e: React.FormEvent) {
+    e.preventDefault();
+    if (!applicantName.trim() || !applicantPhone.trim()) return;
+    setBusy(true);
+    setApplicantError(null);
+    try {
+      await createApplicant({
+        jobPostingId: id,
+        name: applicantName.trim(),
+        phone: applicantPhone.trim(),
+        educationField: applicantEducationField.trim() || undefined,
+        skillTags: applicantSkillTags
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
+      setAddingApplicant(false);
+      setApplicantName("");
+      setApplicantPhone("");
+      setApplicantEducationField("");
+      setApplicantSkillTags("");
+      reload();
+      onChanged();
+    } catch (err) {
+      setApplicantError(err instanceof ApiError ? err.message : "ثبت متقاضی ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleClose() {
     if (!confirm("این آگهی بسته شود؟ دیگر متقاضی جدیدی نمی‌توان برایش ثبت کرد.")) return;
@@ -100,7 +147,62 @@ export function PostingDetailModal({
         )}
 
         <div>
-          <div className="text-[12px] font-semibold text-ink-soft mb-2">متقاضیان ({toPersianDigits(posting.applicants.length)})</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[12px] font-semibold text-ink-soft">متقاضیان ({toPersianDigits(posting.applicants.length)})</div>
+            {posting.status === "OPEN" && !addingApplicant && (
+              <button onClick={() => setAddingApplicant(true)} className="text-[11.5px] font-bold text-primary cursor-pointer">
+                + ثبت متقاضی جدید
+              </button>
+            )}
+          </div>
+
+          {addingApplicant && (
+            <form onSubmit={handleAddApplicant} className="border border-border rounded-xl p-3 mb-2 flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={applicantName}
+                  onChange={(e) => setApplicantName(e.target.value)}
+                  placeholder="نام و نام خانوادگی"
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+                <input
+                  value={applicantPhone}
+                  onChange={(e) => setApplicantPhone(e.target.value)}
+                  placeholder="شماره موبایل"
+                  dir="ltr"
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={applicantEducationField}
+                  onChange={(e) => setApplicantEducationField(e.target.value)}
+                  placeholder="رشته‌ی تحصیلی (اختیاری)"
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+                <input
+                  value={applicantSkillTags}
+                  onChange={(e) => setApplicantSkillTags(e.target.value)}
+                  placeholder="مهارت‌ها، با کاما جدا کنید"
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+              </div>
+              {applicantError && <div className="text-[12px] text-danger">{applicantError}</div>}
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={busy || !applicantName.trim() || !applicantPhone.trim()}
+                  className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer"
+                >
+                  ثبت متقاضی
+                </button>
+                <button type="button" onClick={() => setAddingApplicant(false)} className="text-[12px] font-bold text-muted px-3 py-2 cursor-pointer">
+                  انصراف
+                </button>
+              </div>
+            </form>
+          )}
+
           <div className="flex flex-col gap-1.5">
             {posting.applicants.length === 0 ? (
               <div className="text-[12.5px] text-muted text-center py-3">متقاضی‌ای ثبت نشده است</div>

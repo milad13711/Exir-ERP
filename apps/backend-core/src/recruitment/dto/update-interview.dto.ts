@@ -19,4 +19,8 @@ export class UpdateInterviewDto {
   @IsOptional()
   @IsIn(STATUSES)
   status?: (typeof STATUSES)[number];
+
+  @IsOptional()
+  @IsString()
+  location?: string;
 }

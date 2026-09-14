@@ -38,7 +38,7 @@ const DEFAULT_SMS: SmsSettings = {
   specialistRejectedTemplate: 'متقاضی گرامی {name}، با تشکر از وقتی که گذاشتید، در این مرحله امکان ادامه‌ی همکاری فراهم نشد.',
   managementApprovedTemplate: 'متقاضی گرامی {name}، تبریک! همکاری شما توسط مدیریت تأیید نهایی شد.',
   managementRejectedTemplate: 'متقاضی گرامی {name}، با تشکر از وقتی که گذاشتید، در این دوره امکان جذب شما فراهم نشد.',
-  interviewInvitationTemplate: 'متقاضی گرامی {name}، جلسه‌ی مصاحبه‌ی شما در تاریخ {date} ساعت {time} برگزار می‌شود.',
+  interviewInvitationTemplate: 'متقاضی گرامی {name}، جلسه‌ی مصاحبه‌ی شما در تاریخ {date} ساعت {time} در {location} برگزار می‌شود.',
 };
 
 type CompanySeal = { signatureImage?: string; stampImage?: string };
@@ -92,6 +92,12 @@ export class RecruitmentService {
   async getCompanySeal(ctx: TenantRequestContext): Promise<CompanySeal> {
     const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SEAL_KEY } });
     return (row?.value as CompanySeal | undefined) ?? {};
+  }
+
+  /** آدرس پیش‌فرض محل مصاحبه — همان آدرس شرکت در تنظیمات عمومی (Settings → General)، بدون تنظیم تکراری برای این ماژول. */
+  private async getDefaultInterviewLocation(ctx: TenantRequestContext): Promise<string> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } });
+    return (row?.value as string | undefined) ?? '';
   }
 
   async setCompanySeal(ctx: TenantRequestContext, dto: CompanySeal): Promise<CompanySeal> {
@@ -285,6 +291,7 @@ export class RecruitmentService {
 
     const general = await this.getGeneralSettings(ctx);
     const durationMinutes = dto.durationMinutes ?? general.defaultInterviewMinutes;
+    const location = dto.location?.trim() || (await this.getDefaultInterviewLocation(ctx));
 
     const interview = await ctx.tenantDb.jobInterview.create({
       data: {
@@ -292,6 +299,7 @@ export class RecruitmentService {
         scheduledAt: new Date(dto.scheduledAt),
         durationMinutes,
         interviewerUserId: dto.interviewerUserId,
+        location: location || undefined,
       },
       include: { interviewer: { select: { id: true, name: true } } },
     });
@@ -317,6 +325,7 @@ export class RecruitmentService {
         name: applicant.name,
         date: interview.scheduledAt.toLocaleDateString('fa-IR'),
         time: interview.scheduledAt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        location: interview.location || 'دفتر شرکت',
       });
       await this.sms.sendSms(applicant.phone, message);
     }

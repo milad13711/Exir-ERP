@@ -20,6 +20,7 @@ import {
   openOfferPdf,
   fetchUsers,
   fetchRoles,
+  fetchGeneralSettings,
   ApiError,
   type JobApplicant,
   type ApplicantStage,
@@ -235,7 +236,17 @@ function InterviewsSection({
   const [scheduledAt, setScheduledAt] = useState("");
   const [duration, setDuration] = useState("30");
   const [interviewerUserId, setInterviewerUserId] = useState("");
+  const [location, setLocation] = useState("");
   const [reportingId, setReportingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!scheduling) return;
+    // پیش‌فرض آدرس محل مصاحبه، آدرس ثبت‌شده‌ی شرکت است (Settings → General) — قابل ویرایش برای این مصاحبه.
+    fetchGeneralSettings()
+      .then((s) => setLocation((prev) => prev || s.address || ""))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduling]);
 
   async function handleSchedule(e: React.FormEvent) {
     e.preventDefault();
@@ -248,6 +259,7 @@ function InterviewsSection({
         scheduledAt: new Date(scheduledAt).toISOString(),
         durationMinutes: Number(duration) || undefined,
         interviewerUserId: interviewerUserId || undefined,
+        location: location.trim() || undefined,
       });
       setScheduling(false);
       setScheduledAt("");
@@ -295,6 +307,12 @@ function InterviewsSection({
               ))}
             </select>
           </div>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="محل مصاحبه (پیش‌فرض: آدرس شرکت)"
+            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+          />
           <div className="flex items-center gap-2">
             <button type="submit" disabled={busy || !scheduledAt} className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer">
               ثبت زمان مصاحبه
@@ -316,6 +334,7 @@ function InterviewsSection({
                 <span className="text-[12px] font-semibold">
                   {formatJalaliDateTime(iv.scheduledAt)} · {toPersianDigits(iv.durationMinutes)} دقیقه
                   {iv.interviewer ? ` · ${iv.interviewer.name}` : ""}
+                  {iv.location ? ` · ${iv.location}` : ""}
                 </span>
                 <Badge tone={iv.status === "DONE" ? "success" : iv.status === "SCHEDULED" ? "neutral" : "danger"}>
                   {iv.status === "SCHEDULED" ? "زمان‌بندی‌شده" : iv.status === "DONE" ? "برگزارشده" : iv.status === "CANCELLED" ? "لغوشده" : "عدم حضور"}

@@ -3019,6 +3019,7 @@ model JobInterview {
   interviewerUserId String?
   status            InterviewStatus @default(SCHEDULED)
   overallNote       String?
+  location          String? // آدرس محل مصاحبه — خالی یعنی از آدرس شرکت (settings/general) استفاده شود
   createdAt         DateTime        @default(now())
 
   applicant   JobApplicant        @relation(fields: [applicantId], references: [id], onDelete: Cascade)

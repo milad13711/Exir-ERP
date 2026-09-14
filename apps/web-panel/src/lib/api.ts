@@ -5436,6 +5436,7 @@ export type JobInterview = {
   interviewerUserId: string | null;
   status: InterviewStatus;
   overallNote: string | null;
+  location: string | null;
   createdAt: string;
   interviewer: { id: string; name: string } | null;
   scoreItems: JobInterviewScoreItem[];
@@ -5589,13 +5590,19 @@ export function fetchInterviews(filters: { from?: string; to?: string; interview
   return apiFetch<JobInterview[]>(`/recruitment/interviews${qs ? `?${qs}` : ""}`);
 }
 
-export function scheduleInterview(data: { applicantId: string; scheduledAt: string; durationMinutes?: number; interviewerUserId?: string }) {
+export function scheduleInterview(data: {
+  applicantId: string;
+  scheduledAt: string;
+  durationMinutes?: number;
+  interviewerUserId?: string;
+  location?: string;
+}) {
   return apiFetch<JobInterview>("/recruitment/interviews", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function updateInterview(
   id: string,
-  data: Partial<{ scheduledAt: string; durationMinutes: number; interviewerUserId: string; status: InterviewStatus }>,
+  data: Partial<{ scheduledAt: string; durationMinutes: number; interviewerUserId: string; status: InterviewStatus; location: string }>,
 ) {
   return apiFetch<JobInterview>(`/recruitment/interviews/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }

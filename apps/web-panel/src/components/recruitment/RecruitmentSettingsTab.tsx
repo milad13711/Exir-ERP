@@ -127,6 +127,11 @@ export function RecruitmentSettingsTab() {
                 onChange={(e) => setSms({ ...sms, [key]: e.target.value })}
                 className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
               />
+              {key === "interviewInvitationTemplate" && (
+                <div className="text-[11px] text-muted mt-1.5" dir="ltr">
+                  متغیرها: {"{name} {date} {time} {location}"}
+                </div>
+              )}
             </div>
           ))}
 

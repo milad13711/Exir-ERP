@@ -15,4 +15,8 @@ export class ScheduleInterviewDto {
   @IsOptional()
   @IsString()
   interviewerUserId?: string;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
 }
