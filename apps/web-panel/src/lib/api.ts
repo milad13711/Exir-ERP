@@ -5782,3 +5782,26 @@ export function referReport(id: string, data: { toUserIds: string[]; note?: stri
 export function paraphReportReferral(reportId: string, referralId: string) {
   return apiFetch<Report>(`/reports/${reportId}/referrals/${referralId}/paraph`, { method: "POST" });
 }
+
+// ── KPI پرسنل ────────────────────────────────────────────────────────────
+
+export type EmployeeKpi = {
+  employee: { id: string; fullName: string; position: string; employeeCode: string };
+  period: { from: string; to: string };
+  attendance: { present: number; absent: number; leave: number; holiday: number; rate: number | null };
+  tasks: { assigned: number; completed: number; overdue: number; completionRate: number | null } | null;
+  rewardsCount: number;
+  penaltiesCount: number;
+  netRewardScore: number;
+  moduleActivity: { moduleCode: string; label: string; recordsCreated: number }[];
+  totalRecordsCreated: number;
+  overallScore: number | null;
+};
+
+export function fetchEmployeeKpi(employeeId: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return apiFetch<EmployeeKpi>(`/hr/employees/${employeeId}/kpi${qs ? `?${qs}` : ""}`);
+}

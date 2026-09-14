@@ -13,6 +13,8 @@ import { HrAutomationTriggers } from './hr-automation.triggers.js';
 import { CertificatesController } from './certificates.controller.js';
 import { CertificateImageService } from './certificate-image.service.js';
 import { PersonnelRewardsController, PersonnelPenaltiesController } from './personnel-actions.controller.js';
+import { KpiController } from './kpi.controller.js';
+import { KpiService } from './kpi.service.js';
 
 @Module({
   imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule],
@@ -25,8 +27,9 @@ import { PersonnelRewardsController, PersonnelPenaltiesController } from './pers
     CertificatesController,
     PersonnelRewardsController,
     PersonnelPenaltiesController,
+    KpiController,
   ],
-  providers: [PayrollPdfService, HrAutomationTriggers, CertificateImageService],
+  providers: [PayrollPdfService, HrAutomationTriggers, CertificateImageService, KpiService],
   exports: [CertificateImageService],
 })
 export class HrModule {}

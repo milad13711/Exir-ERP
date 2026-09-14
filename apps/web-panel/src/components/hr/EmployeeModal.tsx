@@ -25,6 +25,7 @@ import {
   type Certificate,
   type PersonnelActionEntry,
 } from "@/lib/api";
+import { EmployeeKpiModal } from "./EmployeeKpiModal";
 import {
   LEAVE_TYPE_LABELS,
   LEAVE_STATUS_LABELS,
@@ -68,6 +69,7 @@ export function EmployeeModal({
   const [editBaseSalary, setEditBaseSalary] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [kpiOpen, setKpiOpen] = useState(false);
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [certCourseTitle, setCertCourseTitle] = useState("");
@@ -341,7 +343,14 @@ export function EmployeeModal({
                   ) : null}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setKpiOpen(true)}
+                  className="text-[11px] font-bold text-accent bg-accent-soft px-2.5 py-1 rounded-lg cursor-pointer"
+                >
+                  KPI
+                </button>
                 <button
                   type="button"
                   onClick={startEdit}
@@ -362,6 +371,8 @@ export function EmployeeModal({
               </div>
             </div>
           )}
+
+          {kpiOpen && <EmployeeKpiModal employeeId={employeeId} onClose={() => setKpiOpen(false)} />}
 
           <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-border rounded-xl p-3.5">
             <div>
