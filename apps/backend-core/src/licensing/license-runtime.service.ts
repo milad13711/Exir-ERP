@@ -2,7 +2,10 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InvalidLicenseError, verifyLicenseToken, type LicensePayload } from './license-token.js';
 
 const GRACE_PERIOD_DAYS = 7;
-const CHECK_IN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h — best-effort, never blocking
+// 15min — best-effort, never blocking. Was 6h (fine for pure revocation-checking);
+// shortened so admin-panel's "last seen" connectivity indicator on the licenses
+// page stays meaningfully fresh instead of only updating a few times a day.
+const CHECK_IN_INTERVAL_MS = 15 * 60 * 1000;
 
 export type LicenseStatus =
   | { mode: 'cloud' }
@@ -29,6 +32,7 @@ export class LicenseRuntimeService implements OnModuleInit {
     }
     this.loadFromEnv();
     if (process.env.CONTROL_PLANE_CHECKIN_URL) {
+      void this.checkIn(); // فوری هم یک بار — تا وضعیت «آخرین اتصال» بدون ۱۵ دقیقه تأخیر اول بروز شود
       setInterval(() => this.checkIn(), CHECK_IN_INTERVAL_MS).unref();
     }
   }

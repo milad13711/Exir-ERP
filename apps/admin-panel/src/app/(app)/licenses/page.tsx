@@ -12,6 +12,29 @@ function isExpired(license: AdminLicense): boolean {
   return new Date(license.expiresAt).getTime() < Date.now();
 }
 
+// چک‌این هر ۱۵ دقیقه انجام می‌شود (LicenseRuntimeService) — تا نیم‌ساعت یعنی هنوز آنلاین است.
+const ONLINE_THRESHOLD_MS = 30 * 60 * 1000;
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+function relativeTimeFa(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "چند لحظه پیش";
+  if (minutes < 60) return `${toPersianDigits(minutes)} دقیقه پیش`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${toPersianDigits(hours)} ساعت پیش`;
+  const days = Math.floor(hours / 24);
+  return `${toPersianDigits(days)} روز پیش`;
+}
+
+function connectivity(license: AdminLicense): { label: string; tone: "success" | "warning" | "danger" | "neutral" } {
+  if (!license.lastCheckInAt) return { label: "هرگز متصل نشده", tone: "neutral" };
+  const diffMs = Date.now() - new Date(license.lastCheckInAt).getTime();
+  if (diffMs <= ONLINE_THRESHOLD_MS) return { label: `آنلاین · ${relativeTimeFa(license.lastCheckInAt)}`, tone: "success" };
+  if (diffMs <= STALE_THRESHOLD_MS) return { label: `آخرین اتصال: ${relativeTimeFa(license.lastCheckInAt)}`, tone: "warning" };
+  return { label: `قطع — آخرین اتصال: ${relativeTimeFa(license.lastCheckInAt)}`, tone: "danger" };
+}
+
 export default function LicensesPage() {
   const [licenses, setLicenses] = useState<AdminLicense[] | null>(null);
   const [issueOpen, setIssueOpen] = useState(false);
@@ -61,41 +84,46 @@ export default function LicensesPage() {
         ) : licenses.length === 0 ? (
           <div className="p-8 text-center text-muted text-sm">هنوز لایسنسی صادر نشده است</div>
         ) : (
-          licenses.map((l, i) => (
-            <div
-              key={l.id}
-              className={`flex items-center gap-3 px-4 py-3.5 ${i < licenses.length - 1 ? "border-b border-border" : ""}`}
-            >
-              <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-                <KeyIcon className="w-4.5 h-4.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-bold truncate">{l.orgName}</div>
-                <div className="text-[11.5px] text-muted mt-0.5 truncate">
-                  {toPersianDigits(l.allowedModules.length)} ماژول · {toPersianDigits(l.seats)} کاربر · انقضا:{" "}
-                  {formatJalaliDate(l.expiresAt)}
-                  {l.tenant ? ` · ${l.tenant.name}` : ""}
+          licenses.map((l, i) => {
+            const conn = connectivity(l);
+            return (
+              <div
+                key={l.id}
+                className={`flex flex-wrap items-center gap-3 px-4 py-3.5 ${i < licenses.length - 1 ? "border-b border-border" : ""}`}
+              >
+                <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+                  <KeyIcon className="w-4.5 h-4.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold truncate">{l.orgName}</div>
+                  <div className="text-[11.5px] text-muted mt-0.5 truncate">
+                    {toPersianDigits(l.allowedModules.length)} ماژول · {toPersianDigits(l.seats)} کاربر · انقضا:{" "}
+                    {formatJalaliDate(l.expiresAt)}
+                    {l.tenant ? ` · ${l.tenant.name}` : ""}
+                    {l.lastCheckInIp ? ` · IP: ${l.lastCheckInIp}` : ""}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
+                  {l.status === "REVOKED" ? (
+                    <Badge tone="neutral">لغوشده</Badge>
+                  ) : isExpired(l) ? (
+                    <Badge tone="warning">منقضی‌شده</Badge>
+                  ) : (
+                    <Badge tone="success">فعال</Badge>
+                  )}
+                  <Badge tone={conn.tone}>{conn.label}</Badge>
+                  {l.status === "ACTIVE" && !isExpired(l) && (
+                    <button
+                      onClick={() => handleRevoke(l)}
+                      className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
+                    >
+                      لغو
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {l.status === "REVOKED" ? (
-                  <Badge tone="neutral">لغوشده</Badge>
-                ) : isExpired(l) ? (
-                  <Badge tone="warning">منقضی‌شده</Badge>
-                ) : (
-                  <Badge tone="success">فعال</Badge>
-                )}
-                {l.status === "ACTIVE" && !isExpired(l) && (
-                  <button
-                    onClick={() => handleRevoke(l)}
-                    className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
-                  >
-                    لغو
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </Card>
 

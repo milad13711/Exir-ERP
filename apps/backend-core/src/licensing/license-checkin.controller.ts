@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { IsString, MinLength } from 'class-validator';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 
@@ -6,6 +7,13 @@ class CheckInDto {
   @IsString()
   @MinLength(10)
   licenseKey!: string;
+}
+
+/** پشت nginx، X-Forwarded-For اولین مقدارش IP واقعی کلاینت است — پیکربندی nginx.conf همین هدر را با proxy_set_header ست می‌کند. */
+function realClientIp(req: Request): string | undefined {
+  const forwarded = req.headers['x-forwarded-for'];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim();
+  return first || req.socket.remoteAddress || undefined;
 }
 
 /**
@@ -17,15 +25,26 @@ class CheckInDto {
  *
  * No auth: an on-premise deployment has no Control Plane credentials, only
  * the opaque signed key itself, which functions as the bearer credential here.
+ *
+ * Every check-in — valid or not — updates lastCheckInAt/lastCheckInIp, so
+ * admin-panel's licenses page can show "این سرور آخرین بار چه زمانی وصل شده"
+ * (a best-effort liveness signal, not a guarantee — see LicenseRuntimeService's
+ * own comment about staying offline-first).
  */
 @Controller('licenses')
 export class LicenseCheckinController {
   constructor(private readonly controlDb: ControlPrismaService) {}
 
   @Post('check-in')
-  async checkIn(@Body() dto: CheckInDto) {
+  async checkIn(@Body() dto: CheckInDto, @Req() req: Request) {
     const license = await this.controlDb.license.findUnique({ where: { signedKey: dto.licenseKey } });
     if (!license) return { valid: false, reason: 'لایسنس یافت نشد' };
+
+    await this.controlDb.license.update({
+      where: { id: license.id },
+      data: { lastCheckInAt: new Date(), lastCheckInIp: realClientIp(req) },
+    });
+
     if (license.status === 'REVOKED') {
       return { valid: false, reason: license.revokedReason ?? 'لایسنس ابطال شده است' };
     }

@@ -483,6 +483,8 @@ export type AdminLicense = {
   expiresAt: string;
   revokedAt: string | null;
   revokedReason: string | null;
+  lastCheckInAt: string | null;
+  lastCheckInIp: string | null;
   tenant: { id: string; name: string; slug: string } | null;
 };
 

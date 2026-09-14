@@ -436,6 +436,8 @@ model License {
   revokedAt       DateTime?
   revokedReason   String?
   issuedByAdminId String?
+  lastCheckInAt   DateTime? // آخرین باری که سرور on-premise این لایسنس به ما وصل شد (بهترین تلاش — نشانه‌ی زنده‌بودن اتصال، نه یک الزام)
+  lastCheckInIp   String?
 
   tenant        Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   issuedByAdmin AdminUser? @relation(fields: [issuedByAdminId], references: [id], onDelete: SetNull)
