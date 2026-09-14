@@ -78,54 +78,60 @@ export default function LicensesPage() {
         <div className="mt-4 text-[12.5px] text-danger font-semibold bg-danger-soft rounded-xl px-3.5 py-2.5">{actionError}</div>
       )}
 
-      <Card className="mt-6 p-2">
-        {licenses === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
-        ) : licenses.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">هنوز لایسنسی صادر نشده است</div>
-        ) : (
-          licenses.map((l, i) => {
+      {licenses === null ? (
+        <Card className="mt-6 p-8 text-center text-muted text-sm">در حال بارگذاری...</Card>
+      ) : licenses.length === 0 ? (
+        <Card className="mt-6 p-8 text-center text-muted text-sm">هنوز لایسنسی صادر نشده است</Card>
+      ) : (
+        <div className="flex flex-col gap-3 mt-6">
+          {licenses.map((l) => {
             const conn = connectivity(l);
             return (
-              <div
-                key={l.id}
-                className={`flex flex-wrap items-center gap-3 px-4 py-3.5 ${i < licenses.length - 1 ? "border-b border-border" : ""}`}
-              >
-                <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-                  <KeyIcon className="w-4.5 h-4.5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-bold truncate">{l.orgName}</div>
-                  <div className="text-[11.5px] text-muted mt-0.5 truncate">
-                    {toPersianDigits(l.allowedModules.length)} ماژول · {toPersianDigits(l.seats)} کاربر · انقضا:{" "}
-                    {formatJalaliDate(l.expiresAt)}
-                    {l.tenant ? ` · ${l.tenant.name}` : ""}
-                    {l.lastCheckInIp ? ` · IP: ${l.lastCheckInIp}` : ""}
+              <Card key={l.id} className="p-5">
+                <div className="flex items-start gap-3.5 flex-wrap">
+                  <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+                    <KeyIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-[220px]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-[15px] font-extrabold break-words">{l.orgName}</div>
+                      {l.status === "REVOKED" ? (
+                        <Badge tone="neutral">لغوشده</Badge>
+                      ) : isExpired(l) ? (
+                        <Badge tone="warning">منقضی‌شده</Badge>
+                      ) : (
+                        <Badge tone="success">فعال</Badge>
+                      )}
+                    </div>
+                    {l.tenant && <div className="text-[12.5px] text-ink-soft mt-1 break-words">تننت: {l.tenant.name}</div>}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted mt-2.5">
+                      <span>{toPersianDigits(l.allowedModules.length)} ماژول</span>
+                      <span>{toPersianDigits(l.seats)} کاربر</span>
+                      <span>انقضا: {formatJalaliDate(l.expiresAt)}</span>
+                      {l.lastCheckInIp && (
+                        <span dir="ltr" className="text-left">
+                          IP: {l.lastCheckInIp}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    <Badge tone={conn.tone}>{conn.label}</Badge>
+                    {l.status === "ACTIVE" && !isExpired(l) && (
+                      <button
+                        onClick={() => handleRevoke(l)}
+                        className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
+                      >
+                        لغو
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap shrink-0">
-                  {l.status === "REVOKED" ? (
-                    <Badge tone="neutral">لغوشده</Badge>
-                  ) : isExpired(l) ? (
-                    <Badge tone="warning">منقضی‌شده</Badge>
-                  ) : (
-                    <Badge tone="success">فعال</Badge>
-                  )}
-                  <Badge tone={conn.tone}>{conn.label}</Badge>
-                  {l.status === "ACTIVE" && !isExpired(l) && (
-                    <button
-                      onClick={() => handleRevoke(l)}
-                      className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
-                    >
-                      لغو
-                    </button>
-                  )}
-                </div>
-              </div>
+              </Card>
             );
-          })
-        )}
-      </Card>
+          })}
+        </div>
+      )}
 
       {issueOpen && <IssueLicenseModal onClose={() => setIssueOpen(false)} onIssued={reload} />}
     </div>

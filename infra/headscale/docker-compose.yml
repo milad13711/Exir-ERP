@@ -1,0 +1,21 @@
+# Standalone Headscale deployment for Exir ERP's remote-access mesh.
+# Lives at /opt/headscale on the production host, independent of the app's
+# own docker-compose.on-premise.yml (different lifecycle — this shouldn't be
+# touched by an app deploy). See docs/HEADSCALE.md.
+
+services:
+  headscale:
+    image: headscale/headscale:0.23.0
+    container_name: headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - ./config.yaml:/etc/headscale/config.yaml:ro
+      - ./data:/var/lib/headscale
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5

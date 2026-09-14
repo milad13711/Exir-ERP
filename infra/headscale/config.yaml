@@ -1,0 +1,46 @@
+# Headscale (self-hosted Tailscale-compatible coordination server) config
+# for Exir ERP's secure remote-access mesh into on-premise tenant servers.
+#
+# Runs standalone, decoupled from the app's own docker-compose stack, on
+# the same production host (45.94.215.22) at /opt/headscale — see
+# docs/HEADSCALE.md for the reasoning (avoiding Tailscale's own hosted
+# coordination server, which we don't want to depend on given sanctions/
+# filtering risk for an Iran-based deployment) and the setup steps.
+
+server_url: http://45.94.215.22:8083
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+
+grpc_listen_addr: 0.0.0.0:50443
+grpc_allow_insecure: false
+
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+
+derp:
+  server:
+    enabled: false
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  auto_update_enabled: true
+  update_frequency: 24h
+
+disable_check_updates: true
+ephemeral_node_inactivity_timeout: 720h
+
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+log:
+  level: info
+
+dns:
+  magic_dns: false
+  base_domain: exir-mesh.internal
