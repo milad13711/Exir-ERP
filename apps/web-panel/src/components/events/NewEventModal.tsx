@@ -216,10 +216,10 @@ export function NewEventModal({ onClose, onCreated }: { onClose: () => void; onC
           </div>
           <div className="flex flex-col gap-2">
             {ticketTypes.map((t, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <input value={t.name} onChange={(e) => updateTicketType(i, { name: e.target.value })} placeholder="نام (مثلاً عادی)" className={inputClass} />
-                <input value={t.price} onChange={(e) => updateTicketType(i, { price: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="قیمت (تومان)" className={inputClass} />
-                <input value={t.capacity} onChange={(e) => updateTicketType(i, { capacity: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="ظرفیت" className={`${inputClass} max-w-[90px]`} />
+              <div key={i} className="flex flex-wrap gap-2 items-center">
+                <input value={t.name} onChange={(e) => updateTicketType(i, { name: e.target.value })} placeholder="نام (مثلاً عادی)" className={`${inputClass} flex-1 min-w-[120px]`} />
+                <input value={t.price} onChange={(e) => updateTicketType(i, { price: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="قیمت (تومان)" className={`${inputClass} flex-1 min-w-[100px]`} />
+                <input value={t.capacity} onChange={(e) => updateTicketType(i, { capacity: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="ظرفیت" className={`${inputClass} min-w-[80px] max-w-[90px]`} />
                 {ticketTypes.length > 1 && (
                   <button type="button" onClick={() => removeTicketType(i)} className="text-danger cursor-pointer shrink-0">
                     <TrashIcon className="w-4 h-4" />

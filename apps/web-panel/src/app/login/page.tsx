@@ -155,7 +155,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-sm">
           {step === "phone" ? (
             <form onSubmit={handlePhoneSubmit}>
@@ -228,7 +228,7 @@ export default function LoginPage() {
                 <div className="mb-8" />
               )}
 
-              <div dir="ltr" className="flex gap-3 mb-3">
+              <div dir="ltr" className="flex flex-wrap gap-3 mb-3">
                 {otp.map((digit, i) => (
                   <input
                     key={i}

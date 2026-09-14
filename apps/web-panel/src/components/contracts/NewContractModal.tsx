@@ -230,14 +230,19 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
                 ))}
               </select>
             ) : (
-              <div className="flex gap-2">
-                <input placeholder="نام طرف دوم" value={secondPartyName} onChange={(e) => setSecondPartyName(e.target.value)} className={inputClass} />
+              <div className="flex flex-wrap gap-2">
+                <input
+                  placeholder="نام طرف دوم"
+                  value={secondPartyName}
+                  onChange={(e) => setSecondPartyName(e.target.value)}
+                  className={`${inputClass} flex-1 min-w-[140px]`}
+                />
                 <input
                   placeholder="09xxxxxxxxx"
                   dir="ltr"
                   value={secondPartyPhone}
                   onChange={(e) => setSecondPartyPhone(e.target.value.replace(/[^0-9]/g, ""))}
-                  className={inputClass}
+                  className={`${inputClass} flex-1 min-w-[140px]`}
                 />
               </div>
             )}

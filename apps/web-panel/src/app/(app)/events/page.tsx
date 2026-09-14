@@ -103,7 +103,7 @@ export default function EventsPage() {
                 </div>
                 <div className="p-3.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-[13.5px] font-bold truncate">{e.title}</div>
+                    <div className="flex-1 min-w-0 text-[13.5px] font-bold truncate">{e.title}</div>
                     <Badge tone={STATUS_TONES[e.status]}>{STATUS_LABELS[e.status]}</Badge>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11.5px] text-muted mt-1.5">
