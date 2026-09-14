@@ -556,10 +556,10 @@ export function EmployeeModal({
                 {certificates.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                    className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
-                    <div>
-                      <div className="text-[12.5px] font-bold">{c.courseTitleFa}</div>
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-bold break-words">{c.courseTitleFa}</div>
                       <div className="text-[11px] text-muted mt-0.5" dir="ltr">
                         {c.code} · {formatJalaliDate(c.createdAt)}
                         {c.score != null ? ` · ${toPersianDigits(c.score)}/۱۰۰` : ""}
@@ -586,43 +586,43 @@ export function EmployeeModal({
               </div>
             )}
             <form onSubmit={handleIssueCertificate} className="flex flex-col gap-2">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={certCourseTitle}
                   onChange={(e) => setCertCourseTitle(e.target.value)}
                   placeholder="عنوان دوره (فارسی)"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <input
                   value={certCourseTitleEn}
                   onChange={(e) => setCertCourseTitleEn(e.target.value)}
                   placeholder="عنوان دوره (انگلیسی، اختیاری)"
                   dir="ltr"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={certDuration}
                   onChange={(e) => setCertDuration(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="مدت (ساعت)"
                   dir="ltr"
                   inputMode="numeric"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[90px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <input
                   value={certStartDate}
                   onChange={(e) => setCertStartDate(e.target.value)}
                   type="date"
                   dir="ltr"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[130px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <input
                   value={certEndDate}
                   onChange={(e) => setCertEndDate(e.target.value)}
                   type="date"
                   dir="ltr"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[130px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <input
                   value={certScore}
@@ -630,13 +630,13 @@ export function EmployeeModal({
                   placeholder="امتیاز (از ۱۰۰)"
                   dir="ltr"
                   inputMode="numeric"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[110px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
               </div>
               <button
                 type="submit"
                 disabled={savingCert || !certCourseTitle.trim()}
-                className="self-end text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+                className="self-stretch sm:self-end text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
               >
                 {savingCert ? "در حال صدور..." : "صدور گواهی"}
               </button>
@@ -654,14 +654,14 @@ export function EmployeeModal({
                 {rewards.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                    className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge tone="success">پاداش</Badge>
-                        <span className="text-[12.5px] font-bold">{r.title}</span>
+                        <span className="text-[12.5px] font-bold break-words">{r.title}</span>
                       </div>
-                      <div className="text-[11px] text-muted mt-0.5">
+                      <div className="text-[11px] text-muted mt-0.5 break-words">
                         {formatJalaliDate(r.date)}
                         {r.amount ? ` · ${formatToman(r.amount)}` : ""}
                         {r.description ? ` · ${r.description}` : ""}
@@ -679,14 +679,14 @@ export function EmployeeModal({
                 {penalties.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                    className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge tone="danger">جریمه</Badge>
-                        <span className="text-[12.5px] font-bold">{p.title}</span>
+                        <span className="text-[12.5px] font-bold break-words">{p.title}</span>
                       </div>
-                      <div className="text-[11px] text-muted mt-0.5">
+                      <div className="text-[11px] text-muted mt-0.5 break-words">
                         {formatJalaliDate(p.date)}
                         {p.amount ? ` · ${formatToman(p.amount)}` : ""}
                         {p.description ? ` · ${p.description}` : ""}
@@ -704,7 +704,7 @@ export function EmployeeModal({
               </div>
             )}
             <form onSubmit={handleAddAction} className="flex flex-col gap-2">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <select
                   value={actionKind}
                   onChange={(e) => setActionKind(e.target.value as "REWARD" | "PENALTY")}
@@ -717,7 +717,7 @@ export function EmployeeModal({
                   value={actionTitle}
                   onChange={(e) => setActionTitle(e.target.value)}
                   placeholder="عنوان"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[120px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <input
                   value={actionAmount}
@@ -725,15 +725,15 @@ export function EmployeeModal({
                   placeholder="مبلغ (تومان، اختیاری)"
                   dir="ltr"
                   inputMode="numeric"
-                  className="w-[160px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={actionDescription}
                   onChange={(e) => setActionDescription(e.target.value)}
                   placeholder="توضیحات (اختیاری)"
-                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
                 <button
                   type="submit"
