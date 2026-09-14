@@ -19,10 +19,12 @@ import {
   signOffer,
   openOfferPdf,
   fetchUsers,
+  fetchRoles,
   ApiError,
   type JobApplicant,
   type ApplicantStage,
   type TenantUser,
+  type TenantRoleOption,
 } from "@/lib/api";
 
 const STAGE_LABELS: Record<ApplicantStage, string> = {
@@ -602,15 +604,31 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
 function HireSection({ applicantId, onHired }: { applicantId: string; onHired: () => void }) {
   const [employeeCode, setEmployeeCode] = useState("");
   const [department, setDepartment] = useState("");
+  const [createLogin, setCreateLogin] = useState(false);
+  const [roleId, setRoleId] = useState("");
+  const [roles, setRoles] = useState<TenantRoleOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetchRoles().then(setRoles).catch(() => setRoles([]));
+  }, []);
+
   async function handleHire() {
     if (!employeeCode.trim()) return;
+    if (createLogin && !roleId) {
+      setError("برای ایجاد دسترسی کاربری، نقش را انتخاب کنید");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await hireApplicant(applicantId, { employeeCode: employeeCode.trim(), department: department.trim() || undefined });
+      await hireApplicant(applicantId, {
+        employeeCode: employeeCode.trim(),
+        department: department.trim() || undefined,
+        createLogin,
+        roleId: createLogin ? roleId : undefined,
+      });
       onHired();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "جذب ناموفق بود");
@@ -636,6 +654,24 @@ function HireSection({ applicantId, onHired }: { applicantId: string; onHired: (
           className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
         />
       </div>
+      <label className="flex items-center gap-2 cursor-pointer mb-2">
+        <input type="checkbox" checked={createLogin} onChange={(e) => setCreateLogin(e.target.checked)} className="w-4 h-4 cursor-pointer" />
+        <span className="text-[12.5px] font-semibold">ایجاد دسترسی کاربری (اکانت ورود) برای این نیرو</span>
+      </label>
+      {createLogin && (
+        <select
+          value={roleId}
+          onChange={(e) => setRoleId(e.target.value)}
+          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 mb-2 focus:border-primary"
+        >
+          <option value="">سطح دسترسی (نقش)...</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      )}
       {error && <div className="text-[12px] text-danger mb-2">{error}</div>}
       <button onClick={handleHire} disabled={busy || !employeeCode.trim()} className="w-full text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-success text-white disabled:opacity-50 cursor-pointer">
         جذب و ایجاد پرونده‌ی پرسنلی

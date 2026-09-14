@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { UsersService } from '../users/users.service.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreateJobPostingDto } from './dto/create-job-posting.dto.js';
@@ -61,6 +62,7 @@ export class RecruitmentService {
   constructor(
     private readonly sms: ExirSmsService,
     private readonly automation: AutomationEngineService,
+    private readonly users: UsersService,
   ) {}
 
   /* ───────────────────────── تنظیمات ───────────────────────── */
@@ -442,9 +444,15 @@ export class RecruitmentService {
       },
     });
 
+    let finalEmployee = employee;
+    if (dto.createLogin && dto.roleId) {
+      const user = await this.users.inviteUser(ctx, applicant.name, applicant.phone, dto.roleId);
+      finalEmployee = await ctx.tenantDb.employee.update({ where: { id: employee.id }, data: { userId: user.id } });
+    }
+
     await ctx.tenantDb.jobApplicant.update({ where: { id: applicantId }, data: { stage: 'HIRED' } });
     await this.automation.emit(ctx, 'recruitment.applicant.hired', { applicantName: applicant.name, jobTitle: applicant.jobPosting.title });
 
-    return employee;
+    return finalEmployee;
   }
 }
