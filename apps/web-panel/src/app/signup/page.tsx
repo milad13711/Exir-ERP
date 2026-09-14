@@ -643,7 +643,7 @@ export default function SignupPage() {
                       placeholder="my-business"
                       className="flex-1 text-[13.5px] text-left outline-none bg-white border-2 border-border focus:border-primary rounded-xl px-3.5 py-3"
                     />
-                    <span className="text-[12.5px] text-muted">.exir-erp.ir</span>
+                    <span className="text-[12.5px] text-muted">.exirerp.ir</span>
                   </div>
                   {slug && slugAvailable === false && (
                     <div className="text-[12px] text-danger font-semibold mt-1.5">این آدرس قبلاً استفاده شده است</div>
