@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
-import { formatToman, formatUsd } from "@/lib/persian";
+import { formatToman, formatUsd, toPersianDigits } from "@/lib/persian";
 import {
   fetchPublicPlans,
   fetchPublicModules,
   fetchPublicIndustryTemplates,
   fetchQuote,
   fetchExchangeRate,
+  submitLead,
   FALLBACK_USD_TOMAN_RATE,
   ApiError,
   type PublicPlan,
@@ -178,23 +179,18 @@ export function ConfigureClient() {
           : `پلن: ${quote!.plan.name} (${billingCycle === "yearly" ? "سالانه" : "ماهانه"})${
               activeTemplate ? ` — قالب صنف: ${activeTemplate.name}` : ""
             } — ماژول‌ها: ${quote!.moduleLines.map((l) => l.name).join("، ") || "بدون ماژول اضافه"} — جمع: ${quote!.total.toLocaleString("en-US")} تومان`);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api"}/public/catalog/lead`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          company: company || undefined,
-          phone,
-          estimatedValue,
-          configurationSummary,
-          requestedPlanCode: billingCycle === "license" ? undefined : quote!.plan.code,
-          requestedIndustryTemplateCode: activeTemplate?.code,
-        }),
+      await submitLead({
+        name,
+        company: company || undefined,
+        phone,
+        estimatedValue,
+        configurationSummary,
+        requestedPlanCode: billingCycle === "license" ? undefined : quote!.plan.code,
+        requestedIndustryTemplateCode: activeTemplate?.code,
       });
-      if (!res.ok) throw new Error();
       setSubmitted(true);
-    } catch {
-      setSubmitError("ارسال درخواست با خطا مواجه شد، لطفاً دوباره تلاش کنید");
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : "ارسال درخواست با خطا مواجه شد، لطفاً دوباره تلاش کنید");
     } finally {
       setSubmitting(false);
     }
@@ -222,7 +218,7 @@ export function ConfigureClient() {
                   i < stepIndex ? "bg-success text-white" : i === stepIndex ? "bg-primary text-white" : "bg-slate-200 text-muted",
                 )}
               >
-                {i < stepIndex ? <CheckIcon className="w-3 h-3" /> : i + 1}
+                {i < stepIndex ? <CheckIcon className="w-3 h-3" /> : toPersianDigits(i + 1)}
               </div>
               <span className={clsx("text-[11.5px] font-semibold hidden sm:inline", i <= stepIndex ? "text-ink" : "text-muted")}>
                 {STEP_LABELS[s]}

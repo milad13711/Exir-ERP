@@ -102,3 +102,15 @@ export function fetchPublicIndustryTemplates() {
 export function fetchQuote(data: { planCode: string; billingCycle: "monthly" | "yearly"; moduleCodes: string[] }) {
   return apiFetch<PlanQuote>("/public/catalog/quote", { method: "POST", body: JSON.stringify(data) });
 }
+
+export function submitLead(data: {
+  name: string;
+  company?: string;
+  phone: string;
+  estimatedValue?: number;
+  configurationSummary?: string;
+  requestedPlanCode?: string;
+  requestedIndustryTemplateCode?: string;
+}) {
+  return apiFetch<{ id: string }>("/public/catalog/lead", { method: "POST", body: JSON.stringify(data) });
+}
