@@ -38,11 +38,44 @@ infrastructure we already own.
 - Two Headscale "users" (namespaces): `exir-staff` (our own devices — a
   laptop, or this same production server acting as a jump point) and
   `exir-tenants` (on-premise customer servers). Kept separate so an ACL
-  policy can later restrict tenant nodes to only be reachable *from* staff
-  nodes, never from each other.
-- Source of truth for the config: `infra/headscale/config.yaml` and
-  `infra/headscale/docker-compose.yml` in this repo — the copies on the
-  server should be kept in sync with these if either changes.
+  policy can restrict tenant nodes to only be reachable *from* staff nodes,
+  never from each other.
+- Source of truth for the config: `infra/headscale/config.yaml`,
+  `infra/headscale/policy.hujson`, and `infra/headscale/docker-compose.yml`
+  in this repo — the copies on the server should be kept in sync with these
+  if any of them change.
+
+## ACL policy (tenant isolation)
+
+`infra/headscale/policy.hujson` is loaded into Headscale's database (`policy.mode: database`
+in `config.yaml`) via:
+```bash
+docker cp infra/headscale/policy.hujson headscale:/etc/headscale/policy.hujson
+docker exec headscale headscale policy set -f /etc/headscale/policy.hujson
+```
+Re-run this any time `policy.hujson` changes — it isn't watched automatically.
+
+The policy allows `exir-staff` to reach `exir-tenants` (any port) and other
+`exir-staff` nodes, and deliberately contains **no rule with `exir-tenants` as
+a source**. Once any ACL policy is active, Headscale's default "nodes under
+the same user can always reach each other" behavior is gone entirely —
+everything not explicitly allowed is denied. Verified live with three
+throwaway nodes (one staff, two tenants, each in its own isolated docker
+network so they could only reach each other through the mesh):
+- `exir-staff → exir-tenants`: works.
+- `exir-tenants → another exir-tenants node`: **"no matching peer"** — the
+  other tenant isn't even visible in its netmap. This is the isolation that
+  actually matters (one customer's server can never see or reach another's).
+- `exir-tenants → exir-staff`: unexpectedly **also succeeds**. This is a
+  property of how Tailscale/Headscale ACLs work, not a mistake in the policy:
+  a rule connecting two users makes them mesh *peers*, and once peered,
+  traffic flows both ways on the allowed ports — ACLs express "who peers with
+  whom," not a one-directional firewall rule. There's no way to make a peer
+  link strictly one-directional in this policy model. This is an accepted
+  trade-off, not a fixed gap: the actual risk we set out to close (tenant ↔
+  tenant) is fully closed; a tenant being able to reach back toward our own
+  staff devices is a smaller, different risk we'd address by hardening the
+  staff devices themselves rather than by policy.
 
 ## Enabling remote access for a specific on-premise deployment
 

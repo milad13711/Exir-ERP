@@ -33,6 +33,13 @@ derp:
 disable_check_updates: true
 ephemeral_node_inactivity_timeout: 720h
 
+# ACL policy stored in the database (via `headscale policy set -f ...`),
+# not a mounted file — see infra/headscale/policy.hujson for the source of
+# truth we load from, and docs/HEADSCALE.md for why: exir-tenants nodes
+# must never reach each other, only exir-staff nodes may reach them.
+policy:
+  mode: database
+
 database:
   type: sqlite
   sqlite:

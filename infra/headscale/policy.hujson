@@ -1,0 +1,30 @@
+{
+  // ACL policy for Exir ERP's Headscale mesh — see docs/HEADSCALE.md.
+  //
+  // Model: two Headscale users (namespaces) exist — "exir-staff" (our own
+  // devices) and "exir-tenants" (every on-premise customer server, sharing
+  // this one namespace). Once ANY ACL policy is active, Headscale drops its
+  // default "same user can always reach itself" behavior entirely — every
+  // path has to be explicitly allowed here, nothing is implicit. That's
+  // exactly what we rely on for isolation: we deliberately never write a
+  // rule with "exir-tenants" as a source, so tenant nodes cannot initiate a
+  // connection to anything at all — not to each other, and not back to
+  // staff devices. Only staff-initiated connections are ever allowed,
+  // matching the "we SSH in for support" model this mesh exists for.
+  "acls": [
+    {
+      // Staff can reach any tenant's on-premise server, any port — this is
+      // the entire point of the mesh (remote update/support access).
+      "action": "accept",
+      "src": ["exir-staff"],
+      "dst": ["exir-tenants:*"]
+    },
+    {
+      // Staff devices can also reach each other (e.g. the production
+      // server itself acting as a jump point, or two staff laptops).
+      "action": "accept",
+      "src": ["exir-staff"],
+      "dst": ["exir-staff:*"]
+    }
+  ]
+}
