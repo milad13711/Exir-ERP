@@ -42,6 +42,9 @@ import { QrCodeModule } from '../qr-code/qr-code.module.js';
 import { PublicQrCodeController } from './public-qr-code.controller.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
+import { HrModule } from '../hr/hr.module.js';
+import { PublicCertificateService } from './public-certificate.service.js';
+import { PublicCertificateController } from './public-certificate.controller.js';
 
 @Module({
   imports: [
@@ -57,6 +60,7 @@ import { PublicRecruitmentController } from './public-recruitment.controller.js'
     WarrantyModule,
     AfterSalesModule,
     QrCodeModule,
+    HrModule,
   ],
   controllers: [
     PublicSignupController,
@@ -76,6 +80,7 @@ import { PublicRecruitmentController } from './public-recruitment.controller.js'
     PublicAfterSalesController,
     PublicQrCodeController,
     PublicRecruitmentController,
+    PublicCertificateController,
   ],
   providers: [
     PublicSignupService,
@@ -92,6 +97,7 @@ import { PublicRecruitmentController } from './public-recruitment.controller.js'
     PublicWarrantyService,
     PublicAfterSalesService,
     PublicRecruitmentService,
+    PublicCertificateService,
   ],
 })
 export class PublicModule {}

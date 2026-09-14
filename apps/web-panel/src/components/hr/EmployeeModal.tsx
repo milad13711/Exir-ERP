@@ -9,9 +9,21 @@ import {
   updateEmployee,
   terminateEmployee,
   reactivateEmployee,
+  fetchCertificates,
+  issueCertificate,
+  deleteCertificate,
+  fetchCertificateImageObjectUrl,
+  fetchRewards,
+  createReward,
+  deleteReward,
+  fetchPenalties,
+  createPenalty,
+  deletePenalty,
   type EmployeeDetail,
   type Employee,
   type EmployeeDocumentType,
+  type Certificate,
+  type PersonnelActionEntry,
 } from "@/lib/api";
 import {
   LEAVE_TYPE_LABELS,
@@ -57,13 +69,39 @@ export function EmployeeModal({
   const [savingEdit, setSavingEdit] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [certCourseTitle, setCertCourseTitle] = useState("");
+  const [certCourseTitleEn, setCertCourseTitleEn] = useState("");
+  const [certDuration, setCertDuration] = useState("");
+  const [certStartDate, setCertStartDate] = useState("");
+  const [certEndDate, setCertEndDate] = useState("");
+  const [certScore, setCertScore] = useState("");
+  const [savingCert, setSavingCert] = useState(false);
+
+  const [rewards, setRewards] = useState<PersonnelActionEntry[]>([]);
+  const [penalties, setPenalties] = useState<PersonnelActionEntry[]>([]);
+  const [actionTitle, setActionTitle] = useState("");
+  const [actionDescription, setActionDescription] = useState("");
+  const [actionAmount, setActionAmount] = useState("");
+  const [actionKind, setActionKind] = useState<"REWARD" | "PENALTY">("REWARD");
+  const [savingAction, setSavingAction] = useState(false);
+
   function reload() {
     fetchEmployee(employeeId).then((e) => {
       setEmployee(e);
       setManagerId(e.managerId ?? "");
     });
   }
+  function reloadCertificates() {
+    fetchCertificates(employeeId).then(setCertificates);
+  }
+  function reloadActions() {
+    fetchRewards(employeeId).then(setRewards);
+    fetchPenalties(employeeId).then(setPenalties);
+  }
   useEffect(reload, [employeeId]);
+  useEffect(reloadCertificates, [employeeId]);
+  useEffect(reloadActions, [employeeId]);
 
   async function handleManagerChange(value: string) {
     setManagerId(value);
@@ -134,6 +172,80 @@ export function EmployeeModal({
     } finally {
       setSavingDoc(false);
     }
+  }
+
+  async function handleIssueCertificate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!certCourseTitle.trim()) return;
+    setSavingCert(true);
+    try {
+      await issueCertificate({
+        employeeId,
+        courseTitleFa: certCourseTitle.trim(),
+        courseTitleEn: certCourseTitleEn.trim() || undefined,
+        durationHours: certDuration ? Number(certDuration) : undefined,
+        startDate: certStartDate || undefined,
+        endDate: certEndDate || undefined,
+        score: certScore ? Number(certScore) : undefined,
+      });
+      setCertCourseTitle("");
+      setCertCourseTitleEn("");
+      setCertDuration("");
+      setCertStartDate("");
+      setCertEndDate("");
+      setCertScore("");
+      reloadCertificates();
+    } finally {
+      setSavingCert(false);
+    }
+  }
+
+  async function handleDeleteCertificate(id: string) {
+    if (!window.confirm("این گواهی حذف شود؟")) return;
+    await deleteCertificate(id);
+    reloadCertificates();
+  }
+
+  async function handleDownloadCertificate(cert: Certificate) {
+    const url = await fetchCertificateImageObjectUrl(cert.id);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `certificate-${cert.code}.png`;
+    a.click();
+  }
+
+  async function handleAddAction(e: React.FormEvent) {
+    e.preventDefault();
+    if (!actionTitle.trim()) return;
+    setSavingAction(true);
+    try {
+      const payload = {
+        employeeId,
+        title: actionTitle.trim(),
+        description: actionDescription.trim() || undefined,
+        amount: actionAmount ? Number(actionAmount) : undefined,
+      };
+      if (actionKind === "REWARD") await createReward(payload);
+      else await createPenalty(payload);
+      setActionTitle("");
+      setActionDescription("");
+      setActionAmount("");
+      reloadActions();
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  async function handleDeleteReward(id: string) {
+    if (!window.confirm("این پاداش حذف شود؟")) return;
+    await deleteReward(id);
+    reloadActions();
+  }
+
+  async function handleDeletePenalty(id: string) {
+    if (!window.confirm("این جریمه حذف شود؟")) return;
+    await deletePenalty(id);
+    reloadActions();
   }
 
   return (
@@ -430,6 +542,207 @@ export function EmployeeModal({
               >
                 افزودن
               </button>
+            </form>
+          </div>
+
+          <div>
+            <div className="text-[12px] text-muted mb-2">گواهی‌نامه‌ها</div>
+            {certificates.length === 0 ? (
+              <div className="text-[12.5px] text-muted text-center py-4 bg-slate-50 rounded-xl border border-border mb-3">
+                گواهی‌ای صادر نشده است
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 mb-3">
+                {certificates.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                  >
+                    <div>
+                      <div className="text-[12.5px] font-bold">{c.courseTitleFa}</div>
+                      <div className="text-[11px] text-muted mt-0.5" dir="ltr">
+                        {c.code} · {formatJalaliDate(c.createdAt)}
+                        {c.score != null ? ` · ${toPersianDigits(c.score)}/۱۰۰` : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadCertificate(c)}
+                        className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer"
+                      >
+                        دانلود تصویر
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCertificate(c.id)}
+                        className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleIssueCertificate} className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <input
+                  value={certCourseTitle}
+                  onChange={(e) => setCertCourseTitle(e.target.value)}
+                  placeholder="عنوان دوره (فارسی)"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <input
+                  value={certCourseTitleEn}
+                  onChange={(e) => setCertCourseTitleEn(e.target.value)}
+                  placeholder="عنوان دوره (انگلیسی، اختیاری)"
+                  dir="ltr"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={certDuration}
+                  onChange={(e) => setCertDuration(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="مدت (ساعت)"
+                  dir="ltr"
+                  inputMode="numeric"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <input
+                  value={certStartDate}
+                  onChange={(e) => setCertStartDate(e.target.value)}
+                  type="date"
+                  dir="ltr"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <input
+                  value={certEndDate}
+                  onChange={(e) => setCertEndDate(e.target.value)}
+                  type="date"
+                  dir="ltr"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <input
+                  value={certScore}
+                  onChange={(e) => setCertScore(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="امتیاز (از ۱۰۰)"
+                  dir="ltr"
+                  inputMode="numeric"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={savingCert || !certCourseTitle.trim()}
+                className="self-end text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                {savingCert ? "در حال صدور..." : "صدور گواهی"}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <div className="text-[12px] text-muted mb-2">پاداش‌ها و جریمه‌ها</div>
+            {rewards.length === 0 && penalties.length === 0 ? (
+              <div className="text-[12.5px] text-muted text-center py-4 bg-slate-50 rounded-xl border border-border mb-3">
+                موردی ثبت نشده است
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 mb-3">
+                {rewards.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge tone="success">پاداش</Badge>
+                        <span className="text-[12.5px] font-bold">{r.title}</span>
+                      </div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        {formatJalaliDate(r.date)}
+                        {r.amount ? ` · ${formatToman(r.amount)}` : ""}
+                        {r.description ? ` · ${r.description}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteReward(r.id)}
+                      className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer shrink-0"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                ))}
+                {penalties.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge tone="danger">جریمه</Badge>
+                        <span className="text-[12.5px] font-bold">{p.title}</span>
+                      </div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        {formatJalaliDate(p.date)}
+                        {p.amount ? ` · ${formatToman(p.amount)}` : ""}
+                        {p.description ? ` · ${p.description}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePenalty(p.id)}
+                      className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer shrink-0"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleAddAction} className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <select
+                  value={actionKind}
+                  onChange={(e) => setActionKind(e.target.value as "REWARD" | "PENALTY")}
+                  className="text-[12px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                >
+                  <option value="REWARD">پاداش</option>
+                  <option value="PENALTY">جریمه</option>
+                </select>
+                <input
+                  value={actionTitle}
+                  onChange={(e) => setActionTitle(e.target.value)}
+                  placeholder="عنوان"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <input
+                  value={actionAmount}
+                  onChange={(e) => setActionAmount(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="مبلغ (تومان، اختیاری)"
+                  dir="ltr"
+                  inputMode="numeric"
+                  className="w-[160px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={actionDescription}
+                  onChange={(e) => setActionDescription(e.target.value)}
+                  placeholder="توضیحات (اختیاری)"
+                  className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={savingAction || !actionTitle.trim()}
+                  className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+                >
+                  افزودن
+                </button>
+              </div>
             </form>
           </div>
         </div>

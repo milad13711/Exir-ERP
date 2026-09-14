@@ -1776,6 +1776,122 @@ export function addEmployeeDocument(
   });
 }
 
+// ── گواهی‌نامه‌ها، پاداش‌ها و جریمه‌های پرسنلی ──────────────────────────────
+
+export type Certificate = {
+  id: string;
+  code: string;
+  employeeId: string;
+  recipientNameFa: string;
+  recipientNameEn: string | null;
+  courseTitleFa: string;
+  courseTitleEn: string | null;
+  durationHours: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  score: number | null;
+  createdAt: string;
+  employee: { id: string; fullName: string; employeeCode: string };
+  issuedBy: { id: string; name: string } | null;
+  verifyUrl?: string;
+};
+
+export function fetchCertificates(employeeId?: string) {
+  return apiFetch<Certificate[]>(`/hr/certificates${employeeId ? `?employeeId=${employeeId}` : ""}`);
+}
+
+export function issueCertificate(data: {
+  employeeId: string;
+  recipientNameFa?: string;
+  recipientNameEn?: string;
+  courseTitleFa: string;
+  courseTitleEn?: string;
+  durationHours?: number;
+  startDate?: string;
+  endDate?: string;
+  score?: number;
+}) {
+  return apiFetch<Certificate>("/hr/certificates", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteCertificate(id: string) {
+  return apiFetch<{ ok: true }>(`/hr/certificates/${id}`, { method: "DELETE" });
+}
+
+/** تصویر گواهی احراز‌هویت لازم دارد، پس به Object URL تبدیل می‌شود (همان الگوی fetchQrCodeImageObjectUrl). */
+export async function fetchCertificateImageObjectUrl(id: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/hr/certificates/${id}/image.png`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("ساخت تصویر گواهی ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+export type PersonnelActionEntry = {
+  id: string;
+  employeeId: string;
+  title: string;
+  description: string | null;
+  amount: number | null;
+  date: string;
+  createdAt: string;
+  employee: { id: string; fullName: string; employeeCode: string };
+  createdBy: { id: string; name: string } | null;
+};
+
+export type CreatePersonnelActionInput = { employeeId: string; title: string; description?: string; amount?: number; date?: string };
+
+export function fetchRewards(employeeId?: string) {
+  return apiFetch<PersonnelActionEntry[]>(`/hr/rewards${employeeId ? `?employeeId=${employeeId}` : ""}`);
+}
+
+export function createReward(data: CreatePersonnelActionInput) {
+  return apiFetch<PersonnelActionEntry>("/hr/rewards", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteReward(id: string) {
+  return apiFetch<{ ok: true }>(`/hr/rewards/${id}`, { method: "DELETE" });
+}
+
+export function fetchPenalties(employeeId?: string) {
+  return apiFetch<PersonnelActionEntry[]>(`/hr/penalties${employeeId ? `?employeeId=${employeeId}` : ""}`);
+}
+
+export function createPenalty(data: CreatePersonnelActionInput) {
+  return apiFetch<PersonnelActionEntry>("/hr/penalties", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deletePenalty(id: string) {
+  return apiFetch<{ ok: true }>(`/hr/penalties/${id}`, { method: "DELETE" });
+}
+
+// ── استعلام عمومی گواهی (بدون ورود، بدون توکن — لینک دائمی) ──────────────
+
+export type PublicCertificateLookup = {
+  code: string;
+  recipientNameFa: string;
+  recipientNameEn: string | null;
+  courseTitleFa: string;
+  courseTitleEn: string | null;
+  durationHours: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  score: number | null;
+  issuedAt: string;
+  organizationName: string;
+  verifyUrl: string;
+};
+
+export function fetchPublicCertificate(slug: string, code: string) {
+  return apiFetch<PublicCertificateLookup>(`/public/certificates/${slug}/${code}`);
+}
+
+export function publicCertificateImageUrl(slug: string, code: string): string {
+  return `${API_URL}/public/certificates/${slug}/${code}/image.png`;
+}
+
 export function fetchAttendance(date: string) {
   return apiFetch<Array<{ employee: Employee; record: AttendanceRecord | null }>>(
     `/hr/attendance?date=${date}`,

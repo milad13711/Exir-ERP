@@ -10,6 +10,9 @@ import { PermissionsModule } from '../permissions/permissions.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { HrAutomationTriggers } from './hr-automation.triggers.js';
+import { CertificatesController } from './certificates.controller.js';
+import { CertificateImageService } from './certificate-image.service.js';
+import { PersonnelRewardsController, PersonnelPenaltiesController } from './personnel-actions.controller.js';
 
 @Module({
   imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule],
@@ -19,7 +22,11 @@ import { HrAutomationTriggers } from './hr-automation.triggers.js';
     LeaveController,
     PayrollController,
     HrSummaryController,
+    CertificatesController,
+    PersonnelRewardsController,
+    PersonnelPenaltiesController,
   ],
-  providers: [PayrollPdfService, HrAutomationTriggers],
+  providers: [PayrollPdfService, HrAutomationTriggers, CertificateImageService],
+  exports: [CertificateImageService],
 })
 export class HrModule {}
