@@ -5688,3 +5688,97 @@ export function respondToPublicJobOffer(tenantSlug: string, token: string, accep
     body: JSON.stringify({ accepted }),
   });
 }
+
+// ── گزارش‌ها ──────────────────────────────────────────────────────────────
+
+export type ReportCategory = { id: string; name: string; createdAt: string };
+
+export type ReportReferral = {
+  id: string;
+  reportId: string;
+  note: string | null;
+  emailCc: string | null;
+  paraphed: boolean;
+  paraphedAt: string | null;
+  createdAt: string;
+  fromUser: { id: string; name: string } | null;
+  toUser: { id: string; name: string };
+};
+
+export type Report = {
+  id: string;
+  reportNo: number;
+  title: string;
+  body: string;
+  categoryId: string | null;
+  executionAt: string | null;
+  isArchived: boolean;
+  isKnowledge: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category: ReportCategory | null;
+  createdBy: { id: string; name: string } | null;
+  referrals: ReportReferral[];
+};
+
+export function fetchReportCategories() {
+  return apiFetch<ReportCategory[]>("/reports/categories");
+}
+
+export function createReportCategory(name: string) {
+  return apiFetch<ReportCategory>("/reports/categories", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function deleteReportCategory(id: string) {
+  return apiFetch<{ ok: true }>(`/reports/categories/${id}`, { method: "DELETE" });
+}
+
+export function fetchReports(filters?: { categoryId?: string; isArchived?: boolean; isKnowledge?: boolean; referredToMe?: boolean }) {
+  const params = new URLSearchParams();
+  if (filters?.categoryId) params.set("categoryId", filters.categoryId);
+  if (filters?.isArchived != null) params.set("isArchived", String(filters.isArchived));
+  if (filters?.isKnowledge != null) params.set("isKnowledge", String(filters.isKnowledge));
+  if (filters?.referredToMe != null) params.set("referredToMe", String(filters.referredToMe));
+  const qs = params.toString();
+  return apiFetch<Report[]>(`/reports${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchReport(id: string) {
+  return apiFetch<Report>(`/reports/${id}`);
+}
+
+export function createReport(data: { title: string; body: string; categoryId?: string; executionAt?: string }) {
+  return apiFetch<Report>("/reports", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateReport(id: string, data: Partial<{ title: string; body: string; categoryId: string; executionAt: string }>) {
+  return apiFetch<Report>(`/reports/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteReport(id: string) {
+  return apiFetch<{ ok: true }>(`/reports/${id}`, { method: "DELETE" });
+}
+
+export function archiveReport(id: string) {
+  return apiFetch<Report>(`/reports/${id}/archive`, { method: "POST" });
+}
+
+export function unarchiveReport(id: string) {
+  return apiFetch<Report>(`/reports/${id}/unarchive`, { method: "POST" });
+}
+
+export function convertReportToKnowledge(id: string) {
+  return apiFetch<Report>(`/reports/${id}/convert-to-knowledge`, { method: "POST" });
+}
+
+export function unconvertReportKnowledge(id: string) {
+  return apiFetch<Report>(`/reports/${id}/unconvert-knowledge`, { method: "POST" });
+}
+
+export function referReport(id: string, data: { toUserIds: string[]; note?: string; emailCc?: string[] }) {
+  return apiFetch<Report>(`/reports/${id}/refer`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function paraphReportReferral(reportId: string, referralId: string) {
+  return apiFetch<Report>(`/reports/${reportId}/referrals/${referralId}/paraph`, { method: "POST" });
+}

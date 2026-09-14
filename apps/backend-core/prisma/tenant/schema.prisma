@@ -95,6 +95,9 @@ model User {
   issuedCertificates            Certificate[]
   createdPersonnelRewards       PersonnelReward[]
   createdPersonnelPenalties     PersonnelPenalty[]
+  createdReports                Report[]
+  reportReferralsSent           ReportReferral[]           @relation("ReportReferralFrom")
+  reportReferralsReceived       ReportReferral[]           @relation("ReportReferralTo")
 
   @@map("users")
 }
@@ -3122,4 +3125,62 @@ model PersonnelPenalty {
 
   @@index([employeeId])
   @@map("hr_personnel_penalties")
+}
+
+// ── ماژول گزارش‌ها (reports) ──────────────────────────────────────────────
+// گزارش عمومی سازمانی، مستقل از ماژول‌های دیگر — عنوان، متن، زمان اجرا،
+// دسته‌بندی، ارجاع به یک یا چند نفر (با اعلان درون‌برنامه‌ای + پیامک + رونوشت
+// ایمیل روی هر ارجاع)، پاراف کارشناس روی هر ارجاع، آرشیو، و تبدیل به دانش
+// سازمانی. پیوست‌ها از همان مدل عمومی Attachment (entityType='report')
+// استفاده می‌کنند — چیز جدیدی برای آپلود فایل ساخته نشده.
+
+model ReportCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  reports Report[]
+
+  @@map("report_categories")
+}
+
+model Report {
+  id              String    @id @default(uuid())
+  reportNo        Int       @unique @default(autoincrement())
+  title           String
+  body            String
+  categoryId      String?
+  executionAt     DateTime?
+  isArchived      Boolean   @default(false)
+  isKnowledge     Boolean   @default(false) // تبدیل‌شده به دانش سازمانی
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  category  ReportCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  referrals ReportReferral[]
+
+  @@index([categoryId])
+  @@map("reports")
+}
+
+model ReportReferral {
+  id          String    @id @default(uuid())
+  reportId    String
+  fromUserId  String?
+  toUserId    String
+  note        String?
+  emailCc     String? // آدرس‌های ایمیل رونوشت، جداشده با کاما
+  paraphed    Boolean   @default(false) // پاراف/تأیید کارشناسی روی این ارجاع
+  paraphedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fromUser User?  @relation("ReportReferralFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser   User   @relation("ReportReferralTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([toUserId])
+  @@map("report_referrals")
 }

@@ -295,6 +295,23 @@ async function main() {
       ],
     },
     {
+      code: 'reports',
+      name: 'گزارش‌ها',
+      description: 'ثبت گزارش سازمانی با شماره‌ی پیاپی، ارجاع به یک یا چند نفر با اعلان درون‌برنامه‌ای، پیامکی و رونوشت ایمیل، پاراف کارشناسی، دسته‌بندی، آرشیو و تبدیل به دانش سازمانی.',
+      category: 'عمومی',
+      priceMonthly: 120000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: [],
+      features: [
+        'شماره‌ی پیاپی خودکار برای هر گزارش',
+        'ارجاع به یک یا چند نفر با اعلان پیامکی، درون‌برنامه‌ای و رونوشت ایمیل',
+        'پاراف کارشناسی روی هر ارجاع',
+        'دسته‌بندی، آرشیو و ویرایش/ارسال مجدد',
+        'تبدیل گزارش به دانش سازمانی برای مراجعه‌ی بعدی',
+      ],
+    },
+    {
       code: 'booking',
       name: 'رزرو نوبت',
       description: 'رزرو نوبت دریافت خدمات — تعریف انواع خدمت، تخصیص کارشناس، و جلوگیری خودکار از رزرو همزمان دو نوبت برای یک کارشناس.',
@@ -439,9 +456,10 @@ async function main() {
     await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
   }
 
-  // 'reports' و 'store' هیچ کدی واقعاً پشتشان نیست (هیچ کنترلری بر اساس این
-  // moduleCode‌ها گیت نمی‌زند) — کاتالوگ قدیمی/جانمانده‌اند، پاکشان می‌کنیم.
-  const stale = await db.moduleDefinition.findMany({ where: { code: { in: ['reports', 'store'] } } });
+  // 'store' هیچ کدی واقعاً پشتش نیست (هیچ کنترلری بر اساس این moduleCode
+  // گیت نمی‌زند) — کاتالوگ قدیمی/جانمانده است، پاکش می‌کنیم. ('reports' از
+  // این لیست حذف شد چون حالا ماژول واقعی با کنترلر خودش پشتش هست.)
+  const stale = await db.moduleDefinition.findMany({ where: { code: { in: ['store'] } } });
   for (const m of stale) {
     await db.tenantModule.deleteMany({ where: { moduleId: m.id } });
     await db.moduleDefinition.delete({ where: { id: m.id } });

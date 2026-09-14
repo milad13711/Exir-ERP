@@ -31,7 +31,7 @@ export class EmailService {
     return this.transporter;
   }
 
-  async sendEmail(to: string, subject: string, html: string): Promise<SendEmailResult> {
+  async sendEmail(to: string, subject: string, html: string, options?: { cc?: string | string[] }): Promise<SendEmailResult> {
     if (!this.isConfigured()) {
       return { success: false, error: 'سرویس ایمیل پیکربندی نشده است (EMAIL_SMTP_HOST/USER/PASS)' };
     }
@@ -39,6 +39,7 @@ export class EmailService {
       await this.getTransporter().sendMail({
         from: process.env.EMAIL_SMTP_FROM || process.env.EMAIL_SMTP_USER,
         to,
+        cc: options?.cc,
         subject,
         html,
       });

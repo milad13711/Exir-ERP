@@ -9,6 +9,8 @@ export type NotifyInput = {
   title: string;
   body?: string;
   link?: string;
+  /** رونوشت ایمیل — فقط وقتی کانال ایمیل برای این کاربر فعال و پیکربندی‌شده باشد ارسال می‌شود. */
+  emailCc?: string[];
 };
 
 /**
@@ -47,6 +49,7 @@ export class NotificationsService {
         user.email,
         input.title,
         `<div dir="rtl" style="font-family: Tahoma, sans-serif;"><p>${input.title}</p>${input.body ? `<p>${input.body}</p>` : ''}</div>`,
+        input.emailCc?.length ? { cc: input.emailCc } : undefined,
       );
       if (!result.success) this.logger.warn(`Email notification failed for ${user.id}: ${result.error}`);
     }
