@@ -10,6 +10,7 @@ import {
   CurrencyIcon,
   PhoneIcon,
   BotIcon,
+  BoltIcon,
 } from "@/components/icons";
 
 export type SettingsNavItem = {
@@ -28,6 +29,7 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/voip", label: "اتصال تلفن (VoIP)", icon: PhoneIcon, moduleCode: "voip" },
   { href: "/settings/api", label: "API، وب‌هوک و MCP", icon: DocsIcon, moduleCode: "api-access" },
   { href: "/settings/ai-assistant", label: "دستیار هوشمند (MCP)", icon: BotIcon, moduleCode: "mcp" },
+  { href: "/settings/offline-sync", label: "همگام‌سازی آفلاین", icon: BoltIcon, moduleCode: "offline-sync" },
   { href: "/settings/notifications", label: "اعلان‌ها", icon: BellIcon },
   { href: "/settings/logs", label: "لاگ فعالیت‌ها و خطاها", icon: LogIcon },
 ];
