@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { href: "/support", label: "پشتیبانی" },
   { href: "/tasks", label: "وظایف" },
   { href: "/leads", label: "فروش" },
+  { href: "/licenses", label: "لایسنس‌ها" },
+  { href: "/logs", label: "لاگ‌ها" },
 ];
 
 export function AdminHeader() {

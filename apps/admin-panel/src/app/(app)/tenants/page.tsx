@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BuildingIcon, UsersIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import { fetchTenants, reactivateTenant, type AdminTenant } from "@/lib/api";
+import { fetchTenants, reactivateTenant, ApiError, type AdminTenant } from "@/lib/api";
 import { NewTenantModal } from "@/components/tenants/NewTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
 
@@ -30,6 +30,7 @@ export default function TenantsPage() {
   const [tenants, setTenants] = useState<AdminTenant[] | null>(null);
   const [newTenantOpen, setNewTenantOpen] = useState(false);
   const [suspendTarget, setSuspendTarget] = useState<AdminTenant | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function reload() {
     fetchTenants().then(setTenants).catch(() => setTenants([]));
@@ -37,8 +38,13 @@ export default function TenantsPage() {
   useEffect(reload, []);
 
   async function handleReactivate(tenant: AdminTenant) {
-    const updated = await reactivateTenant(tenant.id);
-    setTenants((prev) => prev?.map((t) => (t.id === tenant.id ? { ...t, ...updated } : t)) ?? prev);
+    setActionError(null);
+    try {
+      const updated = await reactivateTenant(tenant.id);
+      setTenants((prev) => prev?.map((t) => (t.id === tenant.id ? { ...t, ...updated } : t)) ?? prev);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "فعال‌سازی مجدد ناموفق بود");
+    }
   }
 
   const activeCount = tenants?.filter((t) => t.status === "ACTIVE").length ?? 0;
@@ -60,6 +66,10 @@ export default function TenantsPage() {
           تننت جدید
         </button>
       </div>
+
+      {actionError && (
+        <div className="mt-4 text-[12.5px] text-danger font-semibold bg-danger-soft rounded-xl px-3.5 py-2.5">{actionError}</div>
+      )}
 
       <Card className="mt-6 p-2">
         {tenants === null ? (

@@ -1,0 +1,105 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { formatJalaliDateTime } from "@/lib/persian";
+import { fetchAuditLogs, fetchErrorLogs, type AuditLogEntry, type ErrorLogEntry } from "@/lib/api";
+
+type Tab = "errors" | "audit";
+
+const LEVEL_TONES: Record<ErrorLogEntry["level"], "neutral" | "warning" | "danger"> = {
+  INFO: "neutral",
+  WARNING: "warning",
+  ERROR: "danger",
+  FATAL: "danger",
+};
+const LEVEL_LABELS: Record<ErrorLogEntry["level"], string> = {
+  INFO: "اطلاع",
+  WARNING: "هشدار",
+  ERROR: "خطا",
+  FATAL: "بحرانی",
+};
+
+export default function LogsPage() {
+  const [tab, setTab] = useState<Tab>("errors");
+  const [tenantId, setTenantId] = useState("");
+  const [errors, setErrors] = useState<ErrorLogEntry[] | null>(null);
+  const [audit, setAudit] = useState<AuditLogEntry[] | null>(null);
+
+  function reload() {
+    if (tab === "errors") fetchErrorLogs(tenantId || undefined).then(setErrors).catch(() => setErrors([]));
+    else fetchAuditLogs(tenantId || undefined).then(setAudit).catch(() => setAudit([]));
+  }
+  useEffect(reload, [tab, tenantId]);
+
+  return (
+    <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
+      <h1 className="text-xl font-extrabold">لاگ فعالیت‌ها و خطاها</h1>
+      <p className="text-[13.5px] text-muted mt-1">آخرین ۲۰۰ رکورد — برای فیلتر روی یک تننت خاص، شناسه‌ی آن را وارد کنید</p>
+
+      <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          {(["errors", "audit"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`text-[12.5px] font-semibold px-3.5 py-2 rounded-[10px] cursor-pointer ${
+                tab === t ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"
+              }`}
+            >
+              {t === "errors" ? "خطاها" : "رویدادها (audit)"}
+            </button>
+          ))}
+        </div>
+        <input
+          value={tenantId}
+          onChange={(e) => setTenantId(e.target.value)}
+          placeholder="شناسه‌ی تننت (اختیاری)"
+          dir="ltr"
+          className="text-[12.5px] bg-surface border border-border rounded-xl px-3 py-2 outline-none focus:border-primary flex-1 min-w-[200px]"
+        />
+      </div>
+
+      <Card className="p-2">
+        {tab === "errors" ? (
+          errors === null ? (
+            <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          ) : errors.length === 0 ? (
+            <div className="p-8 text-center text-muted text-sm">خطایی ثبت نشده است</div>
+          ) : (
+            errors.map((e, i) => (
+              <div key={e.id} className={`flex flex-wrap items-start gap-2 px-4 py-3.5 ${i < errors.length - 1 ? "border-b border-border" : ""}`}>
+                <Badge tone={LEVEL_TONES[e.level]}>{LEVEL_LABELS[e.level]}</Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] font-semibold break-words">{e.message}</div>
+                  <div className="text-[11px] text-muted mt-0.5">
+                    {e.service}
+                    {e.tenant ? ` · ${e.tenant.name}` : ""} · {formatJalaliDateTime(e.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )
+        ) : audit === null ? (
+          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+        ) : audit.length === 0 ? (
+          <div className="p-8 text-center text-muted text-sm">رویدادی ثبت نشده است</div>
+        ) : (
+          audit.map((a, i) => (
+            <div key={a.id} className={`flex flex-wrap items-start gap-2 px-4 py-3.5 ${i < audit.length - 1 ? "border-b border-border" : ""}`}>
+              <Badge tone="neutral">{a.entityType}</Badge>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] font-semibold break-words">{a.action}</div>
+                <div className="text-[11px] text-muted mt-0.5">
+                  {a.actorType}
+                  {a.tenant ? ` · ${a.tenant.name}` : ""} · {formatJalaliDateTime(a.createdAt)}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+    </div>
+  );
+}

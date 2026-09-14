@@ -15,6 +15,7 @@ import {
   openInvoicePdf,
   setTenantModule,
   reactivateTenant,
+  ApiError,
   type AdminTenant,
   type TenantStats,
   type TenantModuleEntry,
@@ -80,6 +81,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [deleted, setDeleted] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function handleCopyPaymentLink(invoiceId: string) {
     const url = `${process.env.NEXT_PUBLIC_WEB_PANEL_URL ?? window.location.origin}/pay/${invoiceId}`;
@@ -105,20 +107,35 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   useEffect(reload, [id]);
 
   async function handleMarkPaid(invoiceId: string) {
-    await markInvoicePaid(id, invoiceId);
-    reload();
+    setActionError(null);
+    try {
+      await markInvoicePaid(id, invoiceId);
+      reload();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "ثبت پرداخت ناموفق بود");
+    }
   }
 
   async function handleToggleModule(mod: TenantModuleEntry) {
-    const current = mod.tenantModules[0]?.status;
-    const next = current === "INSTALLED" ? "DISABLED" : "INSTALLED";
-    await setTenantModule(id, mod.code, next);
-    reload();
+    setActionError(null);
+    try {
+      const current = mod.tenantModules[0]?.status;
+      const next = current === "INSTALLED" ? "DISABLED" : "INSTALLED";
+      await setTenantModule(id, mod.code, next);
+      reload();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "تغییر وضعیت ماژول ناموفق بود");
+    }
   }
 
   async function handleReactivate() {
-    await reactivateTenant(id);
-    reload();
+    setActionError(null);
+    try {
+      await reactivateTenant(id);
+      reload();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "فعال‌سازی مجدد ناموفق بود");
+    }
   }
 
   if (deleted) {
@@ -140,6 +157,10 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       <Link href="/tenants" className="text-[12.5px] text-muted font-semibold">
         → بازگشت به لیست تننت‌ها
       </Link>
+
+      {actionError && (
+        <div className="mt-3 text-[12.5px] text-danger font-semibold bg-danger-soft rounded-xl px-3.5 py-2.5">{actionError}</div>
+      )}
 
       <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
         <div className="flex items-center gap-3">

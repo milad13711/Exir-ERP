@@ -468,3 +468,67 @@ export function unsubscribePush(endpoint: string) {
     method: "DELETE",
   });
 }
+
+// ── لایسنس‌های استقرار اختصاصی (on-premise) ──────────────────────────────
+
+export type AdminLicense = {
+  id: string;
+  tenantId: string | null;
+  orgName: string;
+  signedKey: string;
+  allowedModules: string[];
+  seats: number;
+  status: "ACTIVE" | "REVOKED";
+  issuedAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  tenant: { id: string; name: string; slug: string } | null;
+};
+
+export function fetchLicenses() {
+  return apiFetch<AdminLicense[]>("/admin/licenses");
+}
+
+export function issueLicense(data: { orgName: string; modules: string[]; seats?: number; validityDays: number; tenantId?: string }) {
+  return apiFetch<AdminLicense>("/admin/licenses", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function revokeLicense(id: string, reason: string) {
+  return apiFetch<AdminLicense>(`/admin/licenses/${id}/revoke`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+// ── لاگ‌های audit و خطا ───────────────────────────────────────────────────
+
+export type AuditLogEntry = {
+  id: string;
+  actorType: string;
+  actorId: string | null;
+  tenantId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  metadata: unknown;
+  createdAt: string;
+  tenant: { name: string; slug: string } | null;
+};
+
+export type ErrorLogEntry = {
+  id: string;
+  tenantId: string | null;
+  service: string;
+  level: "INFO" | "WARNING" | "ERROR" | "FATAL";
+  message: string;
+  stackTrace: string | null;
+  context: unknown;
+  createdAt: string;
+  tenant: { name: string; slug: string } | null;
+};
+
+export function fetchAuditLogs(tenantId?: string) {
+  return apiFetch<AuditLogEntry[]>(`/admin/logs/audit${tenantId ? `?tenantId=${tenantId}` : ""}`);
+}
+
+export function fetchErrorLogs(tenantId?: string) {
+  return apiFetch<ErrorLogEntry[]>(`/admin/logs/errors${tenantId ? `?tenantId=${tenantId}` : ""}`);
+}

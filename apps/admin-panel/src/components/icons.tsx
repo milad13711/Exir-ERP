@@ -152,3 +152,20 @@ export function UsersIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function KeyIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="7.5" cy="15.5" r="3.5" />
+      <path d="M10.5 13L19 4.5M17 6.5l2 2M14.5 9l2 2" />
+    </svg>
+  );
+}
+
+export function LogIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 5h16M4 9h16M4 13h10M4 17h7" />
+    </svg>
+  );
+}
