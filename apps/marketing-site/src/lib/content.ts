@@ -29,6 +29,7 @@ export type ExirProduct = {
   domain: string; // بدون https://
   status: "live" | "soon";
   emoji: string;
+  accent: string; // رنگ اختصاصی این محصول برای تفکیک بصری در گرید محصولات
 };
 
 /** کارت‌های تفکیک مخاطب در صفحه‌ی اصلی eta.co.ir — هرکدام کاربر را به دامنه‌ی تخصصی خودش می‌فرستد. */
@@ -41,6 +42,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     domain: "exirerp.ir",
     status: "live",
     emoji: "🏭",
+    accent: "#4338ca",
   },
   {
     code: "amlak",
@@ -50,6 +52,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     domain: "exiramlak.ir",
     status: "live",
     emoji: "🏠",
+    accent: "#0d9488",
   },
   {
     code: "wedino",
@@ -59,6 +62,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     domain: "wedino.ir",
     status: "soon",
     emoji: "💍",
+    accent: "#db2777",
   },
   {
     code: "beauty",
@@ -67,6 +71,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     description: "نوبت‌دهی، مدیریت مشتری و باشگاه وفاداری مخصوص سالن‌های زیبایی و آرایشگاه‌ها.",
     domain: "exirbeauty.ir",
     status: "soon",
+    accent: "#b45309",
     emoji: "💇‍♀️",
   },
 ];

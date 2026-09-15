@@ -42,21 +42,30 @@ export default async function HomePage() {
           {EXIR_PRODUCTS.map((p) => (
             <div
               key={p.code}
-              className="relative bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3"
+              className="relative overflow-hidden bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3"
+              style={{ borderTop: `3px solid ${p.accent}` }}
             >
               {p.status === "soon" ? (
                 <span className="absolute top-5 left-6 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-warning-soft text-warning">
                   به‌زودی
                 </span>
               ) : null}
-              <div className="text-[30px]">{p.emoji}</div>
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-[24px]"
+                style={{ backgroundColor: `${p.accent}14` }}
+              >
+                {p.emoji}
+              </div>
               <div className="text-[16px] font-extrabold">{p.name}</div>
-              <div className="text-[12.5px] font-semibold text-primary">{p.audience}</div>
+              <div className="text-[12.5px] font-semibold" style={{ color: p.accent }}>
+                {p.audience}
+              </div>
               <p className="text-[12.5px] text-muted leading-relaxed flex-1">{p.description}</p>
               {p.status === "live" ? (
                 <a
                   href={`https://${p.domain}`}
-                  className="text-center py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold"
+                  className="text-center py-2.5 rounded-xl text-white text-[13px] font-bold"
+                  style={{ backgroundColor: p.accent }}
                 >
                   مشاهده‌ی {p.name} ←
                 </a>
