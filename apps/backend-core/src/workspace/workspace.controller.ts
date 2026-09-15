@@ -1,17 +1,22 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { AuthService } from '../auth/auth.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
+import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
 
 /** Bootstrap endpoint the frontend calls once after login to fill the header/shell. */
 @Controller('me')
 @UseGuards(JwtAuthGuard)
 export class WorkspaceController {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly auth: AuthService,
+  ) {}
 
   @Get()
   async me(@Ctx() ctx: TenantRequestContext) {
@@ -33,6 +38,17 @@ export class WorkspaceController {
       },
       tenant: { name: tenant.name, slug: tenant.slug, themeColor: tenant.themeColor },
     };
+  }
+
+  /** فهرست محیط‌های کاری دیگری که همین کاربر عضو فعال آن‌هاست — برای سوییچر داخل هدر. */
+  @Get('tenants')
+  async myTenants(@Ctx() ctx: TenantRequestContext) {
+    return this.auth.listMyTenants(ctx.auth.sub);
+  }
+
+  @Post('switch-tenant')
+  async switchTenant(@Body() dto: SwitchTenantDto, @Ctx() ctx: TenantRequestContext) {
+    return this.auth.switchTenant(ctx.auth.sub, dto.tenantSlug);
   }
 
   @Patch('branding')

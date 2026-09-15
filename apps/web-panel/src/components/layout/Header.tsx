@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { CalendarIcon, ChatIcon, MenuIcon, ChevronDownIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
 import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
-import { clearToken } from "@/lib/api";
+import { clearToken, fetchMyTenants, switchTenant, setToken, type MyTenant } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { NotificationBell } from "./NotificationBell";
 
@@ -22,12 +22,32 @@ export function Header({
 }) {
   const [today] = useState(() => formatJalaliFull());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [otherTenants, setOtherTenants] = useState<MyTenant[] | null>(null);
+  const [switching, setSwitching] = useState(false);
   const { me, subscription, license } = useWorkspace();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!menuOpen || otherTenants !== null) return;
+    fetchMyTenants()
+      .then((tenants) => setOtherTenants(tenants.filter((t) => t.slug !== me?.tenant.slug)))
+      .catch(() => setOtherTenants([]));
+  }, [menuOpen, otherTenants, me?.tenant.slug]);
 
   function handleLogout() {
     clearToken();
     router.replace("/login");
+  }
+
+  async function handleSwitchTenant(slug: string) {
+    setSwitching(true);
+    try {
+      const res = await switchTenant(slug);
+      setToken(res.accessToken);
+      window.location.href = "/dashboard";
+    } catch {
+      setSwitching(false);
+    }
   }
 
   return (
@@ -132,7 +152,27 @@ export function Header({
           {menuOpen ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute top-full mt-2 end-0 w-44 bg-surface border border-border rounded-xl shadow-lg py-1.5 z-20">
+              <div className="absolute top-full mt-2 end-0 w-56 bg-surface border border-border rounded-xl shadow-lg py-1.5 z-20">
+                <div className="px-3.5 pt-1 pb-2 text-[11px] font-bold text-muted">
+                  محیط کاری فعلی: {me?.tenant.name}
+                </div>
+                {otherTenants && otherTenants.length > 0 ? (
+                  <>
+                    <div className="px-3.5 pb-1 text-[11px] font-bold text-muted">سایر کسب‌وکارهای شما</div>
+                    {otherTenants.map((t) => (
+                      <button
+                        key={t.slug}
+                        type="button"
+                        disabled={switching}
+                        onClick={() => handleSwitchTenant(t.slug)}
+                        className="w-full text-start px-3.5 py-2.5 text-[13px] font-semibold hover:bg-primary-soft disabled:opacity-50"
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                    <div className="h-px bg-border my-1.5" />
+                  </>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleLogout}

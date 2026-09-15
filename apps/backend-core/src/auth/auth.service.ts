@@ -173,6 +173,47 @@ export class AuthService {
     return this.resolveTenantLogin(payload.phone, tenantSlug);
   }
 
+  /** برای سوییچ محیط کاری از داخل خود پنل (هدر) — کاربر از قبل با JWT وارد شده است. */
+  async listMyTenants(globalUserId: string): Promise<{ slug: string; name: string }[]> {
+    const memberships = await this.controlDb.tenantMembership.findMany({
+      where: { globalUserId, status: 'ACTIVE', tenant: { status: 'ACTIVE' } },
+      include: { tenant: true },
+    });
+    return memberships.map((m) => ({ slug: m.tenant.slug, name: m.tenant.name }));
+  }
+
+  /** سوییچ به یک محیط کاری دیگر که کاربر از قبل عضو فعال آن است — بدون نیاز به کد تأیید مجدد. */
+  async switchTenant(globalUserId: string, tenantSlug: string) {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
+    if (!tenant || tenant.status !== 'ACTIVE') {
+      throw new NotFoundException('این محیط کاری یافت نشد یا فعال نیست');
+    }
+
+    const membership = await this.controlDb.tenantMembership.findUnique({
+      where: { tenantId_globalUserId: { tenantId: tenant.id, globalUserId } },
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new UnauthorizedException('شما عضو فعال این محیط کاری نیستید');
+    }
+
+    const globalUser = await this.controlDb.globalUser.findUniqueOrThrow({ where: { id: globalUserId } });
+    const payload: TenantJwtPayload = {
+      type: 'tenant_user',
+      sub: globalUser.id,
+      tenantId: tenant.id,
+      membershipId: membership.id,
+      role: membership.role,
+    };
+    const accessToken = await this.jwt.signAsync(payload);
+
+    return {
+      accessToken,
+      user: { name: globalUser.name, phone: globalUser.phone },
+      tenant: { name: tenant.name, slug: tenant.slug },
+      role: membership.role,
+    };
+  }
+
   private async resolveTenantLogin(phone: string, tenantSlug: string) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
     if (tenant?.status === 'PENDING_PAYMENT') {

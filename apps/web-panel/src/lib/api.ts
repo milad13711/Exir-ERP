@@ -256,6 +256,21 @@ export function updateBranding(data: { themeColor?: string }) {
   return apiFetch<{ themeColor: string | null }>("/me/branding", { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export type MyTenant = { slug: string; name: string };
+
+export function fetchMyTenants() {
+  return apiFetch<MyTenant[]>("/me/tenants");
+}
+
+export function switchTenant(tenantSlug: string) {
+  return apiFetch<{
+    accessToken: string;
+    user: { name: string | null; phone: string };
+    tenant: { name: string; slug: string };
+    role: string;
+  }>("/me/switch-tenant", { method: "POST", body: JSON.stringify({ tenantSlug }) });
+}
+
 // ── Onboarding (گیمیفیکیشن شروع کار) ────────────────────────────────────
 
 export type OnboardingMission = {
