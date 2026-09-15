@@ -1,24 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BRAND } from "@/lib/content";
+import { GROUP_BRAND, EXIR_PRODUCTS } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: {
-    default: `${BRAND.name} — نرم‌افزار یکپارچه مدیریت کسب‌وکار فارسی`,
-    template: `%s | ${BRAND.name}`,
+    default: `${GROUP_BRAND.name} — نرم‌افزارهای تخصصی برای هر صنف`,
+    template: `%s | ${GROUP_BRAND.name}`,
   },
-  description: `${BRAND.claim}. ${BRAND.subClaim}`,
+  description: `${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
   keywords: [
     "نرم‌افزار ERP فارسی",
     "بهترین ERP ایرانی",
     "نرم‌افزار مدیریت کسب‌وکار فارسی",
+    "نرم‌افزار مدیریت املاک",
+    "نرم‌افزار مدیریت باشگاه مشتریان سالن زیبایی",
     "ERP با هوش مصنوعی",
-    "نرم‌افزار حسابداری و انبارداری یکپارچه",
   ],
   openGraph: {
-    title: `${BRAND.name} — ${BRAND.claim}`,
-    description: BRAND.subClaim,
+    title: `${GROUP_BRAND.name} — ${GROUP_BRAND.claim}`,
+    description: GROUP_BRAND.subClaim,
     locale: "fa_IR",
     type: "website",
   },
@@ -28,14 +29,21 @@ export const viewport: Viewport = {
   themeColor: "#4338ca",
 };
 
+/** سازمان مادر + هر محصول زنده (بدون محصولات «به‌زودی» تا نه لینک مرده در ایندکس گوگل ثبت شود، نه سازمانی که هنوز موجود نیست). */
 const organizationJsonLd = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: BRAND.name,
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
-  description: `${BRAND.claim}. ${BRAND.subClaim}`,
+  "@type": "Organization",
+  name: GROUP_BRAND.name,
+  description: `${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
   inLanguage: "fa-IR",
+  brand: EXIR_PRODUCTS.filter((p) => p.status === "live").map((p) => ({
+    "@type": "SoftwareApplication",
+    name: p.name,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description: p.description,
+    url: `https://${p.domain}`,
+  })),
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

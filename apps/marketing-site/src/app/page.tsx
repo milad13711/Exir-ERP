@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
-import { BRAND } from "@/lib/content";
+import { BRAND, GROUP_BRAND, EXIR_PRODUCTS } from "@/lib/content";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
 
 export const revalidate = 0;
@@ -11,32 +11,70 @@ export default async function HomePage() {
   return (
     <main className="flex-1">
       <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
-        <div className="max-w-[1100px] mx-auto px-6 py-20 text-center">
+        <div className="max-w-[1100px] mx-auto px-6 py-16 sm:py-20 text-center">
           <div className="inline-block bg-white/15 text-[12px] font-bold px-4 py-1.5 rounded-full mb-6">
-            اولین ERP فارسی بین‌المللی با اتصال به ChatGPT و Claude شخصی شما
+            یک اکسیر برای هر صنف — نه یک نرم‌افزار عمومی برای همه
           </div>
-          <h1 className="text-[30px] sm:text-[42px] font-extrabold leading-[1.4]">
-            نرم‌افزار مدیریت کسب‌وکار،
-            <br />
-            متناسب با DNA سازمان شما
+          <h1 className="text-[28px] sm:text-[40px] font-extrabold leading-[1.4]">
+            {GROUP_BRAND.claim}
           </h1>
           <p className="mt-5 text-[15px] sm:text-[16px] text-white/85 max-w-[620px] mx-auto leading-loose">
-            {BRAND.claim}. {BRAND.subClaim}
+            {GROUP_BRAND.subClaim}
           </p>
           <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href="/configure"
+              href="#products"
               className="inline-block px-7 py-3.5 rounded-2xl bg-white text-primary text-[14.5px] font-extrabold shadow-lg"
             >
-              پیکربندی پلن و شروع →
-            </Link>
-            <Link
-              href="/industries"
-              className="inline-block px-7 py-3.5 rounded-2xl border border-white/40 text-white text-[14.5px] font-extrabold"
-            >
-              اکسیر برای صنف من چه می‌کند؟
+              محصول مناسب کسب‌وکار من کدام است؟ ↓
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section id="products" className="max-w-[1100px] mx-auto px-6 py-16">
+        <h2 className="text-[22px] font-extrabold text-center">کدام اکسیر برای شماست؟</h2>
+        <p className="text-[13.5px] text-muted text-center mt-2 max-w-[560px] mx-auto leading-relaxed">
+          هر صنف کسب‌وکار خودش را انتخاب کنید — مستقیم به محصول تخصصی همان صنف می‌روید.
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-5 mt-10">
+          {EXIR_PRODUCTS.map((p) => (
+            <div
+              key={p.code}
+              className="relative bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3"
+            >
+              {p.status === "soon" ? (
+                <span className="absolute top-5 left-6 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-warning-soft text-warning">
+                  به‌زودی
+                </span>
+              ) : null}
+              <div className="text-[30px]">{p.emoji}</div>
+              <div className="text-[16px] font-extrabold">{p.name}</div>
+              <div className="text-[12.5px] font-semibold text-primary">{p.audience}</div>
+              <p className="text-[12.5px] text-muted leading-relaxed flex-1">{p.description}</p>
+              {p.status === "live" ? (
+                <a
+                  href={`https://${p.domain}`}
+                  className="text-center py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold"
+                >
+                  مشاهده‌ی {p.name} ←
+                </a>
+              ) : (
+                <span className="text-center py-2.5 rounded-xl bg-slate-100 text-muted text-[13px] font-bold cursor-default">
+                  به‌زودی در {p.domain}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-t border-border bg-slate-50">
+        <div className="max-w-[1100px] mx-auto px-6 py-3.5 text-center">
+          <span className="text-[13px] font-bold text-ink">
+            بخش زیر مخصوص {BRAND.name} است — نرم‌افزار سازمانی اکسیر برای کارخانه‌ها و شرکت‌های بزرگ.
+          </span>
         </div>
       </section>
 

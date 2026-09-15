@@ -5,14 +5,17 @@ export function SiteHeader() {
     <header className="border-b border-border bg-surface">
       <div className="max-w-[1100px] mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="text-[15px] font-extrabold text-primary">
-          اکسیر ERP
+          اکسیر
         </Link>
         <nav className="flex items-center gap-5 text-[13px] font-semibold text-ink-soft">
-          <Link href="/industries" className="hover:text-primary transition-colors">
-            صنف‌ها
+          <Link href="/#products" className="hover:text-primary transition-colors">
+            محصولات
           </Link>
-          <Link href="/modules" className="hover:text-primary transition-colors">
-            ماژول‌ها
+          <Link href="/industries" className="hidden sm:inline hover:text-primary transition-colors">
+            صنف‌های اکسیر ERP
+          </Link>
+          <Link href="/modules" className="hidden sm:inline hover:text-primary transition-colors">
+            ماژول‌های اکسیر ERP
           </Link>
           <Link
             href="/configure"

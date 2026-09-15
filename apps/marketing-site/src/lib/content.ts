@@ -6,12 +6,70 @@
  * (fallback) استفاده کنند — هرگز نباید خالی یا خراب نمایش داده شوند.
  */
 
+/** برند مادر — این سایت (eta.co.ir) ویترین کل خانواده‌ی محصولات اکسیر است، نه فقط ERP. */
+export const GROUP_BRAND = {
+  name: "اکسیر",
+  claim: "خانواده‌ی نرم‌افزارهای تخصصی اکسیر برای صنف‌های مختلف",
+  subClaim: "به‌جای یک نرم‌افزار عمومی برای همه، برای هر صنف یک محصول تخصصی و متناسب با همان کسب‌وکار.",
+};
+
+/** محتوای خودِ محصول ERP — در بخش تخصصی همین سایت (زیر معرفی محصولات) و در صفحات صنف‌ها/ماژول‌ها استفاده می‌شود. */
 export const BRAND = {
   name: "اکسیر ERP",
   claim: "اولین ERP فارسی بین‌المللی با امکان اتصال به ایجنت اختصاصی ChatGPT و Claude شما — حتی از روی گوشی",
   subClaim:
     "دقیقاً منطبق با DNA کسب‌وکار و فرایندهای سازمانی شما شخصی‌سازی می‌شود — نه یک قالب یکسان برای همه.",
 };
+
+export type ExirProduct = {
+  code: string;
+  name: string;
+  audience: string; // برای چه کسانی است — یک جمله‌ی کوتاه
+  description: string;
+  domain: string; // بدون https://
+  status: "live" | "soon";
+  emoji: string;
+};
+
+/** کارت‌های تفکیک مخاطب در صفحه‌ی اصلی eta.co.ir — هرکدام کاربر را به دامنه‌ی تخصصی خودش می‌فرستد. */
+export const EXIR_PRODUCTS: ExirProduct[] = [
+  {
+    code: "erp",
+    name: "اکسیر ERP",
+    audience: "کارخانه‌ها، شرکت‌های بزرگ و سازمان‌ها",
+    description: "مدیریت یکپارچه‌ی فروش، انبار، حسابداری، منابع انسانی و تولید — کاملاً ماژولار.",
+    domain: "exirerp.ir",
+    status: "live",
+    emoji: "🏭",
+  },
+  {
+    code: "amlak",
+    name: "اکسیراملاک",
+    audience: "مشاوران و آژانس‌های املاک",
+    description: "مدیریت ملک، مشتری و قرارداد مخصوص بازار املاک، از جست‌وجوی ملک تا امضای قرارداد.",
+    domain: "exiramlak.ir",
+    status: "live",
+    emoji: "🏠",
+  },
+  {
+    code: "wedino",
+    name: "Wedino",
+    audience: "عکاس، کیک، دیجی و سایر خدمات عروسی و مراسمات",
+    description: "رزرو نوبت، قرارداد و پیگیری سفارش، مخصوص کسب‌وکارهای فعال در حوزه‌ی جشن و عروسی.",
+    domain: "wedino.ir",
+    status: "soon",
+    emoji: "💍",
+  },
+  {
+    code: "beauty",
+    name: "اکسیربیوتی",
+    audience: "سالن‌های زیبایی و فعالان این حوزه",
+    description: "نوبت‌دهی، مدیریت مشتری و باشگاه وفاداری مخصوص سالن‌های زیبایی و آرایشگاه‌ها.",
+    domain: "exirbeauty.ir",
+    status: "soon",
+    emoji: "💇‍♀️",
+  },
+];
 
 export type ModuleContent = {
   tagline: string;
