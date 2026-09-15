@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { LogoMark, BoltIcon, StoreIcon, FactoryIcon, ReceiptIcon, SettingsIcon, WarehouseIcon } from "@/components/icons";
 import { toPersianDigits } from "@/lib/persian";
-import { requestOtp, verifyOtp, setToken, ApiError, fetchPublicIndustryTemplates, type PublicIndustryTemplate } from "@/lib/api";
+import {
+  requestOtp,
+  verifyOtp,
+  selectTenant,
+  setToken,
+  ApiError,
+  fetchPublicIndustryTemplates,
+  type PublicIndustryTemplate,
+} from "@/lib/api";
 
 const TEMPLATE_ICONS: Record<string, typeof StoreIcon> = {
   "technical-services": BoltIcon,
@@ -21,7 +29,7 @@ const RESEND_SECONDS = 48;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [step, setStep] = useState<"phone" | "otp" | "tenant">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
@@ -30,6 +38,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const [templates, setTemplates] = useState<PublicIndustryTemplate[]>([]);
+  const [tenantOptions, setTenantOptions] = useState<{ slug: string; name: string }[]>([]);
+  const [verificationToken, setVerificationToken] = useState("");
 
   useEffect(() => {
     fetchPublicIndustryTemplates().then((t) => setTemplates(t.slice(0, 6))).catch(() => setTemplates([]));
@@ -88,6 +98,26 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await verifyOtp(phone.trim(), otp.join(""));
+      if ("requiresTenantSelection" in res) {
+        setTenantOptions(res.tenants);
+        setVerificationToken(res.verificationToken);
+        setStep("tenant");
+        return;
+      }
+      setToken(res.accessToken);
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ورود با خطا مواجه شد");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSelectTenant(slug: string) {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await selectTenant(verificationToken, slug);
       setToken(res.accessToken);
       router.push("/dashboard");
     } catch (err) {
@@ -157,7 +187,41 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-sm">
-          {step === "phone" ? (
+          {step === "tenant" ? (
+            <div>
+              <div className="text-[13px] text-muted mb-2">ورود به حساب کاربری</div>
+              <div className="text-2xl font-extrabold mb-1.5">محیط کاری را انتخاب کنید</div>
+              <div className="text-sm text-ink-soft leading-relaxed mb-8">
+                این شماره در چند محیط کاری عضو است. یکی را برای ورود انتخاب کنید.
+              </div>
+
+              <div className="flex flex-col gap-3 mb-3">
+                {tenantOptions.map((t) => (
+                  <button
+                    key={t.slug}
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleSelectTenant(t.slug)}
+                    className="w-full text-right py-4 px-5 rounded-2xl border-2 border-border hover:border-primary transition-colors font-semibold disabled:opacity-50"
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+
+              {error ? (
+                <div className="text-[13px] text-danger font-semibold mb-3">{error}</div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setStep("phone")}
+                className="text-[13px] font-semibold text-primary"
+              >
+                ویرایش شماره
+              </button>
+            </div>
+          ) : step === "phone" ? (
             <form onSubmit={handlePhoneSubmit}>
               <div className="text-[13px] text-muted mb-2">ورود به حساب کاربری</div>
               <div className="text-2xl font-extrabold mb-1.5">شماره موبایل خود را وارد کنید</div>

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, ShareIcon, WhatsAppIcon } from "@/components/icons";
 import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useWorkspace } from "@/lib/workspace-context";
 import { EventPosterModal } from "./EventPosterModal";
 import {
   fetchEvent,
@@ -134,6 +135,7 @@ function ManualBookingForm({ event, onCreated }: { event: EventItem; onCreated: 
 }
 
 export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: string; onClose: () => void; onChanged: () => void }) {
+  const { me } = useWorkspace();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [bookings, setBookings] = useState<EventBooking[] | null>(null);
   const [tab, setTab] = useState<"info" | "bookings" | "tickets">("info");
@@ -175,7 +177,7 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
     );
   }
 
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/events/${process.env.NEXT_PUBLIC_TENANT_SLUG ?? "exir-demo"}/${event.slug}` : "";
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/events/${me?.tenant.slug ?? "exir-demo"}/${event.slug}` : "";
   const soldTotal = event.ticketTypes.reduce((sum, t) => sum + (t.sold ?? 0), 0);
   const checkedInCount = (tickets ?? []).filter((t) => t.status === "CHECKED_IN").length;
 

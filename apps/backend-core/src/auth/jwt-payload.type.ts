@@ -87,6 +87,20 @@ export type TrackingTicketPayload = {
  * contract, and carries which side of the contract that phone resolved to
  * (matched against the contract's party phone numbers at verify time).
  */
+/**
+ * Short-lived proof that a phone number was OTP-verified for login, issued
+ * when that phone belongs to MORE THAN ONE active tenant and the client
+ * omitted a tenantSlug — the login page shows a workspace picker built
+ * from the accompanying tenant list, then exchanges this ticket + the
+ * chosen slug for a real tenant-scoped access token (AuthController's
+ * "select-tenant" route) without re-sending the OTP code, which was
+ * already consumed the moment this ticket was issued.
+ */
+export type TenantSelectionTicketPayload = {
+  type: 'tenant_selection_ticket';
+  phone: string;
+};
+
 export type ContractSignTicketPayload = {
   type: 'contract_sign_ticket';
   phone: string;

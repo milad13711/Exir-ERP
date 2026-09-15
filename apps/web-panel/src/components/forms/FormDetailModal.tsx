@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ShareIcon, WhatsAppIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useWorkspace } from "@/lib/workspace-context";
 import {
   fetchForm,
   updateForm,
@@ -41,6 +42,7 @@ function toFieldInputs(form: FormItem): FormFieldInput[] {
 }
 
 export function FormDetailModal({ formId, onClose, onChanged }: { formId: string; onClose: () => void; onChanged: () => void }) {
+  const { me } = useWorkspace();
   const [form, setForm] = useState<FormItem | null>(null);
   const [tab, setTab] = useState<"fields" | "submissions" | "stats">("fields");
   const [fields, setFields] = useState<FormFieldInput[]>([]);
@@ -106,7 +108,7 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
     );
   }
 
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${process.env.NEXT_PUBLIC_TENANT_SLUG ?? "exir-demo"}/${form.slug}` : "";
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${me?.tenant.slug ?? "exir-demo"}/${form.slug}` : "";
   const embedCode = `<iframe src="${publicUrl}" style="width:100%;height:720px;border:0;border-radius:16px" loading="lazy"></iframe>`;
 
   return (

@@ -123,15 +123,40 @@ export function requestOtp(phone: string) {
   });
 }
 
+export type VerifyOtpResult =
+  | {
+      accessToken: string;
+      user: { name: string | null; phone: string };
+      tenant: { name: string; slug: string };
+      role: string;
+    }
+  | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] };
+
+/**
+ * tenantSlug is deliberately NOT sent here — this box hosts public
+ * self-signup, so the same phone can belong to more than one tenant, and
+ * the build-time TENANT_SLUG constant would silently always resolve to
+ * whichever tenant this deployment happened to be bootstrapped for. The
+ * backend figures out the right tenant on its own: exactly one active
+ * membership logs straight in, more than one comes back as
+ * requiresTenantSelection for the caller to resolve via selectTenant().
+ */
 export function verifyOtp(phone: string, code: string) {
+  return apiFetch<VerifyOtpResult>("/auth/otp/verify", {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function selectTenant(verificationToken: string, tenantSlug: string) {
   return apiFetch<{
     accessToken: string;
     user: { name: string | null; phone: string };
     tenant: { name: string; slug: string };
     role: string;
-  }>("/auth/otp/verify", {
+  }>("/auth/otp/select-tenant", {
     method: "POST",
-    body: JSON.stringify({ phone, code, tenantSlug: TENANT_SLUG }),
+    body: JSON.stringify({ verificationToken, tenantSlug }),
   });
 }
 

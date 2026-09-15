@@ -10,10 +10,11 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { OtpPurpose } from '../../generated/control-client/index.js';
-import type { TenantJwtPayload } from './jwt-payload.type.js';
+import type { TenantJwtPayload, TenantSelectionTicketPayload } from './jwt-payload.type.js';
 
 const OTP_TTL_MS = 2 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+const TENANT_SELECTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 function generateOtpCode(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -82,16 +83,14 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(
-    phone: string,
-    code: string,
-    tenantSlug: string,
-  ): Promise<{
-    accessToken: string;
-    user: { name: string | null; phone: string };
-    tenant: { name: string; slug: string };
-    role: string;
-  }> {
+  /**
+   * Validates + consumes a LOGIN OTP for a phone, independent of which
+   * tenant the login is ultimately for — a phone can belong to several
+   * tenants (this box hosts public self-signup, so the same person can
+   * have created more than one workspace), and the OTP itself has nothing
+   * to do with which one they're logging into.
+   */
+  private async consumeLoginOtp(phone: string, code: string): Promise<void> {
     const otp = await this.controlDb.otpCode.findFirst({
       where: { phone, purpose: 'LOGIN', consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
@@ -113,7 +112,68 @@ export class AuthService {
       where: { id: otp.id },
       data: { consumedAt: new Date() },
     });
+  }
 
+  async verifyOtp(
+    phone: string,
+    code: string,
+    tenantSlug?: string,
+  ): Promise<
+    | {
+        accessToken: string;
+        user: { name: string | null; phone: string };
+        tenant: { name: string; slug: string };
+        role: string;
+      }
+    | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] }
+  > {
+    await this.consumeLoginOtp(phone, code);
+
+    if (tenantSlug) {
+      return this.resolveTenantLogin(phone, tenantSlug);
+    }
+
+    const globalUser = await this.controlDb.globalUser.findUnique({ where: { phone } });
+    if (!globalUser) {
+      throw new NotFoundException('این شماره در هیچ محیط کاری عضو نیست');
+    }
+
+    const memberships = await this.controlDb.tenantMembership.findMany({
+      where: { globalUserId: globalUser.id, status: { in: ['ACTIVE', 'INVITED'] }, tenant: { status: 'ACTIVE' } },
+      include: { tenant: true },
+    });
+
+    if (memberships.length === 0) {
+      throw new NotFoundException('این شماره در هیچ محیط کاری فعال عضو نیست');
+    }
+    if (memberships.length === 1) {
+      return this.resolveTenantLogin(phone, memberships[0].tenant.slug);
+    }
+
+    const ticketPayload: TenantSelectionTicketPayload = { type: 'tenant_selection_ticket', phone };
+    const verificationToken = await this.jwt.signAsync(ticketPayload, { expiresIn: TENANT_SELECTION_TOKEN_TTL_SECONDS });
+    return {
+      requiresTenantSelection: true,
+      verificationToken,
+      tenants: memberships.map((m) => ({ slug: m.tenant.slug, name: m.tenant.name })),
+    };
+  }
+
+  /** برای گام دوم انتخاب محیط کاری — کد OTP دوباره لازم نیست، چون همین الان مصرف شده است. */
+  async selectTenant(verificationToken: string, tenantSlug: string) {
+    let payload: TenantSelectionTicketPayload;
+    try {
+      payload = await this.jwt.verifyAsync<TenantSelectionTicketPayload>(verificationToken);
+    } catch {
+      throw new UnauthorizedException('نشست انتخاب محیط کاری منقضی شده است، دوباره کد را درخواست دهید');
+    }
+    if (payload.type !== 'tenant_selection_ticket') {
+      throw new UnauthorizedException('نشست انتخاب محیط کاری نامعتبر است');
+    }
+    return this.resolveTenantLogin(payload.phone, tenantSlug);
+  }
+
+  private async resolveTenantLogin(phone: string, tenantSlug: string) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
     if (tenant?.status === 'PENDING_PAYMENT') {
       throw new UnauthorizedException(
