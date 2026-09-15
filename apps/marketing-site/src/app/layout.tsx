@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE } from "@/lib/content";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://eta.co.ir").replace(/\/$/, "");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: `${GROUP_BRAND.name} — نرم‌افزارهای تخصصی برای هر صنف`,
     template: `%s | ${GROUP_BRAND.name}`,
@@ -26,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4338ca",
+  themeColor: "#0f172a",
 };
 
 /** سازمان مادر + هر محصول زنده (بدون محصولات «به‌زودی» تا نه لینک مرده در ایندکس گوگل ثبت شود، نه سازمانی که هنوز موجود نیست). */
@@ -53,6 +57,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
         <SiteHeader />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

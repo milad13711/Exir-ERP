@@ -21,6 +21,8 @@ export const BRAND = {
     "دقیقاً منطبق با DNA کسب‌وکار و فرایندهای سازمانی شما شخصی‌سازی می‌شود — نه یک قالب یکسان برای همه.",
 };
 
+export type ExirProductIcon = "factory" | "home" | "celebration" | "beauty" | "mail";
+
 export type ExirProduct = {
   code: string;
   name: string;
@@ -28,7 +30,7 @@ export type ExirProduct = {
   description: string;
   domain: string; // بدون https://
   status: "live" | "soon";
-  emoji: string;
+  icon: ExirProductIcon;
   accent: string; // رنگ اختصاصی این محصول برای تفکیک بصری در گرید محصولات
 };
 
@@ -41,8 +43,8 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     description: "مدیریت یکپارچه‌ی فروش، انبار، حسابداری، منابع انسانی و تولید — کاملاً ماژولار.",
     domain: "exirerp.ir",
     status: "live",
-    emoji: "🏭",
-    accent: "#4338ca",
+    icon: "factory",
+    accent: "#0369a1",
   },
   {
     code: "amlak",
@@ -51,7 +53,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     description: "مدیریت ملک، مشتری و قرارداد مخصوص بازار املاک، از جست‌وجوی ملک تا امضای قرارداد.",
     domain: "exiramlak.ir",
     status: "live",
-    emoji: "🏠",
+    icon: "home",
     accent: "#0d9488",
   },
   {
@@ -61,8 +63,8 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     description: "رزرو نوبت، قرارداد و پیگیری سفارش، مخصوص کسب‌وکارهای فعال در حوزه‌ی جشن و عروسی.",
     domain: "wedino.ir",
     status: "soon",
-    emoji: "💍",
-    accent: "#db2777",
+    icon: "celebration",
+    accent: "#be185d",
   },
   {
     code: "beauty",
@@ -72,7 +74,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     domain: "exirbeauty.ir",
     status: "soon",
     accent: "#b45309",
-    emoji: "💇‍♀️",
+    icon: "beauty",
   },
 ];
 
@@ -81,17 +83,48 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
  * (و مشترکین مستقیم آن) از آن استفاده می‌کنند. به همین دلیل در گرید
  * EXIR_PRODUCTS نیست و در بخش جدای «زیرساخت اکسیر» نمایش داده می‌شود.
  */
-export const EXIR_INFRASTRUCTURE = {
+export const EXIR_INFRASTRUCTURE: ExirProduct = {
   code: "sms",
   name: "اکسیر پیامک",
   audience: "زیرساخت پیامکی مشترک همه‌ی محصولات اکسیر — و مشترکین مستقیم",
   description:
     "ارسال پیامک انبوه، تماس صوتی و کد تأیید (OTP) با API ساده — همان زیرساختی که اعتبارسنجی و اطلاع‌رسانی اکسیر ERP، اکسیراملاک و بقیه‌ی محصولات را تغذیه می‌کند.",
   domain: "exirsms.ir",
-  status: "live" as const,
-  emoji: "📨",
+  status: "live",
+  icon: "mail",
   accent: "#1d4ed8",
 };
+
+export type FaqItem = { question: string; answer: string };
+
+/** برای بخش پرسش‌های پرتکرار صفحه‌ی اصلی + Schema.org FAQPage — هم برای رتبه در گوگل، هم برای این‌که پاسخ‌دهنده‌های هوش مصنوعی (ChatGPT/Perplexity/Gemini) مستقیماً از این متن نقل کنند. */
+export const HOME_FAQ: FaqItem[] = [
+  {
+    question: "اکسیر دقیقاً چیست؟",
+    answer:
+      "اکسیر یک شرکت مادر نرم‌افزاری ایرانی است که به‌جای یک محصول عمومی، برای هر صنف یک نرم‌افزار تخصصی می‌سازد: اکسیر ERP برای کارخانه‌ها و شرکت‌های بزرگ، اکسیراملاک برای مشاوران املاک، و به‌زودی Wedino برای خدمات عروسی و اکسیربیوتی برای سالن‌های زیبایی — همه روی یک زیرساخت مشترک، از جمله اکسیر پیامک.",
+  },
+  {
+    question: "هزینه‌ی استفاده از اکسیر ERP چقدر است؟",
+    answer:
+      "قیمت بر اساس ماژول‌هایی که واقعاً استفاده می‌کنید محاسبه می‌شود، نه یک پلن ثابت برای همه — می‌توانید ماژول‌ها را ماهانه، سالانه یا با خرید لایسنس یک‌باره تهیه کنید. برای دیدن قیمت دقیق متناسب با کسب‌وکار خودتان، از صفحه‌ی «پیکربندی پلن» استفاده کنید.",
+  },
+  {
+    question: "آیا اکسیر برای کسب‌وکار من مناسب است؟",
+    answer:
+      "اگر در حوزه‌ی تولید، پخش، خدمات فنی یا هر کسب‌وکار سازمانی دیگری فعالید، اکسیر ERP متناسب با DNA همان صنف پیکربندی می‌شود، نه یک قالب یکسان برای همه. اگر مشاور املاک، فعال حوزه‌ی عروسی یا سالن زیبایی هستید، محصول تخصصی مخصوص همان صنف را داریم.",
+  },
+  {
+    question: "داده‌های کسب‌وکار من چقدر امن است؟",
+    answer:
+      "هر مشتری پایگاه‌داده‌ی کاملاً مجزای خودش را دارد — داده‌ی هیچ دو کسب‌وکار در کنار هم ذخیره نمی‌شود. دسترسی‌ها نقش‌محور است و هر عملیات مهم در سوابق فعالیت (Activity Log) ثبت می‌شود.",
+  },
+  {
+    question: "چطور اکسیر ERP را با ChatGPT یا Claude خودم وصل کنم؟",
+    answer:
+      "اکسیر ERP از پروتکل MCP پشتیبانی می‌کند — هر عضو تیم می‌تواند ایجنت اختصاصی ChatGPT یا Claude خودش را مستقیماً به داده‌های محیط کاری وصل کند و حتی از روی گوشی با آن کار را پیش ببرد؛ راهنمای کامل در تنظیمات همان محیط کاری قرار دارد.",
+  },
+];
 
 export type ModuleContent = {
   tagline: string;

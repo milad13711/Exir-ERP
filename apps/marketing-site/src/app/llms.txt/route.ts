@@ -1,0 +1,32 @@
+import { EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, GROUP_BRAND, BRAND, HOME_FAQ } from "@/lib/content";
+
+/**
+ * llms.txt — قرارداد نوظهور برای این‌که پاسخ‌دهنده‌های هوش مصنوعی (ChatGPT،
+ * Perplexity، Gemini، Claude و…) موقع خزیدن سایت، خلاصه‌ای ساختاریافته و
+ * قابل استناد از شرکت و محصولاتش داشته باشند — مکمل robots.txt/sitemap.xml
+ * برای سئوی سنتی، نه جایگزین آن.
+ */
+export function GET() {
+  const lines = [
+    `# ${GROUP_BRAND.name}`,
+    "",
+    `> ${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
+    "",
+    "## محصولات",
+    ...EXIR_PRODUCTS.map(
+      (p) =>
+        `- [${p.name}](https://${p.domain})${p.status === "soon" ? " (به‌زودی)" : ""}: ${p.audience} — ${p.description}`,
+    ),
+    `- [${EXIR_INFRASTRUCTURE.name}](https://${EXIR_INFRASTRUCTURE.domain}): ${EXIR_INFRASTRUCTURE.description}`,
+    "",
+    `## درباره‌ی ${BRAND.name}`,
+    `${BRAND.claim} ${BRAND.subClaim}`,
+    "",
+    "## پرسش‌های پرتکرار",
+    ...HOME_FAQ.flatMap((f) => [`### ${f.question}`, f.answer, ""]),
+  ];
+
+  return new Response(lines.join("\n"), {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}

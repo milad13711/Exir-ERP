@@ -1,33 +1,34 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800;1,600&display=swap");
 @import "tailwindcss";
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f8fb;
+  --foreground: #0b1120;
 
-  --color-ink: #0f172a;
-  --color-ink-soft: #475569;
-  --color-muted: #94a3b8;
+  --color-ink: #0b1120;
+  --color-ink-soft: #47546b;
+  --color-muted: #8a94a6;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
+  --color-border: #e3e7ef;
 
-  /* هماهنگ با هویت بصری eta.co.ir (سبز تیره + طلایی) — عمداً هم‌رنگ شده تا
-     مخاطبی که از eta.co.ir وارد می‌شود با یک فضای بصری کاملاً متفاوت مواجه نشود. */
-  --color-primary: #29574a;
-  --color-primary-dark: #1e4038;
-  --color-primary-soft: #eaf1ee;
+  /* هویت بصری «اعتماد سازمانی» — سرمه‌ای عمیق + آبی، هماهنگ با محصول اصلی
+     (اکسیر ERP) به‌عنوان لنگر برند مادر، به‌جای هم‌رنگ شدن با سایت وردپرسی قبلی. */
+  --color-primary: #0f172a;
+  --color-primary-dark: #020617;
+  --color-primary-soft: #eef2ff;
 
-  --color-accent: #d0a767;
-  --color-accent-soft: #faf3e6;
+  --color-accent: #0369a1;
+  --color-accent-soft: #e0f2fe;
 
-  --color-warning: #d97706;
-  --color-warning-soft: #fffbeb;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3e2;
 
-  --color-danger: #dc2626;
+  --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
 
-  --color-success: #16a34a;
-  --color-success-soft: #f0fdf4;
+  --color-success: #0f766e;
+  --color-success-soft: #ecfdf5;
 }
 
 @theme inline {
@@ -50,6 +51,7 @@
   --color-success: var(--color-success);
   --color-success-soft: var(--color-success-soft);
   --font-sans: "Vazirmatn Variable", Tahoma, "Segoe UI", sans-serif;
+  --font-display: "Plus Jakarta Sans", "Vazirmatn Variable", Tahoma, sans-serif;
 }
 
 html,
@@ -61,4 +63,26 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* اعداد/انگلیسی لاتین (قیمت‌ها، دامنه‌ها، آمار) با فونت نمایشی، بقیه با وزیرمتن. */
+.font-display {
+  font-family: var(--font-display);
+}
+
+:focus-visible {
+  outline: 2.5px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

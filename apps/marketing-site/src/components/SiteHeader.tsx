@@ -4,7 +4,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-border bg-surface">
       <div className="max-w-[1100px] mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="text-[15px] font-extrabold text-primary">
+        <Link href="/" className="font-display text-[17px] font-extrabold text-primary">
           اکسیر
         </Link>
         <nav className="flex items-center gap-5 text-[13px] font-semibold text-ink-soft">
