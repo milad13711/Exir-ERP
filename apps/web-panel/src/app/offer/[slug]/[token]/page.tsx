@@ -85,11 +85,6 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
                 </div>
               )}
               {offer.status === "ACCEPTED" && (
-                <div className="text-[13px] text-success font-semibold text-center py-2">
-                  شرایط را تأیید کردید — منتظر تأیید نهایی و امضای شرکت باشید.
-                </div>
-              )}
-              {offer.status === "SIGNED" && (
                 <div className="text-[13px] text-success font-semibold text-center py-2">همکاری شما نهایی شد 🎉</div>
               )}
             </div>

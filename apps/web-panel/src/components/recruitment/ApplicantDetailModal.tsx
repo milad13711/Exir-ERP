@@ -520,8 +520,14 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
     <div className="border border-border rounded-xl p-3.5">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[12.5px] font-bold">شرایط همکاری</div>
-        {offer && <Badge tone={offer.status === "SIGNED" ? "success" : offer.status === "ACCEPTED" ? "primary" : "neutral"}>
-          {offer.status === "DRAFT" ? "پیش‌نویس" : offer.status === "SENT" ? "ارسال‌شده" : offer.status === "ACCEPTED" ? "تأییدشده توسط متقاضی" : "امضاشده"}
+        {offer && <Badge tone={offer.status === "ACCEPTED" ? "success" : offer.status === "SIGNED" || offer.status === "SENT" ? "primary" : "neutral"}>
+          {offer.status === "DRAFT"
+            ? "پیش‌نویس"
+            : offer.status === "SIGNED"
+              ? "تأییدشده توسط مدیر"
+              : offer.status === "SENT"
+                ? "ارسال‌شده به متقاضی"
+                : "پذیرفته‌شده توسط متقاضی (نهایی)"}
         </Badge>}
       </div>
 
@@ -593,21 +599,21 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
               ویرایش
             </button>
             {offer.status === "DRAFT" && (
+              <button onClick={handleSign} disabled={busy} className="text-[11.5px] font-bold text-success cursor-pointer disabled:opacity-50">
+                تأیید و امضا (مدیر)
+              </button>
+            )}
+            {offer.status === "SIGNED" && (
               <button onClick={handleSend} disabled={busy} className="text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50">
                 ارسال برای متقاضی
               </button>
             )}
-            {offer.status !== "DRAFT" && (
+            {(offer.status === "SENT" || offer.status === "ACCEPTED") && (
               <button onClick={handleCopyLink} className="text-[11.5px] font-bold text-primary cursor-pointer">
                 {linkCopied ? "کپی شد ✓" : "کپی لینک برای متقاضی"}
               </button>
             )}
             {offer.status === "ACCEPTED" && (
-              <button onClick={handleSign} disabled={busy} className="text-[11.5px] font-bold text-success cursor-pointer disabled:opacity-50">
-                امضا و تأیید نهایی (مدیر)
-              </button>
-            )}
-            {offer.status === "SIGNED" && (
               <button onClick={() => openOfferPdf(offer.id)} className="text-[11.5px] font-bold text-ink-soft cursor-pointer">
                 دانلود PDF
               </button>

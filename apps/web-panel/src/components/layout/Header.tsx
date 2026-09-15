@@ -143,8 +143,13 @@ export function Header({
               <div className="text-[13px] font-bold">{me?.user.name ?? me?.user.phone}</div>
               <div className="text-[11.5px] text-muted">{me?.user.roleTitle ?? ""}</div>
             </div>
-            <div className="w-9.5 h-9.5 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-[13px]">
-              {getInitials(me?.user.name)}
+            <div className="w-9.5 h-9.5 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-[13px] overflow-hidden">
+              {me?.user.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={me.user.avatarUrl} alt={me.user.name ?? ""} className="w-full h-full object-cover" />
+              ) : (
+                getInitials(me?.user.name)
+              )}
             </div>
             <ChevronDownIcon className="w-3.5 h-3.5 text-muted" />
           </button>
@@ -153,6 +158,14 @@ export function Header({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute top-full mt-2 end-0 w-56 bg-surface border border-border rounded-xl shadow-lg py-1.5 z-20">
+                <Link
+                  href="/settings/profile"
+                  onClick={() => setMenuOpen(false)}
+                  className="block w-full text-start px-3.5 py-2.5 text-[13px] font-semibold hover:bg-primary-soft"
+                >
+                  پروفایل من
+                </Link>
+                <div className="h-px bg-border my-1.5" />
                 <div className="px-3.5 pt-1 pb-2 text-[11px] font-bold text-muted">
                   محیط کاری فعلی: {me?.tenant.name}
                 </div>

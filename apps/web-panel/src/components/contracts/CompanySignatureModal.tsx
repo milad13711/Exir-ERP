@@ -11,7 +11,17 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-function ImageSlot({ label, value, onChange }: { label: string; value: string | undefined; onChange: (dataUrl: string) => void }) {
+function ImageSlot({
+  label,
+  value,
+  onChange,
+  onRemove,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onChange: (dataUrl: string) => void;
+  onRemove: () => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -31,21 +41,32 @@ function ImageSlot({ label, value, onChange }: { label: string; value: string | 
           تصویری ثبت نشده
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
-      >
-        {value ? "تغییر تصویر" : "بارگذاری تصویر"}
-      </button>
+      <div className="flex items-center gap-2">
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+        >
+          {value ? "تغییر تصویر" : "بارگذاری تصویر"}
+        </button>
+        {value ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer"
+          >
+            حذف تصویر
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 export function CompanySignatureModal({ onClose }: { onClose: () => void }) {
-  const [signatureImage, setSignatureImage] = useState<string | undefined>(undefined);
-  const [stampImage, setStampImage] = useState<string | undefined>(undefined);
+  const [signatureImage, setSignatureImage] = useState<string | null | undefined>(undefined);
+  const [stampImage, setStampImage] = useState<string | null | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +104,8 @@ export function CompanySignatureModal({ onClose }: { onClose: () => void }) {
           <div className="py-8 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : (
           <>
-            <ImageSlot label="تصویر امضا" value={signatureImage} onChange={setSignatureImage} />
-            <ImageSlot label="تصویر مهر" value={stampImage} onChange={setStampImage} />
+            <ImageSlot label="تصویر امضا" value={signatureImage} onChange={setSignatureImage} onRemove={() => setSignatureImage(null)} />
+            <ImageSlot label="تصویر مهر" value={stampImage} onChange={setStampImage} onRemove={() => setStampImage(null)} />
           </>
         )}
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}

@@ -403,16 +403,19 @@ export class RecruitmentService {
     });
   }
 
+  /** ارسال برای متقاضی — فقط پس از تأیید و امضای مدیر، تا تأیید نهایی همیشه بعد از تأیید مدیر باشد. */
   async sendOffer(ctx: TenantRequestContext, offerId: string) {
     const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id: offerId } });
     if (!offer) throw new NotFoundException('این شرایط همکاری یافت نشد');
+    if (offer.status !== 'SIGNED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط مدیر تأیید و امضا شود');
     return ctx.tenantDb.jobOffer.update({ where: { id: offerId }, data: { status: 'SENT' } });
   }
 
+  /** تأیید و امضای مدیر روی پیش‌نویس — قبل از ارسال برای متقاضی و پیش از تأیید نهایی او. */
   async signOffer(ctx: TenantRequestContext, offerId: string) {
     const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id: offerId } });
     if (!offer) throw new NotFoundException('این شرایط همکاری یافت نشد');
-    if (offer.status !== 'ACCEPTED') throw new BadRequestException('فقط پس از تأیید متقاضی، مدیر می‌تواند امضا کند');
+    if (offer.status !== 'DRAFT') throw new BadRequestException('فقط پیش‌نویس را می‌توان توسط مدیر تأیید و امضا کرد');
     const signedByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
     return ctx.tenantDb.jobOffer.update({ where: { id: offerId }, data: { status: 'SIGNED', signedByUserId, signedAt: new Date() } });
   }
@@ -429,7 +432,7 @@ export class RecruitmentService {
     const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id: applicantId }, include: { offer: true, jobPosting: true } });
     if (!applicant) throw new NotFoundException('این متقاضی یافت نشد');
     if (applicant.stage !== 'MANAGEMENT_APPROVED') throw new BadRequestException('این متقاضی توسط مدیریت تأیید نشده است');
-    if (!applicant.offer || applicant.offer.status !== 'SIGNED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط متقاضی تأیید و توسط مدیر امضا شود');
+    if (!applicant.offer || applicant.offer.status !== 'ACCEPTED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط مدیر تأیید و سپس توسط متقاضی پذیرفته شود');
 
     const employee = await ctx.tenantDb.employee.create({
       data: {

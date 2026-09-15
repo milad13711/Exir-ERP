@@ -38,6 +38,8 @@ type WorkspaceState = {
   license: LicenseStatus | null;
   loading: boolean;
   refreshSubscription: () => void;
+  /** بعد از تغییر پروفایل شخصی (نام/تصویر/ایمیل) — تا هدر و بقیه‌ی صفحه بدون رفرش کامل به‌روز شوند. */
+  refreshMe: () => void;
   /** Module codes currently usable by this tenant (installed/trial, or core with no override) — see /modules for the same logic. */
   installedModules: Set<string>;
 };
@@ -54,6 +56,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshSubscription = useCallback(() => {
     fetchSubscription().then(setSubscription).catch(() => {});
+  }, []);
+
+  const refreshMe = useCallback(() => {
+    fetchMe()
+      .then((meData) => {
+        setMe(meData);
+        applyTenantBranding(meData.tenant);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -83,7 +94,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WorkspaceContext.Provider value={{ me, subscription, license, loading, refreshSubscription, installedModules }}>
+    <WorkspaceContext.Provider value={{ me, subscription, license, loading, refreshSubscription, refreshMe, installedModules }}>
       {children}
     </WorkspaceContext.Provider>
   );

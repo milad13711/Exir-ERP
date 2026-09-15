@@ -244,7 +244,14 @@ export function createPublicTenant(input: {
 // ── Workspace ────────────────────────────────────────────────────────────
 
 export type Me = {
-  user: { name: string | null; phone: string; roleTitle: string | null; membershipRole: string };
+  user: {
+    name: string | null;
+    phone: string;
+    email: string | null;
+    avatarUrl: string | null;
+    roleTitle: string | null;
+    membershipRole: string;
+  };
   tenant: { name: string; slug: string; themeColor: string | null };
 };
 
@@ -254,6 +261,13 @@ export function fetchMe() {
 
 export function updateBranding(data: { themeColor?: string }) {
   return apiFetch<{ themeColor: string | null }>("/me/branding", { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function updateMyProfile(data: { name?: string; email?: string | null; avatarUrl?: string | null }) {
+  return apiFetch<{ name: string | null; email: string | null; avatarUrl: string | null }>("/me/profile", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export type MyTenant = { slug: string; name: string };
@@ -3501,7 +3515,7 @@ export function fetchCompanySignature() {
   return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature");
 }
 
-export function saveCompanySignature(data: { signatureImage?: string; stampImage?: string }) {
+export function saveCompanySignature(data: { signatureImage?: string | null; stampImage?: string | null }) {
   return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature", {
     method: "POST",
     body: JSON.stringify(data),

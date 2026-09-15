@@ -11,6 +11,7 @@ import {
   PhoneIcon,
   BotIcon,
   BoltIcon,
+  UserCircleIcon,
 } from "@/components/icons";
 
 export type SettingsNavItem = {
@@ -21,6 +22,7 @@ export type SettingsNavItem = {
 };
 
 export const settingsNav: SettingsNavItem[] = [
+  { href: "/settings/profile", label: "پروفایل من", icon: UserCircleIcon },
   { href: "/settings/general", label: "عمومی و برندینگ", icon: CalendarIcon },
   { href: "/settings/users", label: "کاربران و نقش‌ها", icon: HrIcon },
   { href: "/settings/billing", label: "اشتراک و صورتحساب", icon: BillingIcon },

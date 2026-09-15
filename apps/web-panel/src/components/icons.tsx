@@ -20,6 +20,16 @@ export function CompassIcon(props: IconProps) {
   );
 }
 
+export function UserCircleIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.5 18.5c1-2.5 3.2-4 5.5-4s4.5 1.5 5.5 4" />
+    </svg>
+  );
+}
+
 export function TicketIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

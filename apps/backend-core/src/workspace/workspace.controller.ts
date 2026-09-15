@@ -8,6 +8,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
 import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 /** Bootstrap endpoint the frontend calls once after login to fill the header/shell. */
 @Controller('me')
@@ -33,11 +34,30 @@ export class WorkspaceController {
       user: {
         name: globalUser.name,
         phone: globalUser.phone,
+        email: tenantUser?.email ?? null,
+        avatarUrl: globalUser.avatarUrl,
         roleTitle: tenantUser?.roles[0]?.role.name ?? null,
         membershipRole: ctx.auth.role,
       },
       tenant: { name: tenant.name, slug: tenant.slug, themeColor: tenant.themeColor },
     };
+  }
+
+  /** تکمیل پروفایل شخصی — نام و تصویر در سطح شخص (مشترک بین همه‌ی محیط‌های کاری او)، ایمیل مخصوص همین محیط کاری. */
+  @Patch('profile')
+  async updateProfile(@Body() dto: UpdateProfileDto, @Ctx() ctx: TenantRequestContext) {
+    const globalUser = await this.controlDb.globalUser.update({
+      where: { id: ctx.auth.sub },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl } : {}),
+      },
+    });
+    if (dto.email !== undefined) {
+      await ctx.tenantDb.user.updateMany({ where: { globalUserId: ctx.auth.sub }, data: { email: dto.email } });
+    }
+    const tenantUser = await ctx.tenantDb.user.findUnique({ where: { globalUserId: ctx.auth.sub } });
+    return { name: globalUser.name, email: tenantUser?.email ?? null, avatarUrl: globalUser.avatarUrl };
   }
 
   /** فهرست محیط‌های کاری دیگری که همین کاربر عضو فعال آن‌هاست — برای سوییچر داخل هدر. */
