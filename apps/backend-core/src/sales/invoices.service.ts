@@ -7,6 +7,7 @@ import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
@@ -84,6 +85,7 @@ export class InvoicesService {
     private readonly funnel: FunnelService,
     private readonly zarinpal: ZarinpalService,
     private readonly warranty: WarrantyService,
+    private readonly controlDb: ControlPrismaService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -151,6 +153,8 @@ export class InvoicesService {
    * manually overridden) credit limit.
    */
   private async getCreditWarning(ctx: TenantRequestContext, contactId: string, invoiceId: string): Promise<string | null> {
+    if (!(await this.isCreditModuleEnabled(ctx.tenantId))) return null;
+
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({
       where: { id: invoiceId },
       select: { total: true, status: true },
@@ -169,6 +173,16 @@ export class InvoicesService {
       return `مانده‌ی بدهی مشتری با احتساب این فاکتور (${projectedOutstanding.toLocaleString('en-US')} تومان) از سقف اعتبار محاسبه‌شده (${assessment.creditLimit.toLocaleString('en-US')} تومان) بیشتر است — امتیاز اعتباری: ${assessment.score}`;
     }
     return null;
+  }
+
+  /** همان سوییچ ماژول «اعتبارسنجی مشتری و تأمین‌کننده» (کد supplier-risk) که در فروشگاه ماژول فعال/غیرفعال می‌شود. */
+  private async isCreditModuleEnabled(tenantId: string): Promise<boolean> {
+    const module = await this.controlDb.moduleDefinition.findUnique({ where: { code: 'supplier-risk' } });
+    if (!module) return false;
+    const install = await this.controlDb.tenantModule.findUnique({
+      where: { tenantId_moduleId: { tenantId, moduleId: module.id } },
+    });
+    return install ? install.status === 'INSTALLED' || install.status === 'TRIAL' : module.isCore;
   }
 
   /**

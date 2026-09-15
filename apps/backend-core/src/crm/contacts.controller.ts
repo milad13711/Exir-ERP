@@ -175,6 +175,7 @@ export class ContactsController {
   }
 
   @Get(':id/credit')
+  @RequireModule('supplier-risk')
   async credit(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
     const contact = await ctx.tenantDb.crmContact.findFirst({ where: { id, ...scope } });

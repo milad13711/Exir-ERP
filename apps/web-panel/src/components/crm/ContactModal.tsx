@@ -38,7 +38,7 @@ export function ContactModal({
   onNewDeal: (contactId: string) => void;
 }) {
   const { installedModules } = useWorkspace();
-  const supplierRiskEnabled = installedModules.has("supplier-risk");
+  const creditRiskEnabled = installedModules.has("supplier-risk");
   const voipEnabled = installedModules.has("voip");
   const [callStatus, setCallStatus] = useState<"idle" | "calling" | "error">("idle");
   const [contact, setContact] = useState<CrmContactDetail | null>(null);
@@ -72,8 +72,8 @@ export function ContactModal({
         creditLimitOverride: c.creditLimitOverride ? String(c.creditLimitOverride) : "",
       });
     });
-    fetchContactCredit(contactId).then(setCredit).catch(() => {});
-    if (supplierRiskEnabled) fetchSupplierRisk(contactId).then(setSupplierRisk).catch(() => {});
+    if (creditRiskEnabled) fetchContactCredit(contactId).then(setCredit).catch(() => {});
+    if (creditRiskEnabled) fetchSupplierRisk(contactId).then(setSupplierRisk).catch(() => {});
   }
   useEffect(reload, [contactId]);
 
@@ -178,7 +178,7 @@ export function ContactModal({
               ) : null}
             </div>
 
-            {credit ? (
+            {creditRiskEnabled && contact.isCustomer && credit ? (
               <div className="flex items-center gap-3 mb-3">
                 <Badge tone={scoreTone(credit.score)}>امتیاز اعتباری: {credit.score}</Badge>
                 <span className="text-[12px] text-ink-soft">
@@ -186,7 +186,7 @@ export function ContactModal({
                 </span>
               </div>
             ) : null}
-            {credit && credit.reasons.length > 0 ? (
+            {creditRiskEnabled && contact.isCustomer && credit && credit.reasons.length > 0 ? (
               <ul className="text-[11.5px] text-muted list-disc pr-4 mb-3 flex flex-col gap-0.5">
                 {credit.reasons.map((r, i) => (
                   <li key={i}>{r}</li>
@@ -194,7 +194,7 @@ export function ContactModal({
               </ul>
             ) : null}
 
-            {supplierRiskEnabled && contact.isSupplier && supplierRisk ? (
+            {creditRiskEnabled && contact.isSupplier && supplierRisk ? (
               <div className="mb-3 pt-3 border-t border-border">
                 <div className="flex items-center gap-3 mb-2">
                   <Badge tone={scoreTone(supplierRisk.score)}>سلامت رابطه‌ی خرید: {supplierRisk.score}</Badge>

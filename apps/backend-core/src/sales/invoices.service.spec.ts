@@ -89,11 +89,12 @@ function sumLines(lines: Array<{ debit: bigint; credit: bigint }>) {
 const creditScoreStub = { assess: vi.fn() };
 const smsStub = { isConfigured: vi.fn().mockReturnValue(false), sendSms: vi.fn() };
 const automationStub = { emit: vi.fn() };
+const controlDbStub = { moduleDefinition: { findUnique: vi.fn().mockResolvedValue(null) }, tenantModule: { findUnique: vi.fn() } };
 
 describe('InvoicesService.confirm — double-entry posting', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never);
   });
 
   it('posts a balanced Dr AR / Cr Revenue entry for a simple invoice with no tax or COGS', async () => {
@@ -174,7 +175,7 @@ describe('InvoicesService.confirm — double-entry posting', () => {
 describe('InvoicesService.recordPayment', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never);
   });
 
   function invoiceStub(overrides: Record<string, unknown> = {}) {
