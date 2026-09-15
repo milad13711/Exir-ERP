@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
-import { GROUP_BRAND, EXIR_PRODUCTS } from "@/lib/content";
+import { GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: {
@@ -36,7 +36,7 @@ const organizationJsonLd = {
   name: GROUP_BRAND.name,
   description: `${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
   inLanguage: "fa-IR",
-  brand: EXIR_PRODUCTS.filter((p) => p.status === "live").map((p) => ({
+  brand: [...EXIR_PRODUCTS.filter((p) => p.status === "live"), EXIR_INFRASTRUCTURE].map((p) => ({
     "@type": "SoftwareApplication",
     name: p.name,
     applicationCategory: "BusinessApplication",

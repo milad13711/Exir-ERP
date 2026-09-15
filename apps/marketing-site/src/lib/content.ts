@@ -76,6 +76,23 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
   },
 ];
 
+/**
+ * زیرساخت مشترک، نه یک محصول صنفی — سامانه‌ی پیامکی که همه‌ی محصولات بالا
+ * (و مشترکین مستقیم آن) از آن استفاده می‌کنند. به همین دلیل در گرید
+ * EXIR_PRODUCTS نیست و در بخش جدای «زیرساخت اکسیر» نمایش داده می‌شود.
+ */
+export const EXIR_INFRASTRUCTURE = {
+  code: "sms",
+  name: "اکسیر پیامک",
+  audience: "زیرساخت پیامکی مشترک همه‌ی محصولات اکسیر — و مشترکین مستقیم",
+  description:
+    "ارسال پیامک انبوه، تماس صوتی و کد تأیید (OTP) با API ساده — همان زیرساختی که اعتبارسنجی و اطلاع‌رسانی اکسیر ERP، اکسیراملاک و بقیه‌ی محصولات را تغذیه می‌کند.",
+  domain: "exirsms.ir",
+  status: "live" as const,
+  emoji: "📨",
+  accent: "#1d4ed8",
+};
+
 export type ModuleContent = {
   tagline: string;
   painPoint: string;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
-import { BRAND, GROUP_BRAND, EXIR_PRODUCTS } from "@/lib/content";
+import { BRAND, GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE } from "@/lib/content";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
 
 export const revalidate = 0;
@@ -76,6 +76,34 @@ export default async function HomePage() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-b border-border bg-slate-50">
+        <div className="max-w-[1100px] mx-auto px-6 py-14">
+          <h2 className="text-[18px] font-extrabold text-center mb-2">زیرساخت اکسیر</h2>
+          <p className="text-[12.5px] text-muted text-center max-w-[520px] mx-auto leading-relaxed mb-8">
+            یک زیرساخت مشترک که همه‌ی محصولات بالا را تغذیه می‌کند — و مستقیماً هم قابل استفاده است.
+          </p>
+          <div className="max-w-[720px] mx-auto bg-surface border border-border rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-5">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center text-[26px] shrink-0"
+              style={{ backgroundColor: `${EXIR_INFRASTRUCTURE.accent}14` }}
+            >
+              {EXIR_INFRASTRUCTURE.emoji}
+            </div>
+            <div className="flex-1 text-center sm:text-right">
+              <div className="text-[15px] font-extrabold">{EXIR_INFRASTRUCTURE.name}</div>
+              <p className="text-[12.5px] text-muted leading-relaxed mt-1">{EXIR_INFRASTRUCTURE.description}</p>
+            </div>
+            <a
+              href={`https://${EXIR_INFRASTRUCTURE.domain}`}
+              className="shrink-0 text-center px-5 py-2.5 rounded-xl text-white text-[13px] font-bold"
+              style={{ backgroundColor: EXIR_INFRASTRUCTURE.accent }}
+            >
+              مشاهده‌ی {EXIR_INFRASTRUCTURE.name} ←
+            </a>
+          </div>
         </div>
       </section>
 
