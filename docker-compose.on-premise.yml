@@ -141,6 +141,10 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         NEXT_PUBLIC_API_URL: ${MARKETING_SITE_API_URL:?set MARKETING_SITE_API_URL in .env, e.g. http://<server-ip>:${EXPOSED_PORT:-80}/api}
+        # Baked into sitemap.xml/robots.txt at build time — must be the real
+        # public domain, never the bare IP:port, or every submitted sitemap
+        # URL points at an address search engines can't credit/crawl as canonical.
+        NEXT_PUBLIC_SITE_URL: ${MARKETING_SITE_PUBLIC_URL:-http://localhost:${EXPOSED_PORT:-80}}
     restart: unless-stopped
     depends_on:
       - backend
