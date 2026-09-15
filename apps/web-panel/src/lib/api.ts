@@ -344,6 +344,8 @@ export type Invoice = {
   id: string;
   amount: number;
   status: "PENDING" | "PAID" | "FAILED";
+  purpose: "TENANT_SETUP" | "PLAN_RENEWAL" | "MODULE_PURCHASE" | "MODULE_RENEWAL" | null;
+  items: { moduleCode: string; moduleName: string; billingMode: string; amount: number }[] | null;
   issuedAt: string;
   dueAt: string;
   paidAt: string | null;
@@ -355,6 +357,8 @@ export function fetchInvoices() {
 
 // ── Module marketplace ───────────────────────────────────────────────────
 
+export type ModuleBillingMode = "MONTHLY" | "YEARLY" | "LICENSE";
+
 export type ModuleCatalogItem = {
   id: string;
   code: string;
@@ -362,11 +366,19 @@ export type ModuleCatalogItem = {
   description: string;
   category: string;
   priceMonthly: number;
+  priceYearly: number | null;
   isCore: boolean;
   version: string;
   dependsOn: string[];
   features: string[];
   installStatus: "INSTALLED" | "TRIAL" | "DISABLED" | null;
+  billingMode: ModuleBillingMode | null;
+  currentPeriodEnd: string | null;
+  demoAvailable: boolean;
+  demoDescription: string | null;
+  demoValueProps: string[];
+  demoScreenshot1Url: string | null;
+  demoScreenshot2Url: string | null;
 };
 
 export function fetchModules() {
@@ -379,6 +391,26 @@ export function installModule(code: string) {
 
 export function uninstallModule(code: string) {
   return apiFetch<ModuleCatalogItem>(`/modules/${code}/uninstall`, { method: "POST" });
+}
+
+export function activateModuleDemo(code: string) {
+  return apiFetch<ModuleCatalogItem>(`/modules/${code}/demo/activate`, { method: "POST" });
+}
+
+export function checkoutModules(items: { code: string; billingMode: ModuleBillingMode }[]) {
+  return apiFetch<{ invoiceId: string }>("/modules/checkout", { method: "POST", body: JSON.stringify({ items }) });
+}
+
+export type ModuleRenewalNotice = {
+  code: string;
+  name: string;
+  currentPeriodEnd: string;
+  daysLeft: number | null;
+  invoiceId: string | null;
+};
+
+export function fetchModuleRenewals() {
+  return apiFetch<ModuleRenewalNotice[]>("/me/module-renewals");
 }
 
 // ── Users & roles ────────────────────────────────────────────────────────
@@ -2585,12 +2617,15 @@ export function acceptPublicQuotation(slug: string, token: string, data: { name:
 
 // ── پرداخت آنلاین فاکتور (Zarinpal) ───────────────────────────────────────
 
+export type PublicInvoiceLineItem = { moduleCode: string; moduleName: string; billingMode: string; amount: number };
+
 export type PublicInvoice = {
   id: string;
   amount: number;
   status: "PENDING" | "PAID" | "FAILED";
   dueAt: string;
   tenantName: string;
+  items: PublicInvoiceLineItem[] | null;
   gatewayAvailable: boolean;
 };
 

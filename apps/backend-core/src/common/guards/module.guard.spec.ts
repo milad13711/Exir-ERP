@@ -3,22 +3,27 @@ import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import { ModuleGuard } from './module.guard.js';
 
 type ModuleRow = { id: string; code: string; name: string; isCore: boolean; dependsOn: string[] };
-type InstallRow = { moduleId: string; status: 'INSTALLED' | 'TRIAL' | 'DISABLED' };
+type InstallRow = {
+  id?: string;
+  moduleId: string;
+  status: 'INSTALLED' | 'TRIAL' | 'DISABLED';
+  trialRecordCreatedAt?: Date | null;
+};
 
 function makeControlDb(modules: ModuleRow[], installs: InstallRow[]) {
   return {
     moduleDefinition: { findMany: vi.fn().mockResolvedValue(modules) },
-    tenantModule: { findMany: vi.fn().mockResolvedValue(installs) },
+    tenantModule: { findMany: vi.fn().mockResolvedValue(installs), update: vi.fn().mockResolvedValue({}) },
   };
 }
 
-function makeContext(tenantId: string | undefined): ExecutionContext {
+function makeContext(tenantId: string | undefined, method = 'GET'): ExecutionContext {
   return {
     getType: () => 'http',
     getHandler: () => ({}),
     getClass: () => ({}),
     switchToHttp: () => ({
-      getRequest: () => ({ ctx: tenantId ? { tenantId } : undefined }),
+      getRequest: () => ({ ctx: tenantId ? { tenantId } : undefined, method }),
     }),
   } as unknown as ExecutionContext;
 }
@@ -95,5 +100,31 @@ describe('ModuleGuard', () => {
   it('does not block on an unknown module code — a stale/removed @RequireModule should not brick a route', async () => {
     const g = guard([], [], 'nonexistent-module');
     await expect(g.canActivate(makeContext('t1'))).resolves.toBe(true);
+  });
+
+  it('demo/TRIAL: allows the first POST (creating the one demo record) and auto-disables the module right there', async () => {
+    const controlDb = makeControlDb([CRM], [{ id: 'row-1', moduleId: CRM.id, status: 'TRIAL', trialRecordCreatedAt: null }]);
+    const g = new ModuleGuard(makeReflector('crm'), controlDb as never);
+    await expect(g.canActivate(makeContext('t1', 'POST'))).resolves.toBe(true);
+    expect(controlDb.tenantModule.update).toHaveBeenCalledWith({
+      where: { id: 'row-1' },
+      data: { status: 'DISABLED', trialRecordCreatedAt: expect.any(Date) },
+    });
+  });
+
+  it('demo/TRIAL: a GET during the trial never consumes it', async () => {
+    const controlDb = makeControlDb([CRM], [{ id: 'row-1', moduleId: CRM.id, status: 'TRIAL', trialRecordCreatedAt: null }]);
+    const g = new ModuleGuard(makeReflector('crm'), controlDb as never);
+    await expect(g.canActivate(makeContext('t1', 'GET'))).resolves.toBe(true);
+    expect(controlDb.tenantModule.update).not.toHaveBeenCalled();
+  });
+
+  it('demo/TRIAL: blocks a second POST once the one demo record was already created', async () => {
+    const g = guard(
+      [CRM],
+      [{ moduleId: CRM.id, status: 'TRIAL', trialRecordCreatedAt: new Date() }],
+      'crm',
+    );
+    await expect(g.canActivate(makeContext('t1', 'POST'))).rejects.toThrow(ForbiddenException);
   });
 });

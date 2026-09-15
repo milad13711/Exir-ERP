@@ -272,10 +272,15 @@ export type CatalogModule = {
   description: string;
   category: string;
   priceMonthly: number;
+  priceYearly: number | null;
   isCore: boolean;
   features: string[];
   version: string;
   dependsOn: string[];
+  demoDescription: string | null;
+  demoValueProps: string[];
+  demoScreenshot1Url: string | null;
+  demoScreenshot2Url: string | null;
 };
 
 export function fetchCatalogModules() {
@@ -288,10 +293,15 @@ export function upsertCatalogModule(data: {
   description: string;
   category: string;
   priceMonthly: number;
+  priceYearly?: number;
   isCore?: boolean;
   features?: string[];
   version?: string;
   dependsOn?: string[];
+  demoDescription?: string;
+  demoValueProps?: string[];
+  demoScreenshot1Url?: string;
+  demoScreenshot2Url?: string;
 }) {
   return apiFetch<CatalogModule>("/admin/catalog/modules", { method: "POST", body: JSON.stringify(data) });
 }

@@ -22,10 +22,15 @@ export function EditModuleModal({
   const [description, setDescription] = useState(module?.description ?? "");
   const [category, setCategory] = useState(module?.category ?? "");
   const [priceMonthly, setPriceMonthly] = useState(String(module?.priceMonthly ?? 0));
+  const [priceYearly, setPriceYearly] = useState(module?.priceYearly ? String(module.priceYearly) : "");
   const [isCore, setIsCore] = useState(module?.isCore ?? false);
   const [featuresText, setFeaturesText] = useState((module?.features ?? []).join("\n"));
   const [version, setVersion] = useState(module?.version ?? "1.0.0");
   const [dependsOn, setDependsOn] = useState<string[]>(module?.dependsOn ?? []);
+  const [demoDescription, setDemoDescription] = useState(module?.demoDescription ?? "");
+  const [demoValuePropsText, setDemoValuePropsText] = useState((module?.demoValueProps ?? []).join("\n"));
+  const [demoScreenshot1Url, setDemoScreenshot1Url] = useState(module?.demoScreenshot1Url ?? "");
+  const [demoScreenshot2Url, setDemoScreenshot2Url] = useState(module?.demoScreenshot2Url ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +56,14 @@ export function EditModuleModal({
           .filter(Boolean),
         version: version.trim() || "1.0.0",
         dependsOn,
+        priceYearly: priceYearly ? Number(priceYearly) : undefined,
+        demoDescription: demoDescription.trim() || undefined,
+        demoValueProps: demoValuePropsText
+          .split("\n")
+          .map((v) => v.trim())
+          .filter(Boolean),
+        demoScreenshot1Url: demoScreenshot1Url.trim() || undefined,
+        demoScreenshot2Url: demoScreenshot2Url.trim() || undefined,
       });
       onSaved();
       onClose();
@@ -101,7 +114,7 @@ export function EditModuleModal({
             placeholder={"مدیریت مخاطبین\nقیف فروش"}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3 items-end">
+        <div className="grid grid-cols-3 gap-3 items-end">
           <div>
             <label className={labelClass}>قیمت ماهانه (تومان)</label>
             <input
@@ -113,9 +126,23 @@ export function EditModuleModal({
             />
           </div>
           <div>
+            <label className={labelClass}>قیمت سالانه (تومان)</label>
+            <input
+              value={priceYearly}
+              onChange={(e) => setPriceYearly(e.target.value.replace(/[^0-9]/g, ""))}
+              className={inputClass}
+              dir="ltr"
+              inputMode="numeric"
+              placeholder={priceMonthly ? String(Number(priceMonthly) * 12) : "۱۲ برابر ماهانه"}
+            />
+          </div>
+          <div>
             <label className={labelClass}>ورژن</label>
             <input value={version} onChange={(e) => setVersion(e.target.value)} className={inputClass} dir="ltr" placeholder="1.0.0" />
           </div>
+        </div>
+        <div className="text-[11px] text-muted -mt-1.5">
+          قیمت لایسنس (خرید یک‌باره) خودکار محاسبه می‌شود: ۸ برابر قیمت سالانه، بدون تخفیف.
         </div>
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer">
           <input
@@ -149,6 +176,53 @@ export function EditModuleModal({
             </div>
           </div>
         ) : null}
+        <div className="border-t border-border pt-3.5 mt-1">
+          <div className="text-[13px] font-bold mb-2.5">محتوای دموی ماژول</div>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className={labelClass}>توضیح دمو</label>
+              <textarea
+                value={demoDescription}
+                onChange={(e) => setDemoDescription(e.target.value)}
+                rows={2}
+                className={`${inputClass} resize-none`}
+                placeholder="این ماژول چه کاری انجام می‌دهد و چرا به کار کسب‌وکار می‌آید"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>ارزش‌های ایجادشده برای سازمان (هر خط یک مورد)</label>
+              <textarea
+                value={demoValuePropsText}
+                onChange={(e) => setDemoValuePropsText(e.target.value)}
+                rows={3}
+                className={`${inputClass} resize-none`}
+                placeholder={"صرفه‌جویی در زمان ثبت سفارش\nکاهش خطای انسانی در انبار"}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>آدرس تصویر ۱ (URL)</label>
+                <input
+                  value={demoScreenshot1Url}
+                  onChange={(e) => setDemoScreenshot1Url(e.target.value)}
+                  className={inputClass}
+                  dir="ltr"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className={labelClass}>آدرس تصویر ۲ (URL)</label>
+                <input
+                  value={demoScreenshot2Url}
+                  onChange={(e) => setDemoScreenshot2Url(e.target.value)}
+                  className={inputClass}
+                  dir="ltr"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button
           type="submit"

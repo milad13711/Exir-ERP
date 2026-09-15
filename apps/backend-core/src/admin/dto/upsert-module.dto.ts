@@ -22,6 +22,11 @@ export class UpsertModuleDto {
   priceMonthly!: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  priceYearly?: number;
+
+  @IsOptional()
   @IsBoolean()
   isCore?: boolean;
 
@@ -41,4 +46,22 @@ export class UpsertModuleDto {
   @ArrayMaxSize(10)
   @IsString({ each: true })
   dependsOn?: string[];
+
+  @IsOptional()
+  @IsString()
+  demoDescription?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  demoValueProps?: string[];
+
+  @IsOptional()
+  @IsString()
+  demoScreenshot1Url?: string;
+
+  @IsOptional()
+  @IsString()
+  demoScreenshot2Url?: string;
 }

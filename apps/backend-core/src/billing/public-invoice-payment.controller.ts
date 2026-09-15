@@ -48,6 +48,7 @@ export class PublicInvoicePaymentController {
       status: invoice.status,
       dueAt: invoice.dueAt,
       tenantName: invoice.tenant.name,
+      items: invoice.items as { moduleCode: string; moduleName: string; billingMode: string; amount: number }[] | null,
       gatewayAvailable: this.zarinpal.isConfigured,
     };
   }
@@ -104,8 +105,13 @@ export class PublicInvoicePaymentController {
 
     await this.tenants.markInvoicePaidByGateway(id, verified.refId!);
 
+    const isModuleInvoice = invoice.purpose === 'MODULE_PURCHASE' || invoice.purpose === 'MODULE_RENEWAL';
+    const bodyText = isModuleInvoice
+      ? `ماژول‌های خریداری‌شده فعال شدند. برای دیدن تغییرات، صفحه‌ی فروشگاه ماژول را در پنل خود رفرش کنید. کد پیگیری: ${verified.refId}`
+      : `محیط کاری شما اکنون فعال است. کد پیگیری: ${verified.refId}`;
+
     return res.send(
-      `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>محیط کاری شما اکنون فعال است. کد پیگیری: ${verified.refId}</p>${
+      `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>${bodyText}</p>${
         loginUrl ? `<a class="btn" href="${loginUrl}">ورود به اکسیر ERP</a>` : ''
       }${BRAND_PAGE_TAIL}`,
     );

@@ -16,6 +16,12 @@ const invoiceStatusTone: Record<Invoice["status"], "success" | "warning" | "dang
   PENDING: "warning",
   FAILED: "danger",
 };
+const invoicePurposeLabel: Record<NonNullable<Invoice["purpose"]>, string> = {
+  TENANT_SETUP: "راه‌اندازی محیط کاری",
+  PLAN_RENEWAL: "تمدید پلن",
+  MODULE_PURCHASE: "خرید ماژول",
+  MODULE_RENEWAL: "تمدید ماژول",
+};
 
 export default function BillingSettingsPage() {
   const [subscription, setSubscription] = useState<Subscription>(null);
@@ -64,6 +70,7 @@ export default function BillingSettingsPage() {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-4 pb-3">شماره فاکتور</th>
+                <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-4 pb-3">بابت</th>
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-4 pb-3">تاریخ</th>
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-4 pb-3">مبلغ</th>
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-4 pb-3">وضعیت</th>
@@ -72,13 +79,13 @@ export default function BillingSettingsPage() {
             <tbody>
               {invoices === null ? (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-muted text-sm">
+                  <td colSpan={5} className="p-6 text-center text-muted text-sm">
                     در حال بارگذاری...
                   </td>
                 </tr>
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-muted text-sm">
+                  <td colSpan={5} className="p-6 text-center text-muted text-sm">
                     هنوز صورتحسابی صادر نشده است
                   </td>
                 </tr>
@@ -87,6 +94,13 @@ export default function BillingSettingsPage() {
                   <tr key={inv.id} className={i < invoices.length - 1 ? "border-b border-border" : ""}>
                     <td className="p-4 text-[13px] font-semibold" dir="ltr">
                       {inv.id.slice(0, 8)}
+                    </td>
+                    <td className="p-4 text-[12.5px] text-ink-soft">
+                      {inv.items && inv.items.length > 0
+                        ? inv.items.map((it) => it.moduleName).join("، ")
+                        : inv.purpose
+                          ? invoicePurposeLabel[inv.purpose]
+                          : "—"}
                     </td>
                     <td className="p-4 text-[13px] text-muted">{formatJalaliDate(inv.issuedAt)}</td>
                     <td className="p-4 text-[13px] font-semibold">{formatToman(inv.amount)}</td>

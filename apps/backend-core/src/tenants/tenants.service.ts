@@ -3,6 +3,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantDbAdminService } from './tenant-db-admin.service.js';
 import { seedDefaultTenantData, getSystemRoleId, type IndustryTemplateSeed } from './default-tenant-data.seed.js';
+import { addBillingPeriod } from '../modules-catalog/module-pricing.js';
 import type { Tenant } from '../../generated/control-client/index.js';
 
 export type CreateTenantInput = {
@@ -511,7 +512,48 @@ export class TenantsService {
         ? [this.controlDb.tenant.update({ where: { id: invoice.tenantId }, data: { status: 'ACTIVE' } })]
         : []),
     ]);
+
+    if (invoice.purpose === 'MODULE_PURCHASE' || invoice.purpose === 'MODULE_RENEWAL') {
+      await this.activatePurchasedModules(invoice.tenantId, invoiceId, invoice.items);
+    }
+
     return updated;
+  }
+
+  /**
+   * فقط بعد از پرداخت واقعی این فاکتور — نه در لحظه‌ی افزودن به سبد خرید —
+   * هر ماژول موجود در items را نصب/تمدید می‌کند. کاربر باید صفحه را رفرش
+   * کند تا وضعیت جدید را ببیند (طبق درخواست، بدون polling زنده).
+   */
+  private async activatePurchasedModules(tenantId: string, invoiceId: string, itemsJson: unknown) {
+    if (!Array.isArray(itemsJson)) return;
+    const items = itemsJson as { moduleCode: string; billingMode: 'MONTHLY' | 'YEARLY' | 'LICENSE' }[];
+    const modules = await this.controlDb.moduleDefinition.findMany({
+      where: { code: { in: items.map((i) => i.moduleCode) } },
+    });
+    const moduleByCode = new Map(modules.map((m) => [m.code, m]));
+
+    for (const item of items) {
+      const module = moduleByCode.get(item.moduleCode);
+      if (!module) continue;
+
+      const existing = await this.controlDb.tenantModule.findUnique({
+        where: { tenantId_moduleId: { tenantId, moduleId: module.id } },
+      });
+      // Renewal extends from whichever is later — the old period end (still
+      // running) or now (already expired) — a fresh purchase always starts from now.
+      const base =
+        existing?.pendingRenewalInvoiceId === invoiceId && existing.currentPeriodEnd && existing.currentPeriodEnd > new Date()
+          ? existing.currentPeriodEnd
+          : new Date();
+      const currentPeriodEnd = addBillingPeriod(base, item.billingMode);
+
+      await this.controlDb.tenantModule.upsert({
+        where: { tenantId_moduleId: { tenantId, moduleId: module.id } },
+        create: { tenantId, moduleId: module.id, status: 'INSTALLED', billingMode: item.billingMode, currentPeriodEnd },
+        update: { status: 'INSTALLED', billingMode: item.billingMode, currentPeriodEnd, pendingRenewalInvoiceId: null },
+      });
+    }
   }
 
   async getInvoiceWithContext(invoiceId: string) {

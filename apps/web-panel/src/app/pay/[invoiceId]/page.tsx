@@ -53,6 +53,28 @@ export default function PublicInvoicePayPage({ params }: { params: Promise<{ inv
             <div className="text-center text-[13px] text-muted mb-1">فاکتور برای</div>
             <div className="text-center text-[15px] font-bold mb-5">{invoice.tenantName}</div>
 
+            {invoice.items && invoice.items.length > 0 ? (
+              <div className="border border-border rounded-2xl overflow-hidden mb-5">
+                {invoice.items.map((item) => (
+                  <div
+                    key={item.moduleCode}
+                    className="flex items-center justify-between px-4 py-3 text-[12.5px] border-b border-border last:border-b-0"
+                  >
+                    <span className="font-semibold">
+                      {item.moduleName}
+                      <span className="text-muted font-normal">
+                        {" "}
+                        (
+                        {item.billingMode === "MONTHLY" ? "ماهانه" : item.billingMode === "YEARLY" ? "سالانه" : "لایسنس"}
+                        )
+                      </span>
+                    </span>
+                    <span dir="ltr">{formatToman(item.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="bg-slate-50 border border-border rounded-2xl p-5 text-center mb-5">
               <div className="text-[11.5px] text-muted mb-1.5">مبلغ قابل پرداخت</div>
               <div className="text-2xl font-extrabold">{formatToman(invoice.amount)}</div>

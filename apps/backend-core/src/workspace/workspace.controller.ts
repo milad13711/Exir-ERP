@@ -71,6 +71,27 @@ export class WorkspaceController {
     return this.auth.switchTenant(ctx.auth.sub, dto.tenantSlug);
   }
 
+  /** ماژول‌های این تننت که تا ۱۰ روز دیگر منقضی می‌شوند — برای هشدار داخل هدر. */
+  @Get('module-renewals')
+  async moduleRenewals(@Ctx() ctx: TenantRequestContext) {
+    const noticeThreshold = new Date(Date.now() + 10 * 86_400_000);
+    const dueModules = await this.controlDb.tenantModule.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        billingMode: { in: ['MONTHLY', 'YEARLY'] },
+        currentPeriodEnd: { lte: noticeThreshold },
+      },
+      include: { module: true },
+    });
+    return dueModules.map((tm) => ({
+      code: tm.module.code,
+      name: tm.module.name,
+      currentPeriodEnd: tm.currentPeriodEnd,
+      daysLeft: tm.currentPeriodEnd ? Math.ceil((tm.currentPeriodEnd.getTime() - Date.now()) / 86_400_000) : null,
+      invoiceId: tm.pendingRenewalInvoiceId,
+    }));
+  }
+
   @Patch('branding')
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')

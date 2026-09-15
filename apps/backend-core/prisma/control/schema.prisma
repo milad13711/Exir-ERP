@@ -245,20 +245,32 @@ enum InvoiceStatus {
   FAILED
 }
 
+/// یک فاکتور چه‌بسا چند ماژول را با هم پوشش دهد (خرید سبدی) — items همان
+/// ریزخط‌هاست، amount همیشه جمع آن‌ها. برای فاکتورهای قدیمی‌تر (تنظیم تننت،
+/// تمدید پلن) items خالی/تعریف‌نشده می‌ماند و amount همان مقدار یکجای قبلی است.
+enum InvoicePurpose {
+  TENANT_SETUP
+  PLAN_RENEWAL
+  MODULE_PURCHASE
+  MODULE_RENEWAL
+}
+
 model Invoice {
-  id                String        @id @default(uuid())
+  id                String          @id @default(uuid())
   tenantId          String
   subscriptionId    String?
   amount            Int // Toman
-  status            InvoiceStatus @default(PENDING)
-  issuedAt          DateTime      @default(now())
+  status            InvoiceStatus   @default(PENDING)
+  purpose           InvoicePurpose?
+  items             Json? // [{ moduleCode, moduleName, billingMode, amount }] — فقط برای فاکتورهای ماژولی
+  issuedAt          DateTime        @default(now())
   dueAt             DateTime
   paidAt            DateTime?
   // Set when a Zarinpal payment is initiated for this invoice — lets the
   // callback verify against the exact attempt it started (not just trust
   // whatever Authority a request happens to carry) and stops a stale/reused
   // Authority from marking a different invoice paid.
-  zarinpalAuthority String?       @unique
+  zarinpalAuthority String?         @unique
   paymentRefId      Int? // Zarinpal's ref_id once a payment verifies successfully
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -276,11 +288,18 @@ model ModuleDefinition {
   description  String
   category     String
   priceMonthly Int      @default(0) // 0 = included in every plan
+  priceYearly  Int? // null = بدون تخفیف سالانه‌ی تعریف‌شده، معادل priceMonthly*12 محاسبه می‌شود
   isCore       Boolean  @default(false) // رایگان و پیش‌فرض فعال — اما همچنان قابل غیرفعال‌سازی توسط تننت
   version      String   @default("1.0.0")
   dependsOn    String[] @default([]) // کدهای ماژول‌هایی که باید قبل از این یکی فعال باشند
   features     String[] @default([]) // bullet points shown on the module's store card
   createdAt    DateTime @default(now())
+
+  // محتوای دموی این ماژول — دو تصویر از محیط داخلی + توضیح + ارزش‌های ایجادشده برای سازمان.
+  demoDescription    String?
+  demoValueProps      String[] @default([])
+  demoScreenshot1Url  String?
+  demoScreenshot2Url  String?
 
   tenantModules TenantModule[]
 
@@ -293,12 +312,32 @@ enum TenantModuleStatus {
   DISABLED
 }
 
+/// LICENSE هیچ‌وقت منقضی نمی‌شود (currentPeriodEnd آن null می‌ماند).
+enum ModuleBillingMode {
+  MONTHLY
+  YEARLY
+  LICENSE
+}
+
 model TenantModule {
   id          String             @id @default(uuid())
   tenantId    String
   moduleId    String
   status      TenantModuleStatus @default(INSTALLED)
   installedAt DateTime           @default(now())
+
+  // دوره‌ی خریداری‌شده — برای ماژول‌های رایگان/هسته null می‌ماند.
+  billingMode      ModuleBillingMode?
+  currentPeriodEnd DateTime? // null برای LICENSE (هیچ‌وقت منقضی نمی‌شود) یا ماژول رایگان
+
+  // فاکتور تمدیدِ در انتظار پرداختِ فعلی این ماژول (اگر باشد) — برای هشدار
+  // ۱۰-روزه در هدر و جلوگیری از صدور فاکتور تمدید تکراری.
+  pendingRenewalInvoiceId String? @unique
+
+  // حالت آزمایشی/دمو — هر ماژول فقط یک بار در کل عمرش قابل دمو کردن است؛
+  // با ثبت اولین رکورد (اولین POST) خودکار غیرفعال می‌شود.
+  trialActivatedAt    DateTime?
+  trialRecordCreatedAt DateTime?
 
   tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   module ModuleDefinition @relation(fields: [moduleId], references: [id])

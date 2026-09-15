@@ -57,6 +57,22 @@ export class ModuleGuard implements CanActivate {
           `ماژول «${module.name}» برای این محیط کاری فعال نیست — از فروشگاه ماژول‌ها فعالش کنید یا با پشتیبانی تماس بگیرید.`,
         );
       }
+
+      // حالت دمو: فقط همان یک رکورد اول (اولین POST) مجاز است — با ثبت آن،
+      // بلافاصله غیرفعال می‌شود تا استفاده‌ی نامحدود از نسخه‌ی آزمایشی ممکن نباشد.
+      // (این یک قانون یکسان برای همه‌ی ماژول‌هاست: «اولین درخواست POST»، نه
+      // لزوماً دقیقاً همان موجودیت اصلی هر ماژول — برای سادگی و پوشش عمومی.)
+      if (install?.status === 'TRIAL' && req.method === 'POST') {
+        if (install.trialRecordCreatedAt) {
+          throw new ForbiddenException(
+            `نسخه‌ی آزمایشی ماژول «${module.name}» به پایان رسیده است — برای ادامه، از سبد خرید تهیه کنید.`,
+          );
+        }
+        await this.controlDb.tenantModule.update({
+          where: { id: install.id },
+          data: { status: 'DISABLED', trialRecordCreatedAt: new Date() },
+        });
+      }
     }
     return true;
   }

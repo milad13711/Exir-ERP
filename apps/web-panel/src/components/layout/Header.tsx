@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { CalendarIcon, ChatIcon, MenuIcon, ChevronDownIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
 import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
-import { clearToken, fetchMyTenants, switchTenant, setToken, type MyTenant } from "@/lib/api";
+import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals, type MyTenant, type ModuleRenewalNotice } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { NotificationBell } from "./NotificationBell";
 
@@ -25,6 +25,7 @@ export function Header({
   const [otherTenants, setOtherTenants] = useState<MyTenant[] | null>(null);
   const [switching, setSwitching] = useState(false);
   const { me, subscription, license } = useWorkspace();
+  const [moduleRenewals, setModuleRenewals] = useState<ModuleRenewalNotice[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -33,6 +34,10 @@ export function Header({
       .then((tenants) => setOtherTenants(tenants.filter((t) => t.slug !== me?.tenant.slug)))
       .catch(() => setOtherTenants([]));
   }, [menuOpen, otherTenants, me?.tenant.slug]);
+
+  useEffect(() => {
+    fetchModuleRenewals().then(setModuleRenewals).catch(() => setModuleRenewals([]));
+  }, []);
 
   function handleLogout() {
     clearToken();
@@ -69,6 +74,27 @@ export function Header({
 
       <div className="flex items-center gap-2 lg:gap-2.5">
         <OfflineIndicator />
+
+        {moduleRenewals.length > 0 ? (
+          <Link
+            href="/settings/billing"
+            className="hidden sm:flex items-center gap-2.5 py-1.5 ps-3.5 pe-1.5 rounded-xl bg-warning-soft"
+          >
+            <span className="text-[12.5px] font-bold text-warning">
+              {moduleRenewals[0].name}
+              {moduleRenewals.length > 1 ? ` و ${toPersianDigits(moduleRenewals.length - 1)} ماژول دیگر` : ""}
+            </span>
+            <span className="w-px h-3.5 bg-warning/20" />
+            <span className="text-[12.5px] text-warning">
+              {moduleRenewals[0].daysLeft !== null && moduleRenewals[0].daysLeft <= 0
+                ? "دوره‌ی استفاده به پایان رسیده"
+                : `${toPersianDigits(moduleRenewals[0].daysLeft ?? 0)} روز تا پایان دوره`}
+            </span>
+            <span className="border-0 bg-warning text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
+              پرداخت فاکتور تمدید
+            </span>
+          </Link>
+        ) : null}
 
         {license?.mode === "on_premise" && (license.state === "valid" || license.state === "grace") ? (
           <div

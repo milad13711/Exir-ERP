@@ -26,6 +26,9 @@ import {
 } from "@/components/icons";
 import { formatToman } from "@/lib/persian";
 import { fetchModules, installModule, uninstallModule, type ModuleCatalogItem } from "@/lib/api";
+import { ModuleDemoModal } from "@/components/modules/ModuleDemoModal";
+import { ModuleCartDrawer } from "@/components/modules/ModuleCartDrawer";
+import { useWorkspace } from "@/lib/workspace-context";
 
 type CategoryTheme = { accent: string; soft: string; icon: string };
 
@@ -68,15 +71,55 @@ function isActive(m: ModuleCatalogItem) {
   return m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore);
 }
 
+/** فعال‌سازی رایگان/فوری (بدون رفتن به سبد خرید) — رایگان/هسته، لایسنس قبلاً خریداری‌شده، یا هنوز داخل دوره‌ی پرداخت‌شده. */
+function canFreeActivate(m: ModuleCatalogItem): boolean {
+  if (m.priceMonthly === 0) return true;
+  if (m.billingMode === "LICENSE") return true;
+  if (m.currentPeriodEnd && new Date(m.currentPeriodEnd).getTime() > Date.now()) return true;
+  return false;
+}
+
 export default function ModuleStorePage() {
+  const { me } = useWorkspace();
   const [modules, setModules] = useState<ModuleCatalogItem[] | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("همه");
   const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [demoModuleCode, setDemoModuleCode] = useState<string | null>(null);
+  const [cartCodes, setCartCodes] = useState<string[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+
+  const cartStorageKey = me?.tenant.slug ? `exir_module_cart_${me.tenant.slug}` : null;
 
   useEffect(() => {
     fetchModules().then(setModules).catch(() => setModules([]));
   }, []);
+
+  useEffect(() => {
+    if (!cartStorageKey) return;
+    try {
+      const saved = localStorage.getItem(cartStorageKey);
+      if (saved) setCartCodes(JSON.parse(saved));
+    } catch {
+      // ignore — cart just starts empty
+    }
+  }, [cartStorageKey]);
+
+  useEffect(() => {
+    if (!cartStorageKey) return;
+    try {
+      localStorage.setItem(cartStorageKey, JSON.stringify(cartCodes));
+    } catch {
+      // ignore — cart persistence is a convenience, not critical
+    }
+  }, [cartCodes, cartStorageKey]);
+
+  function addToCart(code: string) {
+    setCartCodes((prev) => (prev.includes(code) ? prev : [...prev, code]));
+  }
+  function removeFromCart(code: string) {
+    setCartCodes((prev) => prev.filter((c) => c !== code));
+  }
 
   const byCode = useMemo(() => new Map((modules ?? []).map((m) => [m.code, m])), [modules]);
 
@@ -290,7 +333,7 @@ export default function ModuleStorePage() {
                               ابتدا فعال کنید: {missingPrereqs.map((d) => d.name).join("، ")}
                             </div>
                           )}
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             {active ? (
                               <button
                                 onClick={() => handleUninstall(m.code)}
@@ -299,39 +342,51 @@ export default function ModuleStorePage() {
                               >
                                 {isPending ? "در حال غیرفعال‌سازی..." : "غیرفعال‌سازی"}
                               </button>
-                            ) : m.priceMonthly > 0 && !isReactivation ? (
+                            ) : canFreeActivate(m) ? (
+                              <button
+                                onClick={() => handleInstall(m.code)}
+                                disabled={isPending || missingPrereqs.length > 0}
+                                className="w-full py-2.5 rounded-[10px] text-white text-[12.5px] font-bold disabled:opacity-50"
+                                style={{ backgroundColor: theme.accent }}
+                              >
+                                {isPending
+                                  ? "در حال فعال‌سازی..."
+                                  : isReactivation
+                                    ? "فعال‌سازی مجدد (رایگان — قبلاً خریداری شده)"
+                                    : "فعال‌سازی"}
+                              </button>
+                            ) : (
                               <>
-                                <span className="text-[13px] font-bold">
+                                <span className="text-[13px] font-bold shrink-0">
                                   {formatToman(m.priceMonthly)}
                                   <span className="text-[11px] text-muted font-medium"> / ماه</span>
                                 </span>
-                                <button
-                                  onClick={() => handleInstall(m.code)}
-                                  disabled={isPending || missingPrereqs.length > 0}
-                                  className="py-2.25 px-4.5 rounded-[10px] text-white text-[12.5px] font-bold disabled:opacity-50"
-                                  style={{ backgroundColor: theme.accent }}
-                                >
-                                  {isPending ? "در حال نصب..." : "خرید و نصب"}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => setDemoModuleCode(m.code)}
+                                    className="py-2.25 px-3 rounded-[10px] border border-border bg-white text-ink-soft text-[12px] font-bold cursor-pointer"
+                                  >
+                                    دمو
+                                  </button>
+                                  {cartCodes.includes(m.code) ? (
+                                    <button
+                                      onClick={() => removeFromCart(m.code)}
+                                      className="py-2.25 px-3.5 rounded-[10px] bg-success-soft text-success text-[12px] font-bold cursor-pointer"
+                                    >
+                                      در سبد خرید ✓
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => addToCart(m.code)}
+                                      disabled={missingPrereqs.length > 0}
+                                      className="py-2.25 px-3.5 rounded-[10px] text-white text-[12px] font-bold disabled:opacity-50 cursor-pointer"
+                                      style={{ backgroundColor: theme.accent }}
+                                    >
+                                      افزودن به سبد خرید
+                                    </button>
+                                  )}
+                                </div>
                               </>
-                            ) : isReactivation ? (
-                              <button
-                                onClick={() => handleInstall(m.code)}
-                                disabled={isPending || missingPrereqs.length > 0}
-                                className="w-full py-2.5 rounded-[10px] text-white text-[12.5px] font-bold disabled:opacity-50"
-                                style={{ backgroundColor: theme.accent }}
-                              >
-                                {isPending ? "در حال فعال‌سازی..." : "فعال‌سازی مجدد (رایگان — قبلاً خریداری شده)"}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleInstall(m.code)}
-                                disabled={isPending || missingPrereqs.length > 0}
-                                className="w-full py-2.5 rounded-[10px] text-white text-[12.5px] font-bold disabled:opacity-50"
-                                style={{ backgroundColor: theme.accent }}
-                              >
-                                {isPending ? "در حال فعال‌سازی..." : "فعال‌سازی"}
-                              </button>
                             )}
                           </div>
                         </div>
@@ -343,6 +398,35 @@ export default function ModuleStorePage() {
             );
           })}
         </div>
+      )}
+
+      {cartCodes.length > 0 && !cartOpen && (
+        <button
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-6 end-6 z-30 flex items-center gap-2.5 py-3.5 px-5 rounded-2xl bg-primary text-white text-[13.5px] font-bold shadow-lg cursor-pointer"
+        >
+          سبد خرید
+          <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[12px]">
+            {cartCodes.length}
+          </span>
+        </button>
+      )}
+
+      {cartOpen && (
+        <ModuleCartDrawer
+          items={cartCodes.map((code) => byCode.get(code)).filter((m): m is ModuleCatalogItem => !!m)}
+          onRemove={removeFromCart}
+          onClose={() => setCartOpen(false)}
+          onCheckedOut={() => setCartCodes([])}
+        />
+      )}
+
+      {demoModuleCode && byCode.get(demoModuleCode) && (
+        <ModuleDemoModal
+          module={byCode.get(demoModuleCode)!}
+          onClose={() => setDemoModuleCode(null)}
+          onActivated={() => fetchModules().then(setModules).catch(() => {})}
+        />
       )}
     </div>
   );
