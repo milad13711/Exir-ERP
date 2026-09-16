@@ -41,11 +41,11 @@ export default function RationAggregateReportsPage() {
             <Card className="mt-4 p-2">
               {report.perSample.map((s, i) => (
                 <div
-                  key={s.sampleCode}
+                  key={s.sampleNo}
                   className={`flex items-center justify-between px-4 py-3 ${i < report.perSample.length - 1 ? "border-b border-border" : ""}`}
                 >
                   <span className="text-[13px] font-bold" dir="ltr">
-                    {s.sampleCode}
+                    {s.sampleNo}
                   </span>
                   <span className={`text-[13px] font-bold ${s.changePercent >= 0 ? "text-success" : "text-danger"}`}>
                     {s.changePercent >= 0 ? "+" : ""}

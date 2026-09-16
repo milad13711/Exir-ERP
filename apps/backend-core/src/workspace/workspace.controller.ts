@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
 import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { UpdateNavOrderDto } from './dto/update-nav-order.dto.js';
 
 /** Bootstrap endpoint the frontend calls once after login to fill the header/shell. */
 @Controller('me')
@@ -40,7 +41,15 @@ export class WorkspaceController {
         membershipRole: ctx.auth.role,
       },
       tenant: { name: tenant.name, slug: tenant.slug, themeColor: tenant.themeColor },
+      navOrder: tenantUser?.navOrder ?? [],
     };
+  }
+
+  /** ترتیب دستی آیتم‌های منوی کناری — خالی یعنی چیدمان پیش‌فرض دسته‌بندی‌شده استفاده شود. */
+  @Patch('nav-order')
+  async updateNavOrder(@Body() dto: UpdateNavOrderDto, @Ctx() ctx: TenantRequestContext) {
+    await ctx.tenantDb.user.updateMany({ where: { globalUserId: ctx.auth.sub }, data: { navOrder: dto.order } });
+    return { navOrder: dto.order };
   }
 
   /** تکمیل پروفایل شخصی — نام و تصویر در سطح شخص (مشترک بین همه‌ی محیط‌های کاری او)، ایمیل مخصوص همین محیط کاری. */

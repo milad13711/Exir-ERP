@@ -22,7 +22,7 @@ export class RationFollowupsController {
     horizon.setDate(horizon.getDate() + Number(withinDays ?? 7));
     return ctx.tenantDb.rationFollowUpCheckin.findMany({
       where: { completedAt: null, scheduledAt: { lte: horizon } },
-      include: { sample: { select: { id: true, sampleCode: true, contact: { select: { name: true, phone: true } } } } },
+      include: { sample: { select: { id: true, sampleNo: true, contact: { select: { name: true, phone: true } } } } },
       orderBy: { scheduledAt: 'asc' },
     });
   }

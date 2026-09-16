@@ -29,6 +29,9 @@ model User {
   phone        String
   status       UserStatus @default(INVITED)
   createdAt    DateTime   @default(now())
+  // ترتیب دستی آیتم‌های منوی کناری (href ها) — خالی یعنی چیدمان پیش‌فرض
+  // دسته‌بندی‌شده‌ی nav.ts (فرانت) استفاده شود.
+  navOrder     String[]   @default([])
 
   roles                         UserRole[]
   tasks                         Task[]                     @relation("TaskAssignee")
@@ -1649,9 +1652,12 @@ model QualitySampleResult {
 // می‌شوند، نه یک فیلد جدا اینجا.
 
 enum RationSampleStatus {
-  AWAITING_LAB
-  LAB_REVIEWED
-  RESULT_SHARED
+  COLLECTED // جمع‌آوری اولیه
+  IN_TRANSIT // انتقال به آزمایشگاه
+  LAB_CONFIRMED // تایید تحویل آزمایشگاه
+  REPORT_SUBMITTED // ثبت نظر متخصص جیره‌نویسی
+  SENT_TO_EXPERT // ارسال شده برای کارشناس میدانی + پیامک به دامدار
+  VIEWED_BY_FARMER // رویت شده توسط دامدار
 }
 
 enum RationLineKind {
@@ -1661,7 +1667,7 @@ enum RationLineKind {
 
 model RationSample {
   id                          String             @id @default(uuid())
-  sampleCode                  String             @unique // مثلاً «RS-1405-00042» — کد جست‌وجوی آزمایشگاه
+  sampleNo                    Int                @unique @default(autoincrement()) // شماره‌ی خالص نمونه — کد جست‌وجوی آزمایشگاه
   contactId                   String // دامدار
   collectedByUserId           String? // کارشناسی که نمونه را از دامدار گرفت
   collectedAt                 DateTime
@@ -1680,7 +1686,12 @@ model RationSample {
   // سوییچ تننت: آیا آزمایشگاه اجازه دارد نام/شماره‌ی دامدار را روی این
   // نمونه ببیند — پیش‌فرض true، اما هر نمونه می‌تواند جدا محدود شود.
   isIdentityVisibleToLab      Boolean            @default(true)
-  status                      RationSampleStatus @default(AWAITING_LAB)
+  status                      RationSampleStatus @default(COLLECTED)
+  // کی/چه‌وقت دریافت نمونه را در آزمایشگاه تأیید کرد — جدا از
+  // RationLabReport.reviewedByPhone چون ممکن است نفر تأییدکننده‌ی تحویل با
+  // نفر نویسنده‌ی گزارش فرق کند.
+  labConfirmedByPhone         String?
+  labConfirmedAt              DateTime?
   createdAt                   DateTime           @default(now())
 
   contact     CrmContact              @relation(fields: [contactId], references: [id], onDelete: Cascade)

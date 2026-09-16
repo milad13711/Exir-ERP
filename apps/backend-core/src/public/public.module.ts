@@ -49,6 +49,8 @@ import { PublicLabReviewService } from '../ration-lab/public/public-lab-review.s
 import { PublicLabReviewController } from '../ration-lab/public/public-lab-review.controller.js';
 import { PublicRationResultService } from '../ration-lab/public/public-ration-result.service.js';
 import { PublicRationResultController } from '../ration-lab/public/public-ration-result.controller.js';
+import { SmsModule } from '../sms/sms.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import { PublicRationResultController } from '../ration-lab/public/public-ration
     AfterSalesModule,
     QrCodeModule,
     HrModule,
+    SmsModule,
+    NotificationsModule,
   ],
   controllers: [
     PublicSignupController,

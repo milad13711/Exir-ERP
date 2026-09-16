@@ -6,7 +6,7 @@ import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-
 type RationLineForPdf = { ingredientName: string; quantityPerAnimalKg: number | string; unitCostSnapshot: number; lineCost: number };
 
 type RationReportForPdf = {
-  sampleCode: string;
+  sampleNo: number;
   collectedAt: Date;
   farmerName: string;
   currentLines: RationLineForPdf[];
@@ -129,7 +129,7 @@ function buildHtml(report: RationReportForPdf, orgName: string): string {
   <div class="header">
     <div class="brand">${escapeHtml(orgName)}</div>
     <div class="meta">
-      <div>کد نمونه: <b dir="ltr">${escapeHtml(report.sampleCode)}</b></div>
+      <div>شماره نمونه: <b dir="ltr">${report.sampleNo}</b></div>
       <div>تاریخ نمونه‌برداری: <b>${formatJalaliDate(report.collectedAt)}</b></div>
     </div>
   </div>

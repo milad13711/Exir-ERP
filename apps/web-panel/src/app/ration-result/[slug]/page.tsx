@@ -192,16 +192,32 @@ export default function PublicRationResultPage({ params }: { params: Promise<{ s
               {samples.length === 0 ? (
                 <div className="text-center text-muted text-sm py-10">نتیجه‌ای برای این شماره یافت نشد</div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {samples.map((s) => (
-                    <button key={s.id} onClick={() => openSample(s.id)} className="w-full text-right bg-white border border-border rounded-2xl p-4">
-                      <div className="text-[14px] font-bold" dir="ltr">
-                        {s.sampleCode}
+                <>
+                  {samples.some((s) => s.status === "SENT_TO_EXPERT") ? (
+                    <div className="mb-6">
+                      <div className="text-[12.5px] font-bold text-muted mb-2.5">نتایج جدید</div>
+                      <div className="flex flex-col gap-3">
+                        {samples
+                          .filter((s) => s.status === "SENT_TO_EXPERT")
+                          .map((s) => (
+                            <SampleRow key={s.id} sample={s} onClick={() => openSample(s.id)} />
+                          ))}
                       </div>
-                      <div className="text-[11.5px] text-muted mt-0.5">{formatJalaliDate(s.collectedAt)}</div>
-                    </button>
-                  ))}
-                </div>
+                    </div>
+                  ) : null}
+                  {samples.some((s) => s.status === "VIEWED_BY_FARMER") ? (
+                    <div>
+                      <div className="text-[12.5px] font-bold text-muted mb-2.5">بایگانی</div>
+                      <div className="flex flex-col gap-3">
+                        {samples
+                          .filter((s) => s.status === "VIEWED_BY_FARMER")
+                          .map((s) => (
+                            <SampleRow key={s.id} sample={s} onClick={() => openSample(s.id)} />
+                          ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           )}
@@ -211,7 +227,7 @@ export default function PublicRationResultPage({ params }: { params: Promise<{ s
               <div className="bg-white border border-border rounded-2xl p-5 print:border-0">
                 <div className="text-[13px] text-muted mb-1">نتیجه‌ی آزمایش جیره — نمونه</div>
                 <div className="text-[16px] font-extrabold" dir="ltr">
-                  {detail.sampleCode}
+                  {detail.sampleNo}
                 </div>
                 <div className="text-[11.5px] text-muted mt-1">تاریخ نمونه‌برداری: {formatJalaliDate(detail.collectedAt)}</div>
               </div>
@@ -252,6 +268,17 @@ export default function PublicRationResultPage({ params }: { params: Promise<{ s
         </div>
       </div>
     </div>
+  );
+}
+
+function SampleRow({ sample, onClick }: { sample: PublicRationResultSample; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full text-right bg-white border border-border rounded-2xl p-4">
+      <div className="text-[14px] font-bold" dir="ltr">
+        {sample.sampleNo}
+      </div>
+      <div className="text-[11.5px] text-muted mt-0.5">{formatJalaliDate(sample.collectedAt)}</div>
+    </button>
   );
 }
 

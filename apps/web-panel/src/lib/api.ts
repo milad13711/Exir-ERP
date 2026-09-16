@@ -264,10 +264,15 @@ export type Me = {
     membershipRole: string;
   };
   tenant: { name: string; slug: string; themeColor: string | null };
+  navOrder: string[];
 };
 
 export function fetchMe() {
   return apiFetch<Me>("/me");
+}
+
+export function updateNavOrder(order: string[]) {
+  return apiFetch<{ navOrder: string[] }>("/me/nav-order", { method: "PATCH", body: JSON.stringify({ order }) });
 }
 
 export function updateBranding(data: { themeColor?: string }) {
@@ -1718,7 +1723,13 @@ export function addSampleResult(sampleId: string, data: { testTypeId: string; me
 
 // ── آزمایشگاه جیره (Ration Lab) ───────────────────────────────────────────
 
-export type RationSampleStatus = "AWAITING_LAB" | "LAB_REVIEWED" | "RESULT_SHARED";
+export type RationSampleStatus =
+  | "COLLECTED"
+  | "IN_TRANSIT"
+  | "LAB_CONFIRMED"
+  | "REPORT_SUBMITTED"
+  | "SENT_TO_EXPERT"
+  | "VIEWED_BY_FARMER";
 export type RationLineKind = "CURRENT" | "PROPOSED";
 
 export type RationFormulaLine = {
@@ -1758,7 +1769,7 @@ export type RationFollowUpCheckin = {
 
 export type RationSample = {
   id: string;
-  sampleCode: string;
+  sampleNo: number;
   collectedAt: string;
   herdSize: number | null;
   totalHerdMilkYieldLiters: string | null;
@@ -1810,6 +1821,32 @@ export function rationSamplePdfUrl(id: string) {
   return `${API_URL}/ration-lab/samples/${id}/pdf`;
 }
 
+export function markRationSampleInTransit(id: string) {
+  return apiFetch<RationSample>(`/ration-lab/samples/${id}/mark-in-transit`, { method: "POST" });
+}
+
+export function updateRationSample(
+  id: string,
+  data: Partial<{
+    collectedAt: string;
+    herdSize: number;
+    totalHerdMilkYieldLiters: number;
+    avgMilkYieldPerAnimalLiters: number;
+    milkFatPercent: number;
+    milkProteinPercent: number;
+    currentRationDescription: string;
+    currentLines: { ingredientName: string; quantityPerAnimalKg: number; unitCostSnapshot: number }[];
+    analysisFeeAmount: number;
+    discountCode: string;
+  }>,
+) {
+  return apiFetch<RationSample>(`/ration-lab/samples/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteRationSample(id: string) {
+  return apiFetch<{ success: boolean }>(`/ration-lab/samples/${id}`, { method: "DELETE" });
+}
+
 export type RationLabReviewer = { id: string; phone: string; name: string; isActive: boolean; createdAt: string };
 
 export function fetchRationLabReviewers() {
@@ -1852,7 +1889,7 @@ export function deactivateRationDiscountCode(id: string) {
 }
 
 export type RationFollowUpDue = RationFollowUpCheckin & {
-  sample: { id: string; sampleCode: string; contact: { name: string; phone: string | null } };
+  sample: { id: string; sampleNo: number; contact: { name: string; phone: string | null } };
 };
 
 export function fetchRationFollowUpsDue(withinDays?: number) {
@@ -1890,7 +1927,7 @@ export type RationAggregateReport = {
   sampleCount: number;
   evaluatedCount: number;
   avgChangePercent: number | null;
-  perSample: { sampleCode: string; changePercent: number }[];
+  perSample: { sampleNo: number; changePercent: number }[];
 };
 
 export function fetchRationAggregateReport() {
@@ -4112,9 +4149,18 @@ export function fetchTrackedProjects(slug: string, trackingToken: string) {
 
 export type PublicRationLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: number; lineCost: number };
 
+export type PublicPendingLabSample = {
+  id: string;
+  sampleNo: number;
+  status: RationSampleStatus;
+  collectedAt: string;
+  collectedByName: string | null;
+  contact: { name: string; phone: string | null } | null;
+};
+
 export type PublicRationSample = {
   id: string;
-  sampleCode: string;
+  sampleNo: number;
   collectedAt: string;
   herdSize: number | null;
   totalHerdMilkYieldLiters: string | null;
@@ -4140,10 +4186,24 @@ export function verifyLabReviewOtp(slug: string, phone: string, code: string) {
   });
 }
 
-export function searchLabReviewSample(slug: string, labToken: string, sampleCode: string) {
+export function fetchPendingLabSamples(slug: string, labToken: string) {
+  return apiFetch<PublicPendingLabSample[]>(`/public/ration-lab/${slug}/samples/pending`, {
+    method: "POST",
+    body: JSON.stringify({ labToken }),
+  });
+}
+
+export function confirmLabReceipt(slug: string, labToken: string, sampleIds: string[]) {
+  return apiFetch<{ confirmedCount: number }>(`/public/ration-lab/${slug}/samples/confirm-receipt`, {
+    method: "POST",
+    body: JSON.stringify({ labToken, sampleIds }),
+  });
+}
+
+export function searchLabReviewSample(slug: string, labToken: string, sampleNo: number) {
   return apiFetch<PublicRationSample>(`/public/ration-lab/${slug}/samples/search`, {
     method: "POST",
-    body: JSON.stringify({ labToken, sampleCode }),
+    body: JSON.stringify({ labToken, sampleNo }),
   });
 }
 
@@ -4168,12 +4228,19 @@ export function submitLabReviewReport(
   });
 }
 
+export function finalizeLabReport(slug: string, sampleId: string, labToken: string) {
+  return apiFetch<{ success: boolean }>(`/public/ration-lab/${slug}/samples/${sampleId}/finalize`, {
+    method: "POST",
+    body: JSON.stringify({ labToken }),
+  });
+}
+
 // ── پورتال عمومی نتیجه‌ی آزمایش جیره برای دامدار (no auth) ───────────────
 
-export type PublicRationResultSample = { id: string; sampleCode: string; collectedAt: string; status: RationSampleStatus };
+export type PublicRationResultSample = { id: string; sampleNo: number; collectedAt: string; status: RationSampleStatus };
 
 export type PublicRationResultDetail = {
-  sampleCode: string;
+  sampleNo: number;
   collectedAt: string;
   report: {
     currentRationIssues: string;

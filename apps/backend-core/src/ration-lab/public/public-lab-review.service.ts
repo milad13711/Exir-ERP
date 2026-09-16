@@ -4,17 +4,21 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../../prisma/tenant-prisma.service.js';
 import { AuthService } from '../../auth/auth.service.js';
+import { ExirSmsService } from '../../sms/exir-sms.service.js';
+import { NotificationsService } from '../../notifications/notifications.service.js';
 import type { LabReviewTicketPayload } from '../../auth/jwt-payload.type.js';
 import type { SubmitLabReportDto } from '../dto/public-lab-review.dto.js';
 
 const LAB_REVIEW_TOKEN_TTL_SECONDS = 60 * 60;
+const PENDING_STATUSES = ['COLLECTED', 'IN_TRANSIT'] as const;
 
 /**
  * پورتال بدون‌حساب «آزمایشگاه جیره» — کارشناس آزمایشگاه (بدون عضویت واقعی
  * در این تننت) با شماره‌ی خودش که در RationLabReviewer سفیدلیست شده وارد
- * می‌شود، کد نمونه را جست‌وجو می‌کند، و گزارش تخصصی + جیره‌ی پیشنهادی را
- * ثبت می‌کند. الگوی OTP→JWT-ticket دقیقاً مثل PublicTrackingService، با
- * TTL بلندتر (۶۰ دقیقه) چون بازبینی یک نمونه واقعاً زمان می‌برد.
+ * می‌شود، نمونه‌های در انتظار را می‌بیند، دریافتشان را تأیید می‌کند، و
+ * گزارش تخصصی + جیره‌ی پیشنهادی را ثبت می‌کند. الگوی OTP→JWT-ticket دقیقاً
+ * مثل PublicTrackingService، با TTL بلندتر (۶۰ دقیقه) چون بازبینی یک نمونه
+ * واقعاً زمان می‌برد.
  */
 @Injectable()
 export class PublicLabReviewService {
@@ -23,6 +27,8 @@ export class PublicLabReviewService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auth: AuthService,
     private readonly jwt: JwtService,
+    private readonly sms: ExirSmsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -81,24 +87,69 @@ export class PublicLabReviewService {
     return payload.phone;
   }
 
-  async searchSample(slug: string, labToken: string, sampleCode: string) {
+  /** لیست نمونه‌هایی که جمع‌آوری یا در راه هستند، هنوز دریافتشان تأیید نشده — همان چیزی که با ثبت نمونه بلافاصله در پنل آزمایشگاه دیده می‌شود. */
+  async listPending(slug: string, labToken: string) {
+    const { tenantDb } = await this.resolveTenant(slug);
+    await this.resolveLabPhone(slug, labToken);
+
+    const samples = await tenantDb.rationSample.findMany({
+      where: { status: { in: [...PENDING_STATUSES] } },
+      select: {
+        id: true,
+        sampleNo: true,
+        status: true,
+        collectedAt: true,
+        isIdentityVisibleToLab: true,
+        collectedBy: { select: { name: true } },
+        contact: { select: { name: true, phone: true } },
+      },
+      orderBy: { collectedAt: 'asc' },
+    });
+
+    return samples.map((s) => ({
+      id: s.id,
+      sampleNo: s.sampleNo,
+      status: s.status,
+      collectedAt: s.collectedAt,
+      collectedByName: s.collectedBy?.name ?? null,
+      // نام کارشناس ثبت‌کننده هویت دامدار نیست، همیشه نشان داده می‌شود؛ خود دامدار طبق سوییچ هر نمونه.
+      contact: s.isIdentityVisibleToLab ? s.contact : null,
+    }));
+  }
+
+  /** تأیید دریافت فیزیکی یک یا چند نمونه در آزمایشگاه — بر اساس شماره (id)، نه جست‌وجوی تکی. */
+  async confirmReceipt(slug: string, labToken: string, sampleIds: string[]) {
+    const { tenantDb } = await this.resolveTenant(slug);
+    const phone = await this.resolveLabPhone(slug, labToken);
+
+    const result = await tenantDb.rationSample.updateMany({
+      where: { id: { in: sampleIds }, status: { in: [...PENDING_STATUSES] } },
+      data: { status: 'LAB_CONFIRMED', labConfirmedByPhone: phone, labConfirmedAt: new Date() },
+    });
+    return { confirmedCount: result.count };
+  }
+
+  async searchSample(slug: string, labToken: string, sampleNo: number) {
     const { tenantDb } = await this.resolveTenant(slug);
     await this.resolveLabPhone(slug, labToken);
 
     const sample = await tenantDb.rationSample.findUnique({
-      where: { sampleCode },
+      where: { sampleNo },
       include: {
         contact: { select: { name: true, phone: true } },
         lines: { where: { kind: 'CURRENT' } },
         labReport: true,
       },
     });
-    if (!sample) throw new NotFoundException('نمونه‌ای با این کد یافت نشد');
+    if (!sample) throw new NotFoundException('نمونه‌ای با این شماره یافت نشد');
     if (sample.labReport) throw new BadRequestException('گزارش این نمونه قبلاً ثبت شده است');
+    if (sample.status !== 'LAB_CONFIRMED') {
+      throw new BadRequestException('ابتدا باید دریافت این نمونه را تأیید کنید');
+    }
 
     return {
       id: sample.id,
-      sampleCode: sample.sampleCode,
+      sampleNo: sample.sampleNo,
       collectedAt: sample.collectedAt,
       herdSize: sample.herdSize,
       totalHerdMilkYieldLiters: sample.totalHerdMilkYieldLiters,
@@ -119,12 +170,13 @@ export class PublicLabReviewService {
     const sample = await tenantDb.rationSample.findUnique({ where: { id: sampleId }, include: { labReport: true } });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     if (sample.labReport) throw new BadRequestException('گزارش این نمونه قبلاً ثبت شده است');
+    if (sample.status !== 'LAB_CONFIRMED') throw new BadRequestException('ابتدا باید دریافت این نمونه را تأیید کنید');
 
     let knowledgeReportId: string | null = null;
     if (dto.addToKnowledge) {
       const knowledgeReport = await tenantDb.report.create({
         data: {
-          title: `توصیه‌ی جیره — نمونه ${sample.sampleCode}`,
+          title: `توصیه‌ی جیره — نمونه ${sample.sampleNo}`,
           body: [
             `ایرادات جیره‌ی فعلی: ${dto.currentRationIssues}`,
             `ریسک عدم تغییر: ${dto.riskIfUnchanged}`,
@@ -176,15 +228,62 @@ export class PublicLabReviewService {
       });
     }
 
-    const submittedAt = new Date();
-    await tenantDb.rationSample.update({ where: { id: sampleId }, data: { status: 'LAB_REVIEWED' } });
+    await tenantDb.rationSample.update({ where: { id: sampleId }, data: { status: 'REPORT_SUBMITTED' } });
+    return { success: true };
+  }
+
+  /**
+   * تأیید نهایی کارشناس — گزارش قبلاً ثبت شده، این فقط رسمی‌اش می‌کند:
+   * پیگیری‌های ۷/۱۴/۳۰ روزه ساخته می‌شوند، کارشناس میدانی مطلع می‌شود، و
+   * پیامک لینک نتیجه به دامدار می‌رود.
+   */
+  async finalize(slug: string, sampleId: string, labToken: string) {
+    const { tenant, tenantDb } = await this.resolveTenant(slug);
+    await this.resolveLabPhone(slug, labToken);
+
+    const sample = await tenantDb.rationSample.findUnique({
+      where: { id: sampleId },
+      include: { contact: { select: { name: true, phone: true } } },
+    });
+    if (!sample) throw new NotFoundException('نمونه یافت نشد');
+    if (sample.status !== 'REPORT_SUBMITTED') throw new BadRequestException('این نمونه هنوز گزارش ثبت‌شده‌ای برای تأیید نهایی ندارد');
+
+    const finalizedAt = new Date();
+    await tenantDb.rationSample.update({ where: { id: sampleId }, data: { status: 'SENT_TO_EXPERT' } });
     await tenantDb.rationFollowUpCheckin.createMany({
       data: [7, 14, 30].map((days) => {
-        const scheduledAt = new Date(submittedAt);
+        const scheduledAt = new Date(finalizedAt);
         scheduledAt.setDate(scheduledAt.getDate() + days);
         return { sampleId, dueOffsetDays: days, scheduledAt };
       }),
     });
+
+    if (sample.collectedByUserId) {
+      await tenantDb.task.create({
+        data: {
+          title: `گزارش آزمایشگاه نمونه‌ی ${sample.sampleNo} نهایی شد`,
+          assignedUserId: sample.collectedByUserId,
+          relatedModule: 'ration-lab',
+          relatedEntityId: sampleId,
+          priority: 'NORMAL',
+        },
+      });
+      await this.notifications.notify(tenantDb, {
+        userId: sample.collectedByUserId,
+        type: 'ration-lab.report.finalized',
+        title: `گزارش آزمایشگاه نمونه‌ی ${sample.sampleNo} نهایی و برای دامدار ارسال شد`,
+        link: `/ration-lab/${sampleId}`,
+      });
+    }
+
+    if (sample.contact.phone && this.sms.isConfigured()) {
+      const webPanelUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+      const link = webPanelUrl ? `${webPanelUrl}/ration-result/${slug}` : `/ration-result/${slug}`;
+      await this.sms.sendSms(
+        sample.contact.phone,
+        `نتیجه‌ی آزمایش نمونه‌ی ${sample.sampleNo} آماده است. برای مشاهده به این لینک بروید: ${link} — ${tenant.name}`,
+      );
+    }
 
     return { success: true };
   }

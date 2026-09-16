@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
@@ -9,28 +10,53 @@ import {
   fetchRationSampleTrend,
   completeRationFollowUp,
   rationSamplePdfUrl,
+  markRationSampleInTransit,
+  updateRationSample,
+  deleteRationSample,
   type RationSample,
   type RationTrendPoint,
   ApiError,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<RationSample["status"], string> = {
-  AWAITING_LAB: "در انتظار آزمایشگاه",
-  LAB_REVIEWED: "گزارش آمده",
-  RESULT_SHARED: "نتیجه دیده‌شده",
+  COLLECTED: "جمع‌آوری اولیه",
+  IN_TRANSIT: "انتقال به آزمایشگاه",
+  LAB_CONFIRMED: "تأیید تحویل آزمایشگاه",
+  REPORT_SUBMITTED: "ثبت نظر متخصص",
+  SENT_TO_EXPERT: "ارسال‌شده برای کارشناس",
+  VIEWED_BY_FARMER: "رویت‌شده توسط دامدار",
 };
-const STATUS_TONES: Record<RationSample["status"], "warning" | "primary" | "success"> = {
-  AWAITING_LAB: "warning",
-  LAB_REVIEWED: "primary",
-  RESULT_SHARED: "success",
+const STATUS_TONES: Record<RationSample["status"], "warning" | "primary" | "success" | "neutral" | "accent"> = {
+  COLLECTED: "neutral",
+  IN_TRANSIT: "warning",
+  LAB_CONFIRMED: "accent",
+  REPORT_SUBMITTED: "primary",
+  SENT_TO_EXPERT: "primary",
+  VIEWED_BY_FARMER: "success",
 };
+const EDITABLE_STATUSES = new Set<RationSample["status"]>(["COLLECTED", "IN_TRANSIT"]);
+
+type EditLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: string };
 
 export default function RationSampleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [sample, setSample] = useState<RationSample | null>(null);
   const [trend, setTrend] = useState<RationTrendPoint[]>([]);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [herdSize, setHerdSize] = useState("");
+  const [totalHerdMilkYieldLiters, setTotalHerdMilkYieldLiters] = useState("");
+  const [avgMilkYieldPerAnimalLiters, setAvgMilkYieldPerAnimalLiters] = useState("");
+  const [milkFatPercent, setMilkFatPercent] = useState("");
+  const [milkProteinPercent, setMilkProteinPercent] = useState("");
+  const [currentRationDescription, setCurrentRationDescription] = useState("");
+  const [editLines, setEditLines] = useState<EditLine[]>([]);
+  const [analysisFeeAmount, setAnalysisFeeAmount] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
 
   function reload() {
     fetchRationSample(id).then(setSample).catch(() => setSample(null));
@@ -45,6 +71,83 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
   const currentTotal = currentLines.reduce((s, l) => s + l.lineCost, 0);
   const proposedTotal = proposedLines.reduce((s, l) => s + l.lineCost, 0);
   const maxMilk = Math.max(1, ...trend.map((t) => t.avgMilkYieldPerAnimalLiters ?? 0));
+  const canEdit = EDITABLE_STATUSES.has(sample.status);
+
+  function startEdit() {
+    setHerdSize(sample!.herdSize != null ? String(sample!.herdSize) : "");
+    setTotalHerdMilkYieldLiters(sample!.totalHerdMilkYieldLiters ?? "");
+    setAvgMilkYieldPerAnimalLiters(sample!.avgMilkYieldPerAnimalLiters ?? "");
+    setMilkFatPercent(sample!.milkFatPercent ?? "");
+    setMilkProteinPercent(sample!.milkProteinPercent ?? "");
+    setCurrentRationDescription(sample!.currentRationDescription ?? "");
+    setEditLines(
+      currentLines.map((l) => ({
+        ingredientName: l.ingredientName,
+        quantityPerAnimalKg: l.quantityPerAnimalKg,
+        unitCostSnapshot: String(l.unitCostSnapshot),
+      })),
+    );
+    setAnalysisFeeAmount(String(sample!.analysisFeeAmount));
+    setDiscountCode(sample!.discountCode ?? "");
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    setError(null);
+    setBusy(true);
+    try {
+      const validLines = editLines.filter((l) => l.ingredientName.trim() && l.quantityPerAnimalKg && l.unitCostSnapshot);
+      await updateRationSample(id, {
+        herdSize: herdSize ? Number(herdSize) : undefined,
+        totalHerdMilkYieldLiters: totalHerdMilkYieldLiters ? Number(totalHerdMilkYieldLiters) : undefined,
+        avgMilkYieldPerAnimalLiters: avgMilkYieldPerAnimalLiters ? Number(avgMilkYieldPerAnimalLiters) : undefined,
+        milkFatPercent: milkFatPercent ? Number(milkFatPercent) : undefined,
+        milkProteinPercent: milkProteinPercent ? Number(milkProteinPercent) : undefined,
+        currentRationDescription: currentRationDescription || undefined,
+        currentLines: validLines.length
+          ? validLines.map((l) => ({
+              ingredientName: l.ingredientName,
+              quantityPerAnimalKg: Number(l.quantityPerAnimalKg),
+              unitCostSnapshot: Number(l.unitCostSnapshot),
+            }))
+          : undefined,
+        analysisFeeAmount: analysisFeeAmount ? Number(analysisFeeAmount) : undefined,
+        discountCode: discountCode || undefined,
+      });
+      setEditing(false);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ویرایش نمونه با خطا مواجه شد");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMarkInTransit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await markRationSampleInTransit(id);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ثبت انتقال با خطا مواجه شد");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`نمونه‌ی #${sample!.sampleNo} حذف شود؟ این عمل غیرقابل بازگشت است.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteRationSample(id);
+      router.push("/ration-lab");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "حذف نمونه با خطا مواجه شد");
+      setBusy(false);
+    }
+  }
 
   async function handleCompleteFollowUp(followUpId: string, form: HTMLFormElement) {
     setError(null);
@@ -77,7 +180,7 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-extrabold" dir="ltr">
-              {sample.sampleCode}
+              #{sample.sampleNo}
             </h1>
             <Badge tone={STATUS_TONES[sample.status]}>{STATUS_LABELS[sample.status]}</Badge>
           </div>
@@ -86,34 +189,142 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
             {sample.collectedBy ? ` · ثبت‌شده توسط ${sample.collectedBy.name}` : ""}
           </p>
         </div>
-        {sample.labReport ? (
-          <a
-            href={rationSamplePdfUrl(sample.id)}
-            target="_blank"
-            rel="noopener"
-            className="px-4 py-2.5 rounded-xl border border-border text-[12.5px] font-bold"
-          >
-            دانلود/چاپ گزارش
-          </a>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {sample.status === "COLLECTED" ? (
+            <button
+              onClick={handleMarkInTransit}
+              disabled={busy}
+              className="px-4 py-2.5 rounded-xl border border-border text-[12.5px] font-bold disabled:opacity-50"
+            >
+              ارسال به آزمایشگاه
+            </button>
+          ) : null}
+          {canEdit && !editing ? (
+            <button onClick={startEdit} className="px-4 py-2.5 rounded-xl border border-border text-[12.5px] font-bold">
+              ویرایش
+            </button>
+          ) : null}
+          {canEdit ? (
+            <button onClick={handleDelete} disabled={busy} className="px-4 py-2.5 rounded-xl border border-danger/30 text-danger text-[12.5px] font-bold disabled:opacity-50">
+              حذف نمونه
+            </button>
+          ) : null}
+          {sample.labReport ? (
+            <a
+              href={rationSamplePdfUrl(sample.id)}
+              target="_blank"
+              rel="noopener"
+              className="px-4 py-2.5 rounded-xl border border-border text-[12.5px] font-bold"
+            >
+              دانلود/چاپ گزارش
+            </a>
+          ) : null}
+        </div>
       </div>
 
-      <Card className="p-5">
-        <div className="text-[14px] font-extrabold mb-3">معیارهای گله در روز نمونه‌برداری</div>
-        <div className="grid sm:grid-cols-3 gap-3">
-          <Metric label="تعداد دام" value={sample.herdSize} />
-          <Metric label="کل شیر گله (لیتر)" value={sample.totalHerdMilkYieldLiters} />
-          <Metric label="میانگین هر دام (لیتر)" value={sample.avgMilkYieldPerAnimalLiters} />
-          <Metric label="چربی (٪)" value={sample.milkFatPercent} />
-          <Metric label="پروتئین (٪)" value={sample.milkProteinPercent} />
-          <Metric label="هزینه‌ی آنالیز" value={formatToman(sample.finalFeeAmount)} raw />
-        </div>
-        {sample.currentRationDescription ? (
-          <p className="text-[13px] text-ink-soft leading-relaxed mt-4 bg-slate-50 border border-border rounded-xl p-4">
-            {sample.currentRationDescription}
-          </p>
-        ) : null}
-      </Card>
+      {error ? <div className="text-[12.5px] text-danger font-semibold">{error}</div> : null}
+
+      {editing ? (
+        <Card className="p-5 flex flex-col gap-4">
+          <div className="text-[14px] font-extrabold">ویرایش اطلاعات نمونه</div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <EditField label="تعداد دام گله" value={herdSize} onChange={setHerdSize} />
+            <EditField label="میزان کل شیر گله (لیتر)" value={totalHerdMilkYieldLiters} onChange={setTotalHerdMilkYieldLiters} />
+            <EditField label="میانگین شیر هر راس (لیتر)" value={avgMilkYieldPerAnimalLiters} onChange={setAvgMilkYieldPerAnimalLiters} />
+            <EditField label="درصد چربی شیر" value={milkFatPercent} onChange={setMilkFatPercent} />
+            <EditField label="درصد پروتئین شیر" value={milkProteinPercent} onChange={setMilkProteinPercent} />
+            <EditField label="هزینه‌ی آنالیز (تومان)" value={analysisFeeAmount} onChange={setAnalysisFeeAmount} />
+          </div>
+          <div>
+            <label className="block text-[13px] font-semibold mb-2">توضیح جیره‌ی فعلی</label>
+            <textarea
+              value={currentRationDescription}
+              onChange={(e) => setCurrentRationDescription(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-primary outline-none text-[13px]"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-semibold">خطوط جیره‌ی فعلی</label>
+              <button
+                type="button"
+                onClick={() => setEditLines((prev) => [...prev, { ingredientName: "", quantityPerAnimalKg: "", unitCostSnapshot: "" }])}
+                className="text-[12px] font-bold text-primary"
+              >
+                + افزودن ماده
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {editLines.map((l, i) => (
+                <div key={i} className="grid grid-cols-[1fr_100px_120px_auto] gap-2">
+                  <input
+                    placeholder="نام ماده"
+                    value={l.ingredientName}
+                    onChange={(e) => setEditLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, ingredientName: e.target.value } : row)))}
+                    className="px-3 py-2 rounded-lg border border-border text-[12.5px]"
+                  />
+                  <input
+                    placeholder="کیلو/دام"
+                    dir="ltr"
+                    value={l.quantityPerAnimalKg}
+                    onChange={(e) => setEditLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, quantityPerAnimalKg: e.target.value } : row)))}
+                    className="px-3 py-2 rounded-lg border border-border text-[12.5px]"
+                  />
+                  <input
+                    placeholder="قیمت هر کیلو"
+                    dir="ltr"
+                    value={l.unitCostSnapshot}
+                    onChange={(e) => setEditLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, unitCostSnapshot: e.target.value } : row)))}
+                    className="px-3 py-2 rounded-lg border border-border text-[12.5px]"
+                  />
+                  <button type="button" onClick={() => setEditLines((prev) => prev.filter((_, idx) => idx !== i))} className="text-danger text-[12px] font-bold">
+                    حذف
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[13px] font-semibold mb-2">کد تخفیف</label>
+            <input
+              value={discountCode}
+              onChange={(e) => setDiscountCode(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-primary outline-none text-[13px]"
+              dir="ltr"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={busy}
+              className="flex-1 py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold disabled:opacity-50"
+            >
+              {busy ? "در حال ذخیره..." : "ذخیره‌ی تغییرات"}
+            </button>
+            <button onClick={() => setEditing(false)} className="px-5 py-3 rounded-xl border border-border text-[13px] font-bold">
+              انصراف
+            </button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-5">
+          <div className="text-[14px] font-extrabold mb-3">معیارهای گله در روز نمونه‌برداری</div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Metric label="تعداد دام" value={sample.herdSize} />
+            <Metric label="کل شیر گله (لیتر)" value={sample.totalHerdMilkYieldLiters} />
+            <Metric label="میانگین هر دام (لیتر)" value={sample.avgMilkYieldPerAnimalLiters} />
+            <Metric label="چربی (٪)" value={sample.milkFatPercent} />
+            <Metric label="پروتئین (٪)" value={sample.milkProteinPercent} />
+            <Metric label="هزینه‌ی آنالیز" value={formatToman(sample.finalFeeAmount)} raw />
+          </div>
+          {sample.currentRationDescription ? (
+            <p className="text-[13px] text-ink-soft leading-relaxed mt-4 bg-slate-50 border border-border rounded-xl p-4">
+              {sample.currentRationDescription}
+            </p>
+          ) : null}
+        </Card>
+      )}
 
       {sample.labReport ? (
         <Card className="p-5 flex flex-col gap-4">
@@ -149,7 +360,9 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
         </Card>
       ) : (
         <Card className="p-5 text-center text-[13px] text-muted">
-          هنوز گزارشی از آزمایشگاه ثبت نشده — کد نمونه <b dir="ltr">{sample.sampleCode}</b> را به کارشناس آزمایشگاه بدهید.
+          {sample.status === "COLLECTED" || sample.status === "IN_TRANSIT"
+            ? <>هنوز نمونه به آزمایشگاه تحویل نشده — شماره‌ی نمونه <b dir="ltr">#{sample.sampleNo}</b> را به کارشناس آزمایشگاه بدهید.</>
+            : <>هنوز گزارشی از آزمایشگاه ثبت نشده — شماره‌ی نمونه <b dir="ltr">#{sample.sampleNo}</b> را به کارشناس آزمایشگاه بدهید.</>}
         </Card>
       )}
 
@@ -215,9 +428,23 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
               </div>
             ))}
           </div>
-          {error ? <div className="text-[12.5px] text-danger font-semibold mt-3">{error}</div> : null}
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-[13px] font-semibold mb-2">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        inputMode="decimal"
+        dir="ltr"
+        className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-primary outline-none text-[13px]"
+      />
     </div>
   );
 }

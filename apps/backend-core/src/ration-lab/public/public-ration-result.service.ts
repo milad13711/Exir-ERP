@@ -82,8 +82,8 @@ export class PublicRationResultService {
     if (contacts.length === 0) return [];
 
     return tenantDb.rationSample.findMany({
-      where: { contactId: { in: contacts.map((c) => c.id) }, status: { in: ['LAB_REVIEWED', 'RESULT_SHARED'] } },
-      select: { id: true, sampleCode: true, collectedAt: true, status: true },
+      where: { contactId: { in: contacts.map((c) => c.id) }, status: { in: ['SENT_TO_EXPERT', 'VIEWED_BY_FARMER'] } },
+      select: { id: true, sampleNo: true, collectedAt: true, status: true },
       orderBy: { collectedAt: 'desc' },
     });
   }
@@ -104,8 +104,8 @@ export class PublicRationResultService {
       throw new NotFoundException('نتیجه‌ای برای این نمونه یافت نشد');
     }
 
-    if (sample.status === 'LAB_REVIEWED') {
-      await tenantDb.rationSample.update({ where: { id: sampleId }, data: { status: 'RESULT_SHARED' } });
+    if (sample.status === 'SENT_TO_EXPERT') {
+      await tenantDb.rationSample.update({ where: { id: sampleId }, data: { status: 'VIEWED_BY_FARMER' } });
     }
 
     const currentLines = sample.lines.filter((l) => l.kind === 'CURRENT');
@@ -114,7 +114,7 @@ export class PublicRationResultService {
     const proposedTotalCost = proposedLines.reduce((sum, l) => sum + l.lineCost, 0);
 
     return {
-      sampleCode: sample.sampleCode,
+      sampleNo: sample.sampleNo,
       collectedAt: sample.collectedAt,
       report: {
         currentRationIssues: sample.labReport.currentRationIssues,

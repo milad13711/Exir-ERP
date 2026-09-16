@@ -18,8 +18,27 @@ export class SearchSampleDto {
   @IsString()
   labToken!: string;
 
+  @IsInt()
+  sampleNo!: number;
+}
+
+export class ListPendingSamplesDto {
   @IsString()
-  sampleCode!: string;
+  labToken!: string;
+}
+
+export class ConfirmReceiptDto {
+  @IsString()
+  labToken!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  sampleIds!: string[];
+}
+
+export class FinalizeReportDto {
+  @IsString()
+  labToken!: string;
 }
 
 export class ProposedLineDto {

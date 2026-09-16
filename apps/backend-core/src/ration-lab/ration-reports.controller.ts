@@ -69,13 +69,13 @@ export class RationReportsController {
       include: { followUps: { where: { completedAt: { not: null } }, orderBy: { scheduledAt: 'desc' }, take: 1 } },
     });
 
-    const perSample: { sampleCode: string; changePercent: number }[] = [];
+    const perSample: { sampleNo: number; changePercent: number }[] = [];
     for (const sample of samples) {
       const latest = sample.followUps[0];
       const before = toNum(sample.avgMilkYieldPerAnimalLiters);
       const after = latest ? toNum(latest.avgMilkYieldPerAnimalLiters) : null;
       if (before == null || after == null || before === 0) continue;
-      perSample.push({ sampleCode: sample.sampleCode, changePercent: ((after - before) / before) * 100 });
+      perSample.push({ sampleNo: sample.sampleNo, changePercent: ((after - before) / before) * 100 });
     }
 
     const avgChangePercent =

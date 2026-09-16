@@ -37,7 +37,7 @@ export class RationFollowUpCronService {
 
         const due = await tenantDb.rationFollowUpCheckin.findMany({
           where: { completedAt: null, scheduledAt: { lte: new Date() } },
-          include: { sample: { select: { sampleCode: true, collectedByUserId: true } } },
+          include: { sample: { select: { sampleNo: true, collectedByUserId: true } } },
         });
 
         let created = 0;
@@ -50,7 +50,7 @@ export class RationFollowUpCronService {
 
           await tenantDb.task.create({
             data: {
-              title: `پیگیری ${checkin.dueOffsetDays} روزه — نمونه ${checkin.sample.sampleCode}`,
+              title: `پیگیری ${checkin.dueOffsetDays} روزه — نمونه ${checkin.sample.sampleNo}`,
               assignedUserId: checkin.sample.collectedByUserId,
               relatedModule: 'ration-lab',
               relatedEntityId: checkin.id,
@@ -61,7 +61,7 @@ export class RationFollowUpCronService {
           await this.notifications.notify(tenantDb, {
             userId: checkin.sample.collectedByUserId,
             type: 'ration-lab.followup.due',
-            title: `پیگیری ${checkin.dueOffsetDays} روزه‌ی نمونه ${checkin.sample.sampleCode} رسیده است`,
+            title: `پیگیری ${checkin.dueOffsetDays} روزه‌ی نمونه ${checkin.sample.sampleNo} رسیده است`,
             link: '/ration-lab',
           });
           created += 1;

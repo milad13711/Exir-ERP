@@ -11,14 +11,20 @@ import { fetchRationSamples, type RationSample, type RationSampleStatus } from "
 import { useWorkspace } from "@/lib/workspace-context";
 
 const STATUS_LABELS: Record<RationSampleStatus, string> = {
-  AWAITING_LAB: "در انتظار آزمایشگاه",
-  LAB_REVIEWED: "گزارش آمده",
-  RESULT_SHARED: "نتیجه دیده‌شده",
+  COLLECTED: "جمع‌آوری اولیه",
+  IN_TRANSIT: "انتقال به آزمایشگاه",
+  LAB_CONFIRMED: "تأیید تحویل آزمایشگاه",
+  REPORT_SUBMITTED: "ثبت نظر متخصص",
+  SENT_TO_EXPERT: "ارسال‌شده برای کارشناس",
+  VIEWED_BY_FARMER: "رویت‌شده توسط دامدار",
 };
-const STATUS_TONES: Record<RationSampleStatus, "warning" | "primary" | "success"> = {
-  AWAITING_LAB: "warning",
-  LAB_REVIEWED: "primary",
-  RESULT_SHARED: "success",
+const STATUS_TONES: Record<RationSampleStatus, "warning" | "primary" | "success" | "neutral" | "accent"> = {
+  COLLECTED: "neutral",
+  IN_TRANSIT: "warning",
+  LAB_CONFIRMED: "accent",
+  REPORT_SUBMITTED: "primary",
+  SENT_TO_EXPERT: "primary",
+  VIEWED_BY_FARMER: "success",
 };
 
 type Filter = "ALL" | RationSampleStatus;
@@ -92,9 +98,12 @@ export default function RationLabPage() {
         {(
           [
             ["ALL", "همه"],
-            ["AWAITING_LAB", "در انتظار آزمایشگاه"],
-            ["LAB_REVIEWED", "گزارش آمده"],
-            ["RESULT_SHARED", "نتیجه دیده‌شده"],
+            ["COLLECTED", "جمع‌آوری اولیه"],
+            ["IN_TRANSIT", "انتقال به آزمایشگاه"],
+            ["LAB_CONFIRMED", "تأیید تحویل آزمایشگاه"],
+            ["REPORT_SUBMITTED", "ثبت نظر متخصص"],
+            ["SENT_TO_EXPERT", "ارسال‌شده برای کارشناس"],
+            ["VIEWED_BY_FARMER", "رویت‌شده توسط دامدار"],
           ] as [Filter, string][]
         ).map(([key, label]) => (
           <button
@@ -128,7 +137,7 @@ export default function RationLabPage() {
             >
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-bold" dir="ltr">
-                  {s.sampleCode}
+                  #{s.sampleNo}
                 </div>
                 <div className="text-[11.5px] text-muted mt-0.5">
                   {s.contact.name}

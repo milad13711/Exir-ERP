@@ -1,4 +1,18 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -8,8 +22,8 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import { toJalaliYearMonth } from '../common/jalali.js';
 import { CreateSampleDto } from './dto/create-sample.dto.js';
+import { UpdateSampleDto } from './dto/update-sample.dto.js';
 import { RationReportPdfService } from './ration-report-pdf.service.js';
 
 export const SAMPLE_INCLUDE = {
@@ -20,18 +34,8 @@ export const SAMPLE_INCLUDE = {
   followUps: { orderBy: { scheduledAt: 'asc' as const } },
 } as const;
 
-async function generateSampleCode(ctx: TenantRequestContext): Promise<string> {
-  const { year } = toJalaliYearMonth(new Date());
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const suffix = Math.floor(Math.random() * 1_000_000)
-      .toString()
-      .padStart(6, '0');
-    const code = `RS-${year}-${suffix}`;
-    const existing = await ctx.tenantDb.rationSample.findUnique({ where: { sampleCode: code }, select: { id: true } });
-    if (!existing) return code;
-  }
-  throw new Error('ساخت کد نمونه‌ی یکتا ناموفق بود، دوباره تلاش کنید');
-}
+/** ویرایش/حذف/ارسال‌به‌آزمایشگاه فقط پیش از تأیید تحویل آزمایشگاه مجاز است — بعد از آن، آزمایشگاه روی داده کار کرده. */
+const EDITABLE_STATUSES = new Set(['COLLECTED', 'IN_TRANSIT']);
 
 @Controller('ration-lab/samples')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -83,11 +87,9 @@ export class RationSamplesController {
     const finalFeeAmount = Math.round(analysisFeeAmount * (1 - discountPercent / 100));
 
     const userId = await resolveTenantUserId(ctx);
-    const sampleCode = await generateSampleCode(ctx);
 
     const sample = await ctx.tenantDb.rationSample.create({
       data: {
-        sampleCode,
         contactId: dto.contactId,
         collectedByUserId: userId,
         collectedAt: new Date(dto.collectedAt),
@@ -122,6 +124,83 @@ export class RationSamplesController {
     return sample;
   }
 
+  @Post(':id/mark-in-transit')
+  async markInTransit(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'ration-lab');
+    const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
+    if (!sample) throw new NotFoundException('نمونه یافت نشد');
+    if (sample.status !== 'COLLECTED') throw new BadRequestException('این نمونه از قبل به آزمایشگاه منتقل شده است');
+    return ctx.tenantDb.rationSample.update({ where: { id }, data: { status: 'IN_TRANSIT' }, include: SAMPLE_INCLUDE });
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateSampleDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'ration-lab');
+    const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
+    if (!sample) throw new NotFoundException('نمونه یافت نشد');
+    if (!EDITABLE_STATUSES.has(sample.status)) {
+      throw new ForbiddenException('بعد از تأیید تحویل آزمایشگاه، اطلاعات نمونه دیگر قابل ویرایش نیست');
+    }
+
+    let discountPercent = sample.discountPercent;
+    const analysisFeeAmount = dto.analysisFeeAmount ?? sample.analysisFeeAmount;
+    if (dto.discountCode !== undefined && dto.discountCode !== sample.discountCode) {
+      if (dto.discountCode) {
+        const discount = await ctx.tenantDb.rationDiscountCode.findUnique({ where: { code: dto.discountCode } });
+        if (!discount || !discount.isActive) throw new BadRequestException('کد تخفیف نامعتبر است');
+        discountPercent = discount.percentOff;
+      } else {
+        discountPercent = 0;
+      }
+    }
+    const finalFeeAmount = Math.round(analysisFeeAmount * (1 - discountPercent / 100));
+
+    if (dto.currentLines) {
+      await ctx.tenantDb.rationFormulaLine.deleteMany({ where: { sampleId: id, kind: 'CURRENT' } });
+    }
+
+    return ctx.tenantDb.rationSample.update({
+      where: { id },
+      data: {
+        collectedAt: dto.collectedAt ? new Date(dto.collectedAt) : undefined,
+        herdSize: dto.herdSize,
+        totalHerdMilkYieldLiters: dto.totalHerdMilkYieldLiters,
+        avgMilkYieldPerAnimalLiters: dto.avgMilkYieldPerAnimalLiters,
+        milkFatPercent: dto.milkFatPercent,
+        milkProteinPercent: dto.milkProteinPercent,
+        currentRationDescription: dto.currentRationDescription,
+        analysisFeeAmount,
+        discountCode: dto.discountCode,
+        discountPercent,
+        finalFeeAmount,
+        lines: dto.currentLines?.length
+          ? {
+              create: dto.currentLines.map((l) => ({
+                kind: 'CURRENT',
+                ingredientName: l.ingredientName,
+                quantityPerAnimalKg: l.quantityPerAnimalKg,
+                unitCostSnapshot: l.unitCostSnapshot,
+                lineCost: Math.round(l.quantityPerAnimalKg * l.unitCostSnapshot),
+              })),
+            }
+          : undefined,
+      },
+      include: SAMPLE_INCLUDE,
+    });
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'ration-lab');
+    const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
+    if (!sample) throw new NotFoundException('نمونه یافت نشد');
+    if (!EDITABLE_STATUSES.has(sample.status)) {
+      throw new ForbiddenException('بعد از تأیید تحویل آزمایشگاه، این نمونه دیگر قابل حذف نیست');
+    }
+    await ctx.tenantDb.rationSample.delete({ where: { id } });
+    return { success: true };
+  }
+
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     await this.permissions.assertView(ctx, 'ration-lab');
@@ -148,7 +227,7 @@ export class RationSamplesController {
 
     const pdf = await this.pdf.render(
       {
-        sampleCode: sample.sampleCode,
+        sampleNo: sample.sampleNo,
         collectedAt: sample.collectedAt,
         farmerName: sample.contact.name,
         currentLines: sample.lines.filter((l) => l.kind === 'CURRENT').map((l) => ({ ...l, quantityPerAnimalKg: Number(l.quantityPerAnimalKg) })),
@@ -163,7 +242,7 @@ export class RationSamplesController {
       tenant.name,
     );
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="ration-report-${sample.sampleCode}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="ration-report-${sample.sampleNo}.pdf"`);
     res.send(pdf);
   }
 }

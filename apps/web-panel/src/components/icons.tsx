@@ -507,3 +507,24 @@ export function QrCodeIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function PencilIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+export function DragHandleIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="8" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="18" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="18" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
