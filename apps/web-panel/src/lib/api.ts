@@ -107,6 +107,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     if (res.status === 401 && typeof window !== "undefined") {
       clearToken();
     }
+    // ۴۰۲ یعنی تننت PENDING_PAYMENT است — نه توکن بی‌اعتبار. کاربر را از
+    // حساب خارج نمی‌کنیم، به صفحه‌ی صورت‌حساب/فاکتور می‌فرستیم (safety-net
+    // برای مواقعی که کاربر مستقیم به یک صفحه‌ی دیگر panel navigate کرده).
+    if (res.status === 402 && typeof window !== "undefined" && !window.location.pathname.startsWith("/billing-locked")) {
+      window.location.href = "/billing-locked";
+    }
     throw new ApiError(message, res.status);
   }
 
@@ -129,6 +135,9 @@ export type VerifyOtpResult =
       user: { name: string | null; phone: string };
       tenant: { name: string; slug: string };
       role: string;
+      /** تننت روی PENDING_PAYMENT است — ورود مجاز است اما فرانت باید مستقیم به /billing-locked ببرد. */
+      billingLocked?: boolean;
+      outstandingInvoiceId?: string | null;
     }
   | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] };
 
@@ -154,6 +163,8 @@ export function selectTenant(verificationToken: string, tenantSlug: string) {
     user: { name: string | null; phone: string };
     tenant: { name: string; slug: string };
     role: string;
+    billingLocked?: boolean;
+    outstandingInvoiceId?: string | null;
   }>("/auth/otp/select-tenant", {
     method: "POST",
     body: JSON.stringify({ verificationToken, tenantSlug }),

@@ -1,6 +1,8 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -48,9 +50,21 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('دسترسی به این محیط کاری غیرفعال شده است');
     }
     if (tenant.status === 'PENDING_PAYMENT') {
-      throw new UnauthorizedException(
-        'برای فعال‌سازی این محیط کاری، ابتدا فاکتور صادرشده باید پرداخت شود. با پشتیبانی اکسیر تماس بگیرید.',
-      );
+      // مشتری اجازه‌ی ورود دارد، اما تا پرداخت فاکتور معلق، فقط به صفحه‌ی
+      // صورت‌حساب (billing/*) دسترسی می‌گیرد — نه به داده‌های واقعی کسب‌وکار.
+      // کد ۴۰۲ عمداً از ۴۰۱ جداست تا فرانت‌اند به‌جای خروج از حساب، کاربر را
+      // به صفحه‌ی پرداخت فاکتور هدایت کند.
+      const path: string = req.path ?? '';
+      const isBillingRoute = path.includes('/billing/') || path.endsWith('/billing');
+      if (!isBillingRoute) {
+        throw new HttpException(
+          {
+            message: 'برای فعال‌سازی این محیط کاری، ابتدا فاکتور صادرشده باید پرداخت شود.',
+            billingLocked: true,
+          },
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
     }
 
     const tenantDb = this.tenantPrisma.forTenant({

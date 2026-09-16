@@ -124,6 +124,8 @@ export class AuthService {
         user: { name: string | null; phone: string };
         tenant: { name: string; slug: string };
         role: string;
+        billingLocked?: boolean;
+        outstandingInvoiceId?: string | null;
       }
     | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] }
   > {
@@ -138,8 +140,15 @@ export class AuthService {
       throw new NotFoundException('این شماره در هیچ محیط کاری عضو نیست');
     }
 
+    // یک تننت PENDING_PAYMENT هم باید اجازه‌ی ورود بدهد — فقط بعد از ورود در
+    // پنل قفل و فاکتور معلق نشانش داده می‌شود (resolveTenantLogin/JwtAuthGuard)،
+    // نه اینکه اصلاً انکار شود و به مشتری وانمود کند حسابش پاک شده.
     const memberships = await this.controlDb.tenantMembership.findMany({
-      where: { globalUserId: globalUser.id, status: { in: ['ACTIVE', 'INVITED'] }, tenant: { status: 'ACTIVE' } },
+      where: {
+        globalUserId: globalUser.id,
+        status: { in: ['ACTIVE', 'INVITED'] },
+        tenant: { status: { in: ['ACTIVE', 'PENDING_PAYMENT'] } },
+      },
       include: { tenant: true },
     });
 
@@ -176,7 +185,7 @@ export class AuthService {
   /** برای سوییچ محیط کاری از داخل خود پنل (هدر) — کاربر از قبل با JWT وارد شده است. */
   async listMyTenants(globalUserId: string): Promise<{ slug: string; name: string }[]> {
     const memberships = await this.controlDb.tenantMembership.findMany({
-      where: { globalUserId, status: 'ACTIVE', tenant: { status: 'ACTIVE' } },
+      where: { globalUserId, status: 'ACTIVE', tenant: { status: { in: ['ACTIVE', 'PENDING_PAYMENT'] } } },
       include: { tenant: true },
     });
     return memberships.map((m) => ({ slug: m.tenant.slug, name: m.tenant.name }));
@@ -185,7 +194,7 @@ export class AuthService {
   /** سوییچ به یک محیط کاری دیگر که کاربر از قبل عضو فعال آن است — بدون نیاز به کد تأیید مجدد. */
   async switchTenant(globalUserId: string, tenantSlug: string) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
-    if (!tenant || tenant.status !== 'ACTIVE') {
+    if (!tenant || (tenant.status !== 'ACTIVE' && tenant.status !== 'PENDING_PAYMENT')) {
       throw new NotFoundException('این محیط کاری یافت نشد یا فعال نیست');
     }
 
@@ -206,22 +215,32 @@ export class AuthService {
     };
     const accessToken = await this.jwt.signAsync(payload);
 
+    let billingLocked: boolean | undefined;
+    let outstandingInvoiceId: string | null = null;
+    if (tenant.status === 'PENDING_PAYMENT') {
+      billingLocked = true;
+      const invoice = await this.controlDb.invoice.findFirst({
+        where: { tenantId: tenant.id, status: 'PENDING' },
+        orderBy: { issuedAt: 'desc' },
+      });
+      outstandingInvoiceId = invoice?.id ?? null;
+    }
+
     return {
       accessToken,
       user: { name: globalUser.name, phone: globalUser.phone },
       tenant: { name: tenant.name, slug: tenant.slug },
       role: membership.role,
+      ...(billingLocked ? { billingLocked, outstandingInvoiceId } : {}),
     };
   }
 
   private async resolveTenantLogin(phone: string, tenantSlug: string) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
-    if (tenant?.status === 'PENDING_PAYMENT') {
-      throw new UnauthorizedException(
-        'برای فعال‌سازی این محیط کاری، ابتدا فاکتور صادرشده باید پرداخت شود. با پشتیبانی اکسیر تماس بگیرید.',
-      );
-    }
-    if (!tenant || tenant.status !== 'ACTIVE') {
+    // یک تننت PENDING_PAYMENT (تریال تمام‌شده) هم اجازه‌ی ورود می‌گیرد — فقط
+    // با یک نشست قفل‌شده که JwtAuthGuard آن را به دیدن/پرداخت فاکتور محدود
+    // می‌کند؛ هرگز نباید به مشتری وانمود کند حسابش پاک یا پیدا نشده است.
+    if (!tenant || (tenant.status !== 'ACTIVE' && tenant.status !== 'PENDING_PAYMENT')) {
       throw new NotFoundException('این محیط کاری یافت نشد یا فعال نیست');
     }
 
@@ -269,11 +288,23 @@ export class AuthService {
     };
     const accessToken = await this.jwt.signAsync(payload);
 
+    let billingLocked: boolean | undefined;
+    let outstandingInvoiceId: string | null = null;
+    if (tenant.status === 'PENDING_PAYMENT') {
+      billingLocked = true;
+      const invoice = await this.controlDb.invoice.findFirst({
+        where: { tenantId: tenant.id, status: 'PENDING' },
+        orderBy: { issuedAt: 'desc' },
+      });
+      outstandingInvoiceId = invoice?.id ?? null;
+    }
+
     return {
       accessToken,
       user: { name: globalUser.name, phone: globalUser.phone },
       tenant: { name: tenant.name, slug: tenant.slug },
       role: membership.role,
+      ...(billingLocked ? { billingLocked, outstandingInvoiceId } : {}),
     };
   }
 }
