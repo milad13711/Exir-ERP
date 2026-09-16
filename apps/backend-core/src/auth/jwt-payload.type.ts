@@ -81,6 +81,31 @@ export type TrackingTicketPayload = {
 };
 
 /**
+ * Short-lived proof that a phone number was OTP-verified against the
+ * RationLabReviewer whitelist for one tenant — issued after OTP verify,
+ * consumed by the sample-search/report-submit endpoints of the public
+ * "آزمایشگاه جیره" lab portal. Longer TTL than tracking (60 min, not 15)
+ * since filling out a lab report takes real time.
+ */
+export type LabReviewTicketPayload = {
+  type: 'lab_review_ticket';
+  phone: string;
+  tenantSlug: string;
+};
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for the public
+ * "نتیجه‌ی آزمایش جیره" farmer-facing result page — same shape/rationale
+ * as TrackingTicketPayload, just a distinct OTP purpose/ticket type so the
+ * two public portals never accept each other's codes.
+ */
+export type RationResultTicketPayload = {
+  type: 'ration_result_ticket';
+  phone: string;
+  tenantSlug: string;
+};
+
+/**
  * Short-lived proof that a phone number was OTP-verified for the public
  * contract e-signature page — issued after OTP verify, scoped to one
  * contract's publicToken so it can't be replayed against a different

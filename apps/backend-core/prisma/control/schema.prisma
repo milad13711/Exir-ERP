@@ -40,6 +40,8 @@ enum OtpPurpose {
   BOOKING
   TRACKING
   CONTRACT_SIGN
+  LAB_REVIEW
+  RATION_RESULT
 }
 
 model OtpCode {

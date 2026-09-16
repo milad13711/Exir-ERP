@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "OtpPurpose" ADD VALUE 'LAB_REVIEW';
+ALTER TYPE "OtpPurpose" ADD VALUE 'RATION_RESULT';

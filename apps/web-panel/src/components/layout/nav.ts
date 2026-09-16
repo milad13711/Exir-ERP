@@ -48,6 +48,7 @@ export const primaryNav: NavItem[] = [
   { href: "/warehouse", label: "انبار و کالا", icon: WarehouseIcon, moduleCode: "warehouse" },
   { href: "/production", label: "تولید", icon: FactoryIcon, moduleCode: "production" },
   { href: "/quality-control", label: "کنترل کیفیت", icon: FlaskIcon, moduleCode: "quality-control" },
+  { href: "/ration-lab", label: "آزمایشگاه جیره", icon: FlaskIcon, moduleCode: "ration-lab" },
   { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting" },
   { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks" },
   { href: "/booking", label: "رزرو نوبت", icon: CalendarIcon, moduleCode: "booking" },

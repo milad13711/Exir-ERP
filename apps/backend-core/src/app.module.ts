@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { ProductionModule } from './production/production.module.js';
 import { QualityControlModule } from './quality-control/quality-control.module.js';
+import { RationLabModule } from './ration-lab/ration-lab.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ModulesCatalogModule } from './modules-catalog/modules-catalog.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -85,6 +86,7 @@ import { ReportsModule } from './reports/reports.module.js';
     WorkspaceModule,
     ProductionModule,
     QualityControlModule,
+    RationLabModule,
     AutomationModule,
     VoipModule,
     BillingModule,

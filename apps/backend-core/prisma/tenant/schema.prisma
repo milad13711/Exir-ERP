@@ -61,6 +61,7 @@ model User {
   assignedProductionStages      ProductionOrderStage[]
   qualitySamplesTaken           QualitySample[]            @relation("QualitySampleSampledBy")
   qualitySampleResultsTested    QualitySampleResult[]      @relation("QualitySampleResultTestedBy")
+  rationSamplesCollected        RationSample[]             @relation("RationSampleCollectedBy")
   createdAutomationRules        AutomationRule[]
   voipExtension                 VoipExtension?
   decidedAiActions              AiActionRequest[]
@@ -382,6 +383,7 @@ model CrmContact {
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
   campaignRecipients        MarketingCampaignRecipient[]
+  rationSamples             RationSample[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -1616,6 +1618,137 @@ model QualitySampleResult {
 
   @@index([sampleId])
   @@map("quality_sample_results")
+}
+
+// ── ماژول آزمایشگاه جیره (ration-lab) — مخصوص صنف خوراک دام ──────────────
+// نمونه‌برداری جیره از دامدار (با امضای رضایت او) → ارسال کد نمونه به یک
+// آزمایشگاه بیرون از تننت (بدون اکانت کامل — فقط شماره‌ی سفیدلیست‌شده در
+// RationLabReviewer) → ثبت گزارش تخصصی + جیره‌ی پیشنهادی روی همان نمونه →
+// دامدار نتیجه را از پورتال عمومی (شماره+OTP، مثل public-tracking) می‌بیند
+// → پیگیری ۷/۱۴/۳۰ روزه با RationFollowUpCheckin (cron جداگانه Task می‌سازد).
+// پیوست‌ها با مدل عمومی Attachment (entityType="ration_sample") ذخیره
+// می‌شوند، نه یک فیلد جدا اینجا.
+
+enum RationSampleStatus {
+  AWAITING_LAB
+  LAB_REVIEWED
+  RESULT_SHARED
+}
+
+enum RationLineKind {
+  CURRENT
+  PROPOSED
+}
+
+model RationSample {
+  id                          String             @id @default(uuid())
+  sampleCode                  String             @unique // مثلاً «RS-1405-00042» — کد جست‌وجوی آزمایشگاه
+  contactId                   String // دامدار
+  collectedByUserId           String? // کارشناسی که نمونه را از دامدار گرفت
+  collectedAt                 DateTime
+  herdSize                    Int?
+  totalHerdMilkYieldLiters    Decimal?           @db.Decimal(10, 2)
+  avgMilkYieldPerAnimalLiters Decimal?           @db.Decimal(10, 2)
+  milkFatPercent              Decimal?           @db.Decimal(5, 2)
+  milkProteinPercent          Decimal?           @db.Decimal(5, 2)
+  currentRationDescription    String?
+  consentSignatureDataUrl     String // امضای دامدار — پذیرش رضایت‌آگاهانه برای آنالیز
+  consentAcceptedAt           DateTime
+  analysisFeeAmount           Int                @default(0)
+  discountCode                String?
+  discountPercent             Int                @default(0)
+  finalFeeAmount              Int                @default(0)
+  // سوییچ تننت: آیا آزمایشگاه اجازه دارد نام/شماره‌ی دامدار را روی این
+  // نمونه ببیند — پیش‌فرض true، اما هر نمونه می‌تواند جدا محدود شود.
+  isIdentityVisibleToLab      Boolean            @default(true)
+  status                      RationSampleStatus @default(AWAITING_LAB)
+  createdAt                   DateTime           @default(now())
+
+  contact     CrmContact              @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  collectedBy User?                   @relation("RationSampleCollectedBy", fields: [collectedByUserId], references: [id], onDelete: SetNull)
+  lines       RationFormulaLine[]
+  labReport   RationLabReport?
+  followUps   RationFollowUpCheckin[]
+
+  @@index([contactId])
+  @@map("ration_samples")
+}
+
+model RationFormulaLine {
+  id                  String         @id @default(uuid())
+  sampleId            String
+  kind                RationLineKind // CURRENT (ثبت‌شده توسط کارشناس) یا PROPOSED (ثبت‌شده توسط آزمایشگاه)
+  ingredientName      String
+  quantityPerAnimalKg Decimal        @db.Decimal(10, 3)
+  unitCostSnapshot    Int // تومان به‌ازای هر کیلو، در لحظه‌ی ثبت — قیمت بعداً عوض شود اثری روی این رکورد ندارد
+  lineCost            Int // quantityPerAnimalKg × unitCostSnapshot، از پیش محاسبه و ذخیره‌شده
+
+  sample RationSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  @@index([sampleId])
+  @@map("ration_formula_lines")
+}
+
+model RationLabReport {
+  id                  String   @id @default(uuid())
+  sampleId            String   @unique
+  reviewedByPhone     String // شماره‌ی کارشناس آزمایشگاه — بدون اکانت کامل در این تننت
+  reviewedByName      String?
+  currentRationIssues String
+  riskIfUnchanged     String
+  newRecommendations  String
+  expectedResult      String
+  urgentWarningSigns  String
+  isKnowledge         Boolean  @default(false)
+  knowledgeReportId   String? // وقتی isKnowledge=true، به یک Report(isKnowledge:true) وصل می‌شود
+  submittedAt         DateTime @default(now())
+
+  sample          RationSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  knowledgeReport Report?      @relation(fields: [knowledgeReportId], references: [id], onDelete: SetNull)
+
+  @@map("ration_lab_reports")
+}
+
+model RationLabReviewer {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("ration_lab_reviewers")
+}
+
+model RationFollowUpCheckin {
+  id                          String    @id @default(uuid())
+  sampleId                    String
+  dueOffsetDays                Int // 7 | 14 | 30
+  scheduledAt                  DateTime
+  completedAt                  DateTime?
+  herdSize                     Int?
+  totalHerdMilkYieldLiters     Decimal?  @db.Decimal(10, 2)
+  avgMilkYieldPerAnimalLiters  Decimal?  @db.Decimal(10, 2)
+  milkFatPercent               Decimal?  @db.Decimal(5, 2)
+  milkProteinPercent           Decimal?  @db.Decimal(5, 2)
+  notes                        String?
+
+  sample RationSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  @@index([sampleId])
+  @@map("ration_followup_checkins")
+}
+
+model RationDiscountCode {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  percentOff      Int // 1 تا 100
+  isActive        Boolean   @default(true)
+  expiresAt       DateTime?
+  maxRedemptions  Int?
+  redemptionCount Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  @@map("ration_discount_codes")
 }
 
 // ── ماژول اتوماسیون (automation) ──────────────────────────────────────
@@ -3160,7 +3293,8 @@ model Report {
 
   category  ReportCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdBy User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  referrals ReportReferral[]
+  referrals       ReportReferral[]
+  rationLabReports RationLabReport[]
 
   @@index([categoryId])
   @@map("reports")

@@ -45,6 +45,10 @@ import { PublicRecruitmentController } from './public-recruitment.controller.js'
 import { HrModule } from '../hr/hr.module.js';
 import { PublicCertificateService } from './public-certificate.service.js';
 import { PublicCertificateController } from './public-certificate.controller.js';
+import { PublicLabReviewService } from '../ration-lab/public/public-lab-review.service.js';
+import { PublicLabReviewController } from '../ration-lab/public/public-lab-review.controller.js';
+import { PublicRationResultService } from '../ration-lab/public/public-ration-result.service.js';
+import { PublicRationResultController } from '../ration-lab/public/public-ration-result.controller.js';
 
 @Module({
   imports: [
@@ -81,6 +85,8 @@ import { PublicCertificateController } from './public-certificate.controller.js'
     PublicQrCodeController,
     PublicRecruitmentController,
     PublicCertificateController,
+    PublicLabReviewController,
+    PublicRationResultController,
   ],
   providers: [
     PublicSignupService,
@@ -98,6 +104,8 @@ import { PublicCertificateController } from './public-certificate.controller.js'
     PublicAfterSalesService,
     PublicRecruitmentService,
     PublicCertificateService,
+    PublicLabReviewService,
+    PublicRationResultService,
   ],
 })
 export class PublicModule {}

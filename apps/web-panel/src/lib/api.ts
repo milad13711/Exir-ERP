@@ -1708,6 +1708,187 @@ export function addSampleResult(sampleId: string, data: { testTypeId: string; me
   return apiFetch<QualitySample>(`/quality-control/samples/${sampleId}/results`, { method: "POST", body: JSON.stringify(data) });
 }
 
+// ── آزمایشگاه جیره (Ration Lab) ───────────────────────────────────────────
+
+export type RationSampleStatus = "AWAITING_LAB" | "LAB_REVIEWED" | "RESULT_SHARED";
+export type RationLineKind = "CURRENT" | "PROPOSED";
+
+export type RationFormulaLine = {
+  id: string;
+  kind: RationLineKind;
+  ingredientName: string;
+  quantityPerAnimalKg: string;
+  unitCostSnapshot: number;
+  lineCost: number;
+};
+
+export type RationLabReport = {
+  id: string;
+  reviewedByPhone: string;
+  reviewedByName: string | null;
+  currentRationIssues: string;
+  riskIfUnchanged: string;
+  newRecommendations: string;
+  expectedResult: string;
+  urgentWarningSigns: string;
+  isKnowledge: boolean;
+  submittedAt: string;
+};
+
+export type RationFollowUpCheckin = {
+  id: string;
+  dueOffsetDays: number;
+  scheduledAt: string;
+  completedAt: string | null;
+  herdSize: number | null;
+  totalHerdMilkYieldLiters: string | null;
+  avgMilkYieldPerAnimalLiters: string | null;
+  milkFatPercent: string | null;
+  milkProteinPercent: string | null;
+  notes: string | null;
+};
+
+export type RationSample = {
+  id: string;
+  sampleCode: string;
+  collectedAt: string;
+  herdSize: number | null;
+  totalHerdMilkYieldLiters: string | null;
+  avgMilkYieldPerAnimalLiters: string | null;
+  milkFatPercent: string | null;
+  milkProteinPercent: string | null;
+  currentRationDescription: string | null;
+  analysisFeeAmount: number;
+  discountCode: string | null;
+  discountPercent: number;
+  finalFeeAmount: number;
+  isIdentityVisibleToLab: boolean;
+  status: RationSampleStatus;
+  createdAt: string;
+  contact: { id: string; name: string; phone: string | null };
+  collectedBy: { id: string; name: string } | null;
+  lines: RationFormulaLine[];
+  labReport: RationLabReport | null;
+  followUps: RationFollowUpCheckin[];
+};
+
+export function fetchRationSamples(status?: RationSampleStatus) {
+  return apiFetch<RationSample[]>(`/ration-lab/samples${status ? `?status=${status}` : ""}`);
+}
+
+export function fetchRationSample(id: string) {
+  return apiFetch<RationSample>(`/ration-lab/samples/${id}`);
+}
+
+export function createRationSample(data: {
+  contactId: string;
+  collectedAt: string;
+  herdSize?: number;
+  totalHerdMilkYieldLiters?: number;
+  avgMilkYieldPerAnimalLiters?: number;
+  milkFatPercent?: number;
+  milkProteinPercent?: number;
+  currentRationDescription?: string;
+  currentLines?: { ingredientName: string; quantityPerAnimalKg: number; unitCostSnapshot: number }[];
+  consentSignatureDataUrl: string;
+  analysisFeeAmount?: number;
+  discountCode?: string;
+  isIdentityVisibleToLab?: boolean;
+}) {
+  return apiFetch<RationSample>("/ration-lab/samples", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function rationSamplePdfUrl(id: string) {
+  return `${API_URL}/ration-lab/samples/${id}/pdf`;
+}
+
+export type RationLabReviewer = { id: string; phone: string; name: string; isActive: boolean; createdAt: string };
+
+export function fetchRationLabReviewers() {
+  return apiFetch<RationLabReviewer[]>("/ration-lab/reviewers");
+}
+
+export function createRationLabReviewer(data: { phone: string; name: string }) {
+  return apiFetch<RationLabReviewer>("/ration-lab/reviewers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateRationLabReviewer(id: string, data: { name?: string; isActive?: boolean }) {
+  return apiFetch<RationLabReviewer>(`/ration-lab/reviewers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteRationLabReviewer(id: string) {
+  return apiFetch<{ success: boolean }>(`/ration-lab/reviewers/${id}`, { method: "DELETE" });
+}
+
+export type RationDiscountCode = {
+  id: string;
+  code: string;
+  percentOff: number;
+  isActive: boolean;
+  expiresAt: string | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  createdAt: string;
+};
+
+export function fetchRationDiscountCodes() {
+  return apiFetch<RationDiscountCode[]>("/ration-lab/discount-codes");
+}
+
+export function createRationDiscountCode(data: { code: string; percentOff: number; expiresAt?: string; maxRedemptions?: number }) {
+  return apiFetch<RationDiscountCode>("/ration-lab/discount-codes", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deactivateRationDiscountCode(id: string) {
+  return apiFetch<RationDiscountCode>(`/ration-lab/discount-codes/${id}/deactivate`, { method: "PATCH" });
+}
+
+export type RationFollowUpDue = RationFollowUpCheckin & {
+  sample: { id: string; sampleCode: string; contact: { name: string; phone: string | null } };
+};
+
+export function fetchRationFollowUpsDue(withinDays?: number) {
+  return apiFetch<RationFollowUpDue[]>(`/ration-lab/followups/due${withinDays ? `?withinDays=${withinDays}` : ""}`);
+}
+
+export function completeRationFollowUp(
+  id: string,
+  data: {
+    herdSize?: number;
+    totalHerdMilkYieldLiters?: number;
+    avgMilkYieldPerAnimalLiters?: number;
+    milkFatPercent?: number;
+    milkProteinPercent?: number;
+    notes?: string;
+  },
+) {
+  return apiFetch<RationFollowUpCheckin>(`/ration-lab/followups/${id}/complete`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export type RationTrendPoint = {
+  label: string;
+  date: string;
+  totalHerdMilkYieldLiters: number | null;
+  avgMilkYieldPerAnimalLiters: number | null;
+  milkFatPercent: number | null;
+  milkProteinPercent: number | null;
+};
+
+export function fetchRationSampleTrend(sampleId: string) {
+  return apiFetch<RationTrendPoint[]>(`/ration-lab/reports/sample/${sampleId}/trend`);
+}
+
+export type RationAggregateReport = {
+  sampleCount: number;
+  evaluatedCount: number;
+  avgChangePercent: number | null;
+  perSample: { sampleCode: string; changePercent: number }[];
+};
+
+export function fetchRationAggregateReport() {
+  return apiFetch<RationAggregateReport>("/ration-lab/reports/aggregate");
+}
+
 // ── HR ───────────────────────────────────────────────────────────────────
 
 export type EmploymentStatus = "ACTIVE" | "TERMINATED";
@@ -3889,6 +4070,118 @@ export function fetchTrackedProjects(slug: string, trackingToken: string) {
   return apiFetch<PublicTrackedProject[]>(`/public/tracking/${slug}/projects`, {
     method: "POST",
     body: JSON.stringify({ trackingToken }),
+  });
+}
+
+// ── پورتال عمومی آزمایشگاه جیره (Ration lab review — no auth) ───────────
+
+export type PublicRationLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: number; lineCost: number };
+
+export type PublicRationSample = {
+  id: string;
+  sampleCode: string;
+  collectedAt: string;
+  herdSize: number | null;
+  totalHerdMilkYieldLiters: string | null;
+  avgMilkYieldPerAnimalLiters: string | null;
+  milkFatPercent: string | null;
+  milkProteinPercent: string | null;
+  currentRationDescription: string | null;
+  currentLines: PublicRationLine[];
+  contact: { name: string; phone: string | null } | null;
+};
+
+export function requestLabReviewOtp(slug: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/ration-lab/${slug}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyLabReviewOtp(slug: string, phone: string, code: string) {
+  return apiFetch<{ labToken: string; expiresInSeconds: number }>(`/public/ration-lab/${slug}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function searchLabReviewSample(slug: string, labToken: string, sampleCode: string) {
+  return apiFetch<PublicRationSample>(`/public/ration-lab/${slug}/samples/search`, {
+    method: "POST",
+    body: JSON.stringify({ labToken, sampleCode }),
+  });
+}
+
+export function submitLabReviewReport(
+  slug: string,
+  sampleId: string,
+  data: {
+    labToken: string;
+    reviewedByName?: string;
+    currentRationIssues: string;
+    riskIfUnchanged: string;
+    newRecommendations: string;
+    expectedResult: string;
+    urgentWarningSigns: string;
+    proposedLines: { ingredientName: string; quantityPerAnimalKg: number; unitCostSnapshot: number }[];
+    addToKnowledge?: boolean;
+  },
+) {
+  return apiFetch<{ success: boolean }>(`/public/ration-lab/${slug}/samples/${sampleId}/report`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ── پورتال عمومی نتیجه‌ی آزمایش جیره برای دامدار (no auth) ───────────────
+
+export type PublicRationResultSample = { id: string; sampleCode: string; collectedAt: string; status: RationSampleStatus };
+
+export type PublicRationResultDetail = {
+  sampleCode: string;
+  collectedAt: string;
+  report: {
+    currentRationIssues: string;
+    riskIfUnchanged: string;
+    newRecommendations: string;
+    expectedResult: string;
+    urgentWarningSigns: string;
+    submittedAt: string;
+  };
+  economics: {
+    currentLines: PublicRationLine[];
+    proposedLines: PublicRationLine[];
+    currentTotalCost: number;
+    proposedTotalCost: number;
+    delta: number;
+  };
+};
+
+export function requestRationResultOtp(slug: string, phone: string) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/public/ration-result/${slug}/otp/request`, {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export function verifyRationResultOtp(slug: string, phone: string, code: string) {
+  return apiFetch<{ resultToken: string; expiresInSeconds: number }>(`/public/ration-result/${slug}/otp/verify`, {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
+export function fetchRationResultSamples(slug: string, resultToken: string) {
+  return apiFetch<PublicRationResultSample[]>(`/public/ration-result/${slug}/samples`, {
+    method: "POST",
+    body: JSON.stringify({ resultToken }),
+  });
+}
+
+export function fetchRationResultSample(slug: string, sampleId: string, resultToken: string) {
+  return apiFetch<PublicRationResultDetail>(`/public/ration-result/${slug}/samples/${sampleId}`, {
+    method: "POST",
+    body: JSON.stringify({ resultToken }),
   });
 }
 
