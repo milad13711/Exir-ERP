@@ -135,6 +135,30 @@ export class EmployeesController {
     res.send(buffer);
   }
 
+  @Get('template')
+  async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'hr');
+    const buffer = await buildExcelBuffer(
+      EMPLOYEE_EXCEL_HEADERS,
+      [
+        {
+          'کد پرسنلی': 'EMP-1001',
+          'نام کامل': 'علی رضایی',
+          سمت: 'حسابدار',
+          واحد: 'مالی',
+          تلفن: '09121234567',
+          ایمیل: 'ali@example.com',
+          'تاریخ استخدام': '1403-01-15',
+          'حقوق پایه': 15000000,
+        },
+      ],
+      'نمونه',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="employees-template.xlsx"');
+    res.send(buffer);
+  }
+
   /**
    * Upserts by کد پرسنلی: an existing code updates that employee, a new one
    * creates it. Rows missing کد پرسنلی, نام کامل or سمت are skipped rather

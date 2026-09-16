@@ -85,6 +85,27 @@ export class ContactsController {
     res.send(buffer);
   }
 
+  @Get('template')
+  async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    const buffer = await buildExcelBuffer(
+      CONTACT_EXCEL_HEADERS,
+      [
+        {
+          نام: 'شرکت نمونه',
+          نوع: 'شرکت',
+          شرکت: 'بازرگانی نمونه',
+          تلفن: '09121234567',
+          ایمیل: 'info@example.com',
+          آدرس: 'تهران',
+        },
+      ],
+      'نمونه',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="contacts-template.xlsx"');
+    res.send(buffer);
+  }
+
   /**
    * Contacts have no unique business key (phone is optional, unindexed) —
    * so this is best-effort dedup: a non-empty phone matching an existing

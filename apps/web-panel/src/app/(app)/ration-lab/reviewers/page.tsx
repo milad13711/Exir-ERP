@@ -15,6 +15,7 @@ import {
   type RationLabReviewer,
   type RationDiscountCode,
 } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 export default function RationLabReviewersPage() {
   const [reviewers, setReviewers] = useState<RationLabReviewer[] | null>(null);
@@ -96,6 +97,17 @@ export default function RationLabReviewersPage() {
         {error ? <div className="text-[12.5px] text-danger font-semibold mt-2">{error}</div> : null}
       </Card>
 
+      <div className="mt-4">
+        <ExcelImportExportBar
+          exportPath="/ration-lab/reviewers/export"
+          exportFilename="lab-reviewers.xlsx"
+          importPath="/ration-lab/reviewers/import"
+          templatePath="/ration-lab/reviewers/template"
+          templateFilename="lab-reviewers-template.xlsx"
+          onImported={reload}
+        />
+      </div>
+
       <Card className="mt-4 p-2">
         {reviewers === null ? (
           <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
@@ -164,6 +176,17 @@ export default function RationLabReviewersPage() {
         </div>
         {codeError ? <div className="text-[12.5px] text-danger font-semibold mt-2">{codeError}</div> : null}
       </Card>
+
+      <div className="mt-4">
+        <ExcelImportExportBar
+          exportPath="/ration-lab/discount-codes/export"
+          exportFilename="discount-codes.xlsx"
+          importPath="/ration-lab/discount-codes/import"
+          templatePath="/ration-lab/discount-codes/template"
+          templateFilename="discount-codes-template.xlsx"
+          onImported={reload}
+        />
+      </div>
 
       <Card className="mt-4 p-2">
         {codes === null ? (

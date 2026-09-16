@@ -18,6 +18,7 @@ import { NewProductionOrderModal } from "@/components/production/NewProductionOr
 import { NewBomModal } from "@/components/production/NewBomModal";
 import { NewWorkCenterModal } from "@/components/production/NewWorkCenterModal";
 import { ProductionOrderDetailModal } from "@/components/production/ProductionOrderDetailModal";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "orders" | "boms" | "workCenters";
@@ -148,7 +149,18 @@ export default function ProductionPage() {
           )}
         </Card>
       ) : (
-        <Card className="mt-5 p-2">
+        <>
+          <div className="flex items-center justify-end mt-5">
+            <ExcelImportExportBar
+              exportPath="/production/work-centers/export"
+              exportFilename="work-centers.xlsx"
+              importPath="/production/work-centers/import"
+              templatePath="/production/work-centers/template"
+              templateFilename="work-centers-template.xlsx"
+              onImported={reloadWorkCenters}
+            />
+          </div>
+        <Card className="mt-3 p-2">
           {workCenters === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : workCenters.length === 0 ? (
@@ -161,6 +173,7 @@ export default function ProductionPage() {
             ))
           )}
         </Card>
+        </>
       )}
 
       {newOrderOpen ? (

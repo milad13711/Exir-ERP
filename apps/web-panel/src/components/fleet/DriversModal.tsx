@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { fetchDrivers, createDriver, updateDriver, deactivateDriver, type Driver } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const inputClass =
   "w-full text-[12.5px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-2.5 py-2 focus:border-primary transition-colors";
@@ -154,6 +155,18 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
         </button>
 
         {addOpen ? <DriverForm onSave={handleCreate} onCancel={() => setAddOpen(false)} /> : null}
+
+        <ExcelImportExportBar
+          exportPath="/fleet/drivers/export"
+          exportFilename="drivers.xlsx"
+          importPath="/fleet/drivers/import"
+          templatePath="/fleet/drivers/template"
+          templateFilename="drivers-template.xlsx"
+          onImported={() => {
+            reload();
+            onChanged();
+          }}
+        />
 
         <div className="flex flex-col gap-2 max-h-[440px] overflow-y-auto">
           {drivers === null ? (

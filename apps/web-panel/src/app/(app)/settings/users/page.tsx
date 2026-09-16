@@ -24,6 +24,7 @@ import {
   type Employee,
 } from "@/lib/api";
 import { RolePermissionsModal } from "@/components/settings/RolePermissionsModal";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
 
 const roleTones: Record<string, "primary" | "accent" | "warning" | "neutral"> = {
@@ -356,10 +357,22 @@ export default function UsersRolesPage() {
       </div>
 
       <div className="mt-5.5">
-        <h2 className="text-[15px] font-extrabold mb-1">واحدهای سازمانی</h2>
-        <p className="text-[12.5px] text-muted mb-3.5">
-          هر واحد یک مدیر مشخص دارد که به تمام پرونده‌های پرسنلی اعضای همان واحد دسترسی نظارتی دارد.
-        </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-1">
+          <div>
+            <h2 className="text-[15px] font-extrabold">واحدهای سازمانی</h2>
+            <p className="text-[12.5px] text-muted mt-1">
+              هر واحد یک مدیر مشخص دارد که به تمام پرونده‌های پرسنلی اعضای همان واحد دسترسی نظارتی دارد.
+            </p>
+          </div>
+          <ExcelImportExportBar
+            exportPath="/hr/departments/export"
+            exportFilename="departments.xlsx"
+            importPath="/hr/departments/import"
+            templatePath="/hr/departments/template"
+            templateFilename="departments-template.xlsx"
+            onImported={reload}
+          />
+        </div>
 
         <Card className="p-4 mb-3.5">
           <form onSubmit={handleCreateDepartment} className="grid sm:grid-cols-3 gap-2 items-end">

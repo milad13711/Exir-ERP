@@ -25,6 +25,7 @@ import { NewEntryModal } from "@/components/accounting/NewEntryModal";
 import { EntryDetailModal } from "@/components/accounting/EntryDetailModal";
 import { NewAccountModal } from "@/components/accounting/NewAccountModal";
 import { LedgerModal } from "@/components/accounting/LedgerModal";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ReportsTab } from "@/components/accounting/ReportsTab";
 import { ReconciliationTab } from "@/components/accounting/ReconciliationTab";
 import { BudgetsTab } from "@/components/accounting/BudgetsTab";
@@ -184,7 +185,18 @@ export default function AccountingPage() {
           )}
         </Card>
       ) : (
-        <Card className="mt-5 p-2">
+        <>
+          <div className="flex items-center justify-end mt-5">
+            <ExcelImportExportBar
+              exportPath="/accounting/accounts/export"
+              exportFilename="accounts.xlsx"
+              importPath="/accounting/accounts/import"
+              templatePath="/accounting/accounts/template"
+              templateFilename="accounts-template.xlsx"
+              onImported={() => fetchAccounts().then(setAccounts).catch(() => {})}
+            />
+          </div>
+        <Card className="mt-3 p-2">
           {accounts === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : (
@@ -216,6 +228,7 @@ export default function AccountingPage() {
             ))
           )}
         </Card>
+        </>
       )}
 
       {newEntryOpen ? (

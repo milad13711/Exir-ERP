@@ -129,7 +129,14 @@ export function SuppliersModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <ExcelImportExportBar exportPath="/purchasing/suppliers/export" exportFilename="suppliers.xlsx" importPath="/purchasing/suppliers/import" onImported={reload} />
+        <ExcelImportExportBar
+          exportPath="/purchasing/suppliers/export"
+          exportFilename="suppliers.xlsx"
+          importPath="/purchasing/suppliers/import"
+          templatePath="/purchasing/suppliers/template"
+          templateFilename="suppliers-template.xlsx"
+          onImported={reload}
+        />
 
         {addOpen ? (
           <form onSubmit={handleAdd} className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">

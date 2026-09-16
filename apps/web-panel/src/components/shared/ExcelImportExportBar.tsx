@@ -6,11 +6,15 @@ export function ExcelImportExportBar({
   exportPath,
   exportFilename,
   importPath,
+  templatePath,
+  templateFilename,
   onImported,
 }: {
   exportPath: string;
   exportFilename: string;
   importPath: string;
+  templatePath?: string;
+  templateFilename?: string;
   onImported: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,6 +27,19 @@ export function ExcelImportExportBar({
     setError(null);
     try {
       await downloadExcelFile(exportPath, exportFilename);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownloadTemplate() {
+    if (!templatePath) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await downloadExcelFile(templatePath, templateFilename ?? "template.xlsx");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
     } finally {
@@ -51,6 +68,15 @@ export function ExcelImportExportBar({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
+        {templatePath ? (
+          <button
+            disabled={busy}
+            onClick={handleDownloadTemplate}
+            className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+          >
+            دانلود نمونه
+          </button>
+        ) : null}
         <button
           disabled={busy}
           onClick={handleExport}

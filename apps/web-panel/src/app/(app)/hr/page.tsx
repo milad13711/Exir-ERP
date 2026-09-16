@@ -143,7 +143,14 @@ export default function HrPage() {
               />
             </div>
             <div className="mr-auto">
-              <ExcelImportExportBar exportPath="/hr/employees/export" exportFilename="employees.xlsx" importPath="/hr/employees/import" onImported={reloadCore} />
+              <ExcelImportExportBar
+                exportPath="/hr/employees/export"
+                exportFilename="employees.xlsx"
+                importPath="/hr/employees/import"
+                templatePath="/hr/employees/template"
+                templateFilename="employees-template.xlsx"
+                onImported={reloadCore}
+              />
             </div>
           </div>
           <Card className="p-2">

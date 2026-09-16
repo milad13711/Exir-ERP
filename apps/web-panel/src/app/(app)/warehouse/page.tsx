@@ -155,7 +155,14 @@ export default function WarehousePage() {
               فقط کالاهای رو به اتمام
             </button>
             <div className="mr-auto">
-              <ExcelImportExportBar exportPath="/warehouse/products/export" exportFilename="products.xlsx" importPath="/warehouse/products/import" onImported={reload} />
+              <ExcelImportExportBar
+                exportPath="/warehouse/products/export"
+                exportFilename="products.xlsx"
+                importPath="/warehouse/products/import"
+                templatePath="/warehouse/products/template"
+                templateFilename="products-template.xlsx"
+                onImported={reload}
+              />
             </div>
           </div>
 

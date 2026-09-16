@@ -12,6 +12,7 @@ import {
   type QualityTestType,
   type QualityVerdict,
 } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const VERDICT_LABELS: Record<QualityVerdict, string> = { PENDING: "در انتظار نتیجه", PASS: "قبول", FAIL: "رد" };
 const VERDICT_TONES: Record<QualityVerdict, "success" | "danger" | "neutral"> = { PENDING: "neutral", PASS: "success", FAIL: "danger" };
@@ -188,6 +189,17 @@ export function QualityControlSection({ productionOrderId }: { productionOrderId
           + تعریف نوع آزمون جدید
         </button>
       )}
+
+      <div className="mt-3">
+        <ExcelImportExportBar
+          exportPath="/quality-control/test-types/export"
+          exportFilename="test-types.xlsx"
+          importPath="/quality-control/test-types/import"
+          templatePath="/quality-control/test-types/template"
+          templateFilename="test-types-template.xlsx"
+          onImported={() => fetchTestTypes().then(setTestTypes).catch(() => {})}
+        />
+      </div>
     </div>
   );
 }

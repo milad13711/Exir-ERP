@@ -190,7 +190,14 @@ export default function CrmPage() {
                 className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
               />
             </div>
-            <ExcelImportExportBar exportPath="/crm/contacts/export" exportFilename="contacts.xlsx" importPath="/crm/contacts/import" onImported={reloadContacts} />
+            <ExcelImportExportBar
+              exportPath="/crm/contacts/export"
+              exportFilename="contacts.xlsx"
+              importPath="/crm/contacts/import"
+              templatePath="/crm/contacts/template"
+              templateFilename="contacts-template.xlsx"
+              onImported={reloadContacts}
+            />
           </div>
           <Card className="p-2">
             {contacts === null ? (

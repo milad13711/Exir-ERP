@@ -78,6 +78,27 @@ export class SuppliersController {
     res.send(buffer);
   }
 
+  @Get('template')
+  async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'purchasing');
+    const buffer = await buildExcelBuffer(
+      SUPPLIER_EXCEL_HEADERS,
+      [
+        {
+          نام: 'تأمین‌کننده نمونه',
+          شرکت: 'بازرگانی نمونه',
+          تلفن: '09121234567',
+          ایمیل: 'supplier@example.com',
+          آدرس: 'تهران',
+        },
+      ],
+      'نمونه',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="suppliers-template.xlsx"');
+    res.send(buffer);
+  }
+
   /**
    * Best-effort dedup by phone (same rule as CreateSupplierDto's own match
    * logic): a non-empty phone matching an existing contact flips

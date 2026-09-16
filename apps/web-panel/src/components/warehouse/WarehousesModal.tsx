@@ -11,6 +11,7 @@ import {
   deleteWarehouse,
   type Warehouse,
 } from "@/lib/api";
+import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const inputClass =
   "text-[12.5px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-2.5 py-2 focus:border-primary transition-colors";
@@ -129,6 +130,18 @@ export function WarehousesModal({ onClose, onChanged }: { onClose: () => void; o
             </button>
           </form>
         ) : null}
+
+        <ExcelImportExportBar
+          exportPath="/warehouse/warehouses/export"
+          exportFilename="warehouses.xlsx"
+          importPath="/warehouse/warehouses/import"
+          templatePath="/warehouse/warehouses/template"
+          templateFilename="warehouses-template.xlsx"
+          onImported={() => {
+            reload();
+            onChanged?.();
+          }}
+        />
 
         <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
           {warehouses === null ? (

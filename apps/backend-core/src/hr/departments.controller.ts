@@ -1,11 +1,16 @@
-import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
+import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto.js';
+
+const DEPARTMENT_EXCEL_HEADERS = ['نام واحد'];
 
 const DEPARTMENT_INCLUDE = {
   manager: { select: { id: true, fullName: true } },
@@ -34,6 +39,57 @@ export class DepartmentsController {
       data: { name: dto.name, managerId: dto.managerId },
       include: DEPARTMENT_INCLUDE,
     });
+  }
+
+  @Get('export')
+  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'hr');
+    const departments = await ctx.tenantDb.department.findMany({ orderBy: { name: 'asc' } });
+    const buffer = await buildExcelBuffer(
+      DEPARTMENT_EXCEL_HEADERS,
+      departments.map((d) => ({ 'نام واحد': d.name })),
+      'واحدهای سازمانی',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="departments.xlsx"');
+    res.send(buffer);
+  }
+
+  @Get('template')
+  async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'hr');
+    const buffer = await buildExcelBuffer(DEPARTMENT_EXCEL_HEADERS, [{ 'نام واحد': 'واحد مالی' }], 'نمونه');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="departments-template.xlsx"');
+    res.send(buffer);
+  }
+
+  /** Rows whose نام واحد already exists are skipped — managers are assigned from the list afterward, not through import. */
+  @Post('import')
+  async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertCreate(ctx, 'hr');
+    const buffer = Buffer.from(dto.fileBase64, 'base64');
+    const rows = await parseExcelBuffer(buffer);
+
+    const results: ImportRowResult[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const name = String(row['نام واحد'] ?? '').trim();
+      if (!name) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'نام واحد خالی است' });
+        continue;
+      }
+      const existing = await ctx.tenantDb.department.findUnique({ where: { name } });
+      if (existing) {
+        results.push({ row: rowNumber, status: 'SKIPPED', reason: 'واحدی با این نام از قبل وجود دارد' });
+        continue;
+      }
+      await ctx.tenantDb.department.create({ data: { name } });
+      results.push({ row: rowNumber, status: 'CREATED' });
+    }
+
+    return summarize(results);
   }
 
   @Patch(':id')

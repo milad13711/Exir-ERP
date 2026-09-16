@@ -89,6 +89,29 @@ export class ProductsController {
     res.send(buffer);
   }
 
+  @Get('template')
+  async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    await this.permissions.assertView(ctx, 'warehouse');
+    const buffer = await buildExcelBuffer(
+      PRODUCT_EXCEL_HEADERS,
+      [
+        {
+          'کد کالا': 'P-1001',
+          نام: 'کالای نمونه',
+          واحد: 'عدد',
+          'دسته‌بندی': 'عمومی',
+          'قیمت خرید': 100000,
+          'قیمت فروش': 150000,
+          'نقطه سفارش مجدد': 10,
+        },
+      ],
+      'نمونه',
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="products-template.xlsx"');
+    res.send(buffer);
+  }
+
   /**
    * Upserts by SKU (کد کالا): an existing SKU updates that product, a new
    * one creates it. Rows missing either کد کالا or نام are skipped rather
