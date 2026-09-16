@@ -11,6 +11,9 @@ export function SiteHeader() {
           <Link href="/#products" className="hover:text-primary transition-colors">
             محصولات
           </Link>
+          <Link href="/about" className="hidden sm:inline hover:text-primary transition-colors">
+            درباره‌ی ما
+          </Link>
           <Link href="/industries" className="hidden sm:inline hover:text-primary transition-colors">
             صنف‌های اکسیر ERP
           </Link>

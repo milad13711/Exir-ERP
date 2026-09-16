@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EXIR_PRODUCTS, EXIR_INFRASTRUCTURE } from "@/lib/content";
+import { EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, COMPANY_INFO } from "@/lib/content";
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
@@ -61,17 +61,40 @@ export function SiteFooter() {
           <div className="text-[12px] font-bold text-white mb-3">ارتباط با ما</div>
           <ul className="flex flex-col gap-2 text-[12.5px]">
             <li>
+              <Link href="/about" className="hover:text-white transition-colors">
+                درباره‌ی ما
+              </Link>
+            </li>
+            <li>
               <Link href="/configure" className="hover:text-white transition-colors">
                 درخواست مشاوره و تماس با ما
               </Link>
             </li>
+            <li dir="ltr" className="text-right font-display">
+              {COMPANY_INFO.phone}
+            </li>
+            <li className="leading-relaxed">{COMPANY_INFO.address}</li>
           </ul>
         </div>
       </div>
 
       <div className="border-t border-white/10">
-        <div className="max-w-[1100px] mx-auto px-6 py-5 text-[11.5px] flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>© {year} اکسیر — همه‌ی حقوق محفوظ است.</span>
+        <div className="max-w-[1100px] mx-auto px-6 py-5 text-[11.5px] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span>
+            © {year} {COMPANY_INFO.legalName}
+            {COMPANY_INFO.registrationNumber ? ` — شماره ثبت ${COMPANY_INFO.registrationNumber}` : ""} — همه‌ی حقوق
+            محفوظ است.
+          </span>
+          <a
+            href={COMPANY_INFO.enamadBadge.verifyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="origin"
+            className="bg-white rounded-lg p-1 shrink-0"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={COMPANY_INFO.enamadBadge.logoUrl} alt="نماد اعتماد الکترونیکی" width={64} height={64} />
+          </a>
         </div>
       </div>
     </footer>

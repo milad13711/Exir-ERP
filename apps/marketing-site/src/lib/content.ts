@@ -95,6 +95,49 @@ export const EXIR_INFRASTRUCTURE: ExirProduct = {
   accent: "#1d4ed8",
 };
 
+/**
+ * اطلاعات رسمی شرکت — برای صفحه‌ی «درباره‌ی ما» و Schema.org Organization.
+ * شماره‌ی ثبت شرکت هنوز از طرف کاربر داده نشده — عمداً خالی/undefined
+ * می‌ماند تا یک عدد ساخته‌شده روی سایت درج نشود.
+ */
+export const COMPANY_INFO = {
+  legalName: "شرکت اکسیر تجارت امین",
+  registrationNumber: "62297" as string | undefined,
+  /** بلوک HTML رسمی نماد اعتماد الکترونیکی enamad.ir — عیناً همان کدی که در پنل enamad.ir برای این دامنه صادر شده. */
+  enamadBadge: {
+    verifyUrl: "https://trustseal.enamad.ir/?id=690012&Code=LdzeEp6aCUeVCBvUFkmlUsMwSE0hvPFC",
+    logoUrl: "https://trustseal.enamad.ir/logo.aspx?id=690012&Code=LdzeEp6aCUeVCBvUFkmlUsMwSE0hvPFC",
+  },
+  address: "شیراز، حدفاصل تپه تلویزیون و میدان ارم، ساختمان مدیریت دانشگاه شیراز، طبقه ۸، واحد ۸۰۶",
+  phone: "02182802081",
+  smsLine: "1000100707",
+  instagram: {
+    company: "eta.co.ir",
+    exiramlak: "exiramlak",
+    ceo: "thisismbaharami",
+  },
+};
+
+/** بیوگرافی مدیرعامل — برای صفحه‌ی «درباره‌ی ما» و Schema.org Person (سیگنال E-E-A-T برای سئو). */
+export const CEO_INFO = {
+  name: "دکتر میلاد بهرامی",
+  title: "مدیرعامل و بنیان‌گذار اکسیر — مشاور رشد کسب‌وکار",
+  expertise: "معماری فرایندهای کسب‌وکار، سیستم‌سازی کسب‌وکار براساس DNA سازمان و برند",
+  bio: "دکتر میلاد بهرامی، مدیرعامل و بنیان‌گذار اکسیر، مشاور رشد کسب‌وکار با تخصص در معماری فرایندهای سازمانی و سیستم‌سازی کسب‌وکار براساس DNA سازمان و برند است. همین رویکرد، پایه‌ی طراحی تمام محصولات خانواده‌ی اکسیر — از اکسیر ERP تا اکسیراملاک — قرار گرفته: هر کسب‌وکار، سیستمی متناسب با DNA خودش، نه یک قالب عمومی.",
+  achievements: [
+    "ثبت نام در کتاب «ادای احترام به موفقیت» (۱۴۰۳ / ۲۰۲۴)",
+    "انتخاب به‌عنوان یکی از ۱۰۰ کارآفرین برتر ایران (۱۴۰۴ / ۲۰۲۵)",
+    "نویسنده‌ی کتاب «سلطان قیف» (Funnel King) به همراه تیم تحقیق و توسعه‌ی اکسیر تجارت امین (۱۴۰۵ / ۲۰۲۶)",
+  ],
+  book: {
+    title: "سلطان قیف (Funnel King)",
+    description:
+      "کتابی نادر و استثنایی در حوزه‌ی قیف فروش سازمانی که با تمرینات عملی و ساده، مسیر فروش کسب‌وکار را قابل خودکارسازی می‌کند.",
+    url: "https://funnelking.ir",
+  },
+  personalSite: "https://thisismbahrami.ir",
+};
+
 export type FaqItem = { question: string; answer: string };
 
 /** برای بخش پرسش‌های پرتکرار صفحه‌ی اصلی + Schema.org FAQPage — هم برای رتبه در گوگل، هم برای این‌که پاسخ‌دهنده‌های هوش مصنوعی (ChatGPT/Perplexity/Gemini) مستقیماً از این متن نقل کنند. */
