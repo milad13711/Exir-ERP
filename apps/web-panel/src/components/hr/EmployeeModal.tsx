@@ -19,11 +19,13 @@ import {
   fetchPenalties,
   createPenalty,
   deletePenalty,
+  fetchDepartments,
   type EmployeeDetail,
   type Employee,
   type EmployeeDocumentType,
   type Certificate,
   type PersonnelActionEntry,
+  type Department,
 } from "@/lib/api";
 import { EmployeeKpiModal } from "./EmployeeKpiModal";
 import {
@@ -63,7 +65,8 @@ export function EmployeeModal({
   const [editing, setEditing] = useState(false);
   const [editFullName, setEditFullName] = useState("");
   const [editPosition, setEditPosition] = useState("");
-  const [editDepartment, setEditDepartment] = useState("");
+  const [editDepartmentId, setEditDepartmentId] = useState("");
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editBaseSalary, setEditBaseSalary] = useState("");
@@ -104,6 +107,9 @@ export function EmployeeModal({
   useEffect(reload, [employeeId]);
   useEffect(reloadCertificates, [employeeId]);
   useEffect(reloadActions, [employeeId]);
+  useEffect(() => {
+    fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
+  }, []);
 
   async function handleManagerChange(value: string) {
     setManagerId(value);
@@ -115,7 +121,7 @@ export function EmployeeModal({
     if (!employee) return;
     setEditFullName(employee.fullName);
     setEditPosition(employee.position);
-    setEditDepartment(employee.department ?? "");
+    setEditDepartmentId(employee.department?.id ?? "");
     setEditPhone(employee.phone ?? "");
     setEditEmail(employee.email ?? "");
     setEditBaseSalary(String(employee.baseSalary));
@@ -129,7 +135,7 @@ export function EmployeeModal({
       await updateEmployee(employeeId, {
         fullName: editFullName.trim(),
         position: editPosition.trim(),
-        department: editDepartment.trim() || undefined,
+        departmentId: editDepartmentId || undefined,
         phone: editPhone.trim() || undefined,
         email: editEmail.trim() || undefined,
         baseSalary: Number(editBaseSalary) || 0,
@@ -271,12 +277,18 @@ export function EmployeeModal({
                   placeholder="سمت"
                   className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
                 />
-                <input
-                  value={editDepartment}
-                  onChange={(e) => setEditDepartment(e.target.value)}
-                  placeholder="واحد (اختیاری)"
+                <select
+                  value={editDepartmentId}
+                  onChange={(e) => setEditDepartmentId(e.target.value)}
                   className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
-                />
+                >
+                  <option value="">بدون واحد سازمانی</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-2.5">
                 <input
@@ -333,7 +345,7 @@ export function EmployeeModal({
                   </div>
                   <div className="text-[12.5px] text-ink-soft mt-0.5">
                     {employee.position}
-                    {employee.department ? ` · ${employee.department}` : ""}
+                    {employee.department ? ` · ${employee.department.name}` : ""}
                   </div>
                   <div className="text-[11px] text-muted mt-1" dir="ltr">
                     {employee.employeeCode}

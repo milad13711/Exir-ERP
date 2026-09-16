@@ -168,7 +168,7 @@ export default function HrPage() {
                     <div className="text-[13.5px] font-bold truncate">{e.fullName}</div>
                     <div className="text-[11.5px] text-muted mt-0.5">
                       {e.position}
-                      {e.department ? ` · ${e.department}` : ""}
+                      {e.department ? ` · ${e.department.name}` : ""}
                     </div>
                   </div>
                   <div className="text-[12px] text-muted w-[140px] text-left shrink-0 hidden sm:block">
@@ -682,7 +682,7 @@ function OrgChartNode({
           <div className="text-[13px] font-bold truncate">{entry.fullName}</div>
           <div className="text-[11px] text-muted truncate">
             {entry.position}
-            {entry.department ? ` · ${entry.department}` : ""}
+            {entry.department ? ` · ${entry.department.name}` : ""}
           </div>
         </div>
       </button>

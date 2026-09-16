@@ -1245,7 +1245,7 @@ model Employee {
   fullName          String
   nationalId        String?
   position          String // سمت شغلی
-  department        String?
+  departmentId      String?
   phone             String?
   email             String?
   hireDate          DateTime
@@ -1265,6 +1265,9 @@ model Employee {
   manager       Employee?  @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
   directReports Employee[] @relation("EmployeeManager")
 
+  department         Department?  @relation("EmployeeDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  managedDepartments Department[] @relation("DepartmentManager")
+
   attendance    AttendanceRecord[]
   leaveRequests LeaveRequest[]
   payrollSlips  PayrollSlip[]
@@ -1276,7 +1279,23 @@ model Employee {
 
   @@index([createdAt])
   @@index([managerId])
+  @@index([departmentId])
   @@map("hr_employees")
+}
+
+/// واحد سازمانی — یک مدیر مشخص (managerId) ناظر تمام پرونده‌های پرسنلی
+/// این واحد است، مستقل از اینکه در زنجیره‌ی مدیریتی مستقیم آن‌ها باشد یا نه
+/// (getVisibleEmployeeIds در org-chain.util.ts هر دو مسیر را در نظر می‌گیرد).
+model Department {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  managerId String?
+  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  employees Employee[] @relation("EmployeeDepartment")
+  createdAt DateTime   @default(now())
+
+  @@index([managerId])
+  @@map("hr_departments")
 }
 
 enum EmployeeDocumentType {

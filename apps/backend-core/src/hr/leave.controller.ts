@@ -9,31 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto.js';
-
-/**
- * Walks the manager chain upward from `employeeId` and returns true if
- * `candidateManagerEmployeeId` appears anywhere above it — i.e. is the
- * employee's direct manager OR any manager further up the org chart, not
- * just the immediate one. Bounded to a sane depth as a guard against a
- * corrupted/cyclic managerId chain.
- */
-async function isInManagerChain(
-  tenantDb: TenantRequestContext['tenantDb'],
-  employeeId: string,
-  candidateManagerEmployeeId: string,
-): Promise<boolean> {
-  let currentId: string | null = employeeId;
-  for (let depth = 0; depth < 20 && currentId; depth++) {
-    const current: { managerId: string | null } | null = await tenantDb.employee.findUnique({
-      where: { id: currentId },
-      select: { managerId: true },
-    });
-    if (!current?.managerId) return false;
-    if (current.managerId === candidateManagerEmployeeId) return true;
-    currentId = current.managerId;
-  }
-  return false;
-}
+import { isInManagerChain } from './org-chain.util.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

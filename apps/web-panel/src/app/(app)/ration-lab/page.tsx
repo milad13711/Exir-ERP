@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-import { FlaskIcon } from "@/components/icons";
+import { FlaskIcon, SendIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
 import { fetchRationSamples, type RationSample, type RationSampleStatus } from "@/lib/api";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const STATUS_LABELS: Record<RationSampleStatus, string> = {
   AWAITING_LAB: "در انتظار آزمایشگاه",
@@ -25,12 +26,23 @@ type Filter = "ALL" | RationSampleStatus;
 export default function RationLabPage() {
   const [samples, setSamples] = useState<RationSample[] | null>(null);
   const [filter, setFilter] = useState<Filter>("ALL");
+  const [copied, setCopied] = useState<"lab" | "result" | null>(null);
+  const { me } = useWorkspace();
 
   useEffect(() => {
     fetchRationSamples().then(setSamples).catch(() => setSamples([]));
   }, []);
 
   const filtered = samples?.filter((s) => filter === "ALL" || s.status === filter) ?? null;
+
+  async function copyLink(kind: "lab" | "result") {
+    if (!me) return;
+    const path = kind === "lab" ? "lab-review" : "ration-result";
+    const url = `${window.location.origin}/${path}/${me.tenant.slug}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(kind);
+    setTimeout(() => setCopied(null), 2000);
+  }
 
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
@@ -42,7 +54,23 @@ export default function RationLabPage() {
           </div>
           <p className="text-[13.5px] text-muted mt-1">نمونه‌برداری از جیره‌ی دامداران و پیگیری نتیجه</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => copyLink("lab")}
+            disabled={!me}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+          >
+            <SendIcon className="w-4 h-4" />
+            {copied === "lab" ? "لینک کپی شد" : "لینک ورود آزمایشگاه"}
+          </button>
+          <button
+            onClick={() => copyLink("result")}
+            disabled={!me}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+          >
+            <SendIcon className="w-4 h-4" />
+            {copied === "result" ? "لینک کپی شد" : "لینک نتیجه برای دامدار"}
+          </button>
           <Link href="/ration-lab/reviewers" className="px-4 py-2.5 rounded-xl border border-border text-[12.5px] font-bold">
             کارشناسان آزمایشگاه
           </Link>
@@ -54,6 +82,11 @@ export default function RationLabPage() {
           </Link>
         </div>
       </div>
+
+      <p className="text-[11.5px] text-muted mt-3">
+        «لینک ورود آزمایشگاه» را فقط به کارشناسانی که در «کارشناسان آزمایشگاه» ثبت کرده‌اید بدهید — «لینک نتیجه برای
+        دامدار» را می‌توانید عمومی به همه‌ی دامداران بدهید، هرکس فقط نمونه‌های متصل به شماره‌ی خودش را می‌بیند.
+      </p>
 
       <div className="flex items-center gap-2 mt-6 border-b border-border overflow-x-auto">
         {(

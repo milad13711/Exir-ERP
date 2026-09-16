@@ -15,9 +15,11 @@ import { CertificateImageService } from './certificate-image.service.js';
 import { PersonnelRewardsController, PersonnelPenaltiesController } from './personnel-actions.controller.js';
 import { KpiController } from './kpi.controller.js';
 import { KpiService } from './kpi.service.js';
+import { DepartmentsController } from './departments.controller.js';
+import { UsersModule } from '../users/users.module.js';
 
 @Module({
-  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule],
+  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule, UsersModule],
   controllers: [
     EmployeesController,
     AttendanceController,
@@ -28,6 +30,7 @@ import { KpiService } from './kpi.service.js';
     PersonnelRewardsController,
     PersonnelPenaltiesController,
     KpiController,
+    DepartmentsController,
   ],
   providers: [PayrollPdfService, HrAutomationTriggers, CertificateImageService, KpiService],
   exports: [CertificateImageService],

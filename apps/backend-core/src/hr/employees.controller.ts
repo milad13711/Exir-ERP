@@ -17,16 +17,41 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { UsersService } from '../users/users.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { AssignManagerDto } from './dto/assign-manager.dto.js';
 import { CreateEmployeeDocumentDto } from './dto/create-employee-document.dto.js';
+import { getVisibleEmployeeIds } from './org-chain.util.js';
 
 const EMPLOYEE_EXCEL_HEADERS = ['کد پرسنلی', 'نام کامل', 'سمت', 'واحد', 'تلفن', 'ایمیل', 'تاریخ استخدام', 'حقوق پایه'];
+
+const EMPLOYEE_INCLUDE = { department: { select: { id: true, name: true } } };
+
+/**
+ * When the caller only has canViewOwn (not canViewAll) on 'hr', resolves
+ * which Employee ids they're allowed to see the full file of — themselves,
+ * everyone below them at any depth in the reporting chain, and everyone in
+ * a Department they're the designated manager of. Returns null for
+ * canViewAll/no-linked-employee-record callers, meaning "don't filter".
+ */
+async function resolveVisibilityFilter(
+  ctx: TenantRequestContext,
+  permissions: PermissionsService,
+): Promise<Set<string> | null> {
+  const matrix = await permissions.getEffective(ctx, 'hr');
+  if (matrix.canViewAll) return null;
+  const userId = await resolveTenantUserId(ctx);
+  if (!userId) return new Set();
+  const self = await ctx.tenantDb.employee.findUnique({ where: { userId }, select: { id: true } });
+  if (!self) return new Set();
+  return getVisibleEmployeeIds(ctx.tenantDb, self.id);
+}
 
 @Controller('hr/employees')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -35,6 +60,7 @@ export class EmployeesController {
   constructor(
     private readonly permissions: PermissionsService,
     private readonly automation: AutomationEngineService,
+    private readonly users: UsersService,
   ) {}
 
   @Get()
@@ -44,8 +70,10 @@ export class EmployeesController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertView(ctx, 'hr');
+    const visible = await resolveVisibilityFilter(ctx, this.permissions);
     return ctx.tenantDb.employee.findMany({
       where: {
+        ...(visible ? { id: { in: [...visible] } } : {}),
         ...(includeTerminated === 'true' ? {} : { status: 'ACTIVE' }),
         ...(q
           ? {
@@ -53,11 +81,12 @@ export class EmployeesController {
                 { fullName: { contains: q, mode: 'insensitive' } },
                 { employeeCode: { contains: q, mode: 'insensitive' } },
                 { position: { contains: q, mode: 'insensitive' } },
-                { department: { contains: q, mode: 'insensitive' } },
+                { department: { name: { contains: q, mode: 'insensitive' } } },
               ],
             }
           : {}),
       },
+      include: EMPLOYEE_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -67,7 +96,14 @@ export class EmployeesController {
   async orgChart(@Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'hr');
     return ctx.tenantDb.employee.findMany({
-      select: { id: true, fullName: true, position: true, department: true, managerId: true, status: true },
+      select: {
+        id: true,
+        fullName: true,
+        position: true,
+        managerId: true,
+        status: true,
+        department: { select: { id: true, name: true } },
+      },
       orderBy: { fullName: 'asc' },
     });
   }
@@ -75,14 +111,18 @@ export class EmployeesController {
   @Get('export')
   async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     await this.permissions.assertView(ctx, 'hr');
-    const employees = await ctx.tenantDb.employee.findMany({ where: { status: 'ACTIVE' }, orderBy: { fullName: 'asc' } });
+    const employees = await ctx.tenantDb.employee.findMany({
+      where: { status: 'ACTIVE' },
+      include: EMPLOYEE_INCLUDE,
+      orderBy: { fullName: 'asc' },
+    });
     const buffer = await buildExcelBuffer(
       EMPLOYEE_EXCEL_HEADERS,
       employees.map((e) => ({
         'کد پرسنلی': e.employeeCode,
         'نام کامل': e.fullName,
         سمت: e.position,
-        واحد: e.department ?? '',
+        واحد: e.department?.name ?? '',
         تلفن: e.phone ?? '',
         ایمیل: e.email ?? '',
         'تاریخ استخدام': e.hireDate.toISOString().slice(0, 10),
@@ -98,7 +138,8 @@ export class EmployeesController {
   /**
    * Upserts by کد پرسنلی: an existing code updates that employee, a new one
    * creates it. Rows missing کد پرسنلی, نام کامل or سمت are skipped rather
-   * than failing the whole import.
+   * than failing the whole import. «واحد» is matched/created by name —
+   * imports never had a departmentId to send, only the free-text label.
    */
   @Post('import')
   async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
@@ -125,10 +166,19 @@ export class EmployeesController {
         continue;
       }
 
+      const departmentName = String(row['واحد'] ?? '').trim();
+      const department = departmentName
+        ? await ctx.tenantDb.department.upsert({
+            where: { name: departmentName },
+            create: { name: departmentName },
+            update: {},
+          })
+        : null;
+
       const data = {
         fullName,
         position,
-        department: String(row['واحد'] ?? '').trim() || undefined,
+        departmentId: department?.id,
         phone: String(row['تلفن'] ?? '').trim() || undefined,
         email: String(row['ایمیل'] ?? '').trim() || undefined,
         hireDate,
@@ -153,12 +203,13 @@ export class EmployeesController {
     await this.permissions.assertCreate(ctx, 'hr');
     const existing = await ctx.tenantDb.employee.findUnique({ where: { employeeCode: dto.employeeCode } });
     if (existing) throw new ConflictException('کارمندی با این کد پرسنلی از قبل وجود دارد');
-    return ctx.tenantDb.employee.create({
+
+    const employee = await ctx.tenantDb.employee.create({
       data: {
         employeeCode: dto.employeeCode,
         fullName: dto.fullName,
         position: dto.position,
-        department: dto.department,
+        departmentId: dto.departmentId,
         nationalId: dto.nationalId,
         phone: dto.phone,
         email: dto.email,
@@ -167,12 +218,30 @@ export class EmployeesController {
         managerId: dto.managerId,
         userId: dto.userId,
       },
+      include: EMPLOYEE_INCLUDE,
     });
+
+    // ثبت پرسنل جدید + اعطای دسترسی سیستمی در یک مرحله — «دعوت کاربر» جدا
+    // در تنظیمات هم برای وقتی که دسترسی بعداً لازم شد همچنان در دسترس است.
+    if (dto.grantSystemAccess && dto.phone && dto.roleId && !dto.userId) {
+      const invited = await this.users.inviteUser(ctx, dto.fullName, dto.phone, dto.roleId);
+      return ctx.tenantDb.employee.update({
+        where: { id: employee.id },
+        data: { userId: invited.id },
+        include: EMPLOYEE_INCLUDE,
+      });
+    }
+
+    return employee;
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'hr');
+    const visible = await resolveVisibilityFilter(ctx, this.permissions);
+    if (visible && !visible.has(id)) {
+      throw new NotFoundException('کارمند یافت نشد یا اجازه‌ی مشاهده‌ی پرونده‌ی او را ندارید');
+    }
     const employee = await ctx.tenantDb.employee.findUnique({
       where: { id },
       include: {
@@ -182,6 +251,7 @@ export class EmployeesController {
         documents: { orderBy: { uploadedAt: 'desc' } },
         manager: { select: { id: true, fullName: true, position: true } },
         directReports: { select: { id: true, fullName: true, position: true } },
+        department: { select: { id: true, name: true } },
       },
     });
     if (!employee) throw new NotFoundException('کارمند یافت نشد');
@@ -203,13 +273,14 @@ export class EmployeesController {
         employeeCode: dto.employeeCode,
         fullName: dto.fullName,
         position: dto.position,
-        department: dto.department,
+        departmentId: dto.departmentId,
         nationalId: dto.nationalId,
         phone: dto.phone,
         email: dto.email,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         baseSalary: dto.baseSalary,
       },
+      include: EMPLOYEE_INCLUDE,
     });
   }
 

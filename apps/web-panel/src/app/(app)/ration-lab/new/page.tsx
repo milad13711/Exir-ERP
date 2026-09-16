@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { SignaturePad } from "@/components/ui/SignaturePad";
-import { toDateTimeLocalValue } from "@/lib/persian";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { fetchCrmContacts, createRationSample, ApiError, type CrmContact } from "@/lib/api";
 
 type CurrentLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: string };
+
+function todayIsoDate(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export default function NewRationSamplePage() {
   const router = useRouter();
@@ -15,7 +21,7 @@ export default function NewRationSamplePage() {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [selectedContact, setSelectedContact] = useState<CrmContact | null>(null);
 
-  const [collectedAt, setCollectedAt] = useState(toDateTimeLocalValue(new Date()));
+  const [collectedDate, setCollectedDate] = useState(todayIsoDate());
   const [herdSize, setHerdSize] = useState("");
   const [totalHerdMilkYieldLiters, setTotalHerdMilkYieldLiters] = useState("");
   const [avgMilkYieldPerAnimalLiters, setAvgMilkYieldPerAnimalLiters] = useState("");
@@ -56,7 +62,7 @@ export default function NewRationSamplePage() {
       const validLines = lines.filter((l) => l.ingredientName.trim() && l.quantityPerAnimalKg && l.unitCostSnapshot);
       const sample = await createRationSample({
         contactId: selectedContact.id,
-        collectedAt: new Date(collectedAt).toISOString(),
+        collectedAt: new Date(`${collectedDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
         herdSize: herdSize ? Number(herdSize) : undefined,
         totalHerdMilkYieldLiters: totalHerdMilkYieldLiters ? Number(totalHerdMilkYieldLiters) : undefined,
         avgMilkYieldPerAnimalLiters: avgMilkYieldPerAnimalLiters ? Number(avgMilkYieldPerAnimalLiters) : undefined,
@@ -132,14 +138,8 @@ export default function NewRationSamplePage() {
         </div>
 
         <div>
-          <label className="block text-[13px] font-semibold mb-2">تاریخ و ساعت نمونه‌برداری</label>
-          <input
-            type="datetime-local"
-            value={collectedAt}
-            onChange={(e) => setCollectedAt(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-primary outline-none text-[13px]"
-            dir="ltr"
-          />
+          <label className="block text-[13px] font-semibold mb-2">تاریخ نمونه‌برداری</label>
+          <JalaliDateInput value={collectedDate} onChange={setCollectedDate} />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">

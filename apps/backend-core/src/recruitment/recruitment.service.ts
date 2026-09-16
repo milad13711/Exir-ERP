@@ -434,13 +434,21 @@ export class RecruitmentService {
     if (applicant.stage !== 'MANAGEMENT_APPROVED') throw new BadRequestException('این متقاضی توسط مدیریت تأیید نشده است');
     if (!applicant.offer || applicant.offer.status !== 'ACCEPTED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط مدیر تأیید و سپس توسط متقاضی پذیرفته شود');
 
+    const department = dto.department
+      ? await ctx.tenantDb.department.upsert({
+          where: { name: dto.department },
+          create: { name: dto.department },
+          update: {},
+        })
+      : null;
+
     const employee = await ctx.tenantDb.employee.create({
       data: {
         employeeCode: dto.employeeCode,
         fullName: applicant.name,
         phone: applicant.phone,
         position: applicant.jobPosting.title,
-        department: dto.department,
+        departmentId: department?.id,
         hireDate: applicant.offer.startDate ?? new Date(),
         baseSalary: applicant.offer.salary,
         status: 'ACTIVE',

@@ -487,6 +487,14 @@ export function updateRolePermissions(roleId: string, entries: ModulePermissionE
   });
 }
 
+export function createRole(name: string) {
+  return apiFetch<TenantRoleWithPermissions>("/roles", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function deleteRole(roleId: string) {
+  return apiFetch<{ success: boolean }>(`/roles/${roleId}`, { method: "DELETE" });
+}
+
 // ── Tasks ────────────────────────────────────────────────────────────────
 
 export type ApiTask = {
@@ -1899,7 +1907,7 @@ export type Employee = {
   fullName: string;
   nationalId: string | null;
   position: string;
-  department: string | null;
+  department: { id: string; name: string } | null;
   phone: string | null;
   email: string | null;
   hireDate: string;
@@ -1915,10 +1923,35 @@ export type OrgChartEntry = {
   id: string;
   fullName: string;
   position: string;
-  department: string | null;
+  department: { id: string; name: string } | null;
   managerId: string | null;
   status: EmploymentStatus;
 };
+
+export type Department = {
+  id: string;
+  name: string;
+  managerId: string | null;
+  manager: { id: string; fullName: string } | null;
+  _count: { employees: number };
+  createdAt: string;
+};
+
+export function fetchDepartments() {
+  return apiFetch<Department[]>("/hr/departments");
+}
+
+export function createDepartment(data: { name: string; managerId?: string }) {
+  return apiFetch<Department>("/hr/departments", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateDepartment(id: string, data: { name?: string; managerId?: string | null }) {
+  return apiFetch<Department>(`/hr/departments/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteDepartment(id: string) {
+  return apiFetch<{ success: boolean }>(`/hr/departments/${id}`, { method: "DELETE" });
+}
 
 export type EmployeeDocumentType = "CONTRACT" | "NATIONAL_ID" | "DEGREE_CERTIFICATE" | "OTHER";
 
@@ -2001,13 +2034,15 @@ export function createEmployee(data: {
   employeeCode: string;
   fullName: string;
   position: string;
-  department?: string;
+  departmentId?: string;
   nationalId?: string;
   phone?: string;
   email?: string;
   hireDate: string;
   baseSalary?: number;
   managerId?: string;
+  grantSystemAccess?: boolean;
+  roleId?: string;
 }) {
   return apiFetch<Employee>("/hr/employees", { method: "POST", body: JSON.stringify(data) });
 }
@@ -2025,7 +2060,7 @@ export function updateEmployee(
     employeeCode: string;
     fullName: string;
     position: string;
-    department: string;
+    departmentId: string;
     nationalId: string;
     phone: string;
     email: string;

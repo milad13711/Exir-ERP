@@ -15,7 +15,7 @@ export class CreateEmployeeDto {
 
   @IsOptional()
   @IsString()
-  department?: string;
+  departmentId?: string;
 
   @IsOptional()
   @IsString()
@@ -44,4 +44,12 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  /** اگر true، بعد از ساخت کارمند بلافاصله یک اکانت ورود (با phone/roleId) هم برایش ساخته و به همین رکورد وصل می‌شود. */
+  @IsOptional()
+  grantSystemAccess?: boolean;
+
+  @IsOptional()
+  @IsString()
+  roleId?: string;
 }

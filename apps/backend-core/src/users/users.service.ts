@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -27,6 +27,29 @@ export class UsersService {
       include: { permissions: { include: { permission: true } }, modulePermissions: true },
       orderBy: { name: 'asc' },
     });
+  }
+
+  /**
+   * A brand-new role always starts with no ModulePermission rows (no
+   * access anywhere) — same shape `listRoles` returns, so the caller can
+   * feed the result straight into the same permission-matrix editor used
+   * for existing roles, no separate "new role" UI needed.
+   */
+  async createRole(ctx: TenantRequestContext, name: string) {
+    const existing = await ctx.tenantDb.role.findUnique({ where: { name } });
+    if (existing) throw new ConflictException('نقشی با این نام از قبل وجود دارد');
+    return ctx.tenantDb.role.create({
+      data: { name, isSystem: false },
+      include: { permissions: { include: { permission: true } }, modulePermissions: true },
+    });
+  }
+
+  /** System roles (seeded per tenant, e.g. "مدیر سیستم") can never be removed — everything else can. */
+  async deleteRole(ctx: TenantRequestContext, roleId: string) {
+    const role = await ctx.tenantDb.role.findUniqueOrThrow({ where: { id: roleId } });
+    if (role.isSystem) throw new ForbiddenException('نقش‌های پیش‌فرض سیستم قابل حذف نیستند');
+    await ctx.tenantDb.role.delete({ where: { id: roleId } });
+    return { success: true };
   }
 
   /**

@@ -9,10 +9,19 @@ import {
   fetchRoles,
   fetchRolesWithPermissions,
   inviteUser,
+  createRole,
+  deleteRole,
+  fetchDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+  fetchEmployees,
   ApiError,
   type TenantUser,
   type TenantRoleOption,
   type TenantRoleWithPermissions,
+  type Department,
+  type Employee,
 } from "@/lib/api";
 import { RolePermissionsModal } from "@/components/settings/RolePermissionsModal";
 import { ShieldIcon } from "@/components/icons";
@@ -35,6 +44,16 @@ export default function UsersRolesPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [showNewRole, setShowNewRole] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [roleError, setRoleError] = useState<string | null>(null);
+
+  const [departments, setDepartments] = useState<Department[] | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptManagerId, setNewDeptManagerId] = useState("");
+  const [deptError, setDeptError] = useState<string | null>(null);
+
   function reload() {
     fetchUsers().then(setUsers).catch(() => setUsers([]));
     fetchRoles().then((r) => {
@@ -42,6 +61,8 @@ export default function UsersRolesPage() {
       setRoleId((current) => current || r[0]?.id || "");
     });
     fetchRolesWithPermissions().then(setRolesWithPerms).catch(() => setRolesWithPerms([]));
+    fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
+    fetchEmployees().then(setEmployees).catch(() => setEmployees([]));
   }
 
   useEffect(reload, []);
@@ -60,6 +81,55 @@ export default function UsersRolesPage() {
       setError(err instanceof ApiError ? err.message : "افزودن کاربر با خطا مواجه شد");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCreateRole(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newRoleName.trim()) return;
+    setRoleError(null);
+    try {
+      const role = await createRole(newRoleName.trim());
+      setNewRoleName("");
+      setShowNewRole(false);
+      reload();
+      setEditingRole(role);
+    } catch (err) {
+      setRoleError(err instanceof ApiError ? err.message : "ساخت نقش با خطا مواجه شد");
+    }
+  }
+
+  async function handleDeleteRole(id: string) {
+    if (!confirm("این نقش حذف شود؟")) return;
+    try {
+      await deleteRole(id);
+      reload();
+    } catch (err) {
+      setRoleError(err instanceof ApiError ? err.message : "حذف نقش با خطا مواجه شد");
+    }
+  }
+
+  async function handleCreateDepartment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newDeptName.trim()) return;
+    setDeptError(null);
+    try {
+      await createDepartment({ name: newDeptName.trim(), managerId: newDeptManagerId || undefined });
+      setNewDeptName("");
+      setNewDeptManagerId("");
+      reload();
+    } catch (err) {
+      setDeptError(err instanceof ApiError ? err.message : "ساخت واحد سازمانی با خطا مواجه شد");
+    }
+  }
+
+  async function handleDeleteDepartment(id: string) {
+    if (!confirm("این واحد سازمانی حذف شود؟")) return;
+    try {
+      await deleteDepartment(id);
+      reload();
+    } catch (err) {
+      setDeptError(err instanceof ApiError ? err.message : "حذف واحد سازمانی با خطا مواجه شد");
     }
   }
 
@@ -217,10 +287,40 @@ export default function UsersRolesPage() {
       </Card>
 
       <div className="mt-5.5">
-        <h2 className="text-[15px] font-extrabold mb-1">نقش‌ها و سطح دسترسی</h2>
+        <div className="flex items-baseline justify-between mb-1 gap-4">
+          <h2 className="text-[15px] font-extrabold">نقش‌ها و سطح دسترسی</h2>
+          <button
+            onClick={() => setShowNewRole((v) => !v)}
+            className="text-[12.5px] font-bold text-primary bg-primary-soft px-3.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+          >
+            + نقش جدید
+          </button>
+        </div>
         <p className="text-[12.5px] text-muted mb-3.5">
           برای هر نقش تعیین کنید در هر بخش چه کاری مجاز است — مشاهده همه یا فقط رکوردهای خودشان، ایجاد، ویرایش، حذف
         </p>
+
+        {showNewRole ? (
+          <Card className="p-4 mb-3.5">
+            <form onSubmit={handleCreateRole} className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="block text-[12.5px] font-semibold mb-1.5">نام نقش جدید</label>
+                <input
+                  autoFocus
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder="مثلاً سرپرست انبار"
+                  className="w-full px-3 py-2.5 rounded-[10px] border border-border text-[13px] outline-none focus:border-primary"
+                />
+              </div>
+              <button type="submit" className="py-2.5 px-4.5 rounded-[10px] bg-primary text-white text-[13px] font-bold whitespace-nowrap">
+                ساخت و تنظیم دسترسی
+              </button>
+            </form>
+            {roleError ? <div className="text-[12.5px] text-danger font-semibold mt-2">{roleError}</div> : null}
+          </Card>
+        ) : null}
+
         <Card className="p-2">
           {rolesWithPerms.map((r, i) => (
             <div
@@ -233,15 +333,112 @@ export default function UsersRolesPage() {
                 <span className="text-[13px] font-bold">{r.name}</span>
                 {r.isSystem ? <Badge tone="neutral">پیش‌فرض</Badge> : null}
               </div>
-              <button
-                onClick={() => setEditingRole(r)}
-                className="flex items-center gap-1.5 text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
-              >
-                <ShieldIcon className="w-3.5 h-3.5" />
-                تنظیم دسترسی
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setEditingRole(r)}
+                  className="flex items-center gap-1.5 text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
+                >
+                  <ShieldIcon className="w-3.5 h-3.5" />
+                  تنظیم دسترسی
+                </button>
+                {!r.isSystem ? (
+                  <button
+                    onClick={() => handleDeleteRole(r.id)}
+                    className="text-[12px] font-bold text-danger px-2.5 py-1.5 rounded-lg cursor-pointer"
+                  >
+                    حذف
+                  </button>
+                ) : null}
+              </div>
             </div>
           ))}
+        </Card>
+      </div>
+
+      <div className="mt-5.5">
+        <h2 className="text-[15px] font-extrabold mb-1">واحدهای سازمانی</h2>
+        <p className="text-[12.5px] text-muted mb-3.5">
+          هر واحد یک مدیر مشخص دارد که به تمام پرونده‌های پرسنلی اعضای همان واحد دسترسی نظارتی دارد.
+        </p>
+
+        <Card className="p-4 mb-3.5">
+          <form onSubmit={handleCreateDepartment} className="grid sm:grid-cols-3 gap-2 items-end">
+            <div>
+              <label className="block text-[12.5px] font-semibold mb-1.5">نام واحد</label>
+              <input
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+                placeholder="مثلاً انبار"
+                className="w-full px-3 py-2.5 rounded-[10px] border border-border text-[13px] outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-[12.5px] font-semibold mb-1.5">مدیر واحد</label>
+              <select
+                value={newDeptManagerId}
+                onChange={(e) => setNewDeptManagerId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-[10px] border border-border text-[13px] outline-none focus:border-primary bg-white"
+              >
+                <option value="">بدون مدیر</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.fullName} — {emp.position}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="py-2.5 rounded-[10px] bg-primary text-white text-[13px] font-bold">
+              + افزودن واحد
+            </button>
+          </form>
+          {deptError ? <div className="text-[12.5px] text-danger font-semibold mt-2">{deptError}</div> : null}
+        </Card>
+
+        <Card className="p-2">
+          {departments === null ? (
+            <div className="p-6 text-center text-muted text-sm">در حال بارگذاری...</div>
+          ) : departments.length === 0 ? (
+            <div className="p-6 text-center text-muted text-sm">هنوز واحد سازمانی‌ای ثبت نشده است</div>
+          ) : (
+            departments.map((d, i) => (
+              <div
+                key={d.id}
+                className={`flex items-center justify-between gap-3 px-4 py-3 ${
+                  i < departments.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <div>
+                  <div className="text-[13px] font-bold">{d.name}</div>
+                  <div className="text-[11.5px] text-muted mt-0.5">
+                    {toPersianDigits(d._count.employees)} کارمند
+                    {d.manager ? ` · مدیر: ${d.manager.fullName}` : " · بدون مدیر"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={d.managerId ?? ""}
+                    onChange={async (e) => {
+                      await updateDepartment(d.id, { managerId: e.target.value || null });
+                      reload();
+                    }}
+                    className="text-[12px] px-2.5 py-1.5 rounded-lg border border-border bg-white"
+                  >
+                    <option value="">بدون مدیر</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  {d._count.employees === 0 ? (
+                    <button onClick={() => handleDeleteDepartment(d.id)} className="text-[12px] font-bold text-danger">
+                      حذف
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
         </Card>
       </div>
 
