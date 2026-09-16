@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { COMPANY_INFO, CEO_INFO, GROUP_BRAND } from "@/lib/content";
 import { MapPinIcon, PhoneIcon, MessageIcon, InstagramIcon, BookIcon, AwardIcon } from "@/components/icons";
 
@@ -26,6 +27,7 @@ export default function AboutPage() {
     "@type": "Organization",
     name: COMPANY_INFO.legalName,
     alternateName: GROUP_BRAND.name,
+    logo: "/logo-icon.png",
     ...(COMPANY_INFO.registrationNumber ? { taxID: COMPANY_INFO.registrationNumber } : {}),
     address: { "@type": "PostalAddress", streetAddress: COMPANY_INFO.address, addressCountry: "IR" },
     telephone: COMPANY_INFO.phone,
@@ -41,6 +43,14 @@ export default function AboutPage() {
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="bg-primary text-white">
         <div className="max-w-[820px] mx-auto px-6 py-16 sm:py-20 text-center">
+          <Image
+            src="/logo-icon-transparent.png"
+            alt=""
+            width={64}
+            height={64}
+            className="mx-auto mb-5"
+            priority
+          />
           <span className="text-[12px] font-bold text-white/60 uppercase tracking-wide">درباره‌ی ما</span>
           <h1 className="font-display text-[28px] sm:text-[36px] font-extrabold mt-2 leading-[1.4]">
             {COMPANY_INFO.legalName}

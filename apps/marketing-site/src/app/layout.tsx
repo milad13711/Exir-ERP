@@ -26,6 +26,15 @@ export const metadata: Metadata = {
     description: GROUP_BRAND.subClaim,
     locale: "fa_IR",
     type: "website",
+    images: ["/logo-full.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -39,6 +48,7 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: GROUP_BRAND.name,
   description: `${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
+  logo: `${SITE_URL}/logo-icon.png`,
   inLanguage: "fa-IR",
   brand: [...EXIR_PRODUCTS.filter((p) => p.status === "live"), EXIR_INFRASTRUCTURE].map((p) => ({
     "@type": "SoftwareApplication",

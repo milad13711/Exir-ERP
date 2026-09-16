@@ -1,11 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function SiteHeader() {
   return (
     <header className="border-b border-border bg-surface">
       <div className="max-w-[1100px] mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="font-display text-[17px] font-extrabold text-primary">
-          اکسیر
+        <Link href="/" className="flex items-center gap-2">
+          <Image src="/logo-icon.png" alt="" width={34} height={34} className="rounded-full" priority />
+          <span className="font-display text-[17px] font-extrabold text-primary">اکسیر</span>
         </Link>
         <nav className="flex items-center gap-5 text-[13px] font-semibold text-ink-soft">
           <Link href="/#products" className="hover:text-primary transition-colors">
