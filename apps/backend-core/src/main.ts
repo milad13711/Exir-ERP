@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
@@ -14,7 +15,19 @@ import { AppModule } from './app.module.js';
 };
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Every image this app handles (profile avatar, e-signature/stamp,
+  // employee documents, product photos, campaign/QR/certificate images...)
+  // is sent as a base64 data URI inside a plain JSON body, never as a
+  // multipart file upload — there's no upload/storage layer at all, by
+  // design (see Attachment model's own comment). Express's body-parser
+  // defaults to a 100kb limit, which silently rejects nearly any real
+  // photo with a bare 413 (no JSON body, so the frontend's generic
+  // "server error" message is all that ever surfaces) — this raises it
+  // tenant-wide instead of per-route.
+  app.useBodyParser('json', { limit: '20mb' });
+  app.useBodyParser('urlencoded', { limit: '20mb', extended: true });
 
   app.enableCors({
     // `|| ` (not `??`) so an accidentally-empty CORS_ORIGINS in .env (e.g.
