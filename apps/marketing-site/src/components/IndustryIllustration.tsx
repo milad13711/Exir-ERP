@@ -1,5 +1,23 @@
-/** یک تصویر برداری ساده و متناسب با هر صنف — نه یک آیکون تکی، یک صحنه‌ی کوچک. */
+/** صنف‌هایی که برایشان عکس واقعی داریم (public/industries/) — بقیه همچنان صحنه‌ی برداری زیر را می‌گیرند. */
+const PHOTO_CODES = new Set([
+  "livestock-feed",
+  "retail-store",
+  "restaurant-cafe",
+  "technical-services",
+  "wholesale-distribution",
+  "auto-service",
+  "business-consulting",
+]);
+
+/** برای صنف‌هایی که عکس واقعی دارند یک `<img>` تمام‌قد، وگرنه یک تصویر برداری ساده و متناسب با هر صنف — نه یک آیکون تکی، یک صحنه‌ی کوچک. */
 export function IndustryIllustration({ code, color = "#4338ca" }: { code: string; color?: string }) {
+  if (PHOTO_CODES.has(code)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={`/industries/${code}.jpg`} alt="" className="w-full h-full object-cover" />
+    );
+  }
+
   const props = { viewBox: "0 0 200 140", className: "w-full h-full", xmlns: "http://www.w3.org/2000/svg" };
 
   switch (code) {
