@@ -55,7 +55,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <span className="text-[17px] font-extrabold">اکسیر ERP</span>
       </div>
 
-      <nav className="flex flex-col gap-0.5">
+      <nav className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-y-auto">
         {visiblePrimaryNav.map((item) => (
           <NavLink
             key={item.href}
@@ -79,7 +79,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="mt-auto p-3.5 rounded-2xl bg-accent-soft border border-teal-100">
+      <div className="shrink-0 mt-3 p-3.5 rounded-2xl bg-accent-soft border border-teal-100">
         <div className="text-[12.5px] text-teal-800 font-semibold leading-relaxed flex items-center gap-1.5">
           <DocsIcon className="w-4 h-4 shrink-0" />
           به مستندات API، وب‌هوک و MCP نیاز دارید؟
