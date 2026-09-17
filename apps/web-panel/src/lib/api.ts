@@ -3455,6 +3455,8 @@ export type VoipConfig = { providerCode: string; config: Record<string, unknown>
 
 export type VoipExtension = { id: string; extension: string; user: { id: string; name: string } };
 
+export type MyVoipExtension = { id: string; extension: string; sipUsername: string | null; sipPassword: string | null } | null;
+
 export function fetchVoipProviders() {
   return apiFetch<VoipProvider[]>("/voip/providers");
 }
@@ -3471,8 +3473,12 @@ export function fetchVoipExtensions() {
   return apiFetch<VoipExtension[]>("/voip/extensions");
 }
 
-export function saveMyVoipExtension(extension: string) {
-  return apiFetch<VoipExtension>("/voip/extensions/me", { method: "PUT", body: JSON.stringify({ extension }) });
+export function fetchMyVoipExtension() {
+  return apiFetch<MyVoipExtension>("/voip/extensions/me");
+}
+
+export function saveMyVoipExtension(data: { extension: string; sipUsername?: string; sipPassword?: string }) {
+  return apiFetch<MyVoipExtension>("/voip/extensions/me", { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function originateCall(toNumber: string, contactId?: string) {

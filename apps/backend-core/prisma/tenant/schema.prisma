@@ -1853,6 +1853,16 @@ model VoipExtension {
   userId    String @unique
   extension String
 
+  /**
+   * برای اتصال مستقیم یک تلفن/سافت‌فون IP (SIP) به سانترال — جدا از
+   * `extension` که فقط برای مچ‌کردن رویداد وب‌هوک «تماس ورودی» با کاربر
+   * استفاده می‌شود. دامنه‌ی ثبت‌نام SIP (مثل voice.navaphone.com) در
+   * VoipProviderConfig.config ذخیره می‌شود چون بین همه‌ی کاربران تننت
+   * مشترک است؛ نام‌کاربری/رمز اینجا چون هرکاربر مقدار خودش را دارد.
+   */
+  sipUsername String?
+  sipPassword String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("voip_extensions")

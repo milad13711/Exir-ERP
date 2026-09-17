@@ -56,9 +56,20 @@ export class VoipController {
     });
   }
 
+  /** Never includes sipUsername/sipPassword — this list is visible to every VoIP-module user, not just admins, and a SIP password is a real credential. */
   @Get('extensions')
   async listExtensions(@Ctx() ctx: TenantRequestContext) {
-    return ctx.tenantDb.voipExtension.findMany({ include: { user: { select: { id: true, name: true } } } });
+    return ctx.tenantDb.voipExtension.findMany({
+      select: { id: true, extension: true, user: { select: { id: true, name: true } } },
+    });
+  }
+
+  /** Only the caller's own SIP credentials — for showing on-screen so they can punch them into their IP phone. */
+  @Get('extensions/me')
+  async getMyExtension(@Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    if (!userId) throw new BadRequestException('کاربر تننت‌محور یافت نشد');
+    return ctx.tenantDb.voipExtension.findUnique({ where: { userId } });
   }
 
   @Put('extensions/me')
@@ -67,8 +78,8 @@ export class VoipController {
     if (!userId) throw new BadRequestException('کاربر تننت‌محور یافت نشد');
     return ctx.tenantDb.voipExtension.upsert({
       where: { userId },
-      create: { userId, extension: dto.extension },
-      update: { extension: dto.extension },
+      create: { userId, extension: dto.extension, sipUsername: dto.sipUsername, sipPassword: dto.sipPassword },
+      update: { extension: dto.extension, sipUsername: dto.sipUsername, sipPassword: dto.sipPassword },
     });
   }
 

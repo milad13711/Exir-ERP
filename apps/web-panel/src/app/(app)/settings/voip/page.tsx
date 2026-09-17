@@ -7,12 +7,14 @@ import {
   fetchVoipConfig,
   saveVoipConfig,
   fetchVoipExtensions,
+  fetchMyVoipExtension,
   saveMyVoipExtension,
   API_URL,
   ApiError,
   type VoipProvider,
   type VoipConfig,
   type VoipExtension,
+  type MyVoipExtension,
 } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 
@@ -31,6 +33,8 @@ export default function VoipSettingsPage() {
 
   const [extensions, setExtensions] = useState<VoipExtension[]>([]);
   const [myExtension, setMyExtension] = useState("");
+  const [mySipUsername, setMySipUsername] = useState("");
+  const [mySipPassword, setMySipPassword] = useState("");
   const [savingExtension, setSavingExtension] = useState(false);
 
   useEffect(() => {
@@ -45,6 +49,14 @@ export default function VoipSettingsPage() {
       })
       .catch(() => {});
     fetchVoipExtensions().then(setExtensions).catch(() => setExtensions([]));
+    fetchMyVoipExtension()
+      .then((e: MyVoipExtension) => {
+        if (!e) return;
+        setMyExtension(e.extension);
+        setMySipUsername(e.sipUsername ?? "");
+        setMySipPassword(e.sipPassword ?? "");
+      })
+      .catch(() => {});
   }, []);
 
   const selectedProvider = providers.find((p) => p.code === providerCode);
@@ -64,12 +76,16 @@ export default function VoipSettingsPage() {
     }
   }
 
-  async function handleSaveExtension(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveExtension(e?: React.SyntheticEvent) {
+    e?.preventDefault();
     if (!myExtension.trim()) return;
     setSavingExtension(true);
     try {
-      await saveMyVoipExtension(myExtension.trim());
+      await saveMyVoipExtension({
+        extension: myExtension.trim(),
+        sipUsername: mySipUsername.trim() || undefined,
+        sipPassword: mySipPassword.trim() || undefined,
+      });
       fetchVoipExtensions().then(setExtensions).catch(() => {});
     } finally {
       setSavingExtension(false);
@@ -77,6 +93,7 @@ export default function VoipSettingsPage() {
   }
 
   const webhookUrl = config && me ? `${API_URL}/public/voip/webhook/${me.tenant.slug}/${config.providerCode}?secret=${config.webhookSecret}` : null;
+  const sipDomain = typeof config?.config.sipDomain === "string" ? config.config.sipDomain : null;
 
   return (
     <div className="flex flex-col gap-6 max-w-[640px]">
@@ -134,26 +151,29 @@ export default function VoipSettingsPage() {
       </Card>
 
       <Card className="p-4">
-        <div className="text-[13px] font-bold mb-3">داخلی VoIP من</div>
-        <form onSubmit={handleSaveExtension} className="flex items-center gap-2">
-          <input
-            value={myExtension}
-            onChange={(e) => setMyExtension(e.target.value)}
-            placeholder="مثلاً 101"
-            className={`${inputClass} flex-1`}
-            dir="ltr"
-          />
+        <div className="text-[13px] font-bold mb-1">داخلی VoIP من</div>
+        <p className="text-[11px] text-muted mb-3">
+          وقتی تماسی به این داخلی برسد، پاپ‌آپ آن روی پنل شما نمایش داده می‌شود.
+        </p>
+        <form onSubmit={handleSaveExtension} className="flex flex-col gap-3">
+          <div>
+            <label className={labelClass}>داخلی (برای پاپ‌آپ تماس ورودی)</label>
+            <input
+              value={myExtension}
+              onChange={(e) => setMyExtension(e.target.value)}
+              placeholder="مثلاً 101"
+              className={inputClass}
+              dir="ltr"
+            />
+          </div>
           <button
             type="submit"
             disabled={savingExtension || !myExtension.trim()}
-            className="text-[12.5px] font-bold text-white bg-primary px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50 shrink-0"
+            className="self-start text-[12.5px] font-bold text-white bg-primary px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
           >
-            ذخیره
+            {savingExtension ? "در حال ذخیره..." : "ذخیره"}
           </button>
         </form>
-        <p className="text-[11px] text-muted mt-2">
-          وقتی تماسی به این داخلی برسد، پاپ‌آپ آن روی پنل شما نمایش داده می‌شود.
-        </p>
 
         {extensions.length > 0 ? (
           <div className="mt-4 pt-4 border-t border-border flex flex-col gap-1.5">
@@ -166,6 +186,54 @@ export default function VoipSettingsPage() {
               </div>
             ))}
           </div>
+        ) : null}
+      </Card>
+
+      <Card className="p-4">
+        <div className="text-[13px] font-bold mb-1">اتصال تلفن IP / سافت‌فون من</div>
+        <p className="text-[11px] text-muted mb-3">
+          این سه مقدار را داخل تنظیمات تلفن IP یا اپلیکیشن سافت‌فون خودتان وارد کنید تا مستقیماً به سانترال سازمان
+          وصل شوید و بتوانید تماس بگیرید/دریافت کنید — جدا از «داخلی» بالا که فقط برای پاپ‌آپ روی همین پنل است.
+        </p>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div>
+            <label className={labelClass}>دامنه‌ی سرور (SIP Domain)</label>
+            <div className={`${inputClass} bg-slate-100 text-muted`} dir="ltr">
+              {sipDomain ?? "—"}
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>نام کاربری (Username)</label>
+            <input
+              value={mySipUsername}
+              onChange={(e) => setMySipUsername(e.target.value)}
+              placeholder="مثلاً 989908008011"
+              className={inputClass}
+              dir="ltr"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>رمز عبور (Password)</label>
+            <input
+              value={mySipPassword}
+              onChange={(e) => setMySipPassword(e.target.value)}
+              type="text"
+              className={inputClass}
+              dir="ltr"
+            />
+          </div>
+        </div>
+        <button
+          onClick={handleSaveExtension}
+          disabled={savingExtension || !myExtension.trim()}
+          className="mt-3 self-start text-[12.5px] font-bold text-white bg-primary px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+        >
+          {savingExtension ? "در حال ذخیره..." : "ذخیره اطلاعات اتصال"}
+        </button>
+        {!sipDomain ? (
+          <p className="text-[11px] text-danger mt-2">
+            ابتدا دامنه‌ی SIP را در بخش «سرویس VoIP» بالا (فیلد دامنه‌ی ثبت‌نام) وارد و ذخیره کنید.
+          </p>
         ) : null}
       </Card>
     </div>

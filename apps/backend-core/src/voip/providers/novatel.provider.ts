@@ -24,8 +24,12 @@ export class NovatelVoipProvider implements OnModuleInit {
       code: 'novatel',
       name: 'نواتل (Navatel) — نیازمند تکمیل با نمونه‌ی واقعی وب‌هوک از پشتیبانی نواتل',
       configFields: [
-        { key: 'apiBaseUrl', label: 'آدرس پایه‌ی API (از پنل نواتل)' },
-        { key: 'apiKey', label: 'کلید API' },
+        {
+          key: 'sipDomain',
+          label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain) — مثل voice.navaphone.com',
+        },
+        { key: 'apiBaseUrl', label: 'آدرس پایه‌ی API (از پنل نواتل، اختیاری — فقط برای وب‌هوک/تماس مستقیم)' },
+        { key: 'apiKey', label: 'کلید API (اختیاری — فقط برای وب‌هوک/تماس مستقیم)' },
       ],
       parseWebhook: (rawBody: unknown): IncomingCallEvent | null => {
         if (!rawBody || typeof rawBody !== 'object') return null;
