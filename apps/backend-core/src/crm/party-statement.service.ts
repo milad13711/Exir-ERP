@@ -135,4 +135,50 @@ export class PartyStatementService {
 
     return { lines, arBalance, apBalance };
   }
+
+  /**
+   * Same deltas as `statement()`, computed for every party at once (tenant-
+   * wide queries instead of one round-trip per contact) — the debtors/
+   * creditors list needs every contact's balance, not one contact's ledger.
+   * Checks are omitted on purpose: they never carry an arDelta/apDelta
+   * above either (see `statement()`), so they can't move a balance.
+   */
+  async allBalances(ctx: TenantRequestContext): Promise<Map<string, { arBalance: number; apBalance: number }>> {
+    const [invoices, payments, salesReturns, orders, purchasePayments, purchaseReturns, partyTransactions] =
+      await Promise.all([
+        ctx.tenantDb.salesInvoice.findMany({
+          where: { status: { notIn: ['DRAFT', 'CANCELLED'] } },
+          select: { contactId: true, total: true },
+        }),
+        ctx.tenantDb.salesPayment.findMany({ select: { amount: true, invoice: { select: { contactId: true } } } }),
+        ctx.tenantDb.salesReturn.findMany({ select: { total: true, invoice: { select: { contactId: true } } } }),
+        ctx.tenantDb.purchaseOrder.findMany({
+          where: { status: { notIn: ['DRAFT', 'CANCELLED'] } },
+          select: { supplierId: true, total: true },
+        }),
+        ctx.tenantDb.purchasePayment.findMany({ select: { amount: true, order: { select: { supplierId: true } } } }),
+        ctx.tenantDb.purchaseReturn.findMany({ select: { total: true, order: { select: { supplierId: true } } } }),
+        ctx.tenantDb.partyTransaction.findMany({ select: { partyId: true, amount: true, type: true } }),
+      ]);
+
+    const balances = new Map<string, { arBalance: number; apBalance: number }>();
+    const bump = (id: string, ar: number, ap: number) => {
+      const cur = balances.get(id) ?? { arBalance: 0, apBalance: 0 };
+      cur.arBalance += ar;
+      cur.apBalance += ap;
+      balances.set(id, cur);
+    };
+
+    for (const i of invoices) bump(i.contactId, i.total, 0);
+    for (const p of payments) bump(p.invoice.contactId, -p.amount, 0);
+    for (const r of salesReturns) bump(r.invoice.contactId, -r.total, 0);
+    for (const o of orders) bump(o.supplierId, 0, o.total);
+    for (const p of purchasePayments) bump(p.order.supplierId, 0, -p.amount);
+    for (const r of purchaseReturns) bump(r.order.supplierId, 0, -r.total);
+    for (const t of partyTransactions) {
+      bump(t.partyId, t.type === 'RECEIPT' ? -t.amount : 0, t.type === 'PAYMENT' ? -t.amount : 0);
+    }
+
+    return balances;
+  }
 }

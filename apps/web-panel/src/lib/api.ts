@@ -1034,6 +1034,29 @@ export function fetchAccountLedger(accountId: string) {
   return apiFetch<{ account: Account; rows: LedgerRow[] }>(`/accounting/accounts/${accountId}/ledger`);
 }
 
+// ── بدهکاران و بستانکاران ────────────────────────────────────────────────
+
+export type PartyBalance = { id: string; name: string; company: string | null; phone: string | null; balance: number };
+
+export type AccountingPartyStatement = {
+  contact: { id: string; name: string; company: string | null; phone: string | null };
+  lines: StatementLine[];
+  arBalance: number;
+  apBalance: number;
+};
+
+export function fetchReceivables() {
+  return apiFetch<PartyBalance[]>("/accounting/parties/receivables");
+}
+
+export function fetchPayables() {
+  return apiFetch<PartyBalance[]>("/accounting/parties/payables");
+}
+
+export function fetchAccountingPartyStatement(contactId: string) {
+  return apiFetch<AccountingPartyStatement>(`/accounting/parties/${contactId}/statement`);
+}
+
 // ── مغایرت‌گیری بانکی ────────────────────────────────────────────────────
 
 export type BankStatementLine = {

@@ -28,11 +28,12 @@ import { LedgerModal } from "@/components/accounting/LedgerModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ReportsTab } from "@/components/accounting/ReportsTab";
 import { ReconciliationTab } from "@/components/accounting/ReconciliationTab";
+import { PartiesLedgerTab } from "@/components/accounting/PartiesLedgerTab";
 import { BudgetsTab } from "@/components/accounting/BudgetsTab";
 import { FixedAssetsTab } from "@/components/accounting/FixedAssetsTab";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-type Tab = "entries" | "accounts" | "reports" | "reconciliation" | "budgets" | "fixedAssets";
+type Tab = "entries" | "accounts" | "reports" | "reconciliation" | "budgets" | "fixedAssets" | "parties";
 
 export default function AccountingPage() {
   const [tab, setTab] = useState<Tab>("entries");
@@ -125,6 +126,7 @@ export default function AccountingPage() {
           [
             ["entries", "اسناد حسابداری"],
             ["accounts", "کدینگ حساب‌ها"],
+            ["parties", "بدهکاران و بستانکاران"],
             ["reconciliation", "مغایرت‌گیری بانکی"],
             ["budgets", "بودجه‌بندی"],
             ["fixedAssets", "دارایی‌های ثابت"],
@@ -146,6 +148,8 @@ export default function AccountingPage() {
 
       {tab === "reports" ? (
         <ReportsTab />
+      ) : tab === "parties" ? (
+        <PartiesLedgerTab />
       ) : tab === "reconciliation" ? (
         <ReconciliationTab />
       ) : tab === "budgets" ? (

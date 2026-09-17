@@ -29,6 +29,6 @@ import { CrmAutomationTriggers } from './crm-automation.triggers.js';
     FunnelChurnCronService,
     CrmAutomationTriggers,
   ],
-  exports: [CreditScoreService, SupplierRiskService, FunnelService],
+  exports: [CreditScoreService, SupplierRiskService, FunnelService, PartyStatementService],
 })
 export class CrmModule {}
