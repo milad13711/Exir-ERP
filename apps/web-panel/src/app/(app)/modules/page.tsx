@@ -80,7 +80,7 @@ function canFreeActivate(m: ModuleCatalogItem): boolean {
 }
 
 export default function ModuleStorePage() {
-  const { me } = useWorkspace();
+  const { me, refreshInstalledModules } = useWorkspace();
   const [modules, setModules] = useState<ModuleCatalogItem[] | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("همه");
@@ -154,6 +154,7 @@ export default function ModuleStorePage() {
     try {
       const updated = await installModule(code);
       setModules((prev) => prev?.map((m) => (m.code === code ? { ...m, ...updated } : m)) ?? prev);
+      refreshInstalledModules();
     } catch {
       // errors surface globally via ApiError; keep the store list as-is
     } finally {
@@ -166,6 +167,7 @@ export default function ModuleStorePage() {
     try {
       const updated = await uninstallModule(code);
       setModules((prev) => prev?.map((m) => (m.code === code ? { ...m, ...updated } : m)) ?? prev);
+      refreshInstalledModules();
     } catch {
       // errors surface globally via ApiError; keep the store list as-is
     } finally {
@@ -425,7 +427,10 @@ export default function ModuleStorePage() {
         <ModuleDemoModal
           module={byCode.get(demoModuleCode)!}
           onClose={() => setDemoModuleCode(null)}
-          onActivated={() => fetchModules().then(setModules).catch(() => {})}
+          onActivated={() => {
+            fetchModules().then(setModules).catch(() => {});
+            refreshInstalledModules();
+          }}
         />
       )}
     </div>

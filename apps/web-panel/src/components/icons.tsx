@@ -48,14 +48,10 @@ export function ShieldIcon(props: IconProps) {
   );
 }
 
-export function LogoMark(props: IconProps) {
-  return (
-    <svg {...base} {...props}>
-      <path d="M3 12l9-9 9 9" />
-      <path d="M5 10v10h14V10" />
-      <path d="M9 20v-6h6v6" />
-    </svg>
-  );
+/** The real exir ERP brand mark — a raster image (not a line-art icon) since its gradient/beveled look can't be a currentColor stroke path. `className` still controls its size the same way every other icon here does. */
+export function LogoMark({ className }: IconProps) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/brand/exir-glyph.png" alt="" className={className} />;
 }
 
 export function DashboardIcon(props: IconProps) {

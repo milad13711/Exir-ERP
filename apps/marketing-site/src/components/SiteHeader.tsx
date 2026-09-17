@@ -7,7 +7,7 @@ export function SiteHeader() {
       <div className="max-w-[1100px] mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo-icon.png" alt="" width={34} height={34} className="rounded-full" priority />
-          <span className="font-display text-[17px] font-extrabold text-primary">اکسیر</span>
+          <span className="font-display text-[17px] font-extrabold text-primary">اکسیرتجارت امین</span>
         </Link>
         <nav className="flex items-center gap-5 text-[13px] font-semibold text-ink-soft">
           <Link href="/#products" className="hover:text-primary transition-colors">

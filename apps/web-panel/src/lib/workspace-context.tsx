@@ -42,6 +42,8 @@ type WorkspaceState = {
   refreshMe: () => void;
   /** Module codes currently usable by this tenant (installed/trial, or core with no override) — see /modules for the same logic. */
   installedModules: Set<string>;
+  /** بعد از فعال/غیرفعال‌سازی هر ماژول — تا سایدبار و بقیه‌ی صفحه بدون رفرش کامل مرورگر خودشان را با وضعیت تازه‌ی ماژول‌ها به‌روز کنند. */
+  refreshInstalledModules: () => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
@@ -63,6 +65,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .then((meData) => {
         setMe(meData);
         applyTenantBranding(meData.tenant);
+      })
+      .catch(() => {});
+  }, []);
+
+  const refreshInstalledModules = useCallback(() => {
+    fetchModules()
+      .then((modules) => {
+        const installed = new Set(
+          modules
+            .filter((m) => m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore))
+            .map((m) => m.code),
+        );
+        setInstalledModules(installed);
+        setOfflineModuleInstalled(installed.has("offline-sync"));
       })
       .catch(() => {});
   }, []);
@@ -94,7 +110,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WorkspaceContext.Provider value={{ me, subscription, license, loading, refreshSubscription, refreshMe, installedModules }}>
+    <WorkspaceContext.Provider
+      value={{ me, subscription, license, loading, refreshSubscription, refreshMe, installedModules, refreshInstalledModules }}
+    >
       {children}
     </WorkspaceContext.Provider>
   );

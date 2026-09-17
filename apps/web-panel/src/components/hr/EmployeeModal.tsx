@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchEmployee,
@@ -70,6 +71,7 @@ export function EmployeeModal({
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editBaseSalary, setEditBaseSalary] = useState("");
+  const [editHireDate, setEditHireDate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [kpiOpen, setKpiOpen] = useState(false);
@@ -125,11 +127,12 @@ export function EmployeeModal({
     setEditPhone(employee.phone ?? "");
     setEditEmail(employee.email ?? "");
     setEditBaseSalary(String(employee.baseSalary));
+    setEditHireDate(employee.hireDate.slice(0, 10));
     setEditing(true);
   }
 
   async function saveEdit() {
-    if (!editFullName.trim() || !editPosition.trim()) return;
+    if (!editFullName.trim() || !editPosition.trim() || !editHireDate) return;
     setSavingEdit(true);
     try {
       await updateEmployee(employeeId, {
@@ -139,6 +142,7 @@ export function EmployeeModal({
         phone: editPhone.trim() || undefined,
         email: editEmail.trim() || undefined,
         baseSalary: Number(editBaseSalary) || 0,
+        hireDate: editHireDate,
       });
       setEditing(false);
       reload();
@@ -314,6 +318,14 @@ export function EmployeeModal({
                   className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
                 />
               </div>
+              <div>
+                <label className="text-[11px] text-muted block mb-1">تاریخ استخدام</label>
+                <JalaliDateInput
+                  value={editHireDate}
+                  onChange={setEditHireDate}
+                  className="text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2 w-full"
+                />
+              </div>
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -325,7 +337,7 @@ export function EmployeeModal({
                 <button
                   type="button"
                   onClick={saveEdit}
-                  disabled={savingEdit || !editFullName.trim() || !editPosition.trim()}
+                  disabled={savingEdit || !editFullName.trim() || !editPosition.trim() || !editHireDate}
                   className="text-[11.5px] font-bold text-white bg-primary px-3.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   {savingEdit ? "در حال ذخیره..." : "ذخیره"}
