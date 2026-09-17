@@ -1,11 +1,15 @@
 import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly sms: ExirSmsService,
+  ) {}
 
   async listUsers(ctx: TenantRequestContext) {
     const users = await ctx.tenantDb.user.findMany({
@@ -120,6 +124,34 @@ export class UsersService {
       },
     });
 
+    await this.sendAccessGrantedSms(ctx, name, phone);
+
     return user;
+  }
+
+  /**
+   * Login here is phone+OTP only (no password), so the new user has no
+   * credential to receive — this just tells them access exists and where
+   * to use it. Same phone can hold access in several tenants (it's
+   * INVITED/grantSystemAccess per-tenant), so the tenant name is included
+   * to disambiguate which business this message is about.
+   */
+  private async sendAccessGrantedSms(ctx: TenantRequestContext, name: string, phone: string) {
+    if (!this.sms.isConfigured()) return;
+    const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } });
+    const loginUrl = `${(process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '')}/login`;
+    const businessLabel = tenant?.name ? ` در «${tenant.name}»` : '';
+    const message = `${name} عزیز، دسترسی شما به سیستم${businessLabel} در اکسیر ERP فعال شد. برای ورود با همین شماره موبایل به آدرس زیر مراجعه کنید:\n${loginUrl}`;
+    const result = await this.sms.sendSms(phone, message);
+    if (!result.success) {
+      await this.controlDb.errorLog.create({
+        data: {
+          service: 'backend-core',
+          level: 'ERROR',
+          message: `ارسال پیامک فعال‌سازی دسترسی ناموفق بود: ${result.error}`,
+          context: { phone, tenantId: ctx.tenantId },
+        },
+      });
+    }
   }
 }
