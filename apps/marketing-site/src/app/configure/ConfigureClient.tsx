@@ -201,7 +201,7 @@ export function ConfigureClient() {
 
   return (
     <main className="flex-1 max-w-[1100px] mx-auto px-6 py-12 w-full">
-      <h1 className="text-[22px] font-extrabold text-center">پیکربندی پلن</h1>
+      <h1 className="text-[22px] font-extrabold text-center">پیکربندی پلن و قیمت نرم‌افزار ERP فارسی اکسیر</h1>
       <p className="text-[13.5px] text-muted text-center mt-2">
         {activeTemplate ? `شروع با قالب «${activeTemplate.name}» — ` : ""}
         پلن، ماژول‌ها و دوره‌ی صورت‌حساب را انتخاب کنید تا قیمت لحظه‌ای محاسبه شود

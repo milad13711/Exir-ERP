@@ -20,8 +20,9 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const industry = await getIndustry(code);
   if (!industry) return {};
   return {
-    title: `اکسیر ERP برای ${industry.name} — نرم‌افزار یکپارچه‌ی اختصاصی این صنف`,
+    title: `نرم‌افزار ERP ${industry.name} | اکسیر`,
     description: (industryContentOf(code)?.intro ?? industry.description).slice(0, 155),
+    alternates: { canonical: `/industries/${code}` },
   };
 }
 
@@ -58,10 +59,22 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
     })),
   };
 
+  /** برای درک بهتر گوگل و پاسخ‌دهنده‌های هوش مصنوعی از جایگاه این صفحه در ساختار سایت. */
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "اکسیر", item: "https://eta.co.ir/" },
+      { "@type": "ListItem", position: 2, name: "صنف‌های اکسیر ERP", item: "https://eta.co.ir/industries" },
+      { "@type": "ListItem", position: 3, name: industry.name, item: `https://eta.co.ir/industries/${industry.code}` },
+    ],
+  };
+
   const themeColor = industry.suggestedThemeColor ?? "#4338ca";
 
   return (
     <main className="flex-1">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {content && content.faqs.length > 0 ? (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       ) : null}

@@ -4,8 +4,8 @@ import { COMPANY_INFO, CEO_INFO, GROUP_BRAND } from "@/lib/content";
 import { MapPinIcon, PhoneIcon, MessageIcon, InstagramIcon, BookIcon, AwardIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "درباره‌ی ما",
-  description: `${COMPANY_INFO.legalName} — سازنده‌ی خانواده‌ی نرم‌افزارهای تخصصی اکسیر، به مدیرعاملی دکتر میلاد بهرامی.`,
+  title: "درباره‌ی اکسیر تجارت امین | سازنده‌ی نرم‌افزار ERP فارسی",
+  description: `${COMPANY_INFO.legalName}، سازنده‌ی نرم‌افزار ERP فارسی اکسیر و خانواده‌ی نرم‌افزارهای تخصصی صنفی، به مدیرعاملی دکتر میلاد بهرامی.`,
   alternates: { canonical: "/about" },
 };
 
@@ -66,8 +66,8 @@ export default function AboutPage() {
       <section className="max-w-[820px] mx-auto px-6 py-16">
         <h2 className="font-display text-[20px] font-extrabold mb-4">شرکت</h2>
         <p className="text-[13.5px] text-ink-soft leading-loose mb-6">
-          {COMPANY_INFO.legalName} سازنده‌ی {GROUP_BRAND.name} است — به‌جای یک نرم‌افزار عمومی برای همه، برای هر صنف
-          یک محصول تخصصی و متناسب با DNA همان کسب‌وکار می‌سازد.
+          {COMPANY_INFO.legalName} سازنده‌ی {GROUP_BRAND.name} و توسعه‌دهنده‌ی نرم‌افزار ERP فارسی اکسیر است — به‌جای
+          یک نرم‌افزار عمومی برای همه، برای هر صنف یک محصول تخصصی و متناسب با DNA همان کسب‌وکار می‌سازد.
           {COMPANY_INFO.registrationNumber ? ` شماره ثبت شرکت: ${COMPANY_INFO.registrationNumber}.` : ""}
         </p>
         <div className="grid sm:grid-cols-3 gap-4">
@@ -145,6 +145,26 @@ export default function AboutPage() {
               className="shrink-0 px-5 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold"
             >
               مشاهده‌ی کتاب
+            </a>
+          </div>
+
+          <div className="bg-surface border border-border rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-5 mt-4">
+            <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
+              <AwardIcon className="w-6 h-6" />
+            </div>
+            <div className="flex-1 text-center sm:text-right">
+              <div className="text-[14.5px] font-extrabold" dir="ltr">
+                {CEO_INFO.tributeBook.title}
+              </div>
+              <p className="text-[12.5px] text-muted leading-relaxed mt-1">{CEO_INFO.tributeBook.description}</p>
+            </div>
+            <a
+              href={CEO_INFO.tributeBook.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 px-5 py-2.5 rounded-xl bg-accent text-white text-[13px] font-bold"
+            >
+              مشاهده در آمازون
             </a>
           </div>
 

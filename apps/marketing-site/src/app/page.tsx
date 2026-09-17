@@ -20,6 +20,9 @@ import {
 export const revalidate = 0;
 
 export const metadata: Metadata = {
+  title: "اکسیر | نرم‌افزار ERP فارسی و راهکارهای تخصصی هر صنف",
+  description:
+    "خانواده‌ی نرم‌افزارهای اکسیر: نرم‌افزار ERP فارسی برای کارخانه‌ها، نرم‌افزار مدیریت املاک، و نرم‌افزار سالن زیبایی و عروسی — هرکدام تخصصی برای صنف شما.",
   alternates: { canonical: "/" },
 };
 

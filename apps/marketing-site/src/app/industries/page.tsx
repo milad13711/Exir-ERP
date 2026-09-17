@@ -8,9 +8,10 @@ import { formatToman, formatUsd } from "@/lib/persian";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "اکسیر ERP برای هر صنف — نرم‌افزار یکپارچه‌ی متناسب با کسب‌وکار شما",
+  title: "قالب‌های صنفی نرم‌افزار ERP فارسی اکسیر",
   description:
     "اکسیر ERP برای صنف‌های خوراک دام، خرده‌فروشی، رستوران و کافی‌شاپ، خدمات فنی، پخش و توزیع مویرگی، تعمیرگاه خودرو و مشاوره کسب‌وکار، با قالب و قیمت‌گذاری اختصاصی هر صنف.",
+  alternates: { canonical: "/industries" },
 };
 
 export default async function IndustriesPage() {

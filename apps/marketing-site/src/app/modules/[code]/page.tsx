@@ -19,11 +19,12 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const mod = await getModule(code);
   if (!mod) return {};
   const content = moduleContentOf(code);
-  const title = `${mod.name} — ماژول اکسیر ERP | ${content?.tagline ?? mod.description}`;
+  const description = content ? `${content.tagline}. ${content.painPoint}` : mod.description;
   return {
-    title,
-    description: content?.painPoint.slice(0, 155) ?? mod.description,
+    title: `${mod.name} | ماژول اکسیر ERP`,
+    description: description.slice(0, 157),
     keywords: content?.keywords,
+    alternates: { canonical: `/modules/${code}` },
   };
 }
 
@@ -55,9 +56,21 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
     ],
   };
 
+  /** برای درک بهتر گوگل و پاسخ‌دهنده‌های هوش مصنوعی از جایگاه این صفحه در ساختار سایت. */
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "اکسیر", item: "https://eta.co.ir/" },
+      { "@type": "ListItem", position: 2, name: "ماژول‌ها و قیمت‌گذاری", item: "https://eta.co.ir/modules" },
+      { "@type": "ListItem", position: 3, name: mod.name, item: `https://eta.co.ir/modules/${mod.code}` },
+    ],
+  };
+
   return (
     <main className="flex-1">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
       <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
         <div className="max-w-[900px] mx-auto px-6 py-16">

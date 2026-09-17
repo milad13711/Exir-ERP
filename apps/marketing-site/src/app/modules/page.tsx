@@ -9,9 +9,10 @@ import { formatToman, formatUsd } from "@/lib/persian";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "ماژول‌های اکسیر ERP — قیمت و امکانات هر ماژول",
+  title: "ماژول‌های نرم‌افزار ERP فارسی اکسیر و قیمت هرکدام",
   description:
     "فهرست کامل ماژول‌های اکسیر ERP با قیمت اشتراک ماهانه، سالانه و خرید لایسنس — از CRM و انبارداری تا ناوگان حمل و نقل و اتصال ChatGPT/Claude.",
+  alternates: { canonical: "/modules" },
 };
 
 export default async function ModulesPage() {
