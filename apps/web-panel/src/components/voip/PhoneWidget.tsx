@@ -6,6 +6,7 @@ import { PhoneIcon, SearchIcon, CloseIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getVoipSocket } from "@/lib/voip-socket";
+import { voipEngine } from "@/lib/voip-engine";
 import { originateCall, fetchCallLogs, fetchCrmContacts, ApiError, type CallLog, type CrmContact } from "@/lib/api";
 
 type Tab = "dialpad" | "contacts" | "history";
@@ -63,16 +64,23 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  async function handleCall(toNumber: string, contactId?: string) {
+  async function handleCall(toNumber: string, contactId?: string, contactName?: string) {
     if (!toNumber.trim()) return;
     setCalling(true);
     setError(null);
     try {
-      await originateCall(toNumber.trim(), contactId);
+      if (voipEngine.isAvailable) {
+        // سافت‌فون مرورگری (SIP/WebRTC مستقیم) — همان چیزی که Odoo انجام می‌دهد؛
+        // تماس واقعاً همین‌جا در مرورگر برقرار می‌شود، نه از طریق originate سمت سرور.
+        await voipEngine.call(toNumber.trim(), contactId, contactName);
+        onClose();
+      } else {
+        await originateCall(toNumber.trim(), contactId);
+        setTimeout(reloadHistory, 1500);
+      }
       setNumber("");
-      setTimeout(reloadHistory, 1500);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "برقراری تماس ناموفق بود");
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "برقراری تماس ناموفق بود");
     } finally {
       setCalling(false);
     }
@@ -152,15 +160,15 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
 
-        {tab === "contacts" ? <ContactsTab onCall={handleCall} calling={calling} /> : null}
+        {tab === "contacts" ? <ContactsTab onCall={(num, id, name) => handleCall(num, id, name)} calling={calling} /> : null}
 
-        {tab === "history" ? <HistoryTab logs={history} onCall={handleCall} calling={calling} /> : null}
+        {tab === "history" ? <HistoryTab logs={history} onCall={(num, id, name) => handleCall(num, id, name)} calling={calling} /> : null}
       </div>
     </div>
   );
 }
 
-function ContactsTab({ onCall, calling }: { onCall: (num: string, contactId?: string) => void; calling: boolean }) {
+function ContactsTab({ onCall, calling }: { onCall: (num: string, contactId?: string, contactName?: string) => void; calling: boolean }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CrmContact[] | null>(null);
 
@@ -193,7 +201,7 @@ function ContactsTab({ onCall, calling }: { onCall: (num: string, contactId?: st
           results.map((c) => (
             <button
               key={c.id}
-              onClick={() => onCall(c.phone!, c.id)}
+              onClick={() => onCall(c.phone!, c.id, c.name)}
               disabled={calling}
               className="flex items-center justify-between gap-2 bg-slate-50 hover:bg-primary-soft rounded-lg px-3 py-2 text-right cursor-pointer disabled:opacity-50"
             >
@@ -220,7 +228,7 @@ const STATUS_LABEL: Record<CallLog["status"], string> = {
   FAILED: "ناموفق",
 };
 
-function HistoryTab({ logs, onCall, calling }: { logs: CallLog[] | null; onCall: (num: string, contactId?: string) => void; calling: boolean }) {
+function HistoryTab({ logs, onCall, calling }: { logs: CallLog[] | null; onCall: (num: string, contactId?: string, contactName?: string) => void; calling: boolean }) {
   const rows = useMemo(() => logs ?? [], [logs]);
 
   return (
@@ -239,8 +247,8 @@ function HistoryTab({ logs, onCall, calling }: { logs: CallLog[] | null; onCall:
               key={log.id}
               role="button"
               tabIndex={0}
-              onClick={() => !calling && onCall(number, log.contactId ?? undefined)}
-              onKeyDown={(e) => e.key === "Enter" && !calling && onCall(number, log.contactId ?? undefined)}
+              onClick={() => !calling && onCall(number, log.contactId ?? undefined, log.contact?.name)}
+              onKeyDown={(e) => e.key === "Enter" && !calling && onCall(number, log.contactId ?? undefined, log.contact?.name)}
               className={clsx(
                 "flex items-center gap-2.5 bg-slate-50 hover:bg-primary-soft rounded-lg px-3 py-2 text-right cursor-pointer",
                 calling && "opacity-50 pointer-events-none",

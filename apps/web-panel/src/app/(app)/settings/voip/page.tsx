@@ -17,6 +17,7 @@ export default function VoipSettingsPage() {
 
   const [config, setConfig] = useState<VoipConfig>(null);
   const [sipDomain, setSipDomain] = useState("");
+  const [wssUrl, setWssUrl] = useState("");
   const [savingDomain, setSavingDomain] = useState(false);
   const [domainError, setDomainError] = useState<string | null>(null);
 
@@ -32,6 +33,8 @@ export default function VoipSettingsPage() {
         setConfig(c);
         const domain = c?.config.sipDomain;
         if (typeof domain === "string") setSipDomain(domain);
+        const wss = c?.config.wssUrl;
+        if (typeof wss === "string") setWssUrl(wss);
       })
       .catch(() => {});
     fetchMyVoipExtension()
@@ -49,7 +52,10 @@ export default function VoipSettingsPage() {
     setSavingDomain(true);
     setDomainError(null);
     try {
-      const saved = await saveVoipConfig({ providerCode: VOIP_PROVIDER_CODE, config: { sipDomain: sipDomain.trim() } });
+      const saved = await saveVoipConfig({
+        providerCode: VOIP_PROVIDER_CODE,
+        config: { sipDomain: sipDomain.trim(), wssUrl: wssUrl.trim() || undefined },
+      });
       setConfig(saved);
     } catch (err) {
       setDomainError(err instanceof ApiError ? err.message : "خطایی رخ داد");
@@ -98,13 +104,27 @@ export default function VoipSettingsPage() {
                 dir="ltr"
               />
             </div>
+            <div>
+              <label className={labelClass}>آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری)</label>
+              <input
+                value={wssUrl}
+                onChange={(e) => setWssUrl(e.target.value)}
+                placeholder="wss://voice.navaphone.com:8089/ws"
+                className={inputClass}
+                dir="ltr"
+              />
+              <p className="text-[11px] text-muted mt-1.5 leading-relaxed">
+                اگر پر شود، تماس خروجی و ورودی مستقیماً در همین مرورگر برقرار می‌شود (بدون نیاز به تلفن IP جدا) —
+                دقیقاً مثل ویجت تلفن Odoo. آدرس دقیق را از پشتیبانی سرویس VoIP خودتان بپرسید.
+              </p>
+            </div>
             {domainError ? <div className="text-[12px] text-danger">{domainError}</div> : null}
             <button
               type="submit"
               disabled={savingDomain || !sipDomain.trim()}
               className="self-start text-[12.5px] font-bold text-white bg-primary px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
             >
-              {savingDomain ? "در حال ذخیره..." : "ذخیره دامنه"}
+              {savingDomain ? "در حال ذخیره..." : "ذخیره تنظیمات"}
             </button>
           </form>
         </Card>

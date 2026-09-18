@@ -3545,6 +3545,30 @@ export function originateCall(toNumber: string, contactId?: string) {
   return apiFetch<{ success: boolean }>("/voip/originate", { method: "POST", body: JSON.stringify({ toNumber, contactId }) });
 }
 
+export type VoipConnectionInfo = {
+  sipDomain: string | null;
+  wssUrl: string | null;
+  sipUsername: string | null;
+  sipPassword: string | null;
+};
+
+/** برای سافت‌فون مرورگری (SIP/WebRTC مستقیم، مثل ویجت تلفن Odoo) — همان اعتبارنامه‌ای که برای تلفن IP وارد شده. */
+export function fetchVoipConnectionInfo() {
+  return apiFetch<VoipConnectionInfo>("/voip/connection-info");
+}
+
+export function reportIncomingCall(data: { fromNumber: string; sipCallId?: string }) {
+  return apiFetch<{ id: string }>("/voip/calls/incoming", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function reportOutgoingCall(data: { toNumber: string; contactId?: string; sipCallId?: string }) {
+  return apiFetch<{ id: string }>("/voip/calls/outgoing", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function endCall(id: string, data: { status?: string; durationSeconds?: number }) {
+  return apiFetch<{ success: boolean }>(`/voip/calls/${id}/end`, { method: "POST", body: JSON.stringify(data) });
+}
+
 export type CallDirection = "INBOUND" | "OUTBOUND";
 export type CallStatus = "RINGING" | "ANSWERED" | "MISSED" | "NO_ANSWER" | "FAILED";
 

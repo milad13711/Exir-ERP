@@ -23,7 +23,13 @@ export class NovatelVoipProvider implements OnModuleInit {
     this.registry.register({
       code: 'novatel',
       name: 'نواتل (Navatel)',
-      configFields: [{ key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain)' }],
+      configFields: [
+        { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain)' },
+        {
+          key: 'wssUrl',
+          label: 'آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری — از پشتیبانی نواتل بپرسید، مثلاً wss://voice.navaphone.com:8089/ws)',
+        },
+      ],
       parseWebhook: (rawBody: unknown): IncomingCallEvent | null => {
         if (!rawBody || typeof rawBody !== 'object') return null;
         const body = rawBody as Record<string, unknown>;

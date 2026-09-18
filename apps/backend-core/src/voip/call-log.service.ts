@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import type { PrismaClient as TenantPrismaClient, CallStatus } from '../../generated/tenant-client/index.js';
 import type { CallEndedEvent } from './types.js';
 
 function formatDuration(seconds: number): string {
@@ -65,10 +65,24 @@ export class CallLogService {
   }
 
   /** با providerCallId ردیف را پیدا و تکمیل می‌کند — اگر ارائه‌دهنده هرگز رویداد پایان تماس نفرستد، ردیف روی «در حال تماس» باقی می‌ماند (کمبود شناخته‌شده، نه باگ). */
-  async recordEnded(tenantDb: TenantPrismaClient, event: CallEndedEvent): Promise<{ userId: string | null; status: string; durationSeconds: number | null } | null> {
+  async recordEnded(tenantDb: TenantPrismaClient, event: CallEndedEvent) {
     const log = await tenantDb.callLog.findUnique({ where: { providerCallId: event.callId }, include: { activity: true } });
     if (!log) return null;
+    return this.applyEnded(tenantDb, log, event);
+  }
 
+  /** همان recordEnded، ولی با شناسه‌ی خودِ CallLog — برای مسیر تماس مرورگری (SIP/WebRTC) که خودش همان لحظه شناسه‌ی ردیف را در اختیار دارد، بدون نیاز به providerCallId. */
+  async endById(tenantDb: TenantPrismaClient, id: string, event: Omit<CallEndedEvent, 'callId'>) {
+    const log = await tenantDb.callLog.findUnique({ where: { id }, include: { activity: true } });
+    if (!log) return null;
+    return this.applyEnded(tenantDb, log, event);
+  }
+
+  private async applyEnded(
+    tenantDb: TenantPrismaClient,
+    log: { id: string; status: CallStatus; userId: string | null; durationSeconds: number | null; activity: { id: string; body: string | null } | null },
+    event: Omit<CallEndedEvent, 'callId'>,
+  ) {
     const status = event.status ?? (log.status === 'RINGING' ? 'ANSWERED' : log.status);
     await tenantDb.callLog.update({
       where: { id: log.id },

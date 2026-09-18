@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Put, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Put, Post, Query, UseGuards } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -14,6 +14,9 @@ import { phonesMatch } from './phone-match.js';
 import { SaveProviderConfigDto } from './dto/save-provider-config.dto.js';
 import { SaveExtensionDto } from './dto/save-extension.dto.js';
 import { OriginateCallDto } from './dto/originate-call.dto.js';
+import { ReportIncomingCallDto } from './dto/report-incoming-call.dto.js';
+import { ReportOutgoingCallDto } from './dto/report-outgoing-call.dto.js';
+import { EndCallDto } from './dto/end-call.dto.js';
 
 @Controller('voip')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -77,6 +80,28 @@ export class VoipController {
     return ctx.tenantDb.voipExtension.findUnique({ where: { userId } });
   }
 
+  /**
+   * همه‌چیزی که سافت‌فون مرورگری (SIP/WebRTC روی همین صفحه، دقیقاً مثل
+   * ویجت تلفن Odoo) برای اتصال مستقیم لازم دارد — دامنه‌ی SIP و آدرس
+   * WebSocket تننت (مشترک بین همه) به‌همراه اطلاعات اتصال خودِ کاربر.
+   * بدون Roles guard — همان سطح دسترسی extensions/me (اطلاعات خودِ کاربر).
+   */
+  @Get('connection-info')
+  async getConnectionInfo(@Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    const [providerConfig, extension] = await Promise.all([
+      ctx.tenantDb.voipProviderConfig.findFirst({ where: { isActive: true } }),
+      userId ? ctx.tenantDb.voipExtension.findUnique({ where: { userId } }) : null,
+    ]);
+    const config = (providerConfig?.config as Record<string, unknown>) ?? {};
+    return {
+      sipDomain: typeof config.sipDomain === 'string' ? config.sipDomain : null,
+      wssUrl: typeof config.wssUrl === 'string' ? config.wssUrl : null,
+      sipUsername: extension?.sipUsername ?? null,
+      sipPassword: extension?.sipPassword ?? null,
+    };
+  }
+
   @Put('extensions/me')
   async saveMyExtension(@Body() dto: SaveExtensionDto, @Ctx() ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx);
@@ -111,11 +136,7 @@ export class VoipController {
     const result = await adapter.originateCall(providerConfig.config as Record<string, unknown>, fromExtension, dto.toNumber);
     if (!result.success) throw new BadRequestException(result.error);
 
-    const contact = dto.contactId
-      ? await ctx.tenantDb.crmContact.findUnique({ where: { id: dto.contactId }, select: { id: true, name: true } })
-      : await ctx.tenantDb.crmContact
-          .findMany({ where: { phone: { not: null } }, select: { id: true, name: true, phone: true } })
-          .then((contacts) => contacts.find((c) => c.phone && phonesMatch(c.phone, dto.toNumber)) ?? null);
+    const contact = await this.findContactByIdOrPhone(ctx, dto.contactId, dto.toNumber);
     await this.callLog.recordOutbound(ctx.tenantDb, {
       fromExtension,
       toNumber: dto.toNumber,
@@ -126,6 +147,67 @@ export class VoipController {
     });
 
     return { success: true };
+  }
+
+  /**
+   * سافت‌فون مرورگری خودش با SIP/WebRTC مستقیم به سانترال وصل است — نه از
+   * طریق originate یا وب‌هوک ارائه‌دهنده — پس همان لحظه که یک تماس واقعی
+   * ایجاد می‌شود، این دو endpoint را صدا می‌زند تا در تاریخچه ثبت شود.
+   */
+  @Post('calls/incoming')
+  async reportIncoming(@Body() dto: ReportIncomingCallDto, @Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    if (!userId) throw new BadRequestException('کاربر تننت‌محور یافت نشد');
+    const [contact, myExtension] = await Promise.all([
+      this.findContactByIdOrPhone(ctx, undefined, dto.fromNumber),
+      ctx.tenantDb.voipExtension.findUnique({ where: { userId } }),
+    ]);
+    const log = await this.callLog.recordIncoming(ctx.tenantDb, {
+      fromNumber: dto.fromNumber,
+      toExtension: myExtension?.sipUsername ?? myExtension?.extension ?? '',
+      providerCallId: dto.sipCallId ?? '',
+      userId,
+      contactId: contact?.id ?? null,
+      contactName: contact?.name ?? null,
+    });
+    return log;
+  }
+
+  @Post('calls/outgoing')
+  async reportOutgoing(@Body() dto: ReportOutgoingCallDto, @Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    if (!userId) throw new BadRequestException('کاربر تننت‌محور یافت نشد');
+    const [contact, myExtension] = await Promise.all([
+      this.findContactByIdOrPhone(ctx, dto.contactId, dto.toNumber),
+      ctx.tenantDb.voipExtension.findUnique({ where: { userId } }),
+    ]);
+    const log = await this.callLog.recordOutbound(ctx.tenantDb, {
+      fromExtension: myExtension?.sipUsername ?? myExtension?.extension ?? '',
+      toNumber: dto.toNumber,
+      providerCallId: dto.sipCallId,
+      userId,
+      contactId: contact?.id ?? null,
+      contactName: contact?.name ?? null,
+    });
+    return log;
+  }
+
+  @Post('calls/:id/end')
+  async endCall(@Param('id') id: string, @Body() dto: EndCallDto, @Ctx() ctx: TenantRequestContext) {
+    const result = await this.callLog.endById(ctx.tenantDb, id, dto);
+    if (!result) throw new NotFoundException('تماس یافت نشد');
+    return result;
+  }
+
+  private async findContactByIdOrPhone(ctx: TenantRequestContext, contactId: string | undefined, phone: string) {
+    if (contactId) {
+      return ctx.tenantDb.crmContact.findUnique({ where: { id: contactId }, select: { id: true, name: true } });
+    }
+    const contacts = await ctx.tenantDb.crmContact.findMany({
+      where: { phone: { not: null } },
+      select: { id: true, name: true, phone: true },
+    });
+    return contacts.find((c) => c.phone && phonesMatch(c.phone, phone)) ?? null;
   }
 
   /** تاریخچه‌ی تماس — برای صفحه‌ی «تاریخچه تماس‌ها» (همه‌ی تننت) یا برای تب تماس‌های یک مخاطب خاص در پروفایلش. */

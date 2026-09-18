@@ -31,7 +31,9 @@ export class GenericWebhookVoipProvider implements OnModuleInit {
       code: 'generic-webhook',
       name: 'وب‌هوک عمومی (هر PBX با وب‌هوک قابل‌تنظیم)',
       configFields: [
-        { key: 'originateUrl', label: 'آدرس تریگر تماس خروجی (اختیاری — برای تماس مستقیم از ERP)' },
+        { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain)' },
+        { key: 'wssUrl', label: 'آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری — مثلاً wss://pbx.example.com:8089/ws)' },
+        { key: 'originateUrl', label: 'آدرس تریگر تماس خروجی (اختیاری — روش دیگر برای تماس مستقیم، اگر WebSocket در دسترس نبود)' },
       ],
       parseWebhook: (rawBody: unknown): IncomingCallEvent | null => {
         if (!rawBody || typeof rawBody !== 'object') return null;
