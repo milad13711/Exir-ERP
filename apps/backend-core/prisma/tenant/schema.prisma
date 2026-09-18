@@ -994,23 +994,35 @@ enum ResellerTier {
   B
 }
 
+/// فقط برای تننت رجیستری پلتفرم (eta) معنا دارد — کدام محصول اکسیر را این
+/// نماینده می‌فروشد؛ برای نقشه‌ی نمایندگان در eta.co.ir. تننت‌های معمولی
+/// این فیلد را خالی می‌گذارند.
+enum ResellerProductCode {
+  ERP
+  REAL_ESTATE
+  SMS_GATEWAY
+  OTHER
+}
+
 /// فیلدهای مخصوص نمایندگی، ماهواره‌ای روی یک CrmContact موجود (isSupplier: true).
 model ResellerProfile {
-  id                            String       @id @default(uuid())
-  contactId                     String       @unique
-  userId                        String?      @unique // اکانت ورود نماینده، پس از اعطای دسترسی سیستمی
+  id                            String               @id @default(uuid())
+  contactId                     String               @unique
+  userId                        String?              @unique // اکانت ورود نماینده، پس از اعطای دسترسی سیستمی
   websiteUrl                    String?
   logoUrl                       String?
   shabaNumber                   String?
-  tier                          ResellerTier @default(B)
-  isVerified                    Boolean      @default(false) // تیک آبی احراز هویت
+  tier                          ResellerTier         @default(B)
+  isVerified                    Boolean              @default(false) // تیک آبی احراز هویت
   verifiedAt                    DateTime?
-  commissionFirstPaymentPercent Int          @default(10)
-  commissionRenewalPercent      Int          @default(5)
-  referralCode                  String       @unique @default(uuid())
+  commissionFirstPaymentPercent Int                  @default(10)
+  commissionRenewalPercent      Int                  @default(5)
+  referralCode                  String               @unique @default(uuid())
   npsAvgScore                   Float?
-  createdAt                     DateTime     @default(now())
-  updatedAt                     DateTime     @updatedAt
+  city                          String? // برای پین‌گذاری روی نقشه‌ی نمایندگان (eta.co.ir)
+  productCode                   ResellerProductCode?
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
 
   contact     CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)

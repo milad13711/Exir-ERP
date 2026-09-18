@@ -463,6 +463,41 @@ export function assignLead(id: string, ownerAdminId: string) {
   });
 }
 
+// ── درخواست‌های همکاری در فروش (نمایندگی) — از فرم عمومی eta.co.ir ──────
+
+export type ResellerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type ResellerApplication = {
+  id: string;
+  name: string;
+  company: string | null;
+  phone: string;
+  email: string | null;
+  city: string | null;
+  websiteUrl: string | null;
+  productCode: string | null;
+  message: string | null;
+  status: ResellerApplicationStatus;
+  reviewedAt: string | null;
+  rejectionNote: string | null;
+  createdAt: string;
+};
+
+export function fetchResellerApplications(status?: ResellerApplicationStatus) {
+  return apiFetch<ResellerApplication[]>(`/admin/reseller-applications${status ? `?status=${status}` : ""}`);
+}
+
+export function approveResellerApplication(id: string) {
+  return apiFetch<ResellerApplication>(`/admin/reseller-applications/${id}/approve`, { method: "POST" });
+}
+
+export function rejectResellerApplication(id: string, rejectionNote?: string) {
+  return apiFetch<ResellerApplication>(`/admin/reseller-applications/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ rejectionNote }),
+  });
+}
+
 // ── Web Push (اعلان روی گوشی برای پیام‌های جدید پشتیبانی) ────────────────
 
 export function fetchPushVapidKey() {

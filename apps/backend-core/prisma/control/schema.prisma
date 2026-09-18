@@ -373,6 +373,7 @@ model AdminUser {
   createdInternalTasks  InternalTask[]          @relation("CreatedInternalTasks")
   ownedLeads            InternalLead[]
   pushSubscriptions     AdminPushSubscription[]
+  reviewedResellerApplications ResellerApplication[]
 
   @@map("admin_users")
 }
@@ -450,6 +451,38 @@ model InternalLead {
 
   @@index([stage])
   @@map("internal_leads")
+}
+
+// ── درخواست همکاری در فروش (نمایندگی) — از فرم عمومی «همکاری با ما» در
+// eta.co.ir؛ پس از بررسی مدیر، با approve به یک ResellerProfile واقعی در
+// تننت رجیستری (eta) تبدیل می‌شود — ببینید ResellerApplicationsService. ──
+
+enum ResellerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ResellerApplication {
+  id                String                    @id @default(uuid())
+  name              String
+  company           String?
+  phone             String
+  email             String?
+  city              String?
+  websiteUrl        String?
+  productCode       String? // 'ERP' | 'REAL_ESTATE' | 'SMS_GATEWAY' | 'OTHER' — به ResellerProfile.productCode (تننت eta) نگاشت می‌شود
+  message           String?
+  status            ResellerApplicationStatus @default(PENDING)
+  reviewedByAdminId String?
+  reviewedAt        DateTime?
+  rejectionNote     String?
+  createdAt         DateTime                  @default(now())
+
+  reviewedBy AdminUser? @relation(fields: [reviewedByAdminId], references: [id])
+
+  @@index([status])
+  @@map("reseller_applications")
 }
 
 // ── On-premise licensing ────────────────────────────────────────────────────

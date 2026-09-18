@@ -26,6 +26,8 @@ import { PublicMentoringSurveyService } from './public-mentoring-survey.service.
 import { PublicMentoringSurveyController } from './public-mentoring-survey.controller.js';
 import { PublicReferralSurveyService } from './public-referral-survey.service.js';
 import { PublicReferralSurveyController } from './public-referral-survey.controller.js';
+import { PublicResellerMapService } from './public-reseller-map.service.js';
+import { PublicResellerApplicationsController } from './public-reseller-applications.controller.js';
 import { EventsModule } from '../events/events.module.js';
 import { BillingModule } from '../billing/billing.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
@@ -84,6 +86,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicStoreController,
     PublicMentoringSurveyController,
     PublicReferralSurveyController,
+    PublicResellerApplicationsController,
     PublicEventsController,
     PublicEventsPaymentController,
     PublicFormsController,
@@ -106,6 +109,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicStoreService,
     PublicMentoringSurveyService,
     PublicReferralSurveyService,
+    PublicResellerMapService,
     PublicEventsService,
     PublicFormsService,
     PublicWarrantyService,

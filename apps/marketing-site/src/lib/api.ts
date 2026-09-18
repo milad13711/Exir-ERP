@@ -114,3 +114,32 @@ export function submitLead(data: {
 }) {
   return apiFetch<{ id: string }>("/public/catalog/lead", { method: "POST", body: JSON.stringify(data) });
 }
+
+export type ProductCode = "ERP" | "REAL_ESTATE" | "SMS_GATEWAY" | "OTHER";
+
+export function submitResellerApplication(data: {
+  name: string;
+  company?: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  websiteUrl?: string;
+  productCode?: ProductCode;
+  message?: string;
+}) {
+  return apiFetch<{ id: string }>("/public/reseller-applications", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type ResellerMapPin = {
+  id: string;
+  name: string;
+  city: string;
+  productCode: ProductCode | null;
+  tier: "A_PLUS" | "A" | "B";
+  logoUrl: string | null;
+  websiteUrl: string | null;
+};
+
+export function fetchResellerMap(productCode?: ProductCode) {
+  return apiFetch<ResellerMapPin[]>(`/public/resellers/map${productCode ? `?productCode=${productCode}` : ""}`);
+}

@@ -22,6 +22,9 @@ export function SiteHeader() {
           <Link href="/modules" className="hidden sm:inline hover:text-primary transition-colors">
             ماژول‌های اکسیر ERP
           </Link>
+          <Link href="/collaborate" className="hidden sm:inline hover:text-primary transition-colors">
+            همکاری با ما
+          </Link>
           <Link
             href="/configure"
             className="bg-primary text-white px-4 py-2 rounded-xl hover:bg-primary/90 transition-colors"

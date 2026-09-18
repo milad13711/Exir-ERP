@@ -14,6 +14,8 @@ import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminInternalController } from './admin-internal.controller.js';
 import { AdminPushController } from './admin-push.controller.js';
 import { PushNotificationsModule } from '../notifications/push-notifications.module.js';
+import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
+import { ResellerApplicationsService } from './reseller-applications.service.js';
 
 @Module({
   imports: [TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
@@ -26,7 +28,8 @@ import { PushNotificationsModule } from '../notifications/push-notifications.mod
     AdminCatalogController,
     AdminInternalController,
     AdminPushController,
+    AdminResellerApplicationsController,
   ],
-  providers: [AdminAuthService, AdminSupportService],
+  providers: [AdminAuthService, AdminSupportService, ResellerApplicationsService],
 })
 export class AdminModule {}
