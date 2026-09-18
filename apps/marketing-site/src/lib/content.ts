@@ -32,6 +32,8 @@ export type ExirProduct = {
   status: "live" | "soon";
   icon: ExirProductIcon;
   accent: string; // رنگ اختصاصی این محصول برای تفکیک بصری در گرید محصولات
+  /** لوگوی واقعی محصول (در public/brand) — وقتی موجود است به‌جای آیکن ژنریک بالا نمایش داده می‌شود. */
+  logoUrl?: string;
 };
 
 /** کارت‌های تفکیک مخاطب در صفحه‌ی اصلی eta.co.ir — هرکدام کاربر را به دامنه‌ی تخصصی خودش می‌فرستد. */
@@ -46,6 +48,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     status: "live",
     icon: "factory",
     accent: "#0369a1",
+    logoUrl: "/brand/exir-erp-mark.png",
   },
   {
     code: "amlak",
@@ -57,6 +60,7 @@ export const EXIR_PRODUCTS: ExirProduct[] = [
     status: "live",
     icon: "home",
     accent: "#0d9488",
+    logoUrl: "/brand/exiramlak-mark.png",
   },
   {
     code: "wedino",

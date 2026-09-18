@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
 import { BRAND, GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, HOME_FAQ, type ExirProduct } from "@/lib/content";
@@ -54,10 +55,14 @@ function ProductCard({ p }: { p: ExirProduct }) {
         </span>
       ) : null}
       <div
-        className="w-12 h-12 rounded-2xl flex items-center justify-center"
+        className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden"
         style={{ backgroundColor: `${p.accent}14`, color: p.accent }}
       >
-        <Icon className="w-6 h-6" />
+        {p.logoUrl ? (
+          <Image src={p.logoUrl} alt="" width={40} height={40} className="w-8 h-8 object-contain" />
+        ) : (
+          <Icon className="w-6 h-6" />
+        )}
       </div>
       <div className="text-[16px] font-extrabold">{p.name}</div>
       <div className="text-[12.5px] font-semibold" style={{ color: p.accent }}>

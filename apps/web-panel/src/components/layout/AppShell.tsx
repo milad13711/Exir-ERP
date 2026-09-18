@@ -10,7 +10,7 @@ import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
-import { ChatIcon } from "@/components/icons";
+import { ChatIcon, LogoMark } from "@/components/icons";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
 
 function AppShellInner({ children }: { children: ReactNode }) {
@@ -21,8 +21,12 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-background">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <div className="flex h-dvh flex-col items-center justify-center gap-5 bg-gradient-to-br from-[#0b1f4d] via-[#0b2d5b] to-[#132a54]">
+        <LogoMark className="w-16 h-16" />
+        <div className="text-white text-lg font-extrabold">
+          exir <span className="text-white/70 font-bold">ERP</span>
+        </div>
+        <div className="w-6 h-6 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
       </div>
     );
   }
