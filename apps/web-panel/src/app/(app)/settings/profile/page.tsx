@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getInitials } from "@/lib/persian";
-import { updateMyProfile, ApiError } from "@/lib/api";
+import { updateMyProfile, fetchStampDelegate, saveStampDelegate, ApiError, type StampDelegate } from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -142,6 +142,76 @@ export default function ProfileSettingsPage() {
           </form>
         )}
       </Card>
+
+      {me?.user.membershipRole === "OWNER" ? <StampDelegateCard /> : null}
     </div>
+  );
+}
+
+function StampDelegateCard() {
+  const [data, setData] = useState<StampDelegate | null>(null);
+  const [selected, setSelected] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchStampDelegate()
+      .then((d) => {
+        setData(d);
+        setSelected(d.delegateUserId ?? "");
+      })
+      .catch(() => setData({ delegateUserId: null, users: [] }));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveStampDelegate(selected || null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ذخیره ناموفق بود");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mt-5 p-6 max-w-[480px]">
+      <div className="text-[13px] font-bold mb-1">دسترسی مهر و امضا</div>
+      <p className="text-[12px] text-muted leading-relaxed mb-4">
+        فقط شما می‌توانید اسناد رسمی را از طرف شرکت با مهر/امضای رسمی امضا کنید. در صورت نیاز، این دسترسی را به یک
+        کاربر دیگر ارجاع دهید — روی هر سندی که او امضا کند، عبارت «از طرف {"{نام او}"}» درج می‌شود.
+      </p>
+      {data === null ? (
+        <div className="py-4 text-center text-muted text-sm">در حال بارگذاری...</div>
+      ) : (
+        <>
+          <label className={labelClass}>کاربر ارجاع‌شده</label>
+          <select value={selected} onChange={(e) => setSelected(e.target.value)} className={inputClass}>
+            <option value="">هیچ‌کس — فقط خودم</option>
+            {data.users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name ?? "بدون نام"}
+              </option>
+            ))}
+          </select>
+          {error ? <div className="text-[12px] text-danger mt-3">{error}</div> : null}
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
+            >
+              {saving ? "در حال ذخیره..." : "ذخیره"}
+            </button>
+            {saved ? <span className="text-[12.5px] text-success font-semibold">ذخیره شد ✓</span> : null}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }

@@ -80,6 +80,26 @@ function TemplateForm({
         </div>
       )}
       <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="متن بندها و شرایط قرارداد..." className={inputClass} />
+      <div className="text-[11px] text-muted bg-slate-50 rounded-lg p-2.5">
+        <div className="font-semibold text-ink-soft mb-1">فیلدهای قابل استفاده — با تایپ این‌ها داخل متن، هنگام ثبت هر قرارداد به‌طور خودکار پر می‌شوند:</div>
+        <div className="flex flex-wrap gap-1.5" dir="ltr">
+          {[
+            "شرکت", "نام_طرف_اول", "نام_طرف_دوم",
+            "شماره_تماس_طرف_اول", "شماره_تماس_طرف_دوم",
+            "شماره_ملی_طرف_اول", "شماره_ملی_طرف_دوم",
+            "شماره_ثبت_طرف_اول", "شماره_ثبت_طرف_دوم",
+            "آدرس_طرف_اول", "آدرس_طرف_دوم",
+            "تاریخ_شروع", "تاریخ_پایان", "مبلغ_قرارداد",
+          ].map((p) => (
+            <span key={p} className="bg-white border border-border rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+              {`{{${p}}}`}
+            </span>
+          ))}
+        </div>
+        <div className="mt-1.5">
+          فیلد دلخواه دیگری هم می‌توانید بسازید — کافی است در متن {"{{نام_دلخواه}}"} بنویسید و هنگام ثبت هر قرارداد مقدارش را وارد کنید.
+        </div>
+      </div>
       <div className="flex items-center justify-end gap-2">
         <button type="button" onClick={onCancel} className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3 py-1.5 rounded-lg cursor-pointer">
           انصراف

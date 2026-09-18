@@ -6223,12 +6223,9 @@ export function updateRecruitmentSmsSettings(data: RecruitmentSmsSettings) {
   return apiFetch<RecruitmentSmsSettings>("/recruitment/settings/sms", { method: "PUT", body: JSON.stringify(data) });
 }
 
+/** فقط برای پیش‌نمایش/رندر شرایط همکاری — تغییر خودِ مهر/امضا از Settings → General (فقط مالک) است. */
 export function fetchRecruitmentCompanySeal() {
   return apiFetch<RecruitmentCompanySeal>("/recruitment/settings/company-seal");
-}
-
-export function updateRecruitmentCompanySeal(data: RecruitmentCompanySeal) {
-  return apiFetch<RecruitmentCompanySeal>("/recruitment/settings/company-seal", { method: "PUT", body: JSON.stringify(data) });
 }
 
 // عمومی — بدون ورود

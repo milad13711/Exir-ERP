@@ -32,6 +32,77 @@ const LEGAL_CATEGORY_LABELS: Record<ContractLegalCategory, string> = {
   GENERAL: "عمومی",
 };
 
+const TEMPLATE_PLACEHOLDERS = [
+  "شرکت", "نام_طرف_اول", "نام_طرف_دوم",
+  "شماره_تماس_طرف_اول", "شماره_تماس_طرف_دوم",
+  "شماره_ملی_طرف_اول", "شماره_ملی_طرف_دوم",
+  "شماره_ثبت_طرف_اول", "شماره_ثبت_طرف_دوم",
+  "آدرس_طرف_اول", "آدرس_طرف_دوم",
+  "تاریخ_شروع", "تاریخ_پایان", "مبلغ_قرارداد",
+];
+
+function PlaceholderReference() {
+  return (
+    <div className="text-[11px] text-muted bg-slate-50 rounded-lg p-2.5 mt-1.5">
+      <div className="font-semibold text-ink-soft mb-1">فیلدهای قابل استفاده در متن قالب:</div>
+      <div className="flex flex-wrap gap-1.5" dir="ltr">
+        {TEMPLATE_PLACEHOLDERS.map((p) => (
+          <span key={p} className="bg-white border border-border rounded px-1.5 py-0.5 font-mono text-[10.5px]">
+            {`{{${p}}}`}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CustomFieldsEditor({
+  value,
+  onChange,
+}: {
+  value: { key: string; value: string }[];
+  onChange: (v: { key: string; value: string }[]) => void;
+}) {
+  return (
+    <div className="mt-2.5">
+      <label className={labelClass}>فیلدهای سفارشی (اختیاری)</label>
+      <div className="flex flex-col gap-1.5">
+        {value.map((f, i) => (
+          <div key={i} className="flex gap-1.5">
+            <input
+              placeholder="نام فیلد (مثلاً توضیحات_ویژه)"
+              dir="ltr"
+              value={f.key}
+              onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
+              className={`${inputClass} flex-1`}
+            />
+            <input
+              placeholder="مقدار"
+              value={f.value}
+              onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((_, j) => j !== i))}
+              className="text-[11px] font-bold text-danger px-2 rounded-lg cursor-pointer shrink-0"
+            >
+              حذف
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => onChange([...value, { key: "", value: "" }])}
+          className="self-start text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+        >
+          + افزودن فیلد سفارشی
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function NewContractModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState("");
   const [partyMode, setPartyMode] = useState<ContractPartyMode>("EXTERNAL");
@@ -46,6 +117,11 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
   const [secondPartyMode, setSecondPartyMode] = useState<"existing" | "new">("existing");
   const [secondPartyName, setSecondPartyName] = useState("");
   const [secondPartyPhone, setSecondPartyPhone] = useState("");
+  const [secondPartyNationalId, setSecondPartyNationalId] = useState("");
+  const [secondPartyRegistrationNumber, setSecondPartyRegistrationNumber] = useState("");
+  const [secondPartyAddress, setSecondPartyAddress] = useState("");
+
+  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
 
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
@@ -110,6 +186,13 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
         secondPartyContactId: partyMode === "THIRD_PARTY" && secondPartyMode === "existing" ? secondPartyContactId : undefined,
         secondPartyName: partyMode === "THIRD_PARTY" && secondPartyMode === "new" ? secondPartyName.trim() : undefined,
         secondPartyPhone: partyMode === "THIRD_PARTY" && secondPartyMode === "new" ? secondPartyPhone.trim() : undefined,
+        secondPartyNationalId: partyMode === "THIRD_PARTY" && secondPartyMode === "new" ? secondPartyNationalId.trim() || undefined : undefined,
+        secondPartyRegistrationNumber:
+          partyMode === "THIRD_PARTY" && secondPartyMode === "new" ? secondPartyRegistrationNumber.trim() || undefined : undefined,
+        secondPartyAddress: partyMode === "THIRD_PARTY" && secondPartyMode === "new" ? secondPartyAddress.trim() || undefined : undefined,
+        customFields: customFields.some((f) => f.key.trim())
+          ? Object.fromEntries(customFields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value]))
+          : undefined,
         value: Number(value),
         startDate,
         endDate,
@@ -244,6 +327,26 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
                   onChange={(e) => setSecondPartyPhone(e.target.value.replace(/[^0-9]/g, ""))}
                   className={`${inputClass} flex-1 min-w-[140px]`}
                 />
+                <input
+                  placeholder="شماره ملی (اختیاری)"
+                  dir="ltr"
+                  value={secondPartyNationalId}
+                  onChange={(e) => setSecondPartyNationalId(e.target.value)}
+                  className={`${inputClass} flex-1 min-w-[140px]`}
+                />
+                <input
+                  placeholder="شماره ثبت (اختیاری)"
+                  dir="ltr"
+                  value={secondPartyRegistrationNumber}
+                  onChange={(e) => setSecondPartyRegistrationNumber(e.target.value)}
+                  className={`${inputClass} flex-1 min-w-[140px]`}
+                />
+                <input
+                  placeholder="آدرس (اختیاری)"
+                  value={secondPartyAddress}
+                  onChange={(e) => setSecondPartyAddress(e.target.value)}
+                  className={`${inputClass} flex-1 min-w-[200px]`}
+                />
               </div>
             )}
           </div>
@@ -261,9 +364,13 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
               ))}
             </select>
             {selectedTemplate && (
-              <div className="text-[11.5px] text-muted leading-relaxed bg-slate-50 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap">
-                {selectedTemplate.body}
-              </div>
+              <>
+                <div className="text-[11.5px] text-muted leading-relaxed bg-slate-50 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap">
+                  {selectedTemplate.body}
+                </div>
+                <PlaceholderReference />
+                <CustomFieldsEditor value={customFields} onChange={setCustomFields} />
+              </>
             )}
           </div>
         )}

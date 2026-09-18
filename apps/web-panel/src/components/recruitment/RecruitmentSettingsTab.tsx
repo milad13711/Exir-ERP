@@ -8,33 +8,19 @@ import {
   updateRecruitmentGeneralSettings,
   fetchRecruitmentSmsSettings,
   updateRecruitmentSmsSettings,
-  fetchRecruitmentCompanySeal,
-  updateRecruitmentCompanySeal,
   type RecruitmentGeneralSettings,
   type RecruitmentSmsSettings,
-  type RecruitmentCompanySeal,
 } from "@/lib/api";
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export function RecruitmentSettingsTab() {
-  const [subTab, setSubTab] = useState<"general" | "sms" | "seal">("general");
+  const [subTab, setSubTab] = useState<"general" | "sms">("general");
   const [general, setGeneral] = useState<RecruitmentGeneralSettings | null>(null);
   const [sms, setSms] = useState<RecruitmentSmsSettings | null>(null);
-  const [seal, setSeal] = useState<RecruitmentCompanySeal | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetchRecruitmentGeneralSettings().then(setGeneral);
     fetchRecruitmentSmsSettings().then(setSms);
-    fetchRecruitmentCompanySeal().then(setSeal);
   }, []);
 
   function flashSaved() {
@@ -54,19 +40,12 @@ export function RecruitmentSettingsTab() {
     flashSaved();
   }
 
-  async function saveSeal() {
-    if (!seal) return;
-    setSeal(await updateRecruitmentCompanySeal(seal));
-    flashSaved();
-  }
-
   return (
     <div className="max-w-[560px]">
       <div className="flex items-center gap-2 mb-4">
         {[
           { key: "general" as const, label: "عمومی" },
           { key: "sms" as const, label: "پیامک" },
-          { key: "seal" as const, label: "مهر و امضا" },
         ].map((t) => (
           <button
             key={t.key}
@@ -141,42 +120,6 @@ export function RecruitmentSettingsTab() {
         </Card>
       )}
 
-      {subTab === "seal" && seal && (
-        <Card className="p-5 flex flex-col gap-3.5">
-          <div className="text-[12px] text-muted leading-relaxed">
-            این مهر و امضا روی PDF شرایط همکاری، پس از تأیید نهایی مدیر، درج می‌شود.
-          </div>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-semibold text-ink-soft">تصویر مهر شرکت</span>
-            {seal.stampImage && <img src={seal.stampImage} alt="مهر" className="h-16 w-auto" />}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) setSeal({ ...seal, stampImage: await fileToDataUrl(file) });
-              }}
-              className="text-[12.5px]"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-semibold text-ink-soft">تصویر امضای مدیر</span>
-            {seal.signatureImage && <img src={seal.signatureImage} alt="امضا" className="h-16 w-auto" />}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) setSeal({ ...seal, signatureImage: await fileToDataUrl(file) });
-              }}
-              className="text-[12.5px]"
-            />
-          </label>
-          <button onClick={saveSeal} className="self-start text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-primary text-white cursor-pointer">
-            {saved ? "ذخیره شد ✓" : "ذخیره"}
-          </button>
-        </Card>
-      )}
     </div>
   );
 }

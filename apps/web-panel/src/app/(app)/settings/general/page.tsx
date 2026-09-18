@@ -6,6 +6,7 @@ import {
   fetchGeneralSettings,
   updateGeneralSettings,
   updateBranding,
+  updateCompanyStamp,
   downloadBackupExport,
   uploadBackupImport,
   ApiError,
@@ -213,8 +214,123 @@ export default function GeneralSettingsPage() {
         )}
       </Card>
 
+      {settings?.canManageStamp ? (
+        <CompanyStampCard signatureImage={settings.signatureImage} stampImage={settings.stampImage} />
+      ) : null}
+
       <BackupExportCard />
     </div>
+  );
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function ImageSlot({
+  label,
+  value,
+  onChange,
+  onRemove,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onChange: (dataUrl: string) => void;
+  onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onChange(await readAsDataUrl(file));
+  }
+
+  return (
+    <div className="bg-slate-50 border border-border rounded-xl p-3.5">
+      <div className="text-[12px] font-semibold text-ink-soft mb-2">{label}</div>
+      {value ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt={label} className="h-16 mb-2 bg-white rounded-lg p-1.5 border border-border" />
+      ) : (
+        <div className="h-16 mb-2 flex items-center justify-center text-[11.5px] text-muted bg-white rounded-lg border border-dashed border-border">
+          تصویری ثبت نشده
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+        >
+          {value ? "تغییر تصویر" : "بارگذاری تصویر"}
+        </button>
+        {value ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer"
+          >
+            حذف تصویر
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CompanyStampCard({ signatureImage, stampImage }: { signatureImage: string | null; stampImage: string | null }) {
+  const [signature, setSignature] = useState<string | null | undefined>(signatureImage);
+  const [stamp, setStamp] = useState<string | null | undefined>(stampImage);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateCompanyStamp({ signatureImage: signature, stampImage: stamp });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mt-5 p-6 max-w-[540px]">
+      <div className="text-[13px] font-bold mb-1">مهر و امضای رسمی شرکت</div>
+      <p className="text-[12px] text-muted leading-relaxed mb-4">
+        این تصاویر تنها منبع مهر و امضای رسمی برای همه‌ی اسناد سیستم (قرارداد، شرایط همکاری و ...) هستند — فقط شما
+        (مالک محیط کاری) می‌توانید این تصاویر را تغییر دهید. دسترسی «استفاده» از این مهر برای امضای اسناد از طرف
+        شرکت را می‌توانید در تنظیمات پروفایل خودتان به یک کاربر دیگر ارجاع دهید.
+      </p>
+      <div className="flex flex-col gap-3">
+        <ImageSlot label="تصویر امضا" value={signature} onChange={setSignature} onRemove={() => setSignature(null)} />
+        <ImageSlot label="تصویر مهر" value={stamp} onChange={setStamp} onRemove={() => setStamp(null)} />
+      </div>
+      {error ? <div className="text-[12px] text-danger mt-3">{error}</div> : null}
+      <div className="flex items-center gap-3 mt-4">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
+        >
+          {saving ? "در حال ذخیره..." : "ذخیره"}
+        </button>
+        {saved ? <span className="text-[12.5px] text-success font-semibold">ذخیره شد ✓</span> : null}
+      </div>
+    </Card>
   );
 }
 
