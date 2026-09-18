@@ -23,6 +23,7 @@ export class UsersService {
       phone: u.phone,
       status: u.status,
       roles: u.roles.map((r) => r.role.name),
+      roleIds: u.roles.map((r) => r.roleId),
     }));
   }
 
@@ -127,6 +128,51 @@ export class UsersService {
     await this.sendAccessGrantedSms(ctx, name, phone);
 
     return user;
+  }
+
+  /** نام، ایمیل، وضعیت و نقش‌های یک کاربر را ویرایش می‌کند — roleIds در صورت ارسال، کل نقش‌های قبلی را جایگزین می‌کند. */
+  async updateUser(
+    ctx: TenantRequestContext,
+    id: string,
+    data: { name?: string; email?: string | null; status?: 'INVITED' | 'ACTIVE' | 'DISABLED'; roleIds?: string[] },
+  ) {
+    await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+
+    if (data.roleIds) {
+      await ctx.tenantDb.userRole.deleteMany({ where: { userId: id } });
+    }
+    return ctx.tenantDb.user.update({
+      where: { id },
+      data: {
+        name: data.name,
+        email: data.email,
+        status: data.status,
+        roles: data.roleIds ? { create: data.roleIds.map((roleId) => ({ roleId })) } : undefined,
+      },
+      include: { roles: { include: { role: true } } },
+    });
+  }
+
+  /**
+   * حذف کامل دسترسی کاربر — هم ردیف محلی تننت و هم عضویتش در کنترل‌پلین
+   * حذف می‌شود تا واقعاً دیگر عضو این تننت نباشد، نه فقط غیرفعال. مالک
+   * تننت و خودِ کاربر جاری قابل حذف نیستند.
+   */
+  async deleteUser(ctx: TenantRequestContext, id: string) {
+    const actorUserId = await resolveTenantUserId(ctx).catch(() => null);
+    if (actorUserId === id) throw new ForbiddenException('نمی‌توانید حساب کاربری خودتان را حذف کنید');
+
+    const user = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    const membership = await this.controlDb.tenantMembership.findUnique({
+      where: { tenantId_globalUserId: { tenantId: ctx.tenantId, globalUserId: user.globalUserId } },
+    });
+    if (membership?.role === 'OWNER') throw new ForbiddenException('مالک تننت قابل حذف نیست');
+
+    await ctx.tenantDb.user.delete({ where: { id } });
+    if (membership) {
+      await this.controlDb.tenantMembership.delete({ where: { id: membership.id } });
+    }
+    return { success: true };
   }
 
   /**

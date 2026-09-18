@@ -112,7 +112,7 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
         {error ? <div className="text-[11.5px] text-danger mb-2.5">{error}</div> : null}
 
         {tab === "dialpad" ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3" dir="ltr">
             <input
               value={number}
               onChange={(e) => setNumber(e.target.value.replace(/[^\d*#+]/g, ""))}
@@ -120,7 +120,7 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
               dir="ltr"
               className="text-center text-lg font-bold outline-none bg-slate-50 border border-border rounded-xl py-2.5"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2" dir="ltr">
               {KEYPAD.map((k) => (
                 <button
                   key={k}

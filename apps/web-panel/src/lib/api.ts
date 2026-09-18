@@ -448,6 +448,7 @@ export type TenantUser = {
   phone: string;
   status: "INVITED" | "ACTIVE" | "DISABLED";
   roles: string[];
+  roleIds: string[];
 };
 
 export function fetchUsers() {
@@ -465,6 +466,17 @@ export function inviteUser(name: string, phone: string, roleId: string) {
     method: "POST",
     body: JSON.stringify({ name, phone, roleId }),
   });
+}
+
+export function updateUser(
+  id: string,
+  data: { name?: string; email?: string | null; status?: TenantUser["status"]; roleIds?: string[] },
+) {
+  return apiFetch<TenantUser>(`/users/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteUser(id: string) {
+  return apiFetch<{ success: boolean }>(`/users/${id}`, { method: "DELETE" });
 }
 
 // ── Access matrix (per role, per module) ───────────────────────────────

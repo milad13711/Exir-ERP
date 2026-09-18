@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { settingsNav } from "./settings-nav-items";
 
@@ -9,8 +10,15 @@ export function SettingsBreadcrumb() {
 
   return (
     <div className="text-[13px] text-muted">
-      تنظیمات <span className="mx-1.5">/</span>{" "}
-      <span className="text-ink font-bold">{current?.label ?? ""}</span>
+      <Link href="/settings" className="hover:text-primary">
+        تنظیمات
+      </Link>
+      {current ? (
+        <>
+          <span className="mx-1.5">/</span>
+          <span className="text-ink font-bold">{current.label}</span>
+        </>
+      ) : null}
     </div>
   );
 }

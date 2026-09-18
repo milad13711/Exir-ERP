@@ -8,6 +8,7 @@ import { UsersService } from './users.service.js';
 import { InviteUserDto } from './dto/invite-user.dto.js';
 import { UpdateModulePermissionsDto } from './dto/update-module-permissions.dto.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -29,6 +30,20 @@ export class UsersController {
   @Roles('OWNER', 'ADMIN')
   invite(@Body() dto: InviteUserDto, @Ctx() ctx: TenantRequestContext) {
     return this.users.inviteUser(ctx, dto.name, dto.phone, dto.roleId);
+  }
+
+  @Put('users/:id')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Ctx() ctx: TenantRequestContext) {
+    return this.users.updateUser(ctx, id, dto);
+  }
+
+  @Delete('users/:id')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    return this.users.deleteUser(ctx, id);
   }
 
   @Put('roles/:id/permissions')

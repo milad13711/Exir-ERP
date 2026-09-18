@@ -9,6 +9,7 @@ import {
   fetchRoles,
   fetchRolesWithPermissions,
   inviteUser,
+  deleteUser,
   createRole,
   deleteRole,
   fetchDepartments,
@@ -24,8 +25,10 @@ import {
   type Employee,
 } from "@/lib/api";
 import { RolePermissionsModal } from "@/components/settings/RolePermissionsModal";
+import { EditUserModal } from "@/components/settings/EditUserModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const roleTones: Record<string, "primary" | "accent" | "warning" | "neutral"> = {
   "مدیر سیستم": "primary",
@@ -34,7 +37,9 @@ const roleTones: Record<string, "primary" | "accent" | "warning" | "neutral"> = 
 };
 
 export default function UsersRolesPage() {
+  const { me } = useWorkspace();
   const [users, setUsers] = useState<TenantUser[] | null>(null);
+  const [editingUser, setEditingUser] = useState<TenantUser | null>(null);
   const [roles, setRoles] = useState<TenantRoleOption[]>([]);
   const [rolesWithPerms, setRolesWithPerms] = useState<TenantRoleWithPermissions[]>([]);
   const [editingRole, setEditingRole] = useState<TenantRoleWithPermissions | null>(null);
@@ -82,6 +87,16 @@ export default function UsersRolesPage() {
       setError(err instanceof ApiError ? err.message : "افزودن کاربر با خطا مواجه شد");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteUser(id: string) {
+    if (!confirm("این کاربر حذف شود؟ دسترسی او به این محیط کاری کاملاً لغو می‌شود.")) return;
+    try {
+      await deleteUser(id);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "حذف کاربر با خطا مواجه شد");
     }
   }
 
@@ -228,12 +243,13 @@ export default function UsersRolesPage() {
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-3.5 pb-3">نام و شماره</th>
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-3.5 pb-3">نقش</th>
                 <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-3.5 pb-3">وضعیت</th>
+                <th className="text-start text-[11.5px] text-muted font-semibold pt-4 px-3.5 pb-3">عملیات</th>
               </tr>
             </thead>
             <tbody>
               {users === null ? (
                 <tr>
-                  <td colSpan={3} className="p-6 text-center text-muted text-sm">
+                  <td colSpan={4} className="p-6 text-center text-muted text-sm">
                     در حال بارگذاری...
                   </td>
                 </tr>
@@ -275,9 +291,29 @@ export default function UsersRolesPage() {
                     <td className="p-3.5">
                       {u.status === "ACTIVE" ? (
                         <Badge tone="success">فعال</Badge>
+                      ) : u.status === "DISABLED" ? (
+                        <Badge tone="danger">غیرفعال</Badge>
                       ) : (
                         <Badge tone="neutral">دعوت در انتظار</Badge>
                       )}
+                    </td>
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setEditingUser(u)}
+                          className="text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+                        >
+                          ویرایش
+                        </button>
+                        {u.phone !== me?.user.phone ? (
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="text-[11.5px] font-bold text-danger px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+                          >
+                            حذف
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -457,6 +493,10 @@ export default function UsersRolesPage() {
 
       {editingRole ? (
         <RolePermissionsModal role={editingRole} onClose={() => setEditingRole(null)} onSaved={reload} />
+      ) : null}
+
+      {editingUser ? (
+        <EditUserModal user={editingUser} roles={roles} onClose={() => setEditingUser(null)} onSaved={reload} />
       ) : null}
     </div>
   );
