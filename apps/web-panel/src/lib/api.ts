@@ -751,6 +751,20 @@ export function updateNotificationPreferences(data: Partial<NotificationPreferen
   });
 }
 
+export function fetchPushVapidKey() {
+  return apiFetch<{ publicKey: string | null; configured: boolean }>("/notifications/push/vapid-public-key");
+}
+
+export function subscribePush(data: { endpoint: string; p256dh: string; auth: string }) {
+  return apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function unsubscribePush(endpoint: string) {
+  return apiFetch<{ success: boolean }>(`/notifications/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`, {
+    method: "DELETE",
+  });
+}
+
 // ── Support ──────────────────────────────────────────────────────────────
 
 export type SupportTicket = {

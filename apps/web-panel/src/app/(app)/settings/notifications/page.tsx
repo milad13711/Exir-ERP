@@ -7,6 +7,7 @@ import {
   updateNotificationPreferences,
   type NotificationPreferences,
 } from "@/lib/api";
+import { PushNotificationRow } from "@/components/settings/PushNotificationRow";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -70,13 +71,14 @@ export default function NotificationsSettingsPage() {
               </div>
               <Toggle checked={prefs.emailEnabled} onChange={(v) => handleChange({ emailEnabled: v })} />
             </div>
-            <div className="flex items-center justify-between px-4 py-4">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border">
               <div>
                 <div className="text-[13px] font-bold">پیامک</div>
                 <div className="text-[11.5px] text-muted mt-0.5">ارسال به شماره موبایل ثبت‌شده در پروفایل کاربری</div>
               </div>
               <Toggle checked={prefs.smsEnabled} onChange={(v) => handleChange({ smsEnabled: v })} />
             </div>
+            <PushNotificationRow />
           </>
         )}
       </Card>

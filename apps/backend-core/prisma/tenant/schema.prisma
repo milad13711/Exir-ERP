@@ -68,6 +68,7 @@ model User {
   createdAutomationRules        AutomationRule[]
   voipExtension                 VoipExtension?
   callLogs                      CallLog[]
+  pushSubscriptions             PushSubscription[]
   decidedAiActions              AiActionRequest[]
   providedAppointments          Appointment[]              @relation("AppointmentProvider")
   createdAppointments           Appointment[]              @relation("AppointmentCreatedBy")
@@ -296,6 +297,23 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+/// اشتراک پوش وب یک دستگاه/مرورگر خاص برای یک کاربر تننت — همان الگوی
+/// AdminPushSubscription (کنترل‌پلین)، اینجا برای کاربران تننت. هر بار
+/// NotificationsService.notify() صدا زده شود، اگر کاربر حداقل یک اشتراک
+/// داشته باشد، به همه‌ی دستگاه‌هایش پوش هم ارسال می‌شود.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }
 
 // ── CRM: مدیریت ارتباط با مشتری (contacts, sales pipeline, activity timeline) ─

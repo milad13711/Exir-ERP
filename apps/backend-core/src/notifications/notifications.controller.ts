@@ -1,13 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto.js';
+import { PushNotificationsService } from './push-notifications.service.js';
+import { SubscribePushDto } from './dto/subscribe-push.dto.js';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
+  constructor(private readonly push: PushNotificationsService) {}
+
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx);
@@ -59,5 +63,28 @@ export class NotificationsController {
       create: { userId, emailEnabled: dto.emailEnabled ?? true, smsEnabled: dto.smsEnabled ?? false },
       update: { emailEnabled: dto.emailEnabled, smsEnabled: dto.smsEnabled },
     });
+  }
+
+  @Get('push/vapid-public-key')
+  getPushPublicKey() {
+    return { publicKey: this.push.getPublicKey(), configured: this.push.isConfigured() };
+  }
+
+  @Post('push/subscribe')
+  async subscribePush(@Body() dto: SubscribePushDto, @Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    if (!userId) return { success: false };
+    await ctx.tenantDb.pushSubscription.upsert({
+      where: { endpoint: dto.endpoint },
+      create: { userId, endpoint: dto.endpoint, p256dh: dto.p256dh, auth: dto.auth },
+      update: { userId, p256dh: dto.p256dh, auth: dto.auth },
+    });
+    return { success: true };
+  }
+
+  @Delete('push/subscribe')
+  async unsubscribePush(@Query('endpoint') endpoint: string, @Ctx() ctx: TenantRequestContext) {
+    await ctx.tenantDb.pushSubscription.deleteMany({ where: { endpoint } });
+    return { success: true };
   }
 }

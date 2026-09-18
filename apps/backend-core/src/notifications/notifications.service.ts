@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { EmailService } from '../email/email.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { PushNotificationsService } from './push-notifications.service.js';
 
 export type NotifyInput = {
   userId: string;
@@ -28,6 +29,7 @@ export class NotificationsService {
   constructor(
     private readonly email: EmailService,
     private readonly sms: ExirSmsService,
+    private readonly push: PushNotificationsService,
   ) {}
 
   async notify(tenantDb: TenantPrismaClient, input: NotifyInput): Promise<void> {
@@ -58,5 +60,11 @@ export class NotificationsService {
       const result = await this.sms.sendSms(user.phone, `${input.title}${input.body ? ` — ${input.body}` : ''}`);
       if (!result.success) this.logger.warn(`SMS notification failed for ${user.id}: ${result.error}`);
     }
+
+    await this.push.sendToTenantUser(tenantDb, input.userId, {
+      title: input.title,
+      body: input.body ?? '',
+      url: input.link,
+    });
   }
 }
