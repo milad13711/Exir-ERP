@@ -20,6 +20,7 @@ export const DEFAULT_ACCOUNTS: AccountSeed[] = [
   { code: '5010', name: 'بهای تمام‌شده کالای فروش‌رفته', type: 'EXPENSE' },
   { code: '5020', name: 'هزینه‌های اداری و عمومی', type: 'EXPENSE' },
   { code: '5030', name: 'هزینه حقوق و دستمزد', type: 'EXPENSE' },
+  { code: '5040', name: 'هزینه کمیسیون فروش/نمایندگی', type: 'EXPENSE' },
 ];
 
 export async function ensureDefaultChartOfAccounts(db: TenantPrismaClient): Promise<void> {

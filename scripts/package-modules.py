@@ -45,6 +45,7 @@ MODULES = {
     "quality-control": (["quality-control"], "quality-control", None),
     "ration-lab": (["ration-lab"], "ration-lab", None),
     "recruitment": (["recruitment"], "recruitment", "recruitment"),
+    "referral-marketing": (["referral-marketing", "tenants"], "referral-marketing", "referral-marketing"),
     "reports": (["reports"], "reports", "reports"),
     "sales": (["sales"], "sales", "sales"),
     "tasks": (["tasks"], "tasks", None),

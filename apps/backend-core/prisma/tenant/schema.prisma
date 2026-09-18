@@ -102,6 +102,7 @@ model User {
   createdReports                Report[]
   reportReferralsSent           ReportReferral[]           @relation("ReportReferralFrom")
   reportReferralsReceived       ReportReferral[]           @relation("ReportReferralTo")
+  resellerProfile                ResellerProfile?
 
   @@map("users")
 }
@@ -387,6 +388,7 @@ model CrmContact {
   funnelStageEvents         CrmFunnelStageEvent[]
   campaignRecipients        MarketingCampaignRecipient[]
   rationSamples             RationSample[]
+  resellerProfile           ResellerProfile?
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -840,6 +842,7 @@ model PurchaseOrder {
   payments   PurchasePayment[]
   checks     Check[]
   returns    PurchaseReturn[]
+  referralCommission ReferralCommission?
 
   @@index([supplierId])
   @@index([status])
@@ -955,6 +958,80 @@ model PurchasePayment {
   order PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("purchase_payments")
+}
+
+// ── نمایندگی و بازاریابی رفرال — نمایندگانی که تننت جدید معرفی می‌کنند و
+// روی پرداخت اول/تمدید کمیسیون می‌گیرند. فقط در تننت رجیستری (اکسیرتجارت
+// امین) معنا دارد، نه هر تننتی — ببینید ReferralSyncService. ─────────────
+
+enum ResellerTier {
+  A_PLUS
+  A
+  B
+}
+
+/// فیلدهای مخصوص نمایندگی، ماهواره‌ای روی یک CrmContact موجود (isSupplier: true).
+model ResellerProfile {
+  id                            String       @id @default(uuid())
+  contactId                     String       @unique
+  userId                        String?      @unique // اکانت ورود نماینده، پس از اعطای دسترسی سیستمی
+  websiteUrl                    String?
+  logoUrl                       String?
+  shabaNumber                   String?
+  tier                          ResellerTier @default(B)
+  isVerified                    Boolean      @default(false) // تیک آبی احراز هویت
+  verifiedAt                    DateTime?
+  commissionFirstPaymentPercent Int          @default(10)
+  commissionRenewalPercent      Int          @default(5)
+  referralCode                  String       @unique @default(uuid())
+  npsAvgScore                   Float?
+  createdAt                     DateTime     @default(now())
+  updatedAt                     DateTime     @updatedAt
+
+  contact         CrmContact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  referredTenants ReferredTenant[]
+
+  @@map("reseller_profiles")
+}
+
+/// یک تننت واقعی در کنترل‌پلین که با معرفی این نماینده ساخته شده — بدون FK
+/// واقعی (کنترل‌پلین یک دیتابیس جداست)، فقط شناسه‌ی خارجی.
+model ReferredTenant {
+  id                String   @id @default(uuid())
+  resellerProfileId String
+  controlTenantId   String   @unique
+  tenantName        String
+  tenantSlug        String
+  createdAt         DateTime @default(now())
+
+  resellerProfile ResellerProfile      @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
+  commissions     ReferralCommission[]
+
+  @@index([resellerProfileId])
+  @@map("referred_tenants")
+}
+
+enum ReferralCommissionKind {
+  FIRST_PAYMENT
+  RENEWAL
+}
+
+/// فقط یک لینک گزارشی — بدهی واقعی و وضعیت تسویه از خودِ PurchaseOrder
+/// خوانده می‌شود، دوباره ذخیره نمی‌شود.
+model ReferralCommission {
+  id               String                 @id @default(uuid())
+  referredTenantId String
+  kind             ReferralCommissionKind
+  purchaseOrderId  String                 @unique
+  amount           Int
+  createdAt        DateTime               @default(now())
+
+  referredTenant ReferredTenant @relation(fields: [referredTenantId], references: [id], onDelete: Cascade)
+  purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([referredTenantId])
+  @@map("referral_commissions")
 }
 
 // ── Accounting: کدینگ حسابها، اسناد حسابداری و خزانه‌داری ───────────────────

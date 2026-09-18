@@ -78,6 +78,7 @@ export class PublicSignupService {
     planCode: string;
     industryTemplateCode?: string;
     extraModuleCodes?: string[];
+    resellerCode?: string;
   }): Promise<{ tenant: { name: string; slug: string; status: string }; requiresPayment: boolean; accessToken?: string }> {
     const ownerPhone = await this.resolveSignupPhone(input.signupToken);
 
@@ -93,6 +94,7 @@ export class PublicSignupService {
         planCode: input.planCode,
         industryTemplateCode: input.industryTemplateCode,
         extraModuleCodes: input.extraModuleCodes,
+        resellerCode: input.resellerCode,
         isPublicSignup: true,
       },
       { type: 'system', id: null },

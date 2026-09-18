@@ -3,6 +3,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantDbAdminService } from './tenant-db-admin.service.js';
 import { seedDefaultTenantData, getSystemRoleId, type IndustryTemplateSeed } from './default-tenant-data.seed.js';
+import { ReferralSyncService } from './referral-sync.service.js';
 import { addBillingPeriod } from '../modules-catalog/module-pricing.js';
 import type { Tenant } from '../../generated/control-client/index.js';
 
@@ -30,6 +31,8 @@ export type CreateTenantInput = {
    * that don't go through the wizard.
    */
   extraModuleCodes?: string[];
+  /** کد رفرال یک نماینده — از لینک ثبت‌نام (`?ref=`) گرفته می‌شود؛ ببینید ReferralSyncService. */
+  resellerCode?: string;
 };
 
 export type TenantActor = { type: 'admin_user'; id: string } | { type: 'system'; id: null };
@@ -44,6 +47,7 @@ export class TenantsService {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly dbAdmin: TenantDbAdminService,
+    private readonly referralSync: ReferralSyncService,
   ) {}
 
   /**
@@ -205,6 +209,8 @@ export class TenantsService {
         },
       });
 
+      await this.referralSync.onTenantCreated(activated, input.ownerName, input.ownerPhone, input.resellerCode);
+
       return activated;
     } catch (err) {
       this.logger.error(`provisioning failed for tenant ${tenant.slug}`, err as Error);
@@ -328,6 +334,8 @@ export class TenantsService {
         ? [this.controlDb.tenant.update({ where: { id: tenantId }, data: { status: 'ACTIVE' as const } })]
         : []),
     ]);
+
+    await this.referralSync.onInvoicePaid(invoice.id, tenantId, invoice.amount);
 
     return { subscription: updated, invoice };
   }
@@ -516,6 +524,8 @@ export class TenantsService {
     if (invoice.purpose === 'MODULE_PURCHASE' || invoice.purpose === 'MODULE_RENEWAL') {
       await this.activatePurchasedModules(invoice.tenantId, invoiceId, invoice.items);
     }
+
+    await this.referralSync.onInvoicePaid(invoiceId, invoice.tenantId, invoice.amount);
 
     return updated;
   }

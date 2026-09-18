@@ -32,4 +32,9 @@ export class CreatePublicTenantDto {
   @IsArray()
   @IsString({ each: true })
   extraModuleCodes?: string[];
+
+  /** کد رفرال یک نماینده — از لینک ثبت‌نام (`?ref=`) گرفته می‌شود. */
+  @IsOptional()
+  @IsString()
+  resellerCode?: string;
 }

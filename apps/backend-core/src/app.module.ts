@@ -53,6 +53,7 @@ import { AfterSalesModule } from './after-sales/after-sales.module.js';
 import { QrCodeModule } from './qr-code/qr-code.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { ReportsModule } from './reports/reports.module.js';
     QrCodeModule,
     RecruitmentModule,
     ReportsModule,
+    ReferralMarketingModule,
     AdminModule,
     WorkspaceModule,
     ProductionModule,

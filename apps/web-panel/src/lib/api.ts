@@ -250,6 +250,7 @@ export function createPublicTenant(input: {
   planCode: string;
   industryTemplateCode?: string;
   extraModuleCodes?: string[];
+  resellerCode?: string;
 }) {
   return apiFetch<{
     tenant: { name: string; slug: string; status: string };
@@ -6369,4 +6370,135 @@ export function fetchEmployeeKpi(employeeId: string, from?: string, to?: string)
   if (to) params.set("to", to);
   const qs = params.toString();
   return apiFetch<EmployeeKpi>(`/hr/employees/${employeeId}/kpi${qs ? `?${qs}` : ""}`);
+}
+
+// ── نمایندگی و بازاریابی رفرال ───────────────────────────────────────────
+
+export type ResellerTier = "A_PLUS" | "A" | "B";
+
+export type Reseller = {
+  id: string;
+  contactId: string;
+  userId: string | null;
+  websiteUrl: string | null;
+  logoUrl: string | null;
+  shabaNumber: string | null;
+  tier: ResellerTier;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  commissionFirstPaymentPercent: number;
+  commissionRenewalPercent: number;
+  referralCode: string;
+  npsAvgScore: number | null;
+  createdAt: string;
+  contact: { id: string; name: string; company: string | null; phone: string | null; address: string | null };
+  user: { id: string; phone: string; status: string } | null;
+};
+
+export type ReferredTenant = {
+  id: string;
+  resellerProfileId: string;
+  controlTenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  createdAt: string;
+};
+
+export type ReferralCommission = {
+  id: string;
+  referredTenantId: string;
+  kind: "FIRST_PAYMENT" | "RENEWAL";
+  purchaseOrderId: string;
+  amount: number;
+  createdAt: string;
+  referredTenant: { tenantName: string; tenantSlug: string };
+  purchaseOrder: { orderNo: number; status: string; total: number; paidAmount: number };
+};
+
+export type ResellerDashboardRow = {
+  id: string;
+  name: string;
+  company: string | null;
+  tier: ResellerTier;
+  isVerified: boolean;
+  npsAvgScore: number | null;
+  referredTenantCount: number;
+  totalCommission: number;
+  paidCommission: number;
+  pendingCommission: number;
+};
+
+export function fetchResellers() {
+  return apiFetch<Reseller[]>("/referral-marketing/resellers");
+}
+
+export function fetchResellerDashboard() {
+  return apiFetch<ResellerDashboardRow[]>("/referral-marketing/resellers/dashboard");
+}
+
+export function fetchReseller(id: string) {
+  return apiFetch<Reseller>(`/referral-marketing/resellers/${id}`);
+}
+
+export function createReseller(data: {
+  name: string;
+  company?: string;
+  phone?: string;
+  address?: string;
+  websiteUrl?: string;
+  logoUrl?: string;
+  shabaNumber?: string;
+  tier?: ResellerTier;
+}) {
+  return apiFetch<Reseller>("/referral-marketing/resellers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateReseller(
+  id: string,
+  data: Partial<Parameters<typeof createReseller>[0]> & {
+    isVerified?: boolean;
+    commissionFirstPaymentPercent?: number;
+    commissionRenewalPercent?: number;
+  },
+) {
+  return apiFetch<Reseller>(`/referral-marketing/resellers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function grantResellerAccess(id: string) {
+  return apiFetch<Reseller>(`/referral-marketing/resellers/${id}/grant-access`, { method: "POST" });
+}
+
+export function fetchResellerTenants(id: string) {
+  return apiFetch<ReferredTenant[]>(`/referral-marketing/resellers/${id}/tenants`);
+}
+
+export function fetchResellerCommissions(id: string) {
+  return apiFetch<ReferralCommission[]>(`/referral-marketing/resellers/${id}/commissions`);
+}
+
+export function fetchMyResellerProfile() {
+  return apiFetch<Reseller>("/referral-marketing/me");
+}
+
+export function fetchMyReferredTenants() {
+  return apiFetch<ReferredTenant[]>("/referral-marketing/me/tenants");
+}
+
+export function fetchMyReferralCommissions() {
+  return apiFetch<ReferralCommission[]>("/referral-marketing/me/commissions");
+}
+
+export type ResellerSupportTicket = {
+  id: string;
+  tenantId: string;
+  tenantName?: string;
+  subject: string;
+  status: string;
+  priority: string;
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+export function fetchMySupportTickets() {
+  return apiFetch<ResellerSupportTicket[]>("/referral-marketing/me/support-tickets");
 }

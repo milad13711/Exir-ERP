@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import {
   LogoMark,
@@ -60,7 +60,17 @@ function slugify(name: string): string {
 type Step = "category" | "industry" | "customize-modules" | "phone" | "otp" | "details" | "loading" | "done";
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resellerCode = searchParams.get("ref") ?? undefined;
   const [step, setStep] = useState<Step>("category");
 
   const [templates, setTemplates] = useState<PublicIndustryTemplate[] | null>(null);
@@ -228,6 +238,7 @@ export default function SignupPage() {
           planCode,
           industryTemplateCode: baseTemplateCode,
           extraModuleCodes,
+          resellerCode,
         }),
         minLoadingMs,
       ]);
