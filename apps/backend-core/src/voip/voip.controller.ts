@@ -92,7 +92,7 @@ export class VoipController {
   async originate(@Body() dto: OriginateCallDto, @Ctx() ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx);
     const myExtension = userId ? await ctx.tenantDb.voipExtension.findUnique({ where: { userId } }) : null;
-    if (!myExtension) throw new BadRequestException('ابتدا داخلی VoIP خودتان را در تنظیمات ثبت کنید');
+    if (!myExtension?.extension) throw new BadRequestException('ابتدا داخلی VoIP خودتان را در تنظیمات ثبت کنید');
 
     const providerConfig = await ctx.tenantDb.voipProviderConfig.findFirst({ where: { isActive: true } });
     if (!providerConfig) throw new NotFoundException('سرویس VoIP برای این محیط کاری تنظیم نشده است');

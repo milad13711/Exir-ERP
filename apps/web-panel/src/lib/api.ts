@@ -3486,7 +3486,7 @@ export function fetchMyVoipExtension() {
   return apiFetch<MyVoipExtension>("/voip/extensions/me");
 }
 
-export function saveMyVoipExtension(data: { extension: string; sipUsername?: string; sipPassword?: string }) {
+export function saveMyVoipExtension(data: { extension?: string; sipUsername?: string; sipPassword?: string }) {
   return apiFetch<MyVoipExtension>("/voip/extensions/me", { method: "PUT", body: JSON.stringify(data) });
 }
 
