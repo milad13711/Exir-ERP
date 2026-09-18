@@ -29,6 +29,7 @@ import {
   BriefcaseIcon,
   LogIcon,
   ShareIcon,
+  PhoneIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -58,6 +59,7 @@ export const primaryNav: NavItem[] = [
   { href: "/forms", label: "فرم‌ساز", icon: ClipboardCheckIcon, moduleCode: "forms", category: "فروش و مشتری" },
   { href: "/warranty", label: "گارانتی", icon: ShieldIcon, moduleCode: "warranty", category: "فروش و مشتری" },
   { href: "/after-sales", label: "خدمات پس از فروش", icon: HeartIcon, moduleCode: "after-sales-service", category: "فروش و مشتری" },
+  { href: "/calls", label: "تاریخچه تماس‌ها", icon: PhoneIcon, moduleCode: "voip", category: "فروش و مشتری" },
 
   // فروش (کانال‌های عمومی)
   { href: "/marketing", label: "بازاریابی", icon: MegaphoneIcon, moduleCode: "marketing", category: "فروش" },

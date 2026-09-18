@@ -10,6 +10,7 @@ import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
 import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals, type MyTenant, type ModuleRenewalNotice } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { NotificationBell } from "./NotificationBell";
+import { PhoneWidget } from "@/components/voip/PhoneWidget";
 
 export function Header({
   onOpenSupport,
@@ -157,6 +158,7 @@ export function Header({
           ) : null}
         </button>
 
+        <PhoneWidget />
         <NotificationBell />
 
         <div className="relative hidden sm:block">

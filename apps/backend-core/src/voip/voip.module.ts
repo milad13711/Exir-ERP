@@ -8,10 +8,18 @@ import { VoipWebhookController } from './voip-webhook.controller.js';
 import { GenericWebhookVoipProvider } from './providers/generic-webhook.provider.js';
 import { NovatelVoipProvider } from './providers/novatel.provider.js';
 import { VoipAutomationTriggers } from './voip-automation.triggers.js';
+import { CallLogService } from './call-log.service.js';
 
 @Module({
   imports: [ModuleGuardModule, AutomationModule],
   controllers: [VoipController, VoipWebhookController],
-  providers: [VoipProviderRegistryService, VoipGateway, GenericWebhookVoipProvider, NovatelVoipProvider, VoipAutomationTriggers],
+  providers: [
+    VoipProviderRegistryService,
+    VoipGateway,
+    GenericWebhookVoipProvider,
+    NovatelVoipProvider,
+    VoipAutomationTriggers,
+    CallLogService,
+  ],
 })
 export class VoipModule {}

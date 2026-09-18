@@ -12,11 +12,24 @@ export type IncomingCallEvent = {
   fromNumber: string;
   /** The internal extension that was dialed — looked up against VoipExtension to find which user gets the popup. */
   toExtension: string;
-  /** Provider's own call id, opaque to us — kept only for logging/troubleshooting. */
+  /** Provider's own call id, opaque to us — kept only for logging/troubleshooting, and for matching a later "call ended" event to this same call. */
   callId: string;
 };
 
-export type OriginateResult = { success: true } | { success: false; error: string };
+/**
+ * A "call ended" event — optional because most providers don't (yet)
+ * confirm they send one, or what shape it has. `recordingUrl` is only ever
+ * populated when the provider's own payload actually carries one; this
+ * module never guesses or fabricates a recording location.
+ */
+export type CallEndedEvent = {
+  callId: string;
+  durationSeconds?: number;
+  recordingUrl?: string;
+  status?: 'ANSWERED' | 'MISSED' | 'NO_ANSWER' | 'FAILED';
+};
+
+export type OriginateResult = { success: true; callId?: string } | { success: false; error: string };
 
 export type VoipProviderAdapter = {
   code: string;
@@ -30,6 +43,8 @@ export type VoipProviderAdapter = {
    * here, not error out).
    */
   parseWebhook(rawBody: unknown): IncomingCallEvent | null;
+  /** Same webhook URL, but for a "call ended" payload — omitted for a provider that doesn't (confirmed to) send one. */
+  parseCallEndedWebhook?: (rawBody: unknown) => CallEndedEvent | null;
   /** Click-to-call — omitted entirely for a provider that doesn't support triggering outbound calls via API. */
   originateCall?: (config: Record<string, unknown>, fromExtension: string, toNumber: string) => Promise<OriginateResult>;
 };

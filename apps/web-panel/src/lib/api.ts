@@ -3519,6 +3519,34 @@ export function originateCall(toNumber: string, contactId?: string) {
   return apiFetch<{ success: boolean }>("/voip/originate", { method: "POST", body: JSON.stringify({ toNumber, contactId }) });
 }
 
+export type CallDirection = "INBOUND" | "OUTBOUND";
+export type CallStatus = "RINGING" | "ANSWERED" | "MISSED" | "NO_ANSWER" | "FAILED";
+
+export type CallLog = {
+  id: string;
+  direction: CallDirection;
+  status: CallStatus;
+  fromNumber: string;
+  toNumber: string;
+  contactId: string | null;
+  userId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  recordingUrl: string | null;
+  contact: { id: string; name: string; company: string | null } | null;
+  user: { id: string; name: string } | null;
+};
+
+export function fetchCallLogs(params: { contactId?: string; mine?: boolean; limit?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.contactId) qs.set("contactId", params.contactId);
+  if (params.mine) qs.set("mine", "true");
+  if (params.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.toString();
+  return apiFetch<CallLog[]>(`/voip/calls${suffix ? `?${suffix}` : ""}`);
+}
+
 // ── درخواست‌های دستیار هوشمند (AI Actions) ──────────────────────────────
 
 export type AiActionStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXECUTED" | "FAILED";

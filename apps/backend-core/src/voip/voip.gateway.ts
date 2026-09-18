@@ -58,4 +58,9 @@ export class VoipGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyIncomingCall(userId: string, payload: { fromNumber: string; contactId: string | null; contactName: string | null; callId: string }): void {
     this.server.to(`voip:user:${userId}`).emit('call.incoming', payload);
   }
+
+  /** به ویجت تلفن هدر می‌گوید یک تماس (ورودی یا خروجی) پایان یافت — تا از حالت «در حال تماس» خارج شود و تاریخچه را دوباره بارگذاری کند. */
+  notifyCallEnded(userId: string, payload: { callId: string; status: string; durationSeconds: number | null }): void {
+    this.server.to(`voip:user:${userId}`).emit('call.ended', payload);
+  }
 }

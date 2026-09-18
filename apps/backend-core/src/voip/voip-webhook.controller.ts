@@ -3,9 +3,12 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { VoipProviderRegistryService } from './voip-provider-registry.service.js';
 import { VoipGateway } from './voip.gateway.js';
+import { CallLogService } from './call-log.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { phonesMatch } from './phone-match.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import type { CallEndedEvent, IncomingCallEvent } from './types.js';
 
 /**
  * Where a tenant's PBX actually points its webhook. No JWT here — a PBX
@@ -22,6 +25,7 @@ export class VoipWebhookController {
     private readonly registry: VoipProviderRegistryService,
     private readonly gateway: VoipGateway,
     private readonly automation: AutomationEngineService,
+    private readonly callLog: CallLogService,
   ) {}
 
   @Post()
@@ -42,9 +46,21 @@ export class VoipWebhookController {
 
     const adapter = this.registry.get(providerCode);
     const event = adapter?.parseWebhook(body);
-    if (!event) return { received: true }; // not an event we act on — 200 so the PBX doesn't retry forever
+    if (event) return this.handleIncoming(tenant, tenantDb, event);
 
-    const extension = await tenantDb.voipExtension.findFirst({ where: { extension: event.toExtension } });
+    const endedEvent = adapter?.parseCallEndedWebhook?.(body);
+    if (endedEvent) return this.handleEnded(tenantDb, endedEvent);
+
+    return { received: true }; // not an event we act on — 200 so the PBX doesn't retry forever
+  }
+
+  private async handleIncoming(tenant: { id: string; slug: string }, tenantDb: TenantPrismaClient, event: IncomingCallEvent) {
+    // event.toExtension ممکن است داخلی webhook قدیمی (extension) یا همان
+    // نام‌کاربری SIP ثبت‌شده‌ی اتصال مستقیم تلفن IP (sipUsername) باشد —
+    // رابط کاربری فعلی فقط دومی را ست می‌کند.
+    const extension = await tenantDb.voipExtension.findFirst({
+      where: { OR: [{ extension: event.toExtension }, { sipUsername: event.toExtension }] },
+    });
     if (!extension) return { received: true }; // no one in the ERP owns this extension
 
     const contacts = await tenantDb.crmContact.findMany({ where: { phone: { not: null } }, select: { id: true, name: true, phone: true } });
@@ -57,6 +73,15 @@ export class VoipWebhookController {
       callId: event.callId,
     });
 
+    await this.callLog.recordIncoming(tenantDb, {
+      fromNumber: event.fromNumber,
+      toExtension: event.toExtension,
+      providerCallId: event.callId,
+      userId: extension.userId,
+      contactId: contact?.id ?? null,
+      contactName: contact?.name ?? null,
+    });
+
     const ctx = { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
     await this.automation.emit(ctx, 'voip.call.incoming', {
       fromNumber: event.fromNumber,
@@ -65,6 +90,14 @@ export class VoipWebhookController {
       calleeUserId: extension.userId,
     });
 
+    return { received: true };
+  }
+
+  private async handleEnded(tenantDb: TenantPrismaClient, endedEvent: CallEndedEvent) {
+    const result = await this.callLog.recordEnded(tenantDb, endedEvent);
+    if (result?.userId) {
+      this.gateway.notifyCallEnded(result.userId, { callId: endedEvent.callId, status: result.status, durationSeconds: result.durationSeconds });
+    }
     return { received: true };
   }
 }

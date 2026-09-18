@@ -67,6 +67,7 @@ model User {
   rationSamplesCollected        RationSample[]             @relation("RationSampleCollectedBy")
   createdAutomationRules        AutomationRule[]
   voipExtension                 VoipExtension?
+  callLogs                      CallLog[]
   decidedAiActions              AiActionRequest[]
   providedAppointments          Appointment[]              @relation("AppointmentProvider")
   createdAppointments           Appointment[]              @relation("AppointmentCreatedBy")
@@ -390,6 +391,7 @@ model CrmContact {
   rationSamples             RationSample[]
   resellerProfile           ResellerProfile?
   referralConversion        ReferralConversion?
+  callLogs                  CallLog[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -468,6 +470,7 @@ model CrmActivity {
   contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
   deal    CrmDeal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  callLog CallLog?
 
   @@index([createdAt])
   @@map("crm_activities")
@@ -1949,6 +1952,50 @@ model VoipExtension {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("voip_extensions")
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  RINGING
+  ANSWERED
+  MISSED
+  NO_ANSWER
+  FAILED
+}
+
+/// تاریخچه‌ی تماس تننت — از وب‌هوک تماس ورودی و از originate (تماس خروجی)
+/// ساخته می‌شود؛ رویداد «پایان تماس» (اگر ارائه‌دهنده ارسال کند) مدت و
+/// ضبط مکالمه را روی همین ردیف تکمیل می‌کند. crmActivityId به یادداشت
+/// خودکاری که روی پروفایل مخاطب ثبت می‌شود اشاره می‌کند تا بعداً (وقتی
+/// اطلاعات پایان تماس رسید) همان یادداشت به‌جای ساخت یکی جدید تکمیل شود.
+model CallLog {
+  id              String        @id @default(uuid())
+  providerCallId  String?       @unique
+  direction       CallDirection
+  status          CallStatus    @default(RINGING)
+  fromNumber      String
+  toNumber        String
+  contactId       String?
+  userId          String?
+  crmActivityId   String?       @unique
+  startedAt       DateTime      @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+  recordingUrl    String?
+  createdAt       DateTime      @default(now())
+
+  contact  CrmContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user     User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  activity CrmActivity? @relation(fields: [crmActivityId], references: [id], onDelete: SetNull)
+
+  @@index([contactId])
+  @@index([userId])
+  @@index([startedAt])
+  @@map("call_logs")
 }
 
 // ── صف تأیید اقدام‌های دستیار هوشمند (MCP) ────────────────────────────
