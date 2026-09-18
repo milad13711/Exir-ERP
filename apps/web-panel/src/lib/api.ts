@@ -5184,6 +5184,25 @@ export function submitPublicMentoringSurvey(slug: string, token: string, data: {
   );
 }
 
+export type PublicReferralSurveyView = {
+  id: string;
+  rating: number | null;
+  note: string | null;
+  submittedAt: string | null;
+  referralConversion: { resellerProfile: { contact: { name: string } } };
+};
+
+export function viewPublicReferralSurvey(slug: string, token: string) {
+  return apiFetch<PublicReferralSurveyView>(`/public/referral-survey/${slug}/${token}`);
+}
+
+export function submitPublicReferralSurvey(slug: string, token: string, data: { rating?: number; note?: string }) {
+  return apiFetch<{ id: string; rating: number | null; note: string | null; submittedAt: string | null }>(
+    `/public/referral-survey/${slug}/${token}/submit`,
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
 export function fetchEventTicketsByContact(contactId: string) {
   return apiFetch<Array<EventTicket & { event: { id: string; title: string; slug: string; startAt: string } }>>(`/events/tickets/by-contact/${contactId}`);
 }

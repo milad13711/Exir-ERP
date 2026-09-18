@@ -170,6 +170,13 @@ function DashboardTab() {
               <div className="w-16 shrink-0 text-[11.5px] text-muted text-center">
                 {toPersianDigits(r.referredCustomerCount)} مشتری
               </div>
+              <div className="w-16 shrink-0 text-[11.5px] text-center">
+                {r.npsAvgScore != null ? (
+                  <span className="font-bold">{toPersianDigits(r.npsAvgScore.toFixed(1))} ⭐</span>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
+              </div>
             </div>
           ))}
         </div>

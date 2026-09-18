@@ -94,7 +94,10 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
     <Modal title={reseller.contact.name} onClose={onClose} width="max-w-[560px]">
       <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
-          <div className="text-[12.5px] text-muted">{reseller.contact.company || "—"} · {reseller.contact.phone || "بدون شماره"}</div>
+          <div className="text-[12.5px] text-muted">
+            {reseller.contact.company || "—"} · {reseller.contact.phone || "بدون شماره"}
+            {reseller.npsAvgScore != null ? ` · رضایت مشتریان: ${reseller.npsAvgScore.toFixed(1)} ⭐` : ""}
+          </div>
           {reseller.userId ? (
             <Badge tone="success">دسترسی ورود فعال</Badge>
           ) : (

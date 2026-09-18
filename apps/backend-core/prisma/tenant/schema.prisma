@@ -1015,9 +1015,29 @@ model ReferralConversion {
   resellerProfile ResellerProfile      @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
   contact         CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   commissions     ReferralCommission[]
+  npsSurveys      ReferralNpsSurvey[]
 
   @@index([resellerProfileId])
   @@map("referral_conversions")
+}
+
+/// نظرسنجی دوره‌ای از مشتری معرفی‌شده درباره‌ی کیفیت پشتیبانی نماینده‌ی
+/// معرف — بدون OTP (همان الگوی MentoringSessionSurvey)، لینک با publicToken
+/// خودش اعتبار دارد. میانگین امتیازهای ثبت‌شده در ResellerProfile.npsAvgScore ذخیره می‌شود.
+model ReferralNpsSurvey {
+  id                    String    @id @default(uuid())
+  referralConversionId  String
+  publicToken           String    @unique @default(uuid())
+  rating                Int? // ۱ تا ۵
+  note                  String?
+  sentAt                DateTime?
+  submittedAt           DateTime?
+  createdAt             DateTime  @default(now())
+
+  referralConversion ReferralConversion @relation(fields: [referralConversionId], references: [id], onDelete: Cascade)
+
+  @@index([referralConversionId])
+  @@map("referral_nps_surveys")
 }
 
 enum ReferralCommissionKind {
