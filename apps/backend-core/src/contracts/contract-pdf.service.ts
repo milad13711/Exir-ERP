@@ -27,10 +27,13 @@ type ContractForPdf = {
   partyBSignerName: string | null;
   partyBSignatureDataUrl: string | null;
   partyBSignedAt: Date | null;
+  partyBSignedAsDelegate: boolean;
   firstPartyName: string;
   secondPartyName: string;
   witnesses: Array<{ name: string; signatureDataUrl: string | null; signedAt: Date | null }>;
 };
+
+type CompanyStamp = { signatureImage?: string; stampImage?: string };
 
 /** Renders a tenant's contract to a print-ready PDF — same rendering approach as SalesInvoicePdfService. */
 @Injectable()
@@ -49,11 +52,11 @@ export class ContractPdfService implements OnModuleDestroy {
     return this.browserPromise;
   }
 
-  async render(contract: ContractForPdf, orgName: string): Promise<Buffer> {
+  async render(contract: ContractForPdf, orgName: string, stamp?: CompanyStamp): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
     try {
-      await page.setContent(buildHtml(contract, orgName), { waitUntil: 'load' });
+      await page.setContent(buildHtml(contract, orgName, stamp), { waitUntil: 'load' });
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -65,8 +68,8 @@ export class ContractPdfService implements OnModuleDestroy {
     }
   }
 
-  async renderHtml(contract: ContractForPdf, orgName: string): Promise<string> {
-    return buildHtml(contract, orgName);
+  async renderHtml(contract: ContractForPdf, orgName: string, stamp?: CompanyStamp): Promise<string> {
+    return buildHtml(contract, orgName, stamp);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -80,17 +83,41 @@ export class ContractPdfService implements OnModuleDestroy {
   }
 }
 
-function signatureBox(title: string, signerName: string | null, signatureDataUrl: string | null, signedAt: Date | null): string {
+function signatureBox(
+  title: string,
+  signerName: string | null,
+  signatureDataUrl: string | null,
+  signedAt: Date | null,
+  stampImageUrl?: string | null,
+  delegateLabel?: string | null,
+): string {
   return `
   <div class="sig-box">
     <div class="sig-title">${escapeHtml(title)}</div>
-    ${signatureDataUrl ? `<img src="${signatureDataUrl}" />` : '<div class="sig-empty">امضا نشده</div>'}
+    <div class="sig-images">
+      ${signatureDataUrl ? `<img class="sig-img" src="${signatureDataUrl}" />` : ''}
+      ${stampImageUrl ? `<img class="stamp-img" src="${stampImageUrl}" />` : ''}
+      ${!signatureDataUrl && !stampImageUrl ? '<div class="sig-empty">امضا نشده</div>' : ''}
+    </div>
     ${signerName ? `<div class="sig-name">${escapeHtml(signerName)}</div>` : ''}
+    ${delegateLabel ? `<div class="sig-delegate">از طرف ${escapeHtml(delegateLabel)}</div>` : ''}
     ${signedAt ? `<div class="sig-date">${formatJalaliDate(signedAt)}</div>` : ''}
   </div>`;
 }
 
-function buildHtml(contract: ContractForPdf, orgName: string): string {
+function buildHtml(contract: ContractForPdf, orgName: string, stamp?: CompanyStamp): string {
+  const companySignatureBox = signatureBox(
+    'طرف دوم / شرکت',
+    contract.partyBSignerName,
+    contract.partyBSignatureDataUrl,
+    contract.partyBSignedAt,
+    contract.partyBSignedAt ? stamp?.stampImage : null,
+    contract.partyBSignedAsDelegate ? contract.partyBSignerName : null,
+  );
+  return buildContractHtml(contract, orgName, companySignatureBox);
+}
+
+function buildContractHtml(contract: ContractForPdf, orgName: string, companySignatureBox: string): string {
   return /* html */ `
 <!doctype html>
 <html lang="fa" dir="rtl">
@@ -126,8 +153,11 @@ function buildHtml(contract: ContractForPdf, orgName: string): string {
   .signatures { display: flex; gap: 16px; margin-top: 28px; flex-wrap: wrap; }
   .sig-box { flex: 1; min-width: 160px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
   .sig-box .sig-title { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 8px; }
-  .sig-box img { max-height: 60px; max-width: 100%; }
+  .sig-images { display: flex; align-items: center; gap: 8px; }
+  .sig-images img { max-height: 60px; max-width: 100%; }
+  .sig-images .stamp-img { max-height: 68px; opacity: 0.92; }
   .sig-box .sig-name { font-size: 12.5px; font-weight: 700; margin-top: 6px; }
+  .sig-box .sig-delegate { font-size: 11px; color: #64748b; margin-top: 2px; }
   .sig-box .sig-date { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
   .sig-empty { font-size: 11.5px; color: #94a3b8; }
   .footer { margin-top: 32px; text-align: center; font-size: 10.5px; color: #94a3b8; }
@@ -170,7 +200,7 @@ function buildHtml(contract: ContractForPdf, orgName: string): string {
   <div class="section-title">امضاها</div>
   <div class="signatures">
     ${signatureBox('طرف اول', contract.partyASignerName, contract.partyASignatureDataUrl, contract.partyASignedAt)}
-    ${signatureBox('طرف دوم / شرکت', contract.partyBSignerName, contract.partyBSignatureDataUrl, contract.partyBSignedAt)}
+    ${companySignatureBox}
     ${contract.witnesses.map((w) => signatureBox(`شاهد — ${w.name}`, w.name, w.signatureDataUrl, w.signedAt)).join('')}
   </div>
 

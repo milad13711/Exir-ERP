@@ -241,15 +241,10 @@ export class RecruitmentController {
     return this.recruitment.setSmsSettings(ctx, dto);
   }
 
+  /** فقط برای پیش‌نمایش/رندر شرایط همکاری — تغییر خودِ مهر/امضا اکنون فقط از Settings → General (فقط مالک) ممکن است. */
   @Get('settings/company-seal')
   async getCompanySeal(@Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.getCompanySeal(ctx);
-  }
-
-  @Put('settings/company-seal')
-  async setCompanySeal(@Body() dto: { signatureImage?: string; stampImage?: string }, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
-    return this.recruitment.setCompanySeal(ctx, dto);
   }
 }

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { UsersService } from '../users/users.service.js';
+import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreateJobPostingDto } from './dto/create-job-posting.dto.js';
@@ -19,7 +20,6 @@ import type { UpdateRecruitmentGeneralSettingsDto, UpdateRecruitmentSmsSettingsD
 export const RECRUITMENT_MODULE_CODE = 'recruitment';
 const GENERAL_KEY = { moduleCode: RECRUITMENT_MODULE_CODE, key: 'general' } as const;
 const SMS_KEY = { moduleCode: RECRUITMENT_MODULE_CODE, key: 'sms' } as const;
-const SEAL_KEY = { moduleCode: RECRUITMENT_MODULE_CODE, key: 'companySeal' } as const;
 
 type GeneralSettings = { defaultInterviewMinutes: number; bufferMinutesBetweenInterviews: number };
 const DEFAULT_GENERAL: GeneralSettings = { defaultInterviewMinutes: 30, bufferMinutesBetweenInterviews: 10 };
@@ -63,6 +63,7 @@ export class RecruitmentService {
     private readonly sms: ExirSmsService,
     private readonly automation: AutomationEngineService,
     private readonly users: UsersService,
+    private readonly stamp: CompanyStampService,
   ) {}
 
   /* ───────────────────────── تنظیمات ───────────────────────── */
@@ -89,22 +90,15 @@ export class RecruitmentService {
     return this.getSmsSettings(ctx);
   }
 
-  async getCompanySeal(ctx: TenantRequestContext): Promise<CompanySeal> {
-    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SEAL_KEY } });
-    return (row?.value as CompanySeal | undefined) ?? {};
+  /** مهر/امضای رسمی شرکت — از منبع مرکزی (Settings → General)؛ این ماژول دیگر نسخه‌ی جدا و بارگذاری‌شدنی خودش را ندارد. */
+  getCompanySeal(ctx: TenantRequestContext): Promise<CompanySeal> {
+    return this.stamp.getStamp(ctx);
   }
 
   /** آدرس پیش‌فرض محل مصاحبه — همان آدرس شرکت در تنظیمات عمومی (Settings → General)، بدون تنظیم تکراری برای این ماژول. */
   private async getDefaultInterviewLocation(ctx: TenantRequestContext): Promise<string> {
     const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } });
     return (row?.value as string | undefined) ?? '';
-  }
-
-  async setCompanySeal(ctx: TenantRequestContext, dto: CompanySeal): Promise<CompanySeal> {
-    const existing = await this.getCompanySeal(ctx);
-    const value = { signatureImage: dto.signatureImage ?? existing.signatureImage, stampImage: dto.stampImage ?? existing.stampImage };
-    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SEAL_KEY }, update: { value }, create: { ...SEAL_KEY, value } });
-    return value;
   }
 
   /* ───────────────────────── آگهی‌ها ───────────────────────── */

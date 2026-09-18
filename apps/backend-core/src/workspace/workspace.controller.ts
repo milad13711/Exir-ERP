@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -6,10 +6,12 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
 import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateNavOrderDto } from './dto/update-nav-order.dto.js';
+import { UpdateStampDelegateDto } from './dto/update-stamp-delegate.dto.js';
 
 /** Bootstrap endpoint the frontend calls once after login to fill the header/shell. */
 @Controller('me')
@@ -18,6 +20,7 @@ export class WorkspaceController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly auth: AuthService,
+    private readonly stamp: CompanyStampService,
   ) {}
 
   @Get()
@@ -110,5 +113,24 @@ export class WorkspaceController {
       data: { themeColor: dto.themeColor },
     });
     return { themeColor: tenant.themeColor };
+  }
+
+  /** فقط مالک — کاربری که به‌جای او مجاز است اسناد رسمی را با مهر/امضای شرکت امضا کند، به‌همراه فهرست کاربران تننت برای انتخاب. */
+  @Get('stamp-delegate')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  async getStampDelegate(@Ctx() ctx: TenantRequestContext) {
+    const [delegateUserId, users] = await Promise.all([
+      this.stamp.getDelegateUserId(ctx),
+      ctx.tenantDb.user.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    ]);
+    return { delegateUserId, users };
+  }
+
+  @Put('stamp-delegate')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  async setStampDelegate(@Body() dto: UpdateStampDelegateDto, @Ctx() ctx: TenantRequestContext) {
+    return this.stamp.setDelegateUserId(ctx, dto.userId ?? null);
   }
 }

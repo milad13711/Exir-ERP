@@ -679,6 +679,11 @@ export type GeneralSettings = {
   nationalId: string | null;
   registrationNumber: string | null;
   phone: string | null;
+  /** فقط برای مالک یا کاربری که مالک دسترسی مهر/امضا را به او ارجاع داده مقدار دارد — برای بقیه همیشه null است. */
+  signatureImage: string | null;
+  stampImage: string | null;
+  /** true فقط برای مالک — یعنی همین کاربر می‌تواند خودِ تصویر مهر/امضا را تغییر دهد. */
+  canManageStamp: boolean;
 };
 
 export function fetchGeneralSettings() {
@@ -687,6 +692,25 @@ export function fetchGeneralSettings() {
 
 export function updateGeneralSettings(data: Partial<GeneralSettings>) {
   return apiFetch<GeneralSettings>("/settings/general", { method: "PUT", body: JSON.stringify(data) });
+}
+
+/** فقط مالک — تغییر خودِ تصویر مهر/امضای رسمی شرکت. */
+export function updateCompanyStamp(data: { signatureImage?: string | null; stampImage?: string | null }) {
+  return apiFetch<{ signatureImage?: string; stampImage?: string }>("/settings/general/stamp", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export type StampDelegate = { delegateUserId: string | null; users: { id: string; name: string | null }[] };
+
+/** فقط مالک — کاربری که اجازه دارد به‌جای او از طرف شرکت اسناد رسمی را امضا کند. */
+export function fetchStampDelegate() {
+  return apiFetch<StampDelegate>("/me/stamp-delegate");
+}
+
+export function saveStampDelegate(userId: string | null) {
+  return apiFetch<{ delegateUserId: string | null }>("/me/stamp-delegate", { method: "PUT", body: JSON.stringify({ userId }) });
 }
 
 // ── Notifications ────────────────────────────────────────────────────────
@@ -3784,6 +3808,10 @@ export type Contract = {
   secondPartyContactId: string | null;
   secondPartyName: string | null;
   secondPartyPhone: string | null;
+  secondPartyNationalId: string | null;
+  secondPartyRegistrationNumber: string | null;
+  secondPartyAddress: string | null;
+  customFieldValues: Record<string, string> | null;
   status: ContractStatus;
   value: number;
   startDate: string;
@@ -3807,6 +3835,7 @@ export type Contract = {
   partyBSignedAt: string | null;
   partyBSignatureDataUrl: string | null;
   partyBSignerName: string | null;
+  partyBSignedAsDelegate: boolean;
   contact: { id: string; name: string; company: string | null; phone: string | null } | null;
   employee: { id: string; fullName: string; phone: string | null } | null;
   secondPartyContact: { id: string; name: string; company: string | null; phone: string | null } | null;
@@ -3848,15 +3877,9 @@ export function openContractPdf(id: string): Promise<void> {
   return fetchAndOpenPdf(`/contracts/${id}/pdf`);
 }
 
+/** فقط برای پیش‌نمایش امضای شرکت هنگام امضای قرارداد — تغییر خودِ مهر/امضا از Settings → General (فقط مالک) است، نه اینجا. */
 export function fetchCompanySignature() {
   return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature");
-}
-
-export function saveCompanySignature(data: { signatureImage?: string | null; stampImage?: string | null }) {
-  return apiFetch<{ signatureImage?: string; stampImage?: string }>("/contracts/company-signature", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
 }
 
 export function fetchContractWitnesses(contractId: string) {
@@ -3885,6 +3908,11 @@ export function createContract(data: {
   secondPartyContactId?: string;
   secondPartyName?: string;
   secondPartyPhone?: string;
+  secondPartyNationalId?: string;
+  secondPartyRegistrationNumber?: string;
+  secondPartyAddress?: string;
+  /** مقادیر فیلدهای سفارشی قالب — کلید همان نامی است که در متن قالب به‌صورت {{کلید}} استفاده شده. */
+  customFields?: Record<string, string>;
   value: number;
   startDate: string;
   endDate: string;

@@ -4,10 +4,12 @@ import { GeneralSettingsController } from './general-settings.controller.js';
 import { CurrenciesController } from './currencies.controller.js';
 import { BackupController } from './backup.controller.js';
 import { BackupService } from './backup.service.js';
+import { CompanyStampService } from './company-stamp.service.js';
 
 @Module({
   imports: [ModuleGuardModule],
   controllers: [GeneralSettingsController, CurrenciesController, BackupController],
-  providers: [BackupService],
+  providers: [BackupService, CompanyStampService],
+  exports: [CompanyStampService],
 })
 export class SettingsModule {}

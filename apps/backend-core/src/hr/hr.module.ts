@@ -17,9 +17,10 @@ import { KpiController } from './kpi.controller.js';
 import { KpiService } from './kpi.service.js';
 import { DepartmentsController } from './departments.controller.js';
 import { UsersModule } from '../users/users.module.js';
+import { SettingsModule } from '../settings/settings.module.js';
 
 @Module({
-  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule, UsersModule],
+  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule, UsersModule, SettingsModule],
   controllers: [
     EmployeesController,
     AttendanceController,

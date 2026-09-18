@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateContractDto {
   @IsString()
@@ -41,6 +41,24 @@ export class CreateContractDto {
   @IsOptional()
   @IsString()
   secondPartyPhone?: string;
+
+  // فیلدهای آزاد طرف دوم — فقط وقتی طرف دوم مخاطب ثبت‌شده‌ای در CRM نیست (بدون secondPartyContactId) کاربرد دارند
+  @IsOptional()
+  @IsString()
+  secondPartyNationalId?: string;
+
+  @IsOptional()
+  @IsString()
+  secondPartyRegistrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  secondPartyAddress?: string;
+
+  /** مقادیر فیلدهای سفارشی قالب — کلید همان نامی است که در متن قالب به‌صورت {{کلید}} استفاده شده. */
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, string>;
 
   @IsInt()
   @Min(0)

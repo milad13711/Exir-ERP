@@ -1,6 +1,6 @@
 import { IsOptional, IsString, ValidateIf } from 'class-validator';
 
-export class SaveCompanySignatureDto {
+export class UpdateCompanyStampDto {
   @IsOptional()
   @ValidateIf((o) => o.signatureImage !== null)
   @IsString()

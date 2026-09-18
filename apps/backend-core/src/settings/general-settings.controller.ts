@@ -6,6 +6,8 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { UpdateGeneralSettingsDto } from './dto/update-general-settings.dto.js';
+import { UpdateCompanyStampDto } from './dto/update-company-stamp.dto.js';
+import { CompanyStampService } from './company-stamp.service.js';
 
 const MODULE_CODE = 'general';
 
@@ -18,7 +20,10 @@ const MODULE_CODE = 'general';
 @Controller('settings/general')
 @UseGuards(JwtAuthGuard)
 export class GeneralSettingsController {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly stamp: CompanyStampService,
+  ) {}
 
   @Get()
   async get(@Ctx() ctx: TenantRequestContext) {
@@ -27,6 +32,21 @@ export class GeneralSettingsController {
       ctx.tenantDb.moduleSetting.findMany({ where: { moduleCode: MODULE_CODE } }),
     ]);
     const byKey = Object.fromEntries(settings.map((s) => [s.key, s.value]));
+
+    // مهر و امضای رسمی فقط برای مالک یا کاربری که مالک ارجاع داده نمایش داده می‌شود — نه هر کاربر دیگری که این تنظیمات را می‌بیند.
+    let signatureImage: string | null = null;
+    let stampImage: string | null = null;
+    let canManageStamp = false;
+    try {
+      await this.stamp.assertCanUse(ctx);
+      canManageStamp = ctx.auth.role === 'OWNER';
+      const stampValue = await this.stamp.getStamp(ctx);
+      signatureImage = stampValue.signatureImage ?? null;
+      stampImage = stampValue.stampImage ?? null;
+    } catch {
+      // بدون دسترسی — فیلدهای مهر/امضا خالی می‌مانند
+    }
+
     return {
       orgName: tenant.name,
       logoUrl: (byKey.logoUrl as string | undefined) ?? null,
@@ -36,7 +56,17 @@ export class GeneralSettingsController {
       nationalId: (byKey.nationalId as string | undefined) ?? null,
       registrationNumber: (byKey.registrationNumber as string | undefined) ?? null,
       phone: (byKey.phone as string | undefined) ?? null,
+      signatureImage,
+      stampImage,
+      canManageStamp,
     };
+  }
+
+  @Put('stamp')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  async updateStamp(@Body() dto: UpdateCompanyStampDto, @Ctx() ctx: TenantRequestContext) {
+    return this.stamp.setStamp(ctx, dto);
   }
 
   @Put()

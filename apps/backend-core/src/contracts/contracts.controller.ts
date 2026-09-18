@@ -16,7 +16,6 @@ import { RenewContractDto } from './dto/renew-contract.dto.js';
 import { SaveContractTemplateDto } from './dto/save-contract-template.dto.js';
 import { SignContractDto } from './dto/sign-contract.dto.js';
 import { AddWitnessDto } from './dto/add-witness.dto.js';
-import { SaveCompanySignatureDto } from './dto/save-company-signature.dto.js';
 
 @Controller('contracts')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -70,15 +69,11 @@ export class ContractsController {
     return this.contracts.listCategories(ctx);
   }
 
+  /** فقط برای پرکردن پیش‌نمایش امضای شرکت هنگام امضای قرارداد — تغییر خودِ مهر/امضا اکنون فقط از Settings → General (فقط مالک) ممکن است. */
   @Get('company-signature')
   async getCompanySignature(@Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'contracts');
     return this.contracts.getCompanySignature(ctx);
-  }
-
-  @Post('company-signature')
-  async saveCompanySignature(@Body() dto: SaveCompanySignatureDto, @Ctx() ctx: TenantRequestContext) {
-    return this.contracts.saveCompanySignature(ctx, dto);
   }
 
   @Get()
@@ -103,8 +98,11 @@ export class ContractsController {
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     await this.permissions.assertView(ctx, 'contracts');
-    const contract = await this.contracts.detail(ctx, id);
-    const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } });
+    const [contract, tenant, stamp] = await Promise.all([
+      this.contracts.detail(ctx, id),
+      this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
+      this.contracts.getCompanySignature(ctx),
+    ]);
 
     const pdf = await this.pdf.render(
       {
@@ -124,11 +122,13 @@ export class ContractsController {
         partyBSignerName: contract.partyBSignerName,
         partyBSignatureDataUrl: contract.partyBSignatureDataUrl,
         partyBSignedAt: contract.partyBSignedAt,
+        partyBSignedAsDelegate: contract.partyBSignedAsDelegate,
         firstPartyName: contractPartyName(contract),
         secondPartyName: contractSecondPartyName(contract),
         witnesses: contract.witnesses,
       },
       tenant.name,
+      stamp,
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="contract-${contract.contractNo}.pdf"`);

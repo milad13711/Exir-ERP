@@ -11,9 +11,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { generateCertificateCode } from './certificate-code.util.js';
 import { CertificateImageService } from './certificate-image.service.js';
 import { CreateCertificateDto } from './dto/create-certificate.dto.js';
-
-// از تنظیمات موجود ماژول قراردادها استفاده می‌کنیم (مهر/امضای شرکت یکسان در همه اسناد رسمی)، بدون ایجاد تنظیم تکراری.
-const SEAL_KEY = { moduleCode: 'contracts', key: 'companySignature' } as const;
+import { CompanyStampService } from '../settings/company-stamp.service.js';
 
 function webPanelPublicUrl(): string {
   return (process.env.WEB_PANEL_PUBLIC_URL ?? 'http://localhost:3000').replace(/\/$/, '');
@@ -31,6 +29,7 @@ export class CertificatesController {
     private readonly permissions: PermissionsService,
     private readonly controlDb: ControlPrismaService,
     private readonly image: CertificateImageService,
+    private readonly stamp: CompanyStampService,
   ) {}
 
   @Get()
@@ -102,11 +101,10 @@ export class CertificatesController {
   private async renderImage(id: string, ctx: TenantRequestContext): Promise<Buffer> {
     const cert = await ctx.tenantDb.certificate.findUnique({ where: { id } });
     if (!cert) throw new NotFoundException('این گواهی یافت نشد');
-    const [tenant, sealRow] = await Promise.all([
+    const [tenant, seal] = await Promise.all([
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
-      ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SEAL_KEY } }),
+      this.stamp.getStamp(ctx),
     ]);
-    const seal = (sealRow?.value as { signatureImage?: string; stampImage?: string } | undefined) ?? {};
     return this.image.render(cert, tenant.name, certificateVerifyUrl(ctx.tenantSlug, cert.code), seal);
   }
 

@@ -2044,6 +2044,11 @@ model Contract {
   secondPartyContactId String? // طرف دوم اگر خودش یکی از مخاطبین CRM باشد (THIRD_PARTY)
   secondPartyName      String? // طرف دوم آزاد — وقتی مخاطب ثبت‌شده‌ای نیست
   secondPartyPhone     String?
+  secondPartyNationalId         String? // فقط وقتی طرف دوم آزاد است (بدون CrmContact مرتبط)
+  secondPartyRegistrationNumber String?
+  secondPartyAddress            String?
+  /** مقادیر فیلدهای سفارشی که کاربر هنگام ثبت قرارداد وارد کرده — کلید همان نامی است که در قالب به‌صورت {{کلید}} استفاده شده. */
+  customFieldValues             Json?
   status               ContractStatus        @default(DRAFT)
   value                Int // تومان — ارزش کل قرارداد
   startDate            DateTime
@@ -2071,6 +2076,8 @@ model Contract {
   partyBSignedAt         DateTime?
   partyBSignatureDataUrl String?
   partyBSignerName       String?
+  /** وقتی امضاکننده‌ی طرف شرکت، مالک اصلی نبوده (یعنی از طریق ارجاع دسترسی مهر و امضا امضا کرده) — برای درج «از طرف …» کنار مهر در سند. */
+  partyBSignedAsDelegate Boolean   @default(false)
 
   contact              CrmContact?           @relation(fields: [contactId], references: [id])
   employee             Employee?             @relation(fields: [employeeId], references: [id])
@@ -2137,6 +2144,7 @@ model ContractAmendment {
   partyASignatureDataUrl String?
   partyBSignedAt         DateTime?
   partyBSignatureDataUrl String?
+  partyBSignedAsDelegate Boolean   @default(false)
   createdByUserId        String?
   createdAt              DateTime  @default(now())
 

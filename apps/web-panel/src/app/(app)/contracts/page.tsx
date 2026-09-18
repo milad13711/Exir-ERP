@@ -10,7 +10,6 @@ import { fetchContracts, fetchContractCategories, type Contract, type ContractSt
 import { NewContractModal } from "@/components/contracts/NewContractModal";
 import { ContractDetailModal } from "@/components/contracts/ContractDetailModal";
 import { ContractTemplatesModal } from "@/components/contracts/ContractTemplatesModal";
-import { CompanySignatureModal } from "@/components/contracts/CompanySignatureModal";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ContractStatus, string> = {
@@ -38,7 +37,6 @@ export default function ContractsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("همه");
   const [newOpen, setNewOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [signatureOpen, setSignatureOpen] = useState(false);
   const [openContract, setOpenContract] = useState<Contract | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("همه");
@@ -70,12 +68,6 @@ export default function ContractsPage() {
           <p className="text-[13.5px] text-muted mt-1">قراردادهای داخلی، خارجی و بین‌طرفین — با امضای دیجیتال دوطرفه</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setSignatureOpen(true)}
-            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
-          >
-            امضا و مهر شرکت
-          </button>
           <button
             onClick={() => setTemplatesOpen(true)}
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
@@ -185,7 +177,6 @@ export default function ContractsPage() {
 
       {newOpen ? <NewContractModal onClose={() => setNewOpen(false)} onCreated={reload} /> : null}
       {templatesOpen ? <ContractTemplatesModal onClose={() => setTemplatesOpen(false)} /> : null}
-      {signatureOpen ? <CompanySignatureModal onClose={() => setSignatureOpen(false)} /> : null}
       {openContract ? (
         <ContractDetailModal contract={openContract} onClose={() => setOpenContract(null)} onChanged={reload} />
       ) : null}

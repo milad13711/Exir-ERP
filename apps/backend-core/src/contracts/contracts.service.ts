@@ -1,19 +1,16 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { formatJalaliDate } from '../common/persian.js';
 import type { CreateContractDto } from './dto/create-contract.dto.js';
 import type { UpdateContractDto } from './dto/update-contract.dto.js';
 import type { SaveContractTemplateDto } from './dto/save-contract-template.dto.js';
 import type { SignContractDto } from './dto/sign-contract.dto.js';
 import type { AddWitnessDto } from './dto/add-witness.dto.js';
-import type { SaveCompanySignatureDto } from './dto/save-company-signature.dto.js';
-
-const SETTINGS_MODULE_CODE = 'contracts';
-const COMPANY_SIGNATURE_KEY = 'companySignature';
 
 const CONTRACT_INCLUDE = {
   contact: { select: { id: true, name: true, company: true, phone: true } },
@@ -41,6 +38,9 @@ export function contractSecondPartyName(contract: {
   return contract.secondPartyContact?.name ?? contract.secondPartyName ?? 'نامشخص';
 }
 
+type PartyInfo = { name: string; phone: string; nationalId: string; registrationNumber: string; address: string };
+const EMPTY_PARTY: PartyInfo = { name: '', phone: '', nationalId: '', registrationNumber: '', address: '' };
+
 export function contentHashOf(contract: { title: string; value: number; startDate: Date; endDate: Date; terms: string | null }): string {
   const canonical = JSON.stringify({
     title: contract.title,
@@ -57,6 +57,7 @@ export class ContractsService {
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly controlDb: ControlPrismaService,
+    private readonly stamp: CompanyStampService,
   ) {}
 
   list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string }) {
@@ -132,44 +133,136 @@ export class ContractsService {
     }
   }
 
-  /** جایگزینی فیلدهای پرکاربرد در متن قالب — نام‌های ساده‌ی فارسی، مستقل از اینکه کاربر کدام را استفاده کند. */
+  /**
+   * جایگزینی فیلدهای متن قالب — نام‌های ساده‌ی فارسی برای هر دو طرف، به‌همراه
+   * هر فیلد سفارشی‌ای که کاربر هنگام ثبت قرارداد وارد کرده. کلید ناشناخته
+   * دست‌نخورده باقی می‌ماند (match ?? ...) تا یک {{تایپو}} کل سند را خراب نکند.
+   */
   private fillTemplatePlaceholders(
     body: string,
-    values: { companyName: string; secondPartyName: string; startDate: Date; endDate: Date; value: number },
+    values: {
+      companyName: string;
+      partyA: PartyInfo;
+      partyB: PartyInfo;
+      startDate: Date;
+      endDate: Date;
+      value: number;
+      customFields?: Record<string, string>;
+    },
   ): string {
     const map: Record<string, string> = {
       'شرکت': values.companyName,
       'نام_شرکت': values.companyName,
-      'طرف_دوم': values.secondPartyName,
-      'طرف_مقابل': values.secondPartyName,
+      'طرف_دوم': values.partyB.name,
+      'طرف_مقابل': values.partyB.name,
+      'نام_طرف_اول': values.partyA.name,
+      'نام_طرف_دوم': values.partyB.name,
+      'شماره_تماس_طرف_اول': values.partyA.phone,
+      'شماره_تماس_طرف_دوم': values.partyB.phone,
+      'شماره_ملی_طرف_اول': values.partyA.nationalId,
+      'شماره_ملی_طرف_دوم': values.partyB.nationalId,
+      'شماره_ثبت_طرف_اول': values.partyA.registrationNumber,
+      'شماره_ثبت_طرف_دوم': values.partyB.registrationNumber,
+      'آدرس_طرف_اول': values.partyA.address,
+      'آدرس_طرف_دوم': values.partyB.address,
       'تاریخ_شروع': formatJalaliDate(values.startDate),
       'تاریخ_پایان': formatJalaliDate(values.endDate),
       'ارزش_قرارداد': values.value.toLocaleString('fa-IR'),
       'مبلغ_قرارداد': values.value.toLocaleString('fa-IR'),
+      ...values.customFields,
     };
     return body.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key: string) => map[key.trim()] ?? match);
   }
 
-  private async resolvePartyDisplayName(
+  /**
+   * اطلاعات کامل طرف قرارداد برای جایگزینی در قالب. طرف اول همیشه مخاطب/
+   * پرسنل است؛ طرف دوم برای INTERNAL/EXTERNAL خودِ شرکت است (مطابق همان
+   * قرارداد contractSecondPartyName)، و برای THIRD_PARTY یا مخاطب CRM یا
+   * فیلدهای آزادی است که کاربر مستقیم وارد کرده.
+   */
+  private async resolveParties(
     ctx: TenantRequestContext,
-    dto: { partyMode: string; contactId?: string; employeeId?: string; secondPartyContactId?: string; secondPartyName?: string },
-  ): Promise<string> {
+    dto: {
+      partyMode: string;
+      contactId?: string;
+      employeeId?: string;
+      secondPartyContactId?: string;
+      secondPartyName?: string;
+      secondPartyPhone?: string;
+      secondPartyNationalId?: string;
+      secondPartyRegistrationNumber?: string;
+      secondPartyAddress?: string;
+    },
+    companyInfo: PartyInfo,
+  ): Promise<{ partyA: PartyInfo; partyB: PartyInfo }> {
+    let partyA: PartyInfo = EMPTY_PARTY;
     if (dto.partyMode === 'INTERNAL' && dto.employeeId) {
-      const employee = await ctx.tenantDb.employee.findUnique({ where: { id: dto.employeeId }, select: { fullName: true } });
-      return employee?.fullName ?? '';
+      const employee = await ctx.tenantDb.employee.findUnique({
+        where: { id: dto.employeeId },
+        select: { fullName: true, phone: true, nationalId: true },
+      });
+      if (employee) {
+        partyA = { name: employee.fullName, phone: employee.phone ?? '', nationalId: employee.nationalId ?? '', registrationNumber: '', address: '' };
+      }
+    } else if (dto.contactId) {
+      const contact = await ctx.tenantDb.crmContact.findUnique({
+        where: { id: dto.contactId },
+        select: { name: true, phone: true, nationalId: true, registrationNumber: true, address: true },
+      });
+      if (contact) {
+        partyA = {
+          name: contact.name,
+          phone: contact.phone ?? '',
+          nationalId: contact.nationalId ?? '',
+          registrationNumber: contact.registrationNumber ?? '',
+          address: contact.address ?? '',
+        };
+      }
     }
+
+    let partyB: PartyInfo = companyInfo;
     if (dto.partyMode === 'THIRD_PARTY') {
       if (dto.secondPartyContactId) {
-        const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: dto.secondPartyContactId }, select: { name: true } });
-        return contact?.name ?? '';
+        const contact = await ctx.tenantDb.crmContact.findUnique({
+          where: { id: dto.secondPartyContactId },
+          select: { name: true, phone: true, nationalId: true, registrationNumber: true, address: true },
+        });
+        partyB = contact
+          ? {
+              name: contact.name,
+              phone: contact.phone ?? '',
+              nationalId: contact.nationalId ?? '',
+              registrationNumber: contact.registrationNumber ?? '',
+              address: contact.address ?? '',
+            }
+          : EMPTY_PARTY;
+      } else {
+        partyB = {
+          name: dto.secondPartyName ?? '',
+          phone: dto.secondPartyPhone ?? '',
+          nationalId: dto.secondPartyNationalId ?? '',
+          registrationNumber: dto.secondPartyRegistrationNumber ?? '',
+          address: dto.secondPartyAddress ?? '',
+        };
       }
-      return dto.secondPartyName ?? '';
     }
-    if (dto.contactId) {
-      const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: dto.contactId }, select: { name: true } });
-      return contact?.name ?? '';
-    }
-    return '';
+
+    return { partyA, partyB };
+  }
+
+  /** اطلاعات ثبتی خودِ شرکت — از تنظیمات عمومی (Settings → General)، همان منبعی که برای هدر فاکتور/سند رسمی استفاده می‌شود. */
+  private async resolveCompanyInfo(ctx: TenantRequestContext, companyName: string): Promise<PartyInfo> {
+    const rows = await ctx.tenantDb.moduleSetting.findMany({
+      where: { moduleCode: 'general', key: { in: ['nationalId', 'registrationNumber', 'address', 'phone'] } },
+    });
+    const byKey = Object.fromEntries(rows.map((r) => [r.key, r.value as string | undefined]));
+    return {
+      name: companyName,
+      phone: byKey.phone ?? '',
+      nationalId: byKey.nationalId ?? '',
+      registrationNumber: byKey.registrationNumber ?? '',
+      address: byKey.address ?? '',
+    };
   }
 
   async create(ctx: TenantRequestContext, dto: CreateContractDto) {
@@ -178,20 +271,23 @@ export class ContractsService {
     this.validateDateRange(startDate, endDate);
     this.validateParties(dto);
 
+    const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } });
+    const companyName = tenant?.name ?? '';
+
     let terms = dto.terms;
     if (!terms && dto.templateId) {
       const template = await ctx.tenantDb.contractTemplate.findUnique({ where: { id: dto.templateId } });
       if (template?.body) {
-        const [tenant, secondPartyName] = await Promise.all([
-          this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } }),
-          this.resolvePartyDisplayName(ctx, dto),
-        ]);
+        const companyInfo = await this.resolveCompanyInfo(ctx, companyName);
+        const { partyA, partyB } = await this.resolveParties(ctx, dto, companyInfo);
         terms = this.fillTemplatePlaceholders(template.body, {
-          companyName: tenant?.name ?? '',
-          secondPartyName,
+          companyName,
+          partyA,
+          partyB,
           startDate,
           endDate,
           value: dto.value,
+          customFields: dto.customFields,
         });
       }
     }
@@ -212,6 +308,10 @@ export class ContractsService {
         secondPartyContactId: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyContactId : undefined,
         secondPartyName: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyName : undefined,
         secondPartyPhone: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyPhone : undefined,
+        secondPartyNationalId: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyNationalId : undefined,
+        secondPartyRegistrationNumber: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyRegistrationNumber : undefined,
+        secondPartyAddress: dto.partyMode === 'THIRD_PARTY' ? dto.secondPartyAddress : undefined,
+        customFieldValues: dto.customFields ?? undefined,
         value: dto.value,
         startDate,
         endDate,
@@ -282,18 +382,21 @@ export class ContractsService {
     return locked;
   }
 
-  /** امضای طرف «شرکت» توسط کاربر لاگین‌شده — فقط برای قراردادهای INTERNAL/EXTERNAL؛ برای THIRD_PARTY هر دو طرف باید از لینک عمومی امضا کنند. */
+  /**
+   * امضای طرف «شرکت» توسط کاربر لاگین‌شده — فقط برای قراردادهای INTERNAL/
+   * EXTERNAL؛ برای THIRD_PARTY هر دو طرف باید از لینک عمومی امضا کنند.
+   * دسترسی به مهر/امضای رسمی فقط مالک تننت است، مگر مالک آن را برای یک
+   * کاربر خاص ارجاع داده باشد (CompanyStampService، تنظیمات سراسری) یا
+   * برای همین قرارداد به‌طور خاص یک امضاکننده تعیین کرده باشد
+   * (referredSignerUserId، تنظیم قدیمی‌تر و مخصوص همین یک قرارداد).
+   */
   private async assertCanSignAsCompany(ctx: TenantRequestContext, referredSignerUserId: string | null) {
-    if (ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN') return;
+    if (ctx.auth.role === 'OWNER') return;
     if (referredSignerUserId) {
       const userId = await resolveTenantUserId(ctx);
       if (userId && userId === referredSignerUserId) return;
     }
-    throw new ForbiddenException(
-      referredSignerUserId
-        ? 'فقط مالک/مدیر یا کاربری که مدیر برای امضا ارجاع داده می‌تواند این قرارداد را از طرف شرکت امضا کند'
-        : 'فقط مالک یا مدیر می‌تواند از طرف شرکت قرارداد امضا کند',
-    );
+    await this.stamp.assertCanUse(ctx);
   }
 
   async signAsCompany(ctx: TenantRequestContext, id: string, dto: SignContractDto) {
@@ -308,7 +411,12 @@ export class ContractsService {
 
     await ctx.tenantDb.contract.update({
       where: { id },
-      data: { partyBSignedAt: new Date(), partyBSignatureDataUrl: dto.signatureDataUrl, partyBSignerName: dto.signerName },
+      data: {
+        partyBSignedAt: new Date(),
+        partyBSignatureDataUrl: dto.signatureDataUrl,
+        partyBSignerName: dto.signerName,
+        partyBSignedAsDelegate: this.stamp.isActingAsDelegate(ctx),
+      },
     });
 
     return this.finalizeIfComplete(ctx, id);
@@ -416,12 +524,17 @@ export class ContractsService {
     if (amendment.contract.partyMode === 'THIRD_PARTY') {
       throw new BadRequestException('این قرارداد بین دو طرف دیگر است — امضای شرکت در آن معنا ندارد');
     }
+    await this.assertCanSignAsCompany(ctx, amendment.contract.referredSignerUserId);
     if (amendment.isLocked) throw new ConflictException('این الحاقیه قبلاً به‌طور کامل امضا شده است');
     if (amendment.partyBSignedAt) throw new ConflictException('امضای شرکت روی این الحاقیه قبلاً ثبت شده است');
 
     await ctx.tenantDb.contractAmendment.update({
       where: { id: amendmentId },
-      data: { partyBSignedAt: new Date(), partyBSignatureDataUrl: dto.signatureDataUrl },
+      data: {
+        partyBSignedAt: new Date(),
+        partyBSignatureDataUrl: dto.signatureDataUrl,
+        partyBSignedAsDelegate: this.stamp.isActingAsDelegate(ctx),
+      },
     });
 
     return this.finalizeAmendmentIfComplete(ctx, amendmentId);
@@ -462,29 +575,8 @@ export class ContractsService {
     await ctx.tenantDb.contractWitness.delete({ where: { id: witnessId } });
   }
 
-  // ── امضا/مهر ذخیره‌شده‌ی شرکت ─────────────────────────────────────────────
-
-  async getCompanySignature(ctx: TenantRequestContext) {
-    const row = await ctx.tenantDb.moduleSetting.findUnique({
-      where: { moduleCode_key: { moduleCode: SETTINGS_MODULE_CODE, key: COMPANY_SIGNATURE_KEY } },
-    });
-    return (row?.value as { signatureImage?: string; stampImage?: string } | undefined) ?? {};
-  }
-
-  async saveCompanySignature(ctx: TenantRequestContext, dto: SaveCompanySignatureDto) {
-    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
-      throw new ForbiddenException('فقط مالک یا مدیر می‌تواند امضا/مهر پیش‌فرض شرکت را تغییر دهد');
-    }
-    const existing = await this.getCompanySignature(ctx);
-    const value = {
-      signatureImage: dto.signatureImage !== undefined ? dto.signatureImage : existing.signatureImage,
-      stampImage: dto.stampImage !== undefined ? dto.stampImage : existing.stampImage,
-    };
-    await ctx.tenantDb.moduleSetting.upsert({
-      where: { moduleCode_key: { moduleCode: SETTINGS_MODULE_CODE, key: COMPANY_SIGNATURE_KEY } },
-      create: { moduleCode: SETTINGS_MODULE_CODE, key: COMPANY_SIGNATURE_KEY, value },
-      update: { value },
-    });
-    return value;
+  /** مهر/امضای رسمی شرکت — حالا فقط از منبع مرکزی (Settings → General)؛ این ماژول دیگر نسخه‌ی جدا و بارگذاری‌شدنی خودش را ندارد. */
+  getCompanySignature(ctx: TenantRequestContext) {
+    return this.stamp.getStamp(ctx);
   }
 }
