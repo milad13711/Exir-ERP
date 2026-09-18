@@ -1,6 +1,8 @@
--- ماژول رفرال/نمایندگی: نماینده = CrmContact + ResellerProfile ماهواره‌ای،
--- تننت معرفی‌شده = ReferredTenant (بدون FK واقعی به کنترل‌پلین)، کمیسیون =
--- لینک گزارشی روی یک PurchaseOrder واقعی.
+-- ماژول رفرال/نمایندگی: نماینده = CrmContact + ResellerProfile ماهواره‌ای.
+-- مشتری معرفی‌شده = ReferralConversion، وصل به یک CrmContact در همین
+-- تننت — برای استفاده‌ی عمومی هر تننت (کمیسیون از فاکتور فروش خودش) و هم
+-- برای تننت رجیستری پلتفرم (controlTenantId، وقتی مشتری = یک تننت جدید
+-- exirerp است). کمیسیون = لینک گزارشی روی یک PurchaseOrder واقعی.
 
 CREATE TYPE "ResellerTier" AS ENUM ('A_PLUS', 'A', 'B');
 CREATE TYPE "ReferralCommissionKind" AS ENUM ('FIRST_PAYMENT', 'RENEWAL');
@@ -29,23 +31,23 @@ CREATE UNIQUE INDEX "reseller_profiles_contactId_key" ON "reseller_profiles"("co
 CREATE UNIQUE INDEX "reseller_profiles_userId_key" ON "reseller_profiles"("userId");
 CREATE UNIQUE INDEX "reseller_profiles_referralCode_key" ON "reseller_profiles"("referralCode");
 
-CREATE TABLE "referred_tenants" (
+CREATE TABLE "referral_conversions" (
     "id" TEXT NOT NULL,
     "resellerProfileId" TEXT NOT NULL,
-    "controlTenantId" TEXT NOT NULL,
-    "tenantName" TEXT NOT NULL,
-    "tenantSlug" TEXT NOT NULL,
+    "contactId" TEXT NOT NULL,
+    "controlTenantId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "referred_tenants_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "referral_conversions_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "referred_tenants_controlTenantId_key" ON "referred_tenants"("controlTenantId");
-CREATE INDEX "referred_tenants_resellerProfileId_idx" ON "referred_tenants"("resellerProfileId");
+CREATE UNIQUE INDEX "referral_conversions_contactId_key" ON "referral_conversions"("contactId");
+CREATE UNIQUE INDEX "referral_conversions_controlTenantId_key" ON "referral_conversions"("controlTenantId");
+CREATE INDEX "referral_conversions_resellerProfileId_idx" ON "referral_conversions"("resellerProfileId");
 
 CREATE TABLE "referral_commissions" (
     "id" TEXT NOT NULL,
-    "referredTenantId" TEXT NOT NULL,
+    "referralConversionId" TEXT NOT NULL,
     "kind" "ReferralCommissionKind" NOT NULL,
     "purchaseOrderId" TEXT NOT NULL,
     "amount" INTEGER NOT NULL,
@@ -55,12 +57,13 @@ CREATE TABLE "referral_commissions" (
 );
 
 CREATE UNIQUE INDEX "referral_commissions_purchaseOrderId_key" ON "referral_commissions"("purchaseOrderId");
-CREATE INDEX "referral_commissions_referredTenantId_idx" ON "referral_commissions"("referredTenantId");
+CREATE INDEX "referral_commissions_referralConversionId_idx" ON "referral_commissions"("referralConversionId");
 
 ALTER TABLE "reseller_profiles" ADD CONSTRAINT "reseller_profiles_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "crm_contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "reseller_profiles" ADD CONSTRAINT "reseller_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "referred_tenants" ADD CONSTRAINT "referred_tenants_resellerProfileId_fkey" FOREIGN KEY ("resellerProfileId") REFERENCES "reseller_profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "referral_conversions" ADD CONSTRAINT "referral_conversions_resellerProfileId_fkey" FOREIGN KEY ("resellerProfileId") REFERENCES "reseller_profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "referral_conversions" ADD CONSTRAINT "referral_conversions_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "crm_contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "referral_commissions" ADD CONSTRAINT "referral_commissions_referredTenantId_fkey" FOREIGN KEY ("referredTenantId") REFERENCES "referred_tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "referral_commissions" ADD CONSTRAINT "referral_commissions_referralConversionId_fkey" FOREIGN KEY ("referralConversionId") REFERENCES "referral_conversions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "referral_commissions" ADD CONSTRAINT "referral_commissions_purchaseOrderId_fkey" FOREIGN KEY ("purchaseOrderId") REFERENCES "purchase_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;

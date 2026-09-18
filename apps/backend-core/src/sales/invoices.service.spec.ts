@@ -65,6 +65,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
         return Promise.resolve({ id: 'chk-1', ...args.data });
       }),
     },
+    referralConversion: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     ...overrides,
   };
@@ -94,7 +95,7 @@ const controlDbStub = { moduleDefinition: { findUnique: vi.fn().mockResolvedValu
 describe('InvoicesService.confirm — double-entry posting', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never);
   });
 
   it('posts a balanced Dr AR / Cr Revenue entry for a simple invoice with no tax or COGS', async () => {
@@ -175,7 +176,7 @@ describe('InvoicesService.confirm — double-entry posting', () => {
 describe('InvoicesService.recordPayment', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: false, requestPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never);
   });
 
   function invoiceStub(overrides: Record<string, unknown> = {}) {

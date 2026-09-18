@@ -5,11 +5,12 @@ import { UsersModule } from '../users/users.module.js';
 import { ResellersController } from './resellers.controller.js';
 import { ResellersService } from './resellers.service.js';
 import { ResellerSelfController } from './reseller-self.controller.js';
+import { ReferralCommissionService } from './referral-commission.service.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, UsersModule],
   controllers: [ResellersController, ResellerSelfController],
-  providers: [ResellersService],
-  exports: [ResellersService],
+  providers: [ResellersService, ReferralCommissionService],
+  exports: [ResellersService, ReferralCommissionService],
 })
 export class ReferralMarketingModule {}

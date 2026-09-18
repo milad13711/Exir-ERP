@@ -4,15 +4,18 @@ import { Badge } from "@/components/ui/Badge";
 import { formatToman, toPersianDigits } from "@/lib/persian";
 import {
   fetchReseller,
-  fetchResellerTenants,
+  fetchResellerConversions,
+  linkResellerConversion,
   fetchResellerCommissions,
+  fetchCrmContacts,
   updateReseller,
   grantResellerAccess,
   ApiError,
   type Reseller,
-  type ReferredTenant,
+  type ReferralConversion,
   type ReferralCommission,
   type ResellerTier,
+  type CrmContact,
 } from "@/lib/api";
 
 const inputClass =
@@ -22,14 +25,15 @@ const SIGNUP_BASE_URL = process.env.NEXT_PUBLIC_SIGNUP_URL ?? "https://exirerp.i
 
 export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [reseller, setReseller] = useState<Reseller | null>(null);
-  const [tenants, setTenants] = useState<ReferredTenant[] | null>(null);
+  const [conversions, setConversions] = useState<ReferralConversion[] | null>(null);
   const [commissions, setCommissions] = useState<ReferralCommission[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addingCustomer, setAddingCustomer] = useState(false);
 
   function reload() {
     fetchReseller(id).then(setReseller).catch(() => setReseller(null));
-    fetchResellerTenants(id).then(setTenants).catch(() => setTenants([]));
+    fetchResellerConversions(id).then(setConversions).catch(() => setConversions([]));
     fetchResellerCommissions(id).then(setCommissions).catch(() => setCommissions([]));
   }
   useEffect(reload, [id]);
@@ -57,6 +61,20 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "اعطای دسترسی ناموفق بود");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLinkContact(contactId: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      await linkResellerConversion(id, contactId);
+      setAddingCustomer(false);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "اتصال مشتری ناموفق بود");
     } finally {
       setSaving(false);
     }
@@ -93,6 +111,9 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
         <div className="bg-slate-50 rounded-lg p-3">
           <div className="text-[11px] font-semibold text-ink-soft mb-1.5">لینک معرفی نماینده</div>
           <input readOnly value={referralLink} dir="ltr" onFocus={(e) => e.target.select()} className={inputClass} />
+          <div className="text-[10.5px] text-muted mt-1.5">
+            هر مشتری‌ای که از این لینک وارد شود خودکار به این نماینده وصل می‌شود. برای مشتریانی که از راه دیگری (تلفنی، حضوری) معرفی شده‌اند، از دکمه‌ی «افزودن مشتری معرفی‌شده» پایین استفاده کنید.
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -151,17 +172,30 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 
         <div>
-          <div className="text-[12.5px] font-bold mb-2">تننت‌های معرفی‌شده ({toPersianDigits(tenants?.length ?? 0)})</div>
-          <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto">
-            {tenants === null ? (
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[12.5px] font-bold">مشتریان معرفی‌شده ({toPersianDigits(conversions?.length ?? 0)})</div>
+            <button
+              onClick={() => setAddingCustomer((v) => !v)}
+              className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer"
+            >
+              افزودن مشتری معرفی‌شده
+            </button>
+          </div>
+
+          {addingCustomer ? (
+            <ContactPicker onPick={handleLinkContact} onCancel={() => setAddingCustomer(false)} disabled={saving} />
+          ) : null}
+
+          <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto mt-2">
+            {conversions === null ? (
               <div className="text-[12px] text-muted">در حال بارگذاری...</div>
-            ) : tenants.length === 0 ? (
-              <div className="text-[12px] text-muted">هنوز تننتی معرفی نکرده</div>
+            ) : conversions.length === 0 ? (
+              <div className="text-[12px] text-muted">هنوز مشتری‌ای معرفی نکرده</div>
             ) : (
-              tenants.map((t) => (
-                <div key={t.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12px]">
-                  <span className="font-semibold">{t.tenantName}</span>
-                  <span className="text-muted" dir="ltr">{t.tenantSlug}</span>
+              conversions.map((c) => (
+                <div key={c.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12px]">
+                  <span className="font-semibold">{c.contact.name}</span>
+                  <span className="text-muted">{c.contact.company || c.contact.phone || "—"}</span>
                 </div>
               ))
             )}
@@ -181,7 +215,7 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
                 return (
                   <div key={c.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12px]">
                     <div>
-                      <div className="font-semibold">{c.referredTenant.tenantName}</div>
+                      <div className="font-semibold">{c.referralConversion.contact.company || c.referralConversion.contact.name}</div>
                       <div className="text-muted text-[11px] mt-0.5">{c.kind === "FIRST_PAYMENT" ? "پرداخت اول" : "تمدید"}</div>
                     </div>
                     <div className="text-left">
@@ -198,5 +232,63 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
         </div>
       </div>
     </Modal>
+  );
+}
+
+function ContactPicker({
+  onPick,
+  onCancel,
+  disabled,
+}: {
+  onPick: (contactId: string) => void;
+  onCancel: () => void;
+  disabled: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<CrmContact[] | null>(null);
+
+  useEffect(() => {
+    if (!q.trim()) {
+      setResults(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetchCrmContacts(q.trim()).then(setResults).catch(() => setResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <div className="bg-slate-50 border border-border rounded-lg p-2.5 mb-2">
+      <div className="flex items-center gap-2">
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="نام یا شماره مشتری..."
+          className="flex-1 text-[12px] outline-none bg-white border border-border rounded-lg px-2.5 py-1.5"
+        />
+        <button onClick={onCancel} className="text-[11px] font-bold text-ink-soft px-2 py-1.5 rounded-lg cursor-pointer">
+          انصراف
+        </button>
+      </div>
+      {results && results.length > 0 ? (
+        <div className="flex flex-col gap-1 mt-2 max-h-[140px] overflow-y-auto">
+          {results.map((c) => (
+            <button
+              key={c.id}
+              disabled={disabled}
+              onClick={() => onPick(c.id)}
+              className="text-right flex items-center justify-between bg-white border border-border rounded-lg px-2.5 py-1.5 text-[12px] cursor-pointer hover:border-primary disabled:opacity-50"
+            >
+              <span className="font-semibold">{c.name}</span>
+              <span className="text-muted">{c.company || c.phone || "—"}</span>
+            </button>
+          ))}
+        </div>
+      ) : results && results.length === 0 ? (
+        <div className="text-[11.5px] text-muted mt-2">مشتری‌ای پیدا نشد</div>
+      ) : null}
+    </div>
   );
 }

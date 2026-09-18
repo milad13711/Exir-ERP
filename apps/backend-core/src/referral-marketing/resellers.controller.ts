@@ -8,6 +8,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { ResellersService } from './resellers.service.js';
 import { CreateResellerDto } from './dto/create-reseller.dto.js';
 import { UpdateResellerDto } from './dto/update-reseller.dto.js';
+import { LinkConversionDto } from './dto/link-conversion.dto.js';
 
 /** دسترسی مدیریتی به فهرست نمایندگان — دیدِ محدود خودِ نماینده در ResellerSelfController است. */
 @Controller('referral-marketing/resellers')
@@ -55,10 +56,17 @@ export class ResellersController {
     return this.resellers.grantAccess(ctx, id);
   }
 
-  @Get(':id/tenants')
-  async tenants(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+  @Get(':id/conversions')
+  async conversions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'referral-marketing');
-    return this.resellers.tenants(ctx, id);
+    return this.resellers.conversions(ctx, id);
+  }
+
+  /** اتصال یک مشتری CRM موجود به این نماینده — از این پس فاکتورهای تسویه‌شده‌ی آن مشتری خودکار کمیسیون می‌سازند. */
+  @Post(':id/conversions')
+  async linkConversion(@Param('id') id: string, @Body() dto: LinkConversionDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.resellers.linkConversion(ctx, id, dto.contactId);
   }
 
   @Get(':id/commissions')

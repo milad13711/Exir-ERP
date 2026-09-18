@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { UsersService } from '../users/users.service.js';
+import { ReferralCommissionService } from './referral-commission.service.js';
 import type { CreateResellerDto } from './dto/create-reseller.dto.js';
 import type { UpdateResellerDto } from './dto/update-reseller.dto.js';
 
@@ -18,7 +19,10 @@ const RESELLER_INCLUDE = {
  */
 @Injectable()
 export class ResellersService {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly commissionService: ReferralCommissionService,
+  ) {}
 
   list(ctx: TenantRequestContext) {
     return ctx.tenantDb.resellerProfile.findMany({
@@ -105,32 +109,39 @@ export class ResellersService {
     });
   }
 
-  async tenants(ctx: TenantRequestContext, id: string) {
+  async conversions(ctx: TenantRequestContext, id: string) {
     await this.detail(ctx, id);
-    return ctx.tenantDb.referredTenant.findMany({
+    return ctx.tenantDb.referralConversion.findMany({
       where: { resellerProfileId: id },
+      include: { contact: { select: { id: true, name: true, company: true, phone: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** یک مشتری CRM موجود را به این نماینده وصل می‌کند — کاربردی برای استفاده‌ی عمومی هر تننت (نه فقط تننت رجیستری پلتفرم). */
+  async linkConversion(ctx: TenantRequestContext, id: string, contactId: string) {
+    await this.detail(ctx, id);
+    return this.commissionService.linkContact(ctx, id, contactId);
   }
 
   async commissions(ctx: TenantRequestContext, id: string) {
     await this.detail(ctx, id);
     return ctx.tenantDb.referralCommission.findMany({
-      where: { referredTenant: { resellerProfileId: id } },
+      where: { referralConversion: { resellerProfileId: id } },
       include: {
-        referredTenant: { select: { tenantName: true, tenantSlug: true } },
+        referralConversion: { select: { contact: { select: { name: true, company: true } }, controlTenantId: true } },
         purchaseOrder: { select: { orderNo: true, status: true, total: true, paidAmount: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  /** مقایسه‌ی عملکرد همه‌ی نمایندگان — تعداد تننت معرفی‌شده و جمع کمیسیون تعهدی/پرداخت‌شده هر کدام. */
+  /** مقایسه‌ی عملکرد همه‌ی نمایندگان — تعداد مشتری معرفی‌شده و جمع کمیسیون تعهدی/پرداخت‌شده هر کدام. */
   async dashboard(ctx: TenantRequestContext) {
     const resellers = await ctx.tenantDb.resellerProfile.findMany({
       include: {
         contact: { select: { name: true, company: true } },
-        referredTenants: {
+        conversions: {
           include: {
             commissions: { include: { purchaseOrder: { select: { total: true, paidAmount: true } } } },
           },
@@ -140,7 +151,7 @@ export class ResellersService {
 
     return resellers
       .map((r) => {
-        const commissions = r.referredTenants.flatMap((t) => t.commissions);
+        const commissions = r.conversions.flatMap((c) => c.commissions);
         const totalCommission = commissions.reduce((sum, c) => sum + c.amount, 0);
         const paidCommission = commissions.reduce(
           (sum, c) => sum + Math.min(c.purchaseOrder.paidAmount, c.amount),
@@ -153,7 +164,7 @@ export class ResellersService {
           tier: r.tier,
           isVerified: r.isVerified,
           npsAvgScore: r.npsAvgScore,
-          referredTenantCount: r.referredTenants.length,
+          referredCustomerCount: r.conversions.length,
           totalCommission,
           paidCommission,
           pendingCommission: totalCommission - paidCommission,

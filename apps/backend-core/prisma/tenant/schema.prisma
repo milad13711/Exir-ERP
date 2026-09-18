@@ -389,6 +389,7 @@ model CrmContact {
   campaignRecipients        MarketingCampaignRecipient[]
   rationSamples             RationSample[]
   resellerProfile           ResellerProfile?
+  referralConversion        ReferralConversion?
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -960,9 +961,11 @@ model PurchasePayment {
   @@map("purchase_payments")
 }
 
-// ── نمایندگی و بازاریابی رفرال — نمایندگانی که تننت جدید معرفی می‌کنند و
-// روی پرداخت اول/تمدید کمیسیون می‌گیرند. فقط در تننت رجیستری (اکسیرتجارت
-// امین) معنا دارد، نه هر تننتی — ببینید ReferralSyncService. ─────────────
+// ── نمایندگی و بازاریابی رفرال — ماژول عمومی: هر تننتی می‌تواند برای
+// معرفی مشتری جدید توسط نمایندگان/همکاران خودش استفاده کند (کمیسیون
+// خودکار از فاکتور فروش مشتری معرفی‌شده). در تننت رجیستری پلتفرم
+// (اکسیرتجارت امین) از همان مکانیزم برای معرفی تننت‌های جدید exirerp هم
+// استفاده می‌شود — ببینید ReferralSyncService و ReferralConversion.controlTenantId. ─────
 
 enum ResellerTier {
   A_PLUS
@@ -988,28 +991,30 @@ model ResellerProfile {
   createdAt                     DateTime     @default(now())
   updatedAt                     DateTime     @updatedAt
 
-  contact         CrmContact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  referredTenants ReferredTenant[]
+  contact     CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  conversions ReferralConversion[]
 
   @@map("reseller_profiles")
 }
 
-/// یک تننت واقعی در کنترل‌پلین که با معرفی این نماینده ساخته شده — بدون FK
-/// واقعی (کنترل‌پلین یک دیتابیس جداست)، فقط شناسه‌ی خارجی.
-model ReferredTenant {
+/// یک مشتری معرفی‌شده توسط یک نماینده — همیشه به یک CrmContact در همین
+/// تننت وصل است. controlTenantId فقط برای تننت رجیستری پلتفرم پر می‌شود
+/// (وقتی این مشتری معادل یک تننت جدید exirerp است)؛ برای استفاده‌ی عمومی
+/// یک تننت معمولی (مشتری واقعی خودش) خالی می‌ماند.
+model ReferralConversion {
   id                String   @id @default(uuid())
   resellerProfileId String
-  controlTenantId   String   @unique
-  tenantName        String
-  tenantSlug        String
+  contactId         String   @unique
+  controlTenantId   String?  @unique
   createdAt         DateTime @default(now())
 
   resellerProfile ResellerProfile      @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
+  contact         CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   commissions     ReferralCommission[]
 
   @@index([resellerProfileId])
-  @@map("referred_tenants")
+  @@map("referral_conversions")
 }
 
 enum ReferralCommissionKind {
@@ -1020,17 +1025,17 @@ enum ReferralCommissionKind {
 /// فقط یک لینک گزارشی — بدهی واقعی و وضعیت تسویه از خودِ PurchaseOrder
 /// خوانده می‌شود، دوباره ذخیره نمی‌شود.
 model ReferralCommission {
-  id               String                 @id @default(uuid())
-  referredTenantId String
-  kind             ReferralCommissionKind
-  purchaseOrderId  String                 @unique
-  amount           Int
-  createdAt        DateTime               @default(now())
+  id                   String                 @id @default(uuid())
+  referralConversionId String
+  kind                 ReferralCommissionKind
+  purchaseOrderId      String                 @unique
+  amount               Int
+  createdAt            DateTime               @default(now())
 
-  referredTenant ReferredTenant @relation(fields: [referredTenantId], references: [id], onDelete: Cascade)
-  purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  referralConversion ReferralConversion @relation(fields: [referralConversionId], references: [id], onDelete: Cascade)
+  purchaseOrder      PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
-  @@index([referredTenantId])
+  @@index([referralConversionId])
   @@map("referral_commissions")
 }
 

@@ -27,11 +27,12 @@ export class ResellerSelfController {
     return this.myResellerProfile(ctx);
   }
 
-  @Get('tenants')
-  async tenants(@Ctx() ctx: TenantRequestContext) {
+  @Get('conversions')
+  async conversions(@Ctx() ctx: TenantRequestContext) {
     const reseller = await this.myResellerProfile(ctx);
-    return ctx.tenantDb.referredTenant.findMany({
+    return ctx.tenantDb.referralConversion.findMany({
       where: { resellerProfileId: reseller.id },
+      include: { contact: { select: { id: true, name: true, company: true, phone: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -40,9 +41,9 @@ export class ResellerSelfController {
   async commissions(@Ctx() ctx: TenantRequestContext) {
     const reseller = await this.myResellerProfile(ctx);
     return ctx.tenantDb.referralCommission.findMany({
-      where: { referredTenant: { resellerProfileId: reseller.id } },
+      where: { referralConversion: { resellerProfileId: reseller.id } },
       include: {
-        referredTenant: { select: { tenantName: true, tenantSlug: true } },
+        referralConversion: { select: { contact: { select: { name: true, company: true } }, controlTenantId: true } },
         purchaseOrder: { select: { orderNo: true, status: true, total: true, paidAmount: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -50,21 +51,22 @@ export class ResellerSelfController {
   }
 
   /**
-   * فقط خواندنی در این فاز — پاسخ‌دادن/بستن تیکت نیاز به گسترش SenderType
-   * دارد؛ کار بعدی است، نه مسدودکننده‌ی این فاز.
+   * فقط برای مشتری‌هایی که معادل یک تننت پلتفرم exirerp هستند (controlTenantId
+   * پر است) معنا دارد؛ برای مشتریان معمولی یک تننت عادی خالی برمی‌گردد.
+   * فقط خواندنی در این فاز — پاسخ‌دادن/بستن تیکت نیاز به گسترش SenderType دارد.
    */
   @Get('support-tickets')
   async supportTickets(@Ctx() ctx: TenantRequestContext) {
     const reseller = await this.myResellerProfile(ctx);
-    const referredTenants = await ctx.tenantDb.referredTenant.findMany({
-      where: { resellerProfileId: reseller.id },
-      select: { controlTenantId: true, tenantName: true },
+    const conversions = await ctx.tenantDb.referralConversion.findMany({
+      where: { resellerProfileId: reseller.id, controlTenantId: { not: null } },
+      select: { controlTenantId: true, contact: { select: { name: true, company: true } } },
     });
-    if (referredTenants.length === 0) return [];
-    const nameByTenantId = new Map(referredTenants.map((t) => [t.controlTenantId, t.tenantName]));
+    if (conversions.length === 0) return [];
+    const nameByTenantId = new Map(conversions.map((c) => [c.controlTenantId, c.contact.company ?? c.contact.name]));
 
     const tickets = await this.controlDb.supportTicket.findMany({
-      where: { tenantId: { in: referredTenants.map((t) => t.controlTenantId) } },
+      where: { tenantId: { in: conversions.map((c) => c.controlTenantId!) } },
       orderBy: { createdAt: 'desc' },
     });
     return tickets.map((t) => ({ ...t, tenantName: nameByTenantId.get(t.tenantId) }));

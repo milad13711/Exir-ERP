@@ -6395,23 +6395,23 @@ export type Reseller = {
   user: { id: string; phone: string; status: string } | null;
 };
 
-export type ReferredTenant = {
+export type ReferralConversion = {
   id: string;
   resellerProfileId: string;
-  controlTenantId: string;
-  tenantName: string;
-  tenantSlug: string;
+  contactId: string;
+  controlTenantId: string | null;
   createdAt: string;
+  contact: { id: string; name: string; company: string | null; phone: string | null };
 };
 
 export type ReferralCommission = {
   id: string;
-  referredTenantId: string;
+  referralConversionId: string;
   kind: "FIRST_PAYMENT" | "RENEWAL";
   purchaseOrderId: string;
   amount: number;
   createdAt: string;
-  referredTenant: { tenantName: string; tenantSlug: string };
+  referralConversion: { contact: { name: string; company: string | null }; controlTenantId: string | null };
   purchaseOrder: { orderNo: number; status: string; total: number; paidAmount: number };
 };
 
@@ -6422,7 +6422,7 @@ export type ResellerDashboardRow = {
   tier: ResellerTier;
   isVerified: boolean;
   npsAvgScore: number | null;
-  referredTenantCount: number;
+  referredCustomerCount: number;
   totalCommission: number;
   paidCommission: number;
   pendingCommission: number;
@@ -6468,8 +6468,16 @@ export function grantResellerAccess(id: string) {
   return apiFetch<Reseller>(`/referral-marketing/resellers/${id}/grant-access`, { method: "POST" });
 }
 
-export function fetchResellerTenants(id: string) {
-  return apiFetch<ReferredTenant[]>(`/referral-marketing/resellers/${id}/tenants`);
+export function fetchResellerConversions(id: string) {
+  return apiFetch<ReferralConversion[]>(`/referral-marketing/resellers/${id}/conversions`);
+}
+
+/** یک مشتری CRM موجود را به این نماینده وصل می‌کند — از این پس فاکتورهای تسویه‌شده‌ی آن مشتری خودکار کمیسیون می‌سازند. */
+export function linkResellerConversion(id: string, contactId: string) {
+  return apiFetch<ReferralConversion>(`/referral-marketing/resellers/${id}/conversions`, {
+    method: "POST",
+    body: JSON.stringify({ contactId }),
+  });
 }
 
 export function fetchResellerCommissions(id: string) {
@@ -6480,8 +6488,8 @@ export function fetchMyResellerProfile() {
   return apiFetch<Reseller>("/referral-marketing/me");
 }
 
-export function fetchMyReferredTenants() {
-  return apiFetch<ReferredTenant[]>("/referral-marketing/me/tenants");
+export function fetchMyReferralConversions() {
+  return apiFetch<ReferralConversion[]>("/referral-marketing/me/conversions");
 }
 
 export function fetchMyReferralCommissions() {

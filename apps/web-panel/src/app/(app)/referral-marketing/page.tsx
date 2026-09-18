@@ -10,12 +10,12 @@ import {
   fetchResellers,
   fetchResellerDashboard,
   fetchMyResellerProfile,
-  fetchMyReferredTenants,
+  fetchMyReferralConversions,
   fetchMyReferralCommissions,
   fetchMySupportTickets,
   type Reseller,
   type ResellerDashboardRow,
-  type ReferredTenant,
+  type ReferralConversion,
   type ReferralCommission,
   type ResellerSupportTicket,
 } from "@/lib/api";
@@ -49,7 +49,9 @@ export default function ReferralMarketingPage() {
         <h1 className="text-xl font-extrabold">نمایندگی و بازاریابی رفرال</h1>
         <ModuleHelp code="referral-marketing" />
       </div>
-      <p className="text-[13.5px] text-muted mt-1">شبکه‌ی نمایندگانی که مشتری جدید معرفی می‌کنند و روی پرداخت اول و تمدید کمیسیون می‌گیرند</p>
+      <p className="text-[13.5px] text-muted mt-1">
+        شبکه‌ی نمایندگان/همکار فروشی که مشتری جدید معرفی می‌کنند و روی پرداخت اول و تمدید فاکتور مشتری، خودکار کمیسیون می‌گیرند
+      </p>
 
       <div className="flex items-center gap-2 mt-5 mb-5">
         {hasManagementAccess ? (
@@ -166,7 +168,7 @@ function DashboardTab() {
                 {formatToman(r.totalCommission)}
               </div>
               <div className="w-16 shrink-0 text-[11.5px] text-muted text-center">
-                {toPersianDigits(r.referredTenantCount)} تننت
+                {toPersianDigits(r.referredCustomerCount)} مشتری
               </div>
             </div>
           ))}
@@ -177,12 +179,12 @@ function DashboardTab() {
 }
 
 function MyPanelTab() {
-  const [tenants, setTenants] = useState<ReferredTenant[] | null>(null);
+  const [conversions, setConversions] = useState<ReferralConversion[] | null>(null);
   const [commissions, setCommissions] = useState<ReferralCommission[] | null>(null);
   const [tickets, setTickets] = useState<ResellerSupportTicket[] | null>(null);
 
   useEffect(() => {
-    fetchMyReferredTenants().then(setTenants).catch(() => setTenants([]));
+    fetchMyReferralConversions().then(setConversions).catch(() => setConversions([]));
     fetchMyReferralCommissions().then(setCommissions).catch(() => setCommissions([]));
     fetchMySupportTickets().then(setTickets).catch(() => setTickets([]));
   }, []);
@@ -196,8 +198,8 @@ function MyPanelTab() {
     <div className="flex flex-col gap-5">
       <div className="grid sm:grid-cols-3 gap-3">
         <Card className="p-4">
-          <div className="text-[11.5px] text-muted">تننت‌های معرفی‌شده</div>
-          <div className="text-xl font-extrabold mt-1">{toPersianDigits(tenants?.length ?? 0)}</div>
+          <div className="text-[11.5px] text-muted">مشتریان معرفی‌شده</div>
+          <div className="text-xl font-extrabold mt-1">{toPersianDigits(conversions?.length ?? 0)}</div>
         </Card>
         <Card className="p-4">
           <div className="text-[11.5px] text-muted">کمیسیون تسویه‌شده</div>
@@ -210,15 +212,15 @@ function MyPanelTab() {
       </div>
 
       <Card className="p-4">
-        <div className="text-[13px] font-bold mb-3">تننت‌های معرفی‌شده</div>
+        <div className="text-[13px] font-bold mb-3">مشتریان معرفی‌شده</div>
         <div className="flex flex-col gap-1.5">
-          {(tenants ?? []).length === 0 ? (
-            <div className="text-[12px] text-muted">هنوز تننتی از طریق لینک شما ثبت‌نام نکرده</div>
+          {(conversions ?? []).length === 0 ? (
+            <div className="text-[12px] text-muted">هنوز مشتری‌ای از طریق لینک شما ثبت‌نام نکرده</div>
           ) : (
-            tenants!.map((t) => (
-              <div key={t.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12.5px]">
-                <span className="font-semibold">{t.tenantName}</span>
-                <span className="text-muted" dir="ltr">{t.tenantSlug}</span>
+            conversions!.map((c) => (
+              <div key={c.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12.5px]">
+                <span className="font-semibold">{c.contact.name}</span>
+                <span className="text-muted">{c.contact.company || c.contact.phone || "—"}</span>
               </div>
             ))
           )}
@@ -236,7 +238,7 @@ function MyPanelTab() {
               return (
                 <div key={c.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-[12.5px]">
                   <div>
-                    <div className="font-semibold">{c.referredTenant.tenantName}</div>
+                    <div className="font-semibold">{c.referralConversion.contact.company || c.referralConversion.contact.name}</div>
                     <div className="text-muted text-[11px] mt-0.5">{c.kind === "FIRST_PAYMENT" ? "پرداخت اول" : "تمدید"}</div>
                   </div>
                   <div className="text-left">
@@ -253,7 +255,7 @@ function MyPanelTab() {
       </Card>
 
       <Card className="p-4">
-        <div className="text-[13px] font-bold mb-3">درخواست‌های پشتیبانی تننت‌های من</div>
+        <div className="text-[13px] font-bold mb-3">درخواست‌های پشتیبانی مشتریان پلتفرمی من</div>
         <div className="flex flex-col gap-1.5">
           {(tickets ?? []).length === 0 ? (
             <div className="text-[12px] text-muted">درخواست پشتیبانی‌ای ثبت نشده</div>

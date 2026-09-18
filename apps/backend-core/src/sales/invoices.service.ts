@@ -12,6 +12,7 @@ import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
 import { WarrantyService } from '../warranty/warranty.service.js';
+import { ReferralCommissionService } from '../referral-marketing/referral-commission.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
@@ -86,6 +87,7 @@ export class InvoicesService {
     private readonly zarinpal: ZarinpalService,
     private readonly warranty: WarrantyService,
     private readonly controlDb: ControlPrismaService,
+    private readonly referralCommission: ReferralCommissionService,
   ) {}
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
@@ -477,6 +479,16 @@ export class InvoicesService {
       } catch (err) {
         // صدور گارانتی هرگز نباید ثبت پرداخت فاکتور را با شکست مواجه کند
         this.logger.error(`Warranty issuance failed for invoice ${updatedInvoice.id}: ${err instanceof Error ? err.message : err}`);
+      }
+      try {
+        const conversion = await ctx.tenantDb.referralConversion.findUnique({ where: { contactId: updatedInvoice.contactId } });
+        if (conversion) {
+          const description = `کمیسیون معرفی — فاکتور فروش شماره ${updatedInvoice.invoiceNo}`;
+          await this.referralCommission.bookCommission(ctx.tenantDb, conversion.id, updatedInvoice.total, description);
+        }
+      } catch (err) {
+        // کمیسیون نماینده هرگز نباید ثبت پرداخت فاکتور را با شکست مواجه کند
+        this.logger.error(`Referral commission booking failed for invoice ${updatedInvoice.id}: ${err instanceof Error ? err.message : err}`);
       }
     }
     return updatedInvoice;
