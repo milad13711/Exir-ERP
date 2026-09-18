@@ -117,12 +117,12 @@ export default async function HomePage() {
         />
         <div
           className="absolute -top-32 -left-20 w-[420px] h-[420px] rounded-full opacity-25 blur-3xl"
-          style={{ background: "radial-gradient(circle, #0369a1, transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, #2f6fed, transparent 70%)" }}
           aria-hidden
         />
         <div
           className="absolute -bottom-40 right-0 w-[480px] h-[480px] rounded-full opacity-20 blur-3xl"
-          style={{ background: "radial-gradient(circle, #4338ca, transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, #1640c4, transparent 70%)" }}
           aria-hidden
         />
 

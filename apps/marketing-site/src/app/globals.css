@@ -3,7 +3,7 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f7f8fb;
+  --background: #f3f6fb;
   --foreground: #0b1120;
 
   --color-ink: #0b1120;
@@ -12,14 +12,15 @@
   --color-surface: #ffffff;
   --color-border: #e3e7ef;
 
-  /* هویت بصری «اعتماد سازمانی» — سرمه‌ای عمیق + آبی، هماهنگ با محصول اصلی
-     (اکسیر ERP) به‌عنوان لنگر برند مادر، به‌جای هم‌رنگ شدن با سایت وردپرسی قبلی. */
-  --color-primary: #0f172a;
-  --color-primary-dark: #020617;
-  --color-primary-soft: #eef2ff;
+  /* هویت بصری «اعتماد سازمانی» — سرمه‌ای آبی عمیق + آبی روشن پرانرژی،
+     برگرفته از زبان بصری لندینگ اکسیر ERP (هدر/فوتر سرمه‌ای، دکمه‌های CTA
+     آبی زنده) به‌عنوان جهت رنگی مشترک کل خانواده‌ی محصولات اکسیر. */
+  --color-primary: #0b1e3d;
+  --color-primary-dark: #050d1f;
+  --color-primary-soft: #e8eefc;
 
-  --color-accent: #0369a1;
-  --color-accent-soft: #e0f2fe;
+  --color-accent: #2f6fed;
+  --color-accent-soft: #e3ecff;
 
   --color-warning: #b45309;
   --color-warning-soft: #fef3e2;
