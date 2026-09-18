@@ -139,7 +139,16 @@ export type VerifyOtpResult =
       billingLocked?: boolean;
       outstandingInvoiceId?: string | null;
     }
-  | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] };
+  | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] };
+
+export type TenantCard = {
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  startDate: string;
+  expiresAt: string | null;
+  pendingNotifications: number;
+};
 
 /**
  * tenantSlug is deliberately NOT sent here — this box hosts public

@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { LogoMark, BoltIcon, StoreIcon, FactoryIcon, ReceiptIcon, SettingsIcon, WarehouseIcon } from "@/components/icons";
-import { toPersianDigits } from "@/lib/persian";
+import {
+  LogoMark,
+  BoltIcon,
+  StoreIcon,
+  FactoryIcon,
+  ReceiptIcon,
+  SettingsIcon,
+  WarehouseIcon,
+  BellIcon,
+} from "@/components/icons";
+import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
 import {
   requestOtp,
   verifyOtp,
@@ -13,6 +22,7 @@ import {
   ApiError,
   fetchPublicIndustryTemplates,
   type PublicIndustryTemplate,
+  type TenantCard,
 } from "@/lib/api";
 
 const TEMPLATE_ICONS: Record<string, typeof StoreIcon> = {
@@ -38,7 +48,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const [templates, setTemplates] = useState<PublicIndustryTemplate[]>([]);
-  const [tenantOptions, setTenantOptions] = useState<{ slug: string; name: string }[]>([]);
+  const [tenantOptions, setTenantOptions] = useState<TenantCard[]>([]);
   const [verificationToken, setVerificationToken] = useState("");
 
   useEffect(() => {
@@ -205,9 +215,35 @@ export default function LoginPage() {
                     type="button"
                     disabled={submitting}
                     onClick={() => handleSelectTenant(t.slug)}
-                    className="w-full text-right py-4 px-5 rounded-2xl border-2 border-border hover:border-primary transition-colors font-semibold disabled:opacity-50"
+                    className="w-full text-right py-4 px-5 rounded-2xl border-2 border-border hover:border-primary hover:shadow-md transition-all disabled:opacity-50 relative overflow-hidden"
                   >
-                    {t.name}
+                    {t.pendingNotifications > 0 ? (
+                      <span className="absolute top-3 left-3 flex items-center gap-1 bg-danger text-white text-[10.5px] font-bold px-2 py-1 rounded-full">
+                        <BellIcon className="w-3 h-3" />
+                        {toPersianDigits(t.pendingNotifications)}
+                      </span>
+                    ) : null}
+                    <div className="flex items-center gap-3.5">
+                      {t.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={t.logoUrl}
+                          alt=""
+                          className="w-11 h-11 rounded-xl object-cover border border-border shrink-0"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0 text-[15px] font-extrabold">
+                          {t.name.trim().charAt(0)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-extrabold text-[14.5px] truncate">{t.name}</div>
+                        <div className="text-[10.5px] text-muted mt-1">
+                          {formatJalaliDate(t.startDate)}
+                          {t.expiresAt ? ` — ${formatJalaliDate(t.expiresAt)}` : ""}
+                        </div>
+                      </div>
+                    </div>
                   </button>
                 ))}
               </div>

@@ -9,7 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
-import type { OtpPurpose } from '../../generated/control-client/index.js';
+import type { OtpPurpose, Tenant } from '../../generated/control-client/index.js';
 import type { TenantJwtPayload, TenantSelectionTicketPayload } from './jwt-payload.type.js';
 
 const OTP_TTL_MS = 2 * 60 * 1000;
@@ -19,6 +19,18 @@ const TENANT_SELECTION_TOKEN_TTL_SECONDS = 15 * 60;
 function generateOtpCode(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
+
+export type TenantCard = {
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  /** «مشتری از این تاریخ» — همان لحظه‌ی ایجاد ردیف تننت در کنترل‌پلین؛ مبنای واحدی که برخلاف Subscription.startedAt هیچ‌وقت با تمدید/تغییر پلن عوض نمی‌شود. */
+  startDate: Date;
+  /** پایان دوره‌ی فعلی — از Subscription (تننت‌های SaaS) یا License (تننت‌های on-premise اختصاصی)؛ اگر هیچ‌کدام نبود null. */
+  expiresAt: Date | null;
+  /** تعداد اعلانات خواندنشده‌ی همین کاربر در همین کسب‌وکار — تنها معیار موجود برای «صادرشده ولی اقدامی روش نشده». */
+  pendingNotifications: number;
+};
 
 @Injectable()
 export class AuthService {
@@ -116,6 +128,59 @@ export class AuthService {
     });
   }
 
+  /**
+   * لوگو و تعداد اعلانات خواندنشده نیاز به اتصال به دیتابیس همان تننت
+   * دارند (بانک جدا برای هر تننت) — یک الگوی جدید در مسیر لاگین، هرچند
+   * پیش‌تر فقط در کرون‌جاب‌های پس‌زمینه (مثل funnel-churn-cron) روی همه‌ی
+   * تننت‌ها تکرار می‌شد. تعداد کاندیدها همیشه کوچک است (تننت‌های همین یک
+   * شماره موبایل)، پس همه‌ی این کوئری‌ها موازی اجرا می‌شوند. اگر دیتابیس
+   * یک تننت به هر دلیلی در دسترس نبود، کارت آن با مقادیر خالی نشان داده
+   * می‌شود — یک تننت مشکل‌دار نباید کل صفحه‌ی انتخاب کسب‌وکار را خراب کند.
+   */
+  private async buildTenantCard(tenant: Tenant, globalUserId: string): Promise<TenantCard> {
+    const [subscription, license, tenantDbInfo] = await Promise.all([
+      this.controlDb.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE'] } },
+        orderBy: { currentPeriodEnd: 'desc' },
+        select: { currentPeriodEnd: true },
+      }),
+      this.controlDb.license.findFirst({
+        where: { tenantId: tenant.id, status: 'ACTIVE' },
+        orderBy: { expiresAt: 'desc' },
+        select: { expiresAt: true },
+      }),
+      this.fetchTenantLogoAndPendingCount(tenant, globalUserId),
+    ]);
+
+    return {
+      slug: tenant.slug,
+      name: tenant.name,
+      logoUrl: tenantDbInfo.logoUrl,
+      startDate: tenant.createdAt,
+      expiresAt: license?.expiresAt ?? subscription?.currentPeriodEnd ?? null,
+      pendingNotifications: tenantDbInfo.pendingCount,
+    };
+  }
+
+  private async fetchTenantLogoAndPendingCount(
+    tenant: Tenant,
+    globalUserId: string,
+  ): Promise<{ logoUrl: string | null; pendingCount: number }> {
+    try {
+      const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+      const [logoSetting, localUser] = await Promise.all([
+        tenantDb.moduleSetting.findFirst({ where: { moduleCode: 'general', key: 'logoUrl' }, select: { value: true } }),
+        tenantDb.user.findFirst({ where: { globalUserId }, select: { id: true } }),
+      ]);
+      const pendingCount = localUser
+        ? await tenantDb.notification.count({ where: { userId: localUser.id, readAt: null } })
+        : 0;
+      return { logoUrl: (logoSetting?.value as string | undefined) ?? null, pendingCount };
+    } catch {
+      return { logoUrl: null, pendingCount: 0 };
+    }
+  }
+
   async verifyOtp(
     phone: string,
     code: string,
@@ -129,7 +194,7 @@ export class AuthService {
         billingLocked?: boolean;
         outstandingInvoiceId?: string | null;
       }
-    | { requiresTenantSelection: true; verificationToken: string; tenants: { slug: string; name: string }[] }
+    | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] }
   > {
     await this.consumeLoginOtp(phone, code);
 
@@ -163,11 +228,8 @@ export class AuthService {
 
     const ticketPayload: TenantSelectionTicketPayload = { type: 'tenant_selection_ticket', phone };
     const verificationToken = await this.jwt.signAsync(ticketPayload, { expiresIn: TENANT_SELECTION_TOKEN_TTL_SECONDS });
-    return {
-      requiresTenantSelection: true,
-      verificationToken,
-      tenants: memberships.map((m) => ({ slug: m.tenant.slug, name: m.tenant.name })),
-    };
+    const tenants = await Promise.all(memberships.map((m) => this.buildTenantCard(m.tenant, globalUser.id)));
+    return { requiresTenantSelection: true, verificationToken, tenants };
   }
 
   /** برای گام دوم انتخاب محیط کاری — کد OTP دوباره لازم نیست، چون همین الان مصرف شده است. */
