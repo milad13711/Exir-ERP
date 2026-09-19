@@ -481,7 +481,7 @@ export function fetchUserPermissionOverrides(id: string) {
 
 /** دسترسی‌های دستیِ کاربر را کاملاً جایگزین می‌کند؛ ماژولی که در entries نباشد از نقش ارث‌بری می‌کند. */
 export function saveUserPermissionOverrides(id: string, entries: ModulePermissionEntry[]) {
-  return apiFetch<ModulePermissionEntry[]>(`/users/${id}/permissions`, { method: "PUT", body: JSON.stringify({ entries }) });
+  return apiFetch<ModulePermissionEntry[]>(`/users/${id}/permissions`, { method: "PUT", body: JSON.stringify({ entries: toPermissionPayload(entries) }) });
 }
 
 export function deleteUser(id: string) {
@@ -544,10 +544,22 @@ export function fetchRolesWithPermissions() {
   return apiFetch<TenantRoleWithPermissions[]>("/roles");
 }
 
+/** فقط فیلدهای مجاز DTO — ردیف‌های خوانده‌شده از سرور فیلدهای اضافه (roleId/userId) دارند که ValidationPipe رد می‌کند. */
+function toPermissionPayload(entries: ModulePermissionEntry[]): ModulePermissionEntry[] {
+  return entries.map((e) => ({
+    moduleCode: e.moduleCode,
+    canViewAll: e.canViewAll,
+    canViewOwn: e.canViewOwn,
+    canCreate: e.canCreate,
+    canEdit: e.canEdit,
+    canDelete: e.canDelete,
+  }));
+}
+
 export function updateRolePermissions(roleId: string, entries: ModulePermissionEntry[]) {
   return apiFetch<ModulePermissionEntry[]>(`/roles/${roleId}/permissions`, {
     method: "PUT",
-    body: JSON.stringify({ entries }),
+    body: JSON.stringify({ entries: toPermissionPayload(entries) }),
   });
 }
 

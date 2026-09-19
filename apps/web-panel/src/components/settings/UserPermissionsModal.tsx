@@ -59,7 +59,24 @@ export function UserPermissionsModal({
   useEffect(() => {
     fetchModules().then(setCatalog).catch(() => setCatalog([]));
     fetchUserPermissionOverrides(user.id)
-      .then((list) => setOverrides(Object.fromEntries(list.map((p) => [p.moduleCode, p]))))
+      // پاسخ سرور فیلد اضافه‌ی userId دارد؛ DTO سمت سرور (forbidNonWhitelisted) هنگام ذخیره‌ی مجدد آن را رد می‌کند.
+      .then((list) =>
+        setOverrides(
+          Object.fromEntries(
+            list.map((p) => [
+              p.moduleCode,
+              {
+                moduleCode: p.moduleCode,
+                canViewAll: p.canViewAll,
+                canViewOwn: p.canViewOwn,
+                canCreate: p.canCreate,
+                canEdit: p.canEdit,
+                canDelete: p.canDelete,
+              },
+            ]),
+          ),
+        ),
+      )
       .catch(() => setOverrides({}));
   }, [user.id]);
 
