@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { faDate, faTime } from '../common/persian.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { UsersService } from '../users/users.service.js';
@@ -344,8 +345,8 @@ export class RecruitmentService implements OnModuleInit {
     if (settings.enabled && settings.interviewInvitationTemplate) {
       const message = renderTemplate(settings.interviewInvitationTemplate, {
         name: applicant.name,
-        date: interview.scheduledAt.toLocaleDateString('fa-IR'),
-        time: interview.scheduledAt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        date: faDate(interview.scheduledAt),
+        time: faTime(interview.scheduledAt),
         location: interview.location || 'دفتر شرکت',
       });
       await this.sms.sendSms(applicant.phone, message);

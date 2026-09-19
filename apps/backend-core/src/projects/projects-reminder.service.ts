@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -63,7 +64,7 @@ export class ProjectsReminderService {
           userId: notifyUserId,
           type: 'project.overdue',
           title: `پروژه «${project.name}» از موعد گذشت`,
-          body: `تاریخ پایان برنامه‌ریزی‌شده: ${project.endDate!.toLocaleDateString('fa-IR')}`,
+          body: `تاریخ پایان برنامه‌ریزی‌شده: ${faDate(project.endDate!)}`,
           link: '/projects',
         });
       }

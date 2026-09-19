@@ -8,6 +8,7 @@ import { UsersService } from './users.service.js';
 import { InviteUserDto } from './dto/invite-user.dto.js';
 import { UpdateModulePermissionsDto } from './dto/update-module-permissions.dto.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
+import { SetManagementRoleDto } from './dto/set-management-role.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 
 @Controller()
@@ -51,6 +52,13 @@ export class UsersController {
   @Roles('OWNER', 'ADMIN')
   setPermissions(@Param('id') id: string, @Body() dto: UpdateModulePermissionsDto, @Ctx() ctx: TenantRequestContext) {
     return this.users.setUserPermissionOverrides(ctx, id, dto.entries);
+  }
+
+  @Put('users/:id/management-role')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER')
+  setManagementRole(@Param('id') id: string, @Body() dto: SetManagementRoleDto, @Ctx() ctx: TenantRequestContext) {
+    return this.users.setManagementRole(ctx, id, dto.role, dto.transfer ?? false);
   }
 
   @Delete('users/:id')

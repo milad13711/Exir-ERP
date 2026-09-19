@@ -14,6 +14,8 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
   const [signing, setSigning] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [termsSeen, setTermsSeen] = useState(false);
 
   function reload() {
     fetchPublicJobOffer(slug, token)
@@ -96,8 +98,34 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
               {offer.status === "SENT" && signing && (
                 <div className="flex flex-col gap-3">
                   <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="w-4 h-4 mt-0.5 cursor-pointer" />
-                    <span className="text-[12.5px] leading-6">شرایط و قوانین همکاری (قرارداد کارآموزی) را مطالعه کردم و می‌پذیرم.</span>
+                    <input
+                      type="checkbox"
+                      checked={agreed}
+                      disabled={!!offer.contractTerms && !termsSeen}
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 cursor-pointer disabled:opacity-40"
+                    />
+                    <span className="text-[12.5px] leading-6">
+                      {offer.contractTerms ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setTermsOpen(true);
+                              setTermsSeen(true);
+                            }}
+                            className="text-primary font-bold underline cursor-pointer"
+                          >
+                            شرایط و قوانین همکاری{offer.contractTitle ? ` (${offer.contractTitle})` : ""}
+                          </button>{" "}
+                          را مطالعه کردم و می‌پذیرم.
+                          {!termsSeen && <span className="block text-[11px] text-muted">برای فعال‌شدن تیک، ابتدا روی لینک بزنید و متن را ببینید.</span>}
+                        </>
+                      ) : (
+                        "شرایط و قوانین همکاری را مطالعه کردم و می‌پذیرم."
+                      )}
+                    </span>
                   </label>
                   <div className="text-[12px] font-bold text-ink-soft">امضای الکترونیک شما</div>
                   {signature ? (
@@ -132,6 +160,24 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
           )}
         </div>
       </div>
+      {termsOpen && offer?.contractTerms && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={() => setTermsOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-[520px] max-h-[85dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+              <span className="font-extrabold text-[14px]">{offer.contractTitle ?? "شرایط و قوانین همکاری"}</span>
+              <button onClick={() => setTermsOpen(false)} className="text-[12.5px] font-bold text-ink-soft cursor-pointer">
+                بستن
+              </button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto text-[13px] leading-7 whitespace-pre-wrap">{offer.contractTerms}</div>
+            <div className="px-5 py-3 border-t border-border">
+              <button onClick={() => setTermsOpen(false)} className="w-full py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold cursor-pointer">
+                مطالعه کردم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -92,7 +92,12 @@ export class JwtAuthGuard implements CanActivate {
     if (payload.type !== 'tenant_user' || !payload.tenantId) {
       throw new UnauthorizedException('این نشست برای محیط کاری معتبر نیست، دوباره وارد شوید');
     }
-    return payload;
+    // نقش مدیریتی از توکن قدیمی خوانده نمی‌شود: تنزل/انتقال مدیر کل یا حذف کاربر باید فوراً اعمال شود.
+    const membership = await this.controlDb.tenantMembership.findUnique({ where: { id: payload.membershipId } });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new UnauthorizedException('دسترسی شما به این محیط کاری حذف یا غیرفعال شده است');
+    }
+    return { ...payload, role: membership.role };
   }
 
   private async verifyApiKey(token: string): Promise<TenantAuthPayload> {

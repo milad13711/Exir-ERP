@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -73,7 +74,7 @@ export class ChecksReminderService {
       const partyName = check.contact?.name;
       const partyPhone = check.contact?.phone;
       const directionFa = check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای';
-      const dueDateFa = check.dueDate.toLocaleDateString('fa-IR');
+      const dueDateFa = faDate(check.dueDate);
 
       if (channels.sms && partyPhone && this.sms.isConfigured()) {
         const message =

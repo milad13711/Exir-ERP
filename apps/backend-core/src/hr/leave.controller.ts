@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, UseGuards } from '@nestjs/common';
+import { faDate } from '../common/persian.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -76,7 +77,7 @@ export class LeaveController implements OnModuleInit {
       entityType: 'LEAVE_REQUEST',
       entityId: created.id,
       title: `درخواست مرخصی ${created.employee.fullName}`,
-      summary: `${created.daysCount} روز — از ${created.startDate.toLocaleDateString('fa-IR')} تا ${created.endDate.toLocaleDateString('fa-IR')}`,
+      summary: `${created.daysCount} روز — از ${faDate(created.startDate)} تا ${faDate(created.endDate)}`,
       link: '/hr',
       assigneeUserId: manager,
     });
@@ -131,7 +132,7 @@ export class LeaveController implements OnModuleInit {
         userId: updated.employee.userId,
         type: 'leave.reviewed',
         title: `درخواست مرخصی شما ${statusFa}`,
-        body: `درخواست مرخصی شما از ${updated.startDate.toLocaleDateString('fa-IR')} تا ${updated.endDate.toLocaleDateString('fa-IR')} ${statusFa}.`,
+        body: `درخواست مرخصی شما از ${faDate(updated.startDate)} تا ${faDate(updated.endDate)} ${statusFa}.`,
         link: '/hr',
       });
     }
@@ -140,8 +141,8 @@ export class LeaveController implements OnModuleInit {
       await this.automation.emit(ctx, 'hr.leave.approved', {
         employeeName: updated.employee.fullName,
         employeeUserId: updated.employee.userId,
-        startDate: updated.startDate.toLocaleDateString('fa-IR'),
-        endDate: updated.endDate.toLocaleDateString('fa-IR'),
+        startDate: faDate(updated.startDate),
+        endDate: faDate(updated.endDate),
         daysCount: updated.daysCount,
       });
     }

@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { faDate, faTime } from '../common/persian.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
@@ -11,8 +12,8 @@ import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import type { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
 
 function formatWhen(date: Date): string {
-  const d = date.toLocaleDateString('fa-IR');
-  const t = date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  const d = faDate(date);
+  const t = faTime(date);
   return `${d} ساعت ${t}`;
 }
 

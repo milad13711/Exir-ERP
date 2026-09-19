@@ -1,11 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { faTime } from '../common/persian.js';
 import puppeteer, { type Browser } from 'puppeteer';
 import QRCode from 'qrcode';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
 import { formatJalaliDate } from '../common/persian.js';
 
 function formatWhenFa(date: Date): string {
-  const time = date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  const time = faTime(date);
   return `${formatJalaliDate(date)} ساعت ${time}`;
 }
 

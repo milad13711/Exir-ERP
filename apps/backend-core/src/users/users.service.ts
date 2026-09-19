@@ -1,22 +1,55 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 
+const ROLE_RANK = { OWNER: 3, ADMIN: 2, MEMBER: 1 } as const;
+type MembershipRole = keyof typeof ROLE_RANK;
+
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly sms: ExirSmsService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    // حذف کاربر بدون تأیید مدیر نهایی نمی‌شود — درخواست در کارتابل مدیر می‌نشیند.
+    this.approvals.registerHandler('USER_DELETION', {
+      approve: async (ctx, userId, opts) => {
+        if (opts.requestedByUserId && opts.requestedByUserId === (await resolveTenantUserId(ctx).catch(() => null)) && ctx.auth.role !== 'OWNER') {
+          throw new ForbiddenException('درخواست‌دهنده نمی‌تواند حذف درخواستی خودش را تأیید کند');
+        }
+        await this.executeDelete(ctx, userId);
+      },
+      reject: async () => undefined,
+    });
+  }
+
+  /** نقش مدیریتی (سطح عضویت) یک کاربر تننت: OWNER > ADMIN > MEMBER. */
+  private async membershipRoleOf(ctx: TenantRequestContext, userId: string): Promise<{ role: MembershipRole; membershipId: string | null; globalUserId: string }> {
+    const user = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id: userId } });
+    const membership = await this.controlDb.tenantMembership.findUnique({
+      where: { tenantId_globalUserId: { tenantId: ctx.tenantId, globalUserId: user.globalUserId } },
+    });
+    return { role: (membership?.role ?? 'MEMBER') as MembershipRole, membershipId: membership?.id ?? null, globalUserId: user.globalUserId };
+  }
 
   async listUsers(ctx: TenantRequestContext) {
     const users = await ctx.tenantDb.user.findMany({
       include: { roles: { include: { role: true } } },
       orderBy: { createdAt: 'asc' },
     });
+    const memberships = await this.controlDb.tenantMembership.findMany({
+      where: { tenantId: ctx.tenantId, globalUserId: { in: users.map((u) => u.globalUserId) } },
+      select: { globalUserId: true, role: true },
+    });
+    const roleByGlobal = new Map(memberships.map((m) => [m.globalUserId, m.role]));
     return users.map((u) => ({
+      membershipRole: roleByGlobal.get(u.globalUserId) ?? 'MEMBER',
       id: u.id,
       name: u.name,
       email: u.email,
@@ -173,23 +206,72 @@ export class UsersService {
   }
 
   /**
-   * حذف کامل دسترسی کاربر — هم ردیف محلی تننت و هم عضویتش در کنترل‌پلین
-   * حذف می‌شود تا واقعاً دیگر عضو این تننت نباشد، نه فقط غیرفعال. مالک
-   * تننت و خودِ کاربر جاری قابل حذف نیستند.
+   * درخواست حذف کاربر. فقط مدیر بالادستی می‌تواند کاربر پایین‌دستی را حذف کند
+   * (مالک بر همه، ادمین فقط بر اعضای عادی) و مدیر اصلی (OWNER) هرگز حذف نمی‌شود.
+   * حذف توسط ادمین ابتدا به کارتابل مدیر می‌رود؛ خودِ مالک (مدیر نهایی) مستقیم حذف می‌کند.
    */
   async deleteUser(ctx: TenantRequestContext, id: string) {
     const actorUserId = await resolveTenantUserId(ctx).catch(() => null);
     if (actorUserId === id) throw new ForbiddenException('نمی‌توانید حساب کاربری خودتان را حذف کنید');
 
-    const user = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
-    const membership = await this.controlDb.tenantMembership.findUnique({
-      where: { tenantId_globalUserId: { tenantId: ctx.tenantId, globalUserId: user.globalUserId } },
-    });
-    if (membership?.role === 'OWNER') throw new ForbiddenException('مالک تننت قابل حذف نیست');
+    const target = await this.membershipRoleOf(ctx, id);
+    if (target.role === 'OWNER') throw new ForbiddenException('مدیر اصلی سیستم قابل حذف نیست؛ ابتدا باید نقش مدیر کل او تغییر کند');
+    const actorRank = ROLE_RANK[ctx.auth.role as MembershipRole] ?? 0;
+    if (actorRank <= ROLE_RANK[target.role]) {
+      throw new ForbiddenException('فقط مدیر بالادستی می‌تواند دسترسی کاربر پایین‌دستی را حذف کند');
+    }
 
+    if (ctx.auth.role === 'OWNER') {
+      await this.executeDelete(ctx, id);
+      return { success: true, pendingApproval: false };
+    }
+
+    const user = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    await this.approvals.request(ctx, {
+      moduleCode: 'users',
+      entityType: 'USER_DELETION',
+      entityId: id,
+      title: `حذف کاربر «${user.name}»`,
+      summary: 'درخواست حذف دسترسی این کاربر ثبت شده و منتظر تأیید مدیر است.',
+      link: '/settings/users',
+      requestedByUserId: actorUserId ?? undefined,
+    });
+    return { success: true, pendingApproval: true };
+  }
+
+  /** حذف واقعی — هم ردیف محلی تننت و هم عضویت کنترل‌پلین. فقط از مسیرهای تأییدشده صدا زده می‌شود. */
+  private async executeDelete(ctx: TenantRequestContext, id: string) {
+    const target = await this.membershipRoleOf(ctx, id);
+    if (target.role === 'OWNER') throw new ForbiddenException('مدیر اصلی سیستم قابل حذف نیست');
+    if ((ROLE_RANK[ctx.auth.role as MembershipRole] ?? 0) <= ROLE_RANK[target.role]) {
+      throw new ForbiddenException('فقط مدیر بالادستی می‌تواند دسترسی کاربر پایین‌دستی را حذف کند');
+    }
     await ctx.tenantDb.user.delete({ where: { id } });
-    if (membership) {
-      await this.controlDb.tenantMembership.delete({ where: { id: membership.id } });
+    if (target.membershipId) await this.controlDb.tenantMembership.delete({ where: { id: target.membershipId } });
+    await this.approvals.closeForEntity(ctx, 'USER_DELETION', id, 'APPROVED');
+  }
+
+  /**
+   * تعیین سطح مدیریتی یک کاربر — فقط مالک. «انتقال» یعنی نقش مدیر کل به کاربر دیگر
+   * داده شود و خودِ مالک به ادمین تنزل یابد؛ بدون transfer، نقش OWNER به کاربر دوم هم داده
+   * می‌شود (دسترسی همتراز). همیشه باید حداقل یک مالک بماند.
+   */
+  async setManagementRole(ctx: TenantRequestContext, id: string, role: MembershipRole, transfer: boolean) {
+    if (ctx.auth.role !== 'OWNER') throw new ForbiddenException('فقط مدیر کل می‌تواند سطح مدیریتی کاربران را تغییر دهد');
+    const actorUserId = await resolveTenantUserId(ctx).catch(() => null);
+    const target = await this.membershipRoleOf(ctx, id);
+    if (!target.membershipId) throw new BadRequestException('عضویت این کاربر یافت نشد');
+
+    if (target.role === 'OWNER' && role !== 'OWNER') {
+      const owners = await this.controlDb.tenantMembership.count({ where: { tenantId: ctx.tenantId, role: 'OWNER' } });
+      if (owners <= 1) throw new BadRequestException('حداقل یک مدیر کل باید باقی بماند؛ ابتدا نقش را به شخص دیگری منتقل کنید');
+    }
+
+    await this.controlDb.tenantMembership.update({ where: { id: target.membershipId }, data: { role } });
+
+    if (transfer && role === 'OWNER' && actorUserId && actorUserId !== id) {
+      const self = await this.membershipRoleOf(ctx, actorUserId);
+      if (self.membershipId) await this.controlDb.tenantMembership.update({ where: { id: self.membershipId }, data: { role: 'ADMIN' } });
     }
     return { success: true };
   }

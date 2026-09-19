@@ -25,6 +25,7 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/profile", label: "پروفایل من", icon: UserCircleIcon },
   { href: "/settings/general", label: "عمومی و برندینگ", icon: CalendarIcon },
   { href: "/settings/users", label: "کاربران و نقش‌ها", icon: HrIcon },
+  { href: "/settings/approvers", label: "مدیر تأییدکننده‌ی ماژول‌ها", icon: HrIcon },
   { href: "/settings/billing", label: "اشتراک و صورتحساب", icon: BillingIcon },
   { href: "/settings/modules", label: "ماژول‌های نصب‌شده", icon: StoreIcon },
   { href: "/settings/currencies", label: "ارزها و نرخ تبدیل", icon: CurrencyIcon, moduleCode: "currency-exchange" },

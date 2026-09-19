@@ -5,7 +5,7 @@ import { getManagerUsers } from '../common/manager-users.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 
-export type ApprovalDecisionOptions = { stampApplied: boolean; note?: string };
+export type ApprovalDecisionOptions = { stampApplied: boolean; note?: string; requestedByUserId?: string | null };
 
 /** هر ماژولی که سندش با تأیید مدیر پیش می‌رود، برای entityType خودش یکی از این‌ها را ثبت می‌کند. */
 export type ApprovalHandler = {
@@ -50,6 +50,12 @@ export class ApprovalsService {
     });
     if (existing) return existing;
 
+    // مدیر تأییدکننده‌ی نهایی ثبت‌شده برای این ماژول (تنظیمات → مدیر تاییدکننده‌ی ماژول‌ها)
+    const moduleApprover = input.assigneeUserId
+      ? null
+      : await ctx.tenantDb.moduleApprover.findUnique({ where: { moduleCode: input.moduleCode } });
+    const assigneeUserId = input.assigneeUserId ?? moduleApprover?.userId;
+
     const created = await ctx.tenantDb.approvalRequest.create({
       data: {
         moduleCode: input.moduleCode,
@@ -60,13 +66,15 @@ export class ApprovalsService {
         link: input.link,
         isOfficial: input.isOfficial ?? false,
         requestedByUserId: input.requestedByUserId,
-        assigneeUserId: input.assigneeUserId,
+        assigneeUserId,
       },
     });
 
-    const recipients = input.assigneeUserId
-      ? [{ tenantUserId: input.assigneeUserId }]
-      : await getManagerUsers(this.controlDb, ctx.tenantDb, ctx.tenantId);
+    // تأییدکننده‌ی مشخص + مدیران بالادستی (مالک/ادمین) هر دو اعلان می‌گیرند
+    const managers = await getManagerUsers(this.controlDb, ctx.tenantDb, ctx.tenantId);
+    const recipients = assigneeUserId
+      ? [{ tenantUserId: assigneeUserId }, ...managers.filter((m) => m.tenantUserId !== assigneeUserId)]
+      : managers;
     for (const m of recipients) {
       await this.notifications
         .notify(ctx.tenantDb, {
@@ -88,6 +96,22 @@ export class ApprovalsService {
       where: { entityType, entityId, status: 'PENDING' },
       data: { status, decidedAt: new Date(), decidedByUserId, stampApplied },
     });
+  }
+
+  async listModuleApprovers(ctx: TenantRequestContext) {
+    return ctx.tenantDb.moduleApprover.findMany({ include: { user: { select: { id: true, name: true } } } });
+  }
+
+  /** userId خالی = حذف تأییدکننده‌ی اختصاصی؛ اسناد ماژول دوباره فقط برای مدیران نمایش داده می‌شود. */
+  async setModuleApprover(ctx: TenantRequestContext, moduleCode: string, userId: string | null) {
+    if (!this.isManager(ctx)) throw new ForbiddenException('فقط مالک یا مدیر می‌تواند مدیر تأییدکننده را تعیین کند');
+    if (!userId) {
+      await ctx.tenantDb.moduleApprover.deleteMany({ where: { moduleCode } });
+      return { moduleCode, userId: null };
+    }
+    await ctx.tenantDb.user.findUniqueOrThrow({ where: { id: userId } });
+    await ctx.tenantDb.moduleApprover.upsert({ where: { moduleCode }, create: { moduleCode, userId }, update: { userId } });
+    return { moduleCode, userId };
   }
 
   private isManager(ctx: TenantRequestContext): boolean {
@@ -129,8 +153,12 @@ export class ApprovalsService {
     if (!handler) throw new BadRequestException('برای این نوع سند پردازشگر تأیید تعریف نشده است');
 
     const stampApplied = approved && !!opts.withStamp;
-    if (approved) await handler.approve(ctx, request.entityId, { stampApplied, note: opts.note });
-    else await handler.reject(ctx, request.entityId, { stampApplied: false, note: opts.note });
+    // تأییدکننده‌ی تعیین‌شده (غیرمدیر) فقط برای همین سند از طرف مدیر عمل می‌کند؛
+    // اجرای handler با نقش مدیر است، ولی هیچ اندپوینت دیگری باز نمی‌شود.
+    const actingCtx: TenantRequestContext = this.isManager(ctx) ? ctx : { ...ctx, auth: { ...ctx.auth, role: 'ADMIN' } };
+    const handlerOpts = { stampApplied, note: opts.note, requestedByUserId: request.requestedByUserId };
+    if (approved) await handler.approve(actingCtx, request.entityId, handlerOpts);
+    else await handler.reject(actingCtx, request.entityId, { ...handlerOpts, stampApplied: false });
 
     const decidedByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
     return ctx.tenantDb.approvalRequest.update({

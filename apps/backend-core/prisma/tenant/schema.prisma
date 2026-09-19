@@ -22,6 +22,7 @@ enum UserStatus {
 }
 
 model User {
+  moduleApprovals ModuleApprover[] @relation("ModuleApproverUser")
   id           String     @id @default(uuid())
   globalUserId String     @unique // points at Control Plane GlobalUser.id (no cross-db FK)
   name         String
@@ -2229,6 +2230,7 @@ model ContractTemplate {
 }
 
 model Contract {
+  jobPostings JobPosting[]
   id                   String                @id @default(uuid())
   contractNo           Int                   @unique @default(autoincrement())
   title                String
@@ -3355,10 +3357,12 @@ model JobPosting {
   description     String?
   status          JobPostingStatus  @default(OPEN)
   closedAt        DateTime?
+  contractId      String? // قرارداد/شرایط و قوانین همکاری مربوط به این آگهی — متقاضی قبل از امضا می‌بیند
   createdByUserId String?
   createdAt       DateTime          @default(now())
 
   createdBy  User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contract   Contract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
   applicants JobApplicant[]
 
   @@index([status])
@@ -3608,4 +3612,15 @@ model ApprovalRequest {
   @@index([assigneeUserId, status])
   @@index([entityType, entityId])
   @@map("approval_requests")
+}
+
+/// مدیر تأییدکننده‌ی نهایی هر ماژول — اسناد آن ماژول در کارتابل او (و مدیران بالادستی) نمایش داده می‌شود.
+model ModuleApprover {
+  moduleCode String   @id
+  userId     String
+  updatedAt  DateTime @updatedAt
+
+  user User @relation("ModuleApproverUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("module_approvers")
 }

@@ -645,20 +645,8 @@ export function EmployeeModal({
                   inputMode="numeric"
                   className="flex-1 min-w-[90px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                 />
-                <input
-                  value={certStartDate}
-                  onChange={(e) => setCertStartDate(e.target.value)}
-                  type="date"
-                  dir="ltr"
-                  className="flex-1 min-w-[130px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
-                <input
-                  value={certEndDate}
-                  onChange={(e) => setCertEndDate(e.target.value)}
-                  type="date"
-                  dir="ltr"
-                  className="flex-1 min-w-[130px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
+                <JalaliDateInput value={certStartDate} onChange={setCertStartDate} placeholder="تاریخ شروع دوره" className="flex-1 min-w-[130px]" />
+                <JalaliDateInput value={certEndDate} onChange={setCertEndDate} placeholder="تاریخ پایان دوره" className="flex-1 min-w-[130px]" />
                 <input
                   value={certScore}
                   onChange={(e) => setCertScore(e.target.value.replace(/[^0-9]/g, ""))}

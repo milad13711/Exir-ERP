@@ -449,6 +449,7 @@ export type TenantUser = {
   status: "INVITED" | "ACTIVE" | "DISABLED";
   roles: string[];
   roleIds: string[];
+  membershipRole: "OWNER" | "ADMIN" | "MEMBER";
 };
 
 export function fetchUsers() {
@@ -485,7 +486,24 @@ export function saveUserPermissionOverrides(id: string, entries: ModulePermissio
 }
 
 export function deleteUser(id: string) {
-  return apiFetch<{ success: boolean }>(`/users/${id}`, { method: "DELETE" });
+  return apiFetch<{ success: boolean; pendingApproval: boolean }>(`/users/${id}`, { method: "DELETE" });
+}
+
+export function setUserManagementRole(id: string, data: { role: "OWNER" | "ADMIN" | "MEMBER"; transfer?: boolean }) {
+  return apiFetch<{ success: boolean }>(`/users/${id}/management-role`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export type ModuleApprover = { moduleCode: string; userId: string; user: { id: string; name: string } };
+
+export function fetchModuleApprovers() {
+  return apiFetch<ModuleApprover[]>("/approvals/module-approvers");
+}
+
+export function setModuleApprover(moduleCode: string, userId: string | null) {
+  return apiFetch<{ moduleCode: string; userId: string | null }>(`/approvals/module-approvers/${moduleCode}`, {
+    method: "PUT",
+    body: JSON.stringify({ userId }),
+  });
 }
 
 // ── Access matrix (per role, per module) ───────────────────────────────
@@ -2085,6 +2103,7 @@ export type Employee = {
   terminationReason: string | null;
   terminatedAt: string | null;
   managerId: string | null;
+  userId?: string | null;
   createdAt: string;
 };
 
@@ -6133,6 +6152,7 @@ export type JobPosting = {
   description: string | null;
   status: JobPostingStatus;
   closedAt: string | null;
+  contractId?: string | null;
   createdAt: string;
   _count?: { applicants: number };
 };
@@ -6246,6 +6266,7 @@ export function createJobPosting(data: {
   publishChannel?: string;
   publishBudget?: number;
   description?: string;
+  contractId?: string;
 }) {
   return apiFetch<JobPosting>("/recruitment/postings", { method: "POST", body: JSON.stringify(data) });
 }
@@ -6393,6 +6414,9 @@ export type PublicJobOfferView = {
   startDate: string | null;
   status: JobOfferStatus;
   candidateAcceptedAt: string | null;
+  jobTitle?: string;
+  contractTitle?: string | null;
+  contractTerms?: string | null;
 };
 
 export function fetchPublicJobOffer(tenantSlug: string, token: string) {
@@ -6691,4 +6715,8 @@ export function fetchPendingApprovalCount() {
 
 export function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string }) {
   return apiFetch<ApprovalRequest>(`/approvals/${id}/decision`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function grantEmployeeAccess(employeeId: string, data: { roleId: string; phone?: string }) {
+  return apiFetch<Employee>(`/hr/employees/${employeeId}/grant-access`, { method: "POST", body: JSON.stringify(data) });
 }

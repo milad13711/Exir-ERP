@@ -40,6 +40,8 @@ import {
   JALALI_MONTH_NAMES,
 } from "@/components/hr/hr-shared";
 import { NewEmployeeModal } from "@/components/hr/NewEmployeeModal";
+import { GrantAccessModal } from "@/components/hr/GrantAccessModal";
+import { useWorkspace } from "@/lib/workspace-context";
 import { EmployeeModal } from "@/components/hr/EmployeeModal";
 import { NewLeaveModal } from "@/components/hr/NewLeaveModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
@@ -55,6 +57,9 @@ export default function HrPage() {
   const [search, setSearch] = useState("");
 
   const [openEmployeeId, setOpenEmployeeId] = useState<string | null>(null);
+  const { me } = useWorkspace();
+  const isManager = me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN";
+  const [accessEmployee, setAccessEmployee] = useState<Employee | null>(null);
   const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
   const [newLeaveOpen, setNewLeaveOpen] = useState(false);
 
@@ -160,32 +165,51 @@ export default function HrPage() {
               <div className="p-8 text-center text-muted text-sm">کارمندی یافت نشد</div>
             ) : (
               filteredEmployees.map((e, i) => (
-                <button
+                <div
                   key={e.id}
-                  onClick={() => setOpenEmployeeId(e.id)}
-                  className={clsx(
-                    "w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors",
-                    i < filteredEmployees.length - 1 && "border-b border-border",
-                  )}
+                  className={clsx("flex items-center hover:bg-slate-50 transition-colors", i < filteredEmployees.length - 1 && "border-b border-border")}
                 >
-                  <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0 text-[12px] font-extrabold">
-                    {e.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("‌")}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] font-bold truncate">{e.fullName}</div>
-                    <div className="text-[11.5px] text-muted mt-0.5">
-                      {e.position}
-                      {e.department ? ` · ${e.department.name}` : ""}
+                  <button onClick={() => setOpenEmployeeId(e.id)} className="flex-1 min-w-0 flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer">
+                    <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0 text-[12px] font-extrabold">
+                      {e.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("‌")}
                     </div>
-                  </div>
-                  <div className="text-[12px] text-muted w-[140px] text-left shrink-0 hidden sm:block">
-                    {formatToman(e.baseSalary)}
-                  </div>
-                </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-bold truncate">{e.fullName}</div>
+                      <div className="text-[11.5px] text-muted mt-0.5">
+                        {e.position}
+                        {e.department ? ` · ${e.department.name}` : ""}
+                      </div>
+                    </div>
+                    <div className="text-[12px] text-muted w-[140px] text-left shrink-0 hidden sm:block">{formatToman(e.baseSalary)}</div>
+                  </button>
+                  {isManager ? (
+                    e.userId ? (
+                      <span className="text-[11px] font-bold text-success bg-success-soft px-2.5 py-1.5 rounded-lg ml-3 whitespace-nowrap">دارای دسترسی</span>
+                    ) : (
+                      <button
+                        onClick={() => setAccessEmployee(e)}
+                        className="text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg ml-3 cursor-pointer whitespace-nowrap"
+                      >
+                        ایجاد دسترسی کاربری
+                      </button>
+                    )
+                  ) : null}
+                </div>
               ))
             )}
           </Card>
         </>
+      ) : null}
+
+      {accessEmployee ? (
+        <GrantAccessModal
+          employee={accessEmployee}
+          onClose={() => setAccessEmployee(null)}
+          onDone={() => {
+            setAccessEmployee(null);
+            reloadCore();
+          }}
+        />
       ) : null}
 
       {tab === "orgchart" ? <OrgChartTab onSelect={setOpenEmployeeId} /> : null}

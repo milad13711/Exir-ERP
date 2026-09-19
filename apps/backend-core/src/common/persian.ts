@@ -76,3 +76,15 @@ export function formatJalaliFull(date: Date): string {
   const { year, month, day } = toJalali(date);
   return `${toPersianDigits(day)} ${JALALI_MONTHS[month - 1]} ${toPersianDigits(year)}`;
 }
+
+const TEHRAN_TZ = 'Asia/Tehran';
+
+/** تاریخ شمسی به وقت تهران — سرور معمولاً روی UTC است و toLocaleDateString بدون timeZone ساعت/روز را جابه‌جا می‌کند. */
+export function faDate(date: Date): string {
+  return date.toLocaleDateString('fa-IR', { timeZone: TEHRAN_TZ });
+}
+
+/** ساعت (۲۴ساعته) به وقت تهران — همان ساعتی که کاربر در تقویم انتخاب کرده است. */
+export function faTime(date: Date): string {
+  return date.toLocaleTimeString('fa-IR', { timeZone: TEHRAN_TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+}

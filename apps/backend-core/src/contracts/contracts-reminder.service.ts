@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -70,7 +71,7 @@ export class ContractsReminderService {
     const ctx = { tenantId, tenantSlug: '', tenantDb, auth: { role: 'OWNER' } } as unknown as import('../common/request-context.js').TenantRequestContext;
 
     for (const contract of dueNow) {
-      const endDateFa = contract.endDate.toLocaleDateString('fa-IR');
+      const endDateFa = faDate(contract.endDate);
 
       const partyName = contractPartyName(contract);
 

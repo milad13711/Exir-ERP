@@ -34,4 +34,8 @@ export class UpdateJobPostingDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  contractId?: string | null;
 }

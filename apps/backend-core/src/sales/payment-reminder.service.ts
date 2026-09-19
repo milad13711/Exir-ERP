@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -67,7 +68,7 @@ export class PaymentReminderService {
     for (const invoice of due) {
       const remaining = invoice.total - invoice.paidAmount;
       const daysLeft = Math.ceil((invoice.dueAt!.getTime() - Date.now()) / 86_400_000);
-      const dueDateFa = invoice.dueAt!.toLocaleDateString('fa-IR');
+      const dueDateFa = faDate(invoice.dueAt!);
       const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
 
       if (invoice.contact.phone && this.sms.isConfigured()) {

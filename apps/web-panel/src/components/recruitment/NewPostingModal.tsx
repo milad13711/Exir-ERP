@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { createJobPosting, ApiError, type JobEmploymentType } from "@/lib/api";
+import { createJobPosting, fetchContracts, ApiError, type Contract, type JobEmploymentType } from "@/lib/api";
 
 const EMPLOYMENT_TYPES: { value: JobEmploymentType; label: string }[] = [
   { value: "FULL_TIME", label: "تمام‌وقت" },
@@ -19,8 +19,15 @@ export function NewPostingModal({ onClose, onCreated }: { onClose: () => void; o
   const [publishChannel, setPublishChannel] = useState("");
   const [publishBudget, setPublishBudget] = useState("");
   const [description, setDescription] = useState("");
+  const [contractId, setContractId] = useState("");
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ماژول قراردادها ممکن است نصب/مجاز نباشد — در آن صورت انتخاب قرارداد فقط پنهان می‌شود.
+  useEffect(() => {
+    fetchContracts().then(setContracts).catch(() => setContracts([]));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,6 +42,7 @@ export function NewPostingModal({ onClose, onCreated }: { onClose: () => void; o
         publishChannel: publishChannel.trim() || undefined,
         publishBudget: publishBudget ? Number(publishBudget) : undefined,
         description: description.trim() || undefined,
+        contractId: contractId || undefined,
       });
       onCreated(created.id);
     } catch (err) {
@@ -123,6 +131,24 @@ export function NewPostingModal({ onClose, onCreated }: { onClose: () => void; o
           />
         </label>
 
+        {contracts.length > 0 && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-ink-soft">قرارداد و قوانین همکاری این آگهی</span>
+            <select
+              value={contractId}
+              onChange={(e) => setContractId(e.target.value)}
+              className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
+            >
+              <option value="">بدون قرارداد</option>
+              {contracts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-muted">متقاضی قبل از تأیید و امضا، متن این قرارداد را از لینک «شرایط و قوانین» می‌بیند.</span>
+          </label>
+        )}
         {error && <div className="text-[12.5px] text-danger">{error}</div>}
 
         <button type="submit" disabled={busy} className="text-[13px] font-bold px-4 py-2.5 rounded-xl bg-primary text-white disabled:opacity-50 cursor-pointer">

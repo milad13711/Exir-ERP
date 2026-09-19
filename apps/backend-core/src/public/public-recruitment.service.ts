@@ -34,7 +34,7 @@ export class PublicRecruitmentService {
     const ctx = await this.resolveTenantCtx(slug);
     const offer = await ctx.tenantDb.jobOffer.findUnique({
       where: { publicToken: token },
-      include: { applicant: { select: { name: true, phone: true } } },
+      include: { applicant: { select: { name: true, phone: true, jobPosting: { select: { title: true, contract: { select: { title: true, terms: true } } } } } } },
     });
     if (!offer) throw new NotFoundException('این لینک یافت نشد');
 
@@ -49,6 +49,10 @@ export class PublicRecruitmentService {
       startDate: offer.startDate,
       status: offer.status,
       candidateAcceptedAt: offer.candidateAcceptedAt,
+      jobTitle: offer.applicant.jobPosting.title,
+      // شرایط و قوانین همکاری (قرارداد مربوط به آگهی) — متقاضی قبل از امضا آن را می‌خواند
+      contractTitle: offer.applicant.jobPosting.contract?.title ?? null,
+      contractTerms: offer.applicant.jobPosting.contract?.terms ?? null,
     };
   }
 

@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { RolePermissionsModal } from "@/components/settings/RolePermissionsModal";
 import { EditUserModal } from "@/components/settings/EditUserModal";
+import { ManagementRoleModal } from "@/components/settings/ManagementRoleModal";
 import { UserPermissionsModal } from "@/components/settings/UserPermissionsModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
@@ -36,6 +37,13 @@ const roleTones: Record<string, "primary" | "accent" | "warning" | "neutral"> = 
   "کارشناس فروش": "accent",
   حسابدار: "warning",
 };
+
+const ROLE_RANK: Record<string, number> = { OWNER: 3, ADMIN: 2, MEMBER: 1 };
+
+/** فقط مدیر بالادستی می‌تواند کاربر پایین‌دستی را حذف کند؛ مدیر کل هرگز حذف نمی‌شود. */
+function canDeleteUser(actor: string | undefined, target: string): boolean {
+  return target !== "OWNER" && (ROLE_RANK[actor ?? "MEMBER"] ?? 0) > (ROLE_RANK[target] ?? 0);
+}
 
 export default function UsersRolesPage() {
   const { me } = useWorkspace();
@@ -92,10 +100,15 @@ export default function UsersRolesPage() {
     }
   }
 
+  const [mgmtUser, setMgmtUser] = useState<TenantUser | null>(null);
+
   async function handleDeleteUser(id: string) {
-    if (!confirm("این کاربر حذف شود؟ دسترسی او به این محیط کاری کاملاً لغو می‌شود.")) return;
+    if (!confirm("درخواست حذف این کاربر ثبت شود؟ حذف نهایی پس از تأیید مدیر انجام می‌شود و دسترسی او به این محیط کاری کاملاً لغو خواهد شد.")) return;
     try {
-      await deleteUser(id);
+      const result = await deleteUser(id);
+      if (result.pendingApproval) {
+        alert("درخواست حذف در کارتابل مدیر ثبت شد؛ پس از تأیید مدیر، کاربر حذف می‌شود.");
+      }
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "حذف کاربر با خطا مواجه شد");
@@ -284,6 +297,11 @@ export default function UsersRolesPage() {
                       </div>
                     </td>
                     <td className="p-3.5">
+                      {u.membershipRole !== "MEMBER" && (
+                        <Badge tone={u.membershipRole === "OWNER" ? "primary" : "warning"} className="me-1.5">
+                          {u.membershipRole === "OWNER" ? "مدیر کل" : "مدیر"}
+                        </Badge>
+                      )}
                       {u.roles.map((r) => (
                         <Badge key={r} tone={roleTones[r] ?? "neutral"} className="me-1.5">
                           {r}
@@ -313,7 +331,15 @@ export default function UsersRolesPage() {
                         >
                           دسترسی‌ها
                         </button>
-                        {u.phone !== me?.user.phone ? (
+                        {me?.user.membershipRole === "OWNER" && u.phone !== me?.user.phone ? (
+                          <button
+                            onClick={() => setMgmtUser(u)}
+                            className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+                          >
+                            سطح مدیریتی
+                          </button>
+                        ) : null}
+                        {u.phone !== me?.user.phone && canDeleteUser(me?.user.membershipRole, u.membershipRole) ? (
                           <button
                             onClick={() => handleDeleteUser(u.id)}
                             className="text-[11.5px] font-bold text-danger px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
@@ -503,6 +529,16 @@ export default function UsersRolesPage() {
         <RolePermissionsModal role={editingRole} onClose={() => setEditingRole(null)} onSaved={reload} />
       ) : null}
 
+      {mgmtUser ? (
+        <ManagementRoleModal
+          user={mgmtUser}
+          onClose={() => setMgmtUser(null)}
+          onDone={() => {
+            setMgmtUser(null);
+            reload();
+          }}
+        />
+      ) : null}
       {permUser ? <UserPermissionsModal user={permUser} roles={rolesWithPerms} onClose={() => setPermUser(null)} /> : null}
 
       {editingUser ? (

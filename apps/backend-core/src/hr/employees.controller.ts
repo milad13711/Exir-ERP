@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -23,6 +24,9 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import { UsersService } from '../users/users.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
+import { GrantEmployeeAccessDto } from './dto/grant-employee-access.dto.js';
+import { RolesGuard } from '../common/guards/roles.guard.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
 import { CreateEmployeeDto } from './dto/create-employee.dto.js';
 import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { AssignManagerDto } from './dto/assign-manager.dto.js';
@@ -257,6 +261,21 @@ export class EmployeesController {
     }
 
     return employee;
+  }
+
+  /** ایجاد دسترسی کاربری برای یک پرسنل موجود — مستقیم از لیست منابع انسانی. */
+  @Post(':id/grant-access')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  async grantAccess(@Param('id') id: string, @Body() dto: GrantEmployeeAccessDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'hr');
+    const employee = await ctx.tenantDb.employee.findUnique({ where: { id } });
+    if (!employee) throw new NotFoundException('کارمند یافت نشد');
+    if (employee.userId) throw new BadRequestException('این پرسنل قبلاً دسترسی کاربری دارد');
+    const phone = dto.phone?.trim() || employee.phone;
+    if (!phone) throw new BadRequestException('برای ایجاد کاربر، شماره‌ی موبایل پرسنل لازم است');
+    const user = await this.users.inviteUser(ctx, employee.fullName, phone, dto.roleId);
+    return ctx.tenantDb.employee.update({ where: { id }, data: { userId: user.id, phone }, include: EMPLOYEE_INCLUDE });
   }
 
   @Get(':id')
