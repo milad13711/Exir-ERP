@@ -7,6 +7,10 @@ const PHOTO_CODES = new Set([
   "wholesale-distribution",
   "auto-service",
   "business-consulting",
+  "education-institute",
+  "manufacturing",
+  "construction",
+  "medical-clinic",
 ]);
 
 /** برای صنف‌هایی که عکس واقعی دارند یک `<img>` تمام‌قد، وگرنه یک تصویر برداری ساده و متناسب با هر صنف — نه یک آیکون تکی، یک صحنه‌ی کوچک. */

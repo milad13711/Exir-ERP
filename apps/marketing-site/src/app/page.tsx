@@ -126,34 +126,56 @@ export default async function HomePage() {
           aria-hidden
         />
 
-        <div className="relative max-w-[1100px] mx-auto px-6 py-20 sm:py-28 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-[12.5px] font-bold px-4 py-1.5 rounded-full mb-7 backdrop-blur-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-            یک اکسیر برای هر صنف — نه یک نرم‌افزار عمومی برای همه
-          </div>
-          <h1 className="font-display text-[30px] sm:text-[46px] font-extrabold leading-[1.35] text-balance">
-            {GROUP_BRAND.claim}
-          </h1>
-          <p className="mt-5 text-[15px] sm:text-[17px] text-white/80 max-w-[640px] mx-auto leading-loose">
-            {GROUP_BRAND.subClaim}
-          </p>
-          <div className="mt-9 flex items-center justify-center gap-3 flex-wrap">
-            <Link
-              href="#products"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-white text-primary text-[14.5px] font-extrabold shadow-lg cursor-pointer transition-transform hover:-translate-y-0.5"
-            >
-              محصول مناسب کسب‌وکار من کدام است؟
-              <ChevronDownIcon className="w-4 h-4" />
-            </Link>
-            <a
-              href="https://exirerp.ir"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl border border-white/25 text-white text-[14.5px] font-extrabold cursor-pointer hover:bg-white/10 transition-colors"
-            >
-              مشاهده‌ی اکسیر ERP
-            </a>
+        <div className="relative max-w-[1100px] mx-auto px-6 pt-14 sm:pt-20 lg:pt-16">
+          <div className="grid lg:grid-cols-[1fr_1.05fr] items-center gap-2 lg:gap-6">
+            <div className="text-center lg:text-right">
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-[12.5px] font-bold px-4 py-1.5 rounded-full mb-7 backdrop-blur-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                یک اکسیر برای هر صنف — نه یک نرم‌افزار عمومی برای همه
+              </div>
+              <h1 className="font-display text-[30px] sm:text-[46px] font-extrabold leading-[1.35] text-balance">
+                {GROUP_BRAND.claim}
+              </h1>
+              <p className="mt-5 text-[15px] sm:text-[17px] text-white/80 max-w-[640px] mx-auto lg:mx-0 leading-loose">
+                {GROUP_BRAND.subClaim}
+              </p>
+              <div className="mt-9 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
+                <Link
+                  href="#products"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-white text-primary text-[14.5px] font-extrabold shadow-lg cursor-pointer transition-transform hover:-translate-y-0.5"
+                >
+                  محصول مناسب کسب‌وکار من کدام است؟
+                  <ChevronDownIcon className="w-4 h-4" />
+                </Link>
+                <a
+                  href="https://exirerp.ir"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl border border-white/25 text-white text-[14.5px] font-extrabold cursor-pointer hover:bg-white/10 transition-colors"
+                >
+                  مشاهده‌ی اکسیر ERP
+                </a>
+              </div>
+            </div>
+
+            {/* کاراکتر برند و ماژول‌ها — لبه‌ها با ماسک در پس‌زمینه‌ی سرمه‌ای هدر حل می‌شوند */}
+            <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
+              <div
+                className="absolute inset-0 -z-0 opacity-50 blur-3xl"
+                style={{ background: "radial-gradient(circle at 50% 50%, #2f6fed, transparent 65%)" }}
+                aria-hidden
+              />
+              <Image
+                src="/brand/exir-mascot-modules.webp"
+                alt="کاراکتر برند اکسیر، مجسمه‌ی مرمرین با عینک آفتابی، که ماژول‌های فروش، انبار، پشتیبانی، CRM، منابع انسانی و مالی را به‌هم وصل می‌کند"
+                width={1536}
+                height={1024}
+                priority
+                sizes="(min-width: 1024px) 560px, 100vw"
+                className="relative w-full h-auto [mask-image:radial-gradient(ellipse_at_center,black_58%,transparent_82%)]"
+              />
+            </div>
           </div>
 
-          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-5 sm:gap-8 max-w-[880px] mx-auto">
+          <div className="mt-10 lg:mt-6 pb-14 sm:pb-16 grid grid-cols-2 sm:grid-cols-4 gap-5 sm:gap-8 max-w-[880px] mx-auto">
             {TRUST_STATS.map((s) => (
               <div key={s.label} className="flex flex-col items-center gap-2 text-center">
                 <s.icon className="w-5 h-5 text-white/60" />
@@ -332,6 +354,40 @@ export default async function HomePage() {
                 <p className="text-[13px] text-muted leading-relaxed mt-3">{f.answer}</p>
               </details>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Closing CTA ─────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-primary text-white">
+        <div
+          className="absolute -top-24 right-1/3 w-[420px] h-[420px] rounded-full opacity-25 blur-3xl"
+          style={{ background: "radial-gradient(circle, #2f6fed, transparent 70%)" }}
+          aria-hidden
+        />
+        <Image
+          src="/brand/exir-mascot-modules.webp"
+          alt=""
+          width={1536}
+          height={1024}
+          className="absolute inset-y-0 left-0 h-full w-full sm:w-3/5 object-cover object-center opacity-35 sm:opacity-60 [mask-image:linear-gradient(to_right,black_40%,transparent)] sm:[mask-image:linear-gradient(to_right,black_50%,transparent_98%)]"
+        />
+        <div className="relative max-w-[1100px] mx-auto px-6 py-14 sm:py-20 flex items-center justify-center sm:justify-end">
+          <div className="text-center sm:text-right max-w-[520px]">
+            <h2 className="font-display text-[22px] sm:text-[28px] font-extrabold leading-[1.5] text-balance">
+              هنوز مطمئن نیستید کدام اکسیر مناسب شماست؟
+            </h2>
+            <p className="mt-3 text-[13.5px] text-white/75 leading-loose">
+              صنف کسب‌وکارتان را انتخاب کنید تا مستقیم به محصول تخصصی همان صنف بروید، یا برای مشاوره با ما تماس بگیرید.
+            </p>
+            <div className="mt-6 flex items-center justify-center sm:justify-start gap-3 flex-wrap">
+              <Link href="#products" className="px-6 py-3 rounded-2xl bg-white text-primary text-[14px] font-extrabold shadow-lg">
+                انتخاب محصول
+              </Link>
+              <Link href="/collaborate" className="px-6 py-3 rounded-2xl border border-white/25 text-[14px] font-extrabold hover:bg-white/10 transition-colors">
+                همکاری و نمایندگی
+              </Link>
+            </div>
           </div>
         </div>
       </section>
