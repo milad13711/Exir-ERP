@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { RolePermissionsModal } from "@/components/settings/RolePermissionsModal";
 import { EditUserModal } from "@/components/settings/EditUserModal";
+import { UserPermissionsModal } from "@/components/settings/UserPermissionsModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -40,6 +41,7 @@ export default function UsersRolesPage() {
   const { me } = useWorkspace();
   const [users, setUsers] = useState<TenantUser[] | null>(null);
   const [editingUser, setEditingUser] = useState<TenantUser | null>(null);
+  const [permUser, setPermUser] = useState<TenantUser | null>(null);
   const [roles, setRoles] = useState<TenantRoleOption[]>([]);
   const [rolesWithPerms, setRolesWithPerms] = useState<TenantRoleWithPermissions[]>([]);
   const [editingRole, setEditingRole] = useState<TenantRoleWithPermissions | null>(null);
@@ -305,6 +307,12 @@ export default function UsersRolesPage() {
                         >
                           ویرایش
                         </button>
+                        <button
+                          onClick={() => setPermUser(u)}
+                          className="text-[11.5px] font-bold text-accent bg-accent-soft px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+                        >
+                          دسترسی‌ها
+                        </button>
                         {u.phone !== me?.user.phone ? (
                           <button
                             onClick={() => handleDeleteUser(u.id)}
@@ -494,6 +502,8 @@ export default function UsersRolesPage() {
       {editingRole ? (
         <RolePermissionsModal role={editingRole} onClose={() => setEditingRole(null)} onSaved={reload} />
       ) : null}
+
+      {permUser ? <UserPermissionsModal user={permUser} roles={rolesWithPerms} onClose={() => setPermUser(null)} /> : null}
 
       {editingUser ? (
         <EditUserModal user={editingUser} roles={roles} onClose={() => setEditingUser(null)} onSaved={reload} />

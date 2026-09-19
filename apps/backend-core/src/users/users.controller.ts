@@ -39,6 +39,20 @@ export class UsersController {
     return this.users.updateUser(ctx, id, dto);
   }
 
+  @Get('users/:id/permissions')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  getPermissions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    return this.users.getUserPermissionOverrides(ctx, id);
+  }
+
+  @Put('users/:id/permissions')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  setPermissions(@Param('id') id: string, @Body() dto: UpdateModulePermissionsDto, @Ctx() ctx: TenantRequestContext) {
+    return this.users.setUserPermissionOverrides(ctx, id, dto.entries);
+  }
+
   @Delete('users/:id')
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')

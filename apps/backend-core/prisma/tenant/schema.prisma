@@ -69,6 +69,7 @@ model User {
   voipExtension                 VoipExtension?
   callLogs                      CallLog[]
   pushSubscriptions             PushSubscription[]
+  modulePermissionOverrides     UserModulePermission[]
   decidedAiActions              AiActionRequest[]
   providedAppointments          Appointment[]              @relation("AppointmentProvider")
   createdAppointments           Appointment[]              @relation("AppointmentCreatedBy")
@@ -287,6 +288,24 @@ model Notification {
 
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+/// دسترسی دستی اختصاصی یک کاربر روی یک ماژول — اگر برای (کاربر، ماژول) ردیفی
+/// باشد، دقیقاً همین جایگزین اتحاد نقش‌های او در آن ماژول می‌شود (هم افزایش
+/// هم کاهش نسبت به نقش)؛ بدون ردیف، دسترسی از نقش‌ها ارث‌بری می‌شود.
+model UserModulePermission {
+  userId       String
+  moduleCode   String
+  canViewAll   Boolean @default(false)
+  canViewOwn   Boolean @default(false)
+  canCreate    Boolean @default(false)
+  canEdit      Boolean @default(false)
+  canDelete    Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, moduleCode])
+  @@map("user_module_permissions")
 }
 
 model NotificationPreference {

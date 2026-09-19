@@ -44,6 +44,21 @@ export class PermissionsService {
     const userId = await resolveTenantUserId(ctx);
     if (!userId) return NO_ACCESS;
 
+    // دسترسی دستیِ اختصاصی کاربر، اگر برای این ماژول ثبت شده باشد، دقیقاً جایگزین
+    // اتحاد نقش‌ها می‌شود (هم افزایش هم کاهش).
+    const override = await ctx.tenantDb.userModulePermission.findUnique({
+      where: { userId_moduleCode: { userId, moduleCode } },
+    });
+    if (override) {
+      return {
+        canViewAll: override.canViewAll,
+        canViewOwn: override.canViewOwn,
+        canCreate: override.canCreate,
+        canEdit: override.canEdit,
+        canDelete: override.canDelete,
+      };
+    }
+
     const rows = await ctx.tenantDb.modulePermission.findMany({
       where: { moduleCode, role: { users: { some: { userId } } } },
     });

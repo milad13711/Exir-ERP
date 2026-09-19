@@ -153,6 +153,25 @@ export class UsersService {
     });
   }
 
+  async getUserPermissionOverrides(ctx: TenantRequestContext, id: string) {
+    await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    return ctx.tenantDb.userModulePermission.findMany({ where: { userId: id } });
+  }
+
+  /** کل مجموعه‌ی دسترسی‌های دستی کاربر را جایگزین می‌کند؛ ماژولی که در entries نباشد به ارث‌بری از نقش برمی‌گردد. */
+  async setUserPermissionOverrides(
+    ctx: TenantRequestContext,
+    id: string,
+    entries: Array<{ moduleCode: string; canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>,
+  ) {
+    await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    await ctx.tenantDb.$transaction([
+      ctx.tenantDb.userModulePermission.deleteMany({ where: { userId: id } }),
+      ...entries.map((e) => ctx.tenantDb.userModulePermission.create({ data: { userId: id, ...e } })),
+    ]);
+    return ctx.tenantDb.userModulePermission.findMany({ where: { userId: id } });
+  }
+
   /**
    * حذف کامل دسترسی کاربر — هم ردیف محلی تننت و هم عضویتش در کنترل‌پلین
    * حذف می‌شود تا واقعاً دیگر عضو این تننت نباشد، نه فقط غیرفعال. مالک

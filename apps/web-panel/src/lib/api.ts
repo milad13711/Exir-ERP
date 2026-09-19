@@ -475,6 +475,15 @@ export function updateUser(
   return apiFetch<TenantUser>(`/users/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
+export function fetchUserPermissionOverrides(id: string) {
+  return apiFetch<ModulePermissionEntry[]>(`/users/${id}/permissions`);
+}
+
+/** دسترسی‌های دستیِ کاربر را کاملاً جایگزین می‌کند؛ ماژولی که در entries نباشد از نقش ارث‌بری می‌کند. */
+export function saveUserPermissionOverrides(id: string, entries: ModulePermissionEntry[]) {
+  return apiFetch<ModulePermissionEntry[]>(`/users/${id}/permissions`, { method: "PUT", body: JSON.stringify({ entries }) });
+}
+
 export function deleteUser(id: string) {
   return apiFetch<{ success: boolean }>(`/users/${id}`, { method: "DELETE" });
 }

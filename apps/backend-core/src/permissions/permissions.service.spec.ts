@@ -6,6 +6,7 @@ function makeCtx(opts: {
   role: 'OWNER' | 'ADMIN' | 'MEMBER';
   permissionRows?: Array<Record<string, unknown>>;
   userExists?: boolean;
+  override?: Record<string, unknown> | null;
 }): TenantRequestContext {
   const permissionRows = opts.permissionRows ?? [];
   const tenantDb = {
@@ -14,6 +15,9 @@ function makeCtx(opts: {
     },
     modulePermission: {
       findMany: vi.fn().mockResolvedValue(permissionRows),
+    },
+    userModulePermission: {
+      findUnique: vi.fn().mockResolvedValue(opts.override ?? null),
     },
   };
   return {
@@ -92,5 +96,19 @@ describe('PermissionsService', () => {
       const ctx = makeCtx({ role: 'MEMBER', permissionRows: [] });
       await expect(service.viewScope(ctx, 'sales', 'createdByUserId')).rejects.toThrow('اجازه‌ی مشاهده');
     });
+  });
+
+  it('a per-user override replaces the role-derived access (can revoke what the role grants)', async () => {
+    const ctx = makeCtx({
+      role: 'MEMBER',
+      permissionRows: [{ ...NO_ACCESS, canViewAll: true, canEdit: true }],
+      override: { ...NO_ACCESS, canViewOwn: true },
+    });
+    expect(await service.getEffective(ctx, 'hr')).toEqual({ ...NO_ACCESS, canViewOwn: true });
+  });
+
+  it('a per-user override can grant access the role does not have', async () => {
+    const ctx = makeCtx({ role: 'MEMBER', permissionRows: [], override: { ...NO_ACCESS, canViewAll: true, canCreate: true } });
+    expect(await service.getEffective(ctx, 'recruitment')).toEqual({ ...NO_ACCESS, canViewAll: true, canCreate: true });
   });
 });
