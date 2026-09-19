@@ -481,12 +481,40 @@ export function deleteUser(id: string) {
 
 // ── Access matrix (per role, per module) ───────────────────────────────
 
-export const PERMISSION_MODULES = [
-  { code: "crm", label: "مشتریان (CRM)" },
-  { code: "accounting", label: "حسابداری" },
-  { code: "warehouse", label: "انبار" },
-  { code: "hr", label: "منابع انسانی" },
-  { code: "tasks", label: "وظایف" },
+/**
+ * کد ماژول‌هایی که بک‌اند واقعاً با PermissionsService روی ماتریس نقش گیت می‌کند
+ * (assertView/assertCreate/...). ماتریس دسترسی فقط همین‌ها را — به‌شرط نصب‌بودن
+ * برای تننت — نشان می‌دهد؛ برچسب هر کدام از کاتالوگ ماژول‌ها خوانده می‌شود، پس
+ * ماژول تازه‌نصب‌شده خودکار در ماتریس ظاهر می‌شود. ماژول جدیدی که گیت دسترسی
+ * می‌گیرد باید اینجا هم اضافه شود.
+ */
+export const PERMISSION_GATED_MODULE_CODES = [
+  "crm",
+  "sales",
+  "accounting",
+  "warehouse",
+  "purchasing",
+  "hr",
+  "recruitment",
+  "tasks",
+  "projects",
+  "contracts",
+  "booking",
+  "production",
+  "quality-control",
+  "ration-lab",
+  "mentoring",
+  "events",
+  "forms",
+  "fleet",
+  "warranty",
+  "after-sales-service",
+  "online-store",
+  "marketing",
+  "referral-marketing",
+  "qr-code",
+  "automation",
+  "reports",
 ] as const;
 
 export type ModulePermissionEntry = {
