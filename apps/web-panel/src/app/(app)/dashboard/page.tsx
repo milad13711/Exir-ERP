@@ -30,6 +30,8 @@ import {
 import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 
+import { ApprovalsList } from "@/components/approvals/ApprovalsList";
+import Link from "next/link";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function DashboardPage() {
   const { me, installedModules } = useWorkspace();
@@ -74,6 +76,16 @@ export default function DashboardPage() {
           <p className="text-[13.5px] text-muted mt-1">خلاصه‌ی امروز کسب‌وکار شما</p>
         </div>
       </div>
+
+      <Card className="p-5 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[14.5px] font-bold">کارتابل تأیید من</span>
+          <Link href="/approvals" className="text-[12px] font-bold text-primary">
+            مشاهده‌ی همه
+          </Link>
+        </div>
+        <ApprovalsList limit={3} />
+      </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         <KpiCard

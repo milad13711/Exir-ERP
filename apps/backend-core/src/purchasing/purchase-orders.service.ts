@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
@@ -32,11 +33,23 @@ const ORDER_INCLUDE = {
 };
 
 @Injectable()
-export class PurchaseOrdersService {
+export class PurchaseOrdersService implements OnModuleInit {
   constructor(
     private readonly costing: CostingService,
     private readonly automation: AutomationEngineService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    this.approvals.registerHandler('PURCHASE_ORDER', {
+      approve: async (ctx, id) => {
+        await this.approve(ctx, id, { fromApprovals: true });
+      },
+      reject: async (ctx, id, opts) => {
+        await this.reject(ctx, id, opts.note, { fromApprovals: true });
+      },
+    });
+  }
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
     return ctx.tenantDb.purchaseOrder.findMany({
@@ -60,7 +73,7 @@ export class PurchaseOrdersService {
     const total = lines.reduce((sum, l) => sum + l.lineTotal, 0);
     const threshold = await this.getApprovalThreshold(ctx);
 
-    return ctx.tenantDb.purchaseOrder.create({
+    const order = await ctx.tenantDb.purchaseOrder.create({
       data: {
         supplierId: dto.supplierId,
         expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : undefined,
@@ -73,6 +86,18 @@ export class PurchaseOrdersService {
       },
       include: ORDER_INCLUDE,
     });
+    if (order.approvalStatus === 'PENDING') {
+      await this.approvals.request(ctx, {
+        moduleCode: 'purchasing',
+        entityType: 'PURCHASE_ORDER',
+        entityId: order.id,
+        title: `تأیید سفارش خرید ${order.orderNo}`,
+        summary: `${order.supplier?.name ?? ""} — ${order.total.toLocaleString('en-US')} تومان`,
+        link: '/purchasing',
+        requestedByUserId: createdByUserId ?? undefined,
+      });
+    }
+    return order;
   }
 
   async getApprovalThreshold(ctx: TenantRequestContext): Promise<number | null> {
@@ -92,7 +117,7 @@ export class PurchaseOrdersService {
   }
 
   /** Only the tenant owner/admin may approve or reject — there's no manager-chain concept for spending sign-off like there is for HR leave. */
-  async approve(ctx: TenantRequestContext, id: string) {
+  async approve(ctx: TenantRequestContext, id: string, opts?: { fromApprovals?: boolean }) {
     this.assertApprover(ctx);
     const order = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('سفارش خرید یافت نشد');
@@ -104,6 +129,7 @@ export class PurchaseOrdersService {
       data: { approvalStatus: 'APPROVED', approvedByUserId, approvedAt: new Date() },
       include: ORDER_INCLUDE,
     });
+    if (!opts?.fromApprovals) await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'APPROVED');
     await this.automation.emit(ctx, 'purchasing.order.approved', {
       orderNo: updated.orderNo,
       supplierName: updated.supplier.name,
@@ -113,13 +139,14 @@ export class PurchaseOrdersService {
     return updated;
   }
 
-  async reject(ctx: TenantRequestContext, id: string, reason?: string) {
+  async reject(ctx: TenantRequestContext, id: string, reason?: string, opts?: { fromApprovals?: boolean }) {
     this.assertApprover(ctx);
     const order = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('سفارش خرید یافت نشد');
     if (order.approvalStatus !== 'PENDING') throw new BadRequestException('این سفارش در انتظار تأیید نیست');
 
     const approvedByUserId = await resolveTenantUserId(ctx);
+    if (!opts?.fromApprovals) await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'REJECTED');
     return ctx.tenantDb.purchaseOrder.update({
       where: { id },
       data: {

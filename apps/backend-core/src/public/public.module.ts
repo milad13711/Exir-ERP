@@ -44,6 +44,7 @@ import { PublicAfterSalesService } from './public-after-sales.service.js';
 import { PublicAfterSalesController } from './public-after-sales.controller.js';
 import { QrCodeModule } from '../qr-code/qr-code.module.js';
 import { PublicQrCodeController } from './public-qr-code.controller.js';
+import { RecruitmentModule } from '../recruitment/recruitment.module.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
 import { HrModule } from '../hr/hr.module.js';
@@ -58,6 +59,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
+    RecruitmentModule,
     AuthModule,
     TenantsModule,
     BookingModule,

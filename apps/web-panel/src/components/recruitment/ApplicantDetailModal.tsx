@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useWorkspace } from "@/lib/workspace-context";
-import { toPersianDigits, formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { toPersianDigits, formatJalaliDateTime, formatJalaliDate, formatToman } from "@/lib/persian";
 import {
   fetchApplicant,
   specialistDecision,
@@ -16,7 +17,8 @@ import {
   recordInterviewReport,
   createOrUpdateOffer,
   sendOffer,
-  signOffer,
+  fetchDepartments,
+  type Department,
   openOfferPdf,
   fetchUsers,
   fetchRoles,
@@ -34,6 +36,9 @@ const STAGE_LABELS: Record<ApplicantStage, string> = {
   INTERVIEWED: "مصاحبه‌شده",
   SPECIALIST_APPROVED: "تأیید کارشناس",
   SPECIALIST_REJECTED: "رد کارشناس",
+  OFFER_SENT: "شرایط همکاری ارسال‌شده",
+  OFFER_DECLINED: "شرایط همکاری رد شد",
+  AWAITING_MANAGEMENT: "منتظر تأیید نهایی مدیر",
   MANAGEMENT_APPROVED: "تأیید مدیریت",
   MANAGEMENT_REJECTED: "رد مدیریت",
   HIRED: "جذب‌شده",
@@ -44,6 +49,9 @@ const STAGE_TONES: Record<ApplicantStage, "neutral" | "success" | "warning" | "d
   INTERVIEWED: "primary",
   SPECIALIST_APPROVED: "warning",
   SPECIALIST_REJECTED: "danger",
+  OFFER_SENT: "primary",
+  OFFER_DECLINED: "danger",
+  AWAITING_MANAGEMENT: "warning",
   MANAGEMENT_APPROVED: "success",
   MANAGEMENT_REJECTED: "danger",
   HIRED: "success",
@@ -51,6 +59,7 @@ const STAGE_TONES: Record<ApplicantStage, "neutral" | "success" | "warning" | "d
 
 export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const { me } = useWorkspace();
+  const isManager = me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN";
   const [applicant, setApplicant] = useState<JobApplicant | null>(null);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [busy, setBusy] = useState(false);
@@ -136,32 +145,13 @@ export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; o
             }}
           />
         )}
-        {(applicant.stage === "SPECIALIST_APPROVED" || applicant.stage === "SPECIALIST_REJECTED" || applicant.stage === "MANAGEMENT_APPROVED" || applicant.stage === "MANAGEMENT_REJECTED" || applicant.stage === "HIRED") && applicant.specialist && (
+        {(applicant.stage === "SPECIALIST_APPROVED" || applicant.stage === "SPECIALIST_REJECTED" || applicant.stage !== "NEW" && applicant.stage !== "INTERVIEW_SCHEDULED" && applicant.stage !== "INTERVIEWED") && applicant.specialist && (
           <div className="text-[11.5px] text-muted">
             تصمیم کارشناس: {applicant.specialist.name}
             {applicant.specialistDecisionReason ? ` — «${applicant.specialistDecisionReason}»` : ""}
           </div>
         )}
 
-        {/* تأیید مدیریت */}
-        {applicant.stage === "SPECIALIST_APPROVED" && (
-          <DecisionBox
-            title="تأیید یا رد نهایی (مدیریت)"
-            busy={busy}
-            onDecide={async (approved, reason) => {
-              setBusy(true);
-              setError(null);
-              try {
-                await managementDecision(applicant.id, { approved, reason });
-                afterAction();
-              } catch (err) {
-                setError(err instanceof ApiError ? err.message : "ثبت تصمیم ناموفق بود");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          />
-        )}
         {applicant.management && (
           <div className="text-[11.5px] text-muted">
             تصمیم مدیریت: {applicant.management.name}
@@ -169,15 +159,36 @@ export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; o
           </div>
         )}
 
-        {/* شرایط همکاری */}
-        {(applicant.stage === "MANAGEMENT_APPROVED" || applicant.stage === "HIRED") && (
-          <OfferSection tenantSlug={me?.tenant.slug ?? ""} applicant={applicant} onChanged={afterAction} />
+        {/* شرایط همکاری — ثبت توسط کارشناس پس از تأیید */}
+        {["SPECIALIST_APPROVED", "OFFER_SENT", "OFFER_DECLINED", "AWAITING_MANAGEMENT", "MANAGEMENT_APPROVED", "HIRED"].includes(applicant.stage) && (
+          <OfferSection applicant={applicant} onChanged={afterAction} />
         )}
 
-        {/* جذب نهایی */}
-        {applicant.stage === "MANAGEMENT_APPROVED" && applicant.offer?.status === "SIGNED" && (
-          <HireSection applicantId={applicant.id} onHired={afterAction} />
-        )}
+        {/* تأیید نهایی — فقط مدیر */}
+        {(applicant.stage === "AWAITING_MANAGEMENT" || applicant.stage === "MANAGEMENT_APPROVED") && applicant.offer?.status === "ACCEPTED" &&
+          (isManager ? (
+            <HireSection
+              applicantId={applicant.id}
+              busy={busy}
+              onHired={afterAction}
+              onReject={async (reason) => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await managementDecision(applicant.id, { approved: false, reason });
+                  afterAction();
+                } catch (err) {
+                  setError(err instanceof ApiError ? err.message : "ثبت تصمیم ناموفق بود");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          ) : (
+            <div className="text-[12.5px] text-muted border border-border rounded-xl p-3.5">
+              متقاضی شرایط را پذیرفته و امضا کرده است. تأیید نهایی فقط توسط مدیر انجام می‌شود و در کارتابل مدیر قرار گرفته است.
+            </div>
+          ))}
       </div>
     </Modal>
   );
@@ -445,28 +456,53 @@ function InterviewReportForm({
   );
 }
 
-function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string; applicant: JobApplicant; onChanged: () => void }) {
+const COLLABORATION_TYPES = ["پاره‌وقت", "تمام‌وقت", "کارآموزی", "پروژه‌ای"];
+
+/** «۰۹:۰۰ تا ۱۷:۰۰» ↔ {from, to} — ذخیره به‌صورت متن ساده تا PDF و صفحه‌ی عمومی بدون تغییر نمایش دهند. */
+function parseHours(v: string | null | undefined): { from: string; to: string } {
+  const m = /(\d{2}:\d{2})\D+(\d{2}:\d{2})/.exec(v ?? "");
+  return m ? { from: m[1], to: m[2] } : { from: "", to: "" };
+}
+
+const FIELD = "w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary";
+
+function LabeledField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11.5px] font-bold text-ink-soft">{label}</span>
+      {children}
+      {hint && <span className="text-[11px] text-muted">{hint}</span>}
+    </label>
+  );
+}
+
+function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onChanged: () => void }) {
   const offer = applicant.offer;
-  const [editing, setEditing] = useState(!offer);
+  const canEdit = ["SPECIALIST_APPROVED", "OFFER_SENT", "OFFER_DECLINED"].includes(applicant.stage);
+  const [editing, setEditing] = useState(!offer && canEdit);
   const [jobDescription, setJobDescription] = useState(offer?.jobDescription ?? "");
   const [collaborationType, setCollaborationType] = useState(offer?.collaborationType ?? "");
-  const [workingHours, setWorkingHours] = useState(offer?.workingHours ?? "");
+  const [hours, setHours] = useState(parseHours(offer?.workingHours));
   const [salary, setSalary] = useState(offer?.salary ? String(offer.salary) : "");
   const [benefits, setBenefits] = useState(offer?.benefits ?? "");
   const [durationMonths, setDurationMonths] = useState(offer?.durationMonths ? String(offer.durationMonths) : "");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState(offer?.startDate ? offer.startDate.slice(0, 10) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
   async function handleSave() {
+    if (!jobDescription.trim() || !collaborationType || !salary) {
+      setError("شرح وظایف، نحوه‌ی همکاری و حقوق را وارد کنید");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await createOrUpdateOffer(applicant.id, {
         jobDescription: jobDescription.trim(),
-        collaborationType: collaborationType.trim(),
-        workingHours: workingHours.trim() || undefined,
+        collaborationType,
+        workingHours: hours.from && hours.to ? `${hours.from} تا ${hours.to}` : undefined,
         salary: Number(salary) || 0,
         benefits: benefits.trim() || undefined,
         durationMonths: durationMonths ? Number(durationMonths) : undefined,
@@ -481,26 +517,15 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
     }
   }
 
-  async function handleSend() {
-    if (!offer) return;
-    setBusy(true);
-    try {
-      await sendOffer(offer.id);
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSign() {
+  async function handleResend() {
     if (!offer) return;
     setBusy(true);
     setError(null);
     try {
-      await signOffer(offer.id);
+      await sendOffer(offer.id);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "امضا ناموفق بود");
+      setError(err instanceof ApiError ? err.message : "ارسال ناموفق بود");
     } finally {
       setBusy(false);
     }
@@ -508,83 +533,75 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
 
   async function handleCopyLink() {
     if (!offer) return;
-    const url = `${window.location.origin}/offer/${tenantSlug}/${offer.publicToken}`;
-    const ok = await copyToClipboard(url);
+    const ok = await copyToClipboard(offer.link ?? "");
     if (ok) {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     }
   }
 
+  const statusLabel =
+    offer?.status === "ACCEPTED"
+      ? "پذیرفته و امضا شده توسط متقاضی"
+      : offer?.status === "REJECTED"
+        ? "رد شده توسط متقاضی"
+        : offer?.status === "SENT"
+          ? "ارسال‌شده به متقاضی"
+          : "پیش‌نویس";
+
   return (
     <div className="border border-border rounded-xl p-3.5">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[12.5px] font-bold">شرایط همکاری</div>
-        {offer && <Badge tone={offer.status === "ACCEPTED" ? "success" : offer.status === "SIGNED" || offer.status === "SENT" ? "primary" : "neutral"}>
-          {offer.status === "DRAFT"
-            ? "پیش‌نویس"
-            : offer.status === "SIGNED"
-              ? "تأییدشده توسط مدیر"
-              : offer.status === "SENT"
-                ? "ارسال‌شده به متقاضی"
-                : "پذیرفته‌شده توسط متقاضی (نهایی)"}
-        </Badge>}
+        {offer && <Badge tone={offer.status === "ACCEPTED" ? "success" : offer.status === "REJECTED" ? "danger" : "primary"}>{statusLabel}</Badge>}
       </div>
 
       {editing ? (
-        <div className="flex flex-col gap-2">
-          <textarea
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            placeholder="شرح وظایف"
-            rows={2}
-            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary resize-none"
-          />
-          <input
-            value={collaborationType}
-            onChange={(e) => setCollaborationType(e.target.value)}
-            placeholder="نحوه‌ی همکاری"
-            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={workingHours}
-              onChange={(e) => setWorkingHours(e.target.value)}
-              placeholder="ساعت حضور"
-              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-            />
-            <input
-              type="number"
-              value={salary}
-              onChange={(e) => setSalary(e.target.value)}
-              placeholder="حقوق (تومان)"
-              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-            />
+        <div className="flex flex-col gap-2.5">
+          <LabeledField label="شرح وظایف">
+            <textarea value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} rows={2} className={`${FIELD} resize-none`} />
+          </LabeledField>
+          <div className="grid grid-cols-2 gap-2.5">
+            <LabeledField label="نحوه‌ی همکاری">
+              <select value={collaborationType} onChange={(e) => setCollaborationType(e.target.value)} className={FIELD}>
+                <option value="">انتخاب کنید...</option>
+                {COLLABORATION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </LabeledField>
+            <LabeledField label="حقوق ماهانه (تومان)">
+              <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} className={FIELD} />
+            </LabeledField>
           </div>
-          <input
-            value={benefits}
-            onChange={(e) => setBenefits(e.target.value)}
-            placeholder="سایر تسهیلات"
-            className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              value={durationMonths}
-              onChange={(e) => setDurationMonths(e.target.value)}
-              placeholder="مدت همکاری (ماه)"
-              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-            />
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-            />
+          <LabeledField label="ساعت حضور روزانه در محل شرکت">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11.5px] text-muted shrink-0">از</span>
+                <input type="time" dir="ltr" value={hours.from} onChange={(e) => setHours({ ...hours, from: e.target.value })} className={FIELD} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11.5px] text-muted shrink-0">تا</span>
+                <input type="time" dir="ltr" value={hours.to} onChange={(e) => setHours({ ...hours, to: e.target.value })} className={FIELD} />
+              </div>
+            </div>
+          </LabeledField>
+          <LabeledField label="سایر تسهیلات (اختیاری)">
+            <input value={benefits} onChange={(e) => setBenefits(e.target.value)} className={FIELD} />
+          </LabeledField>
+          <div className="grid grid-cols-2 gap-2.5">
+            <LabeledField label="مدت همکاری (ماه)" hint="خالی یعنی نامحدود">
+              <input type="number" value={durationMonths} onChange={(e) => setDurationMonths(e.target.value)} className={FIELD} />
+            </LabeledField>
+            <LabeledField label="تاریخ شروع همکاری">
+              <JalaliDateInput value={startDate} onChange={setStartDate} placeholder="انتخاب تاریخ شمسی" />
+            </LabeledField>
           </div>
           {error && <div className="text-[12px] text-danger">{error}</div>}
           <button onClick={handleSave} disabled={busy} className="text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer">
-            ذخیره شرایط همکاری
+            ثبت و ارسال برای متقاضی
           </button>
         </div>
       ) : offer ? (
@@ -592,20 +609,18 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
           <div className="text-[12.5px]">{offer.jobDescription}</div>
           <div className="text-[12px] text-muted">
             {offer.collaborationType} · {formatToman(offer.salary)}
-            {offer.workingHours ? ` · ${offer.workingHours}` : ""}
+            {offer.workingHours ? ` · ساعت حضور روزانه: ${offer.workingHours}` : ""}
+            {offer.startDate ? ` · شروع: ${formatJalaliDate(offer.startDate)}` : ""}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setEditing(true)} className="text-[11.5px] font-bold text-ink-soft cursor-pointer">
-              ویرایش
-            </button>
-            {offer.status === "DRAFT" && (
-              <button onClick={handleSign} disabled={busy} className="text-[11.5px] font-bold text-success cursor-pointer disabled:opacity-50">
-                تأیید و امضا (مدیر)
+          <div className="flex items-center gap-3 flex-wrap">
+            {canEdit && (
+              <button onClick={() => setEditing(true)} className="text-[11.5px] font-bold text-ink-soft cursor-pointer">
+                ویرایش و ارسال مجدد
               </button>
             )}
-            {offer.status === "SIGNED" && (
-              <button onClick={handleSend} disabled={busy} className="text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50">
-                ارسال برای متقاضی
+            {offer.status === "SENT" && (
+              <button onClick={handleResend} disabled={busy} className="text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50">
+                ارسال مجدد پیامک
               </button>
             )}
             {(offer.status === "SENT" || offer.status === "ACCEPTED") && (
@@ -626,9 +641,10 @@ function OfferSection({ tenantSlug, applicant, onChanged }: { tenantSlug: string
   );
 }
 
-function HireSection({ applicantId, onHired }: { applicantId: string; onHired: () => void }) {
+function HireSection({ applicantId, busy: parentBusy, onHired, onReject }: { applicantId: string; busy: boolean; onHired: () => void; onReject: (reason?: string) => void }) {
   const [employeeCode, setEmployeeCode] = useState("");
-  const [department, setDepartment] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [createLogin, setCreateLogin] = useState(false);
   const [roleId, setRoleId] = useState("");
   const [roles, setRoles] = useState<TenantRoleOption[]>([]);
@@ -637,10 +653,10 @@ function HireSection({ applicantId, onHired }: { applicantId: string; onHired: (
 
   useEffect(() => {
     fetchRoles().then(setRoles).catch(() => setRoles([]));
+    fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
-  async function handleHire() {
-    if (!employeeCode.trim()) return;
+  async function handleHire(applyStamp: boolean) {
     if (createLogin && !roleId) {
       setError("برای ایجاد دسترسی کاربری، نقش را انتخاب کنید");
       return;
@@ -649,8 +665,9 @@ function HireSection({ applicantId, onHired }: { applicantId: string; onHired: (
     setError(null);
     try {
       await hireApplicant(applicantId, {
-        employeeCode: employeeCode.trim(),
-        department: department.trim() || undefined,
+        employeeCode: employeeCode.trim() || undefined,
+        departmentId: departmentId || undefined,
+        applyStamp,
         createLogin,
         roleId: createLogin ? roleId : undefined,
       });
@@ -662,33 +679,31 @@ function HireSection({ applicantId, onHired }: { applicantId: string; onHired: (
     }
   }
 
+  const disabled = busy || parentBusy;
   return (
     <div className="border-2 border-success/30 bg-success-soft rounded-xl p-3.5">
-      <div className="text-[12.5px] font-bold mb-2">جذب نهایی — ورود به منابع انسانی</div>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <input
-          value={employeeCode}
-          onChange={(e) => setEmployeeCode(e.target.value)}
-          placeholder="کد پرسنلی"
-          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-        />
-        <input
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          placeholder="واحد (اختیاری)"
-          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-        />
+      <div className="text-[12.5px] font-bold mb-2">تأیید نهایی مدیر — ثبت در منابع انسانی</div>
+      <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+        <LabeledField label="شماره‌ی پرسنلی" hint="خالی = خودکار، بر اساس آخرین شماره‌ی صادرشده">
+          <input value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="خودکار" className={FIELD} />
+        </LabeledField>
+        <LabeledField label="واحد فعالیت">
+          <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={FIELD}>
+            <option value="">بدون واحد</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </LabeledField>
       </div>
       <label className="flex items-center gap-2 cursor-pointer mb-2">
         <input type="checkbox" checked={createLogin} onChange={(e) => setCreateLogin(e.target.checked)} className="w-4 h-4 cursor-pointer" />
-        <span className="text-[12.5px] font-semibold">ایجاد دسترسی کاربری (اکانت ورود) برای این نیرو</span>
+        <span className="text-[12.5px] font-semibold">ایجاد دسترسی کاربری و ارسال نحوه‌ی ورود به متقاضی</span>
       </label>
       {createLogin && (
-        <select
-          value={roleId}
-          onChange={(e) => setRoleId(e.target.value)}
-          className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 mb-2 focus:border-primary"
-        >
+        <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={`${FIELD} mb-2`}>
           <option value="">سطح دسترسی (نقش)...</option>
           {roles.map((r) => (
             <option key={r.id} value={r.id}>
@@ -698,9 +713,24 @@ function HireSection({ applicantId, onHired }: { applicantId: string; onHired: (
         </select>
       )}
       {error && <div className="text-[12px] text-danger mb-2">{error}</div>}
-      <button onClick={handleHire} disabled={busy || !employeeCode.trim()} className="w-full text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-success text-white disabled:opacity-50 cursor-pointer">
-        جذب و ایجاد پرونده‌ی پرسنلی
-      </button>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleHire(false)} disabled={disabled} className="text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-success text-white disabled:opacity-50 cursor-pointer">
+          تأیید
+        </button>
+        <button onClick={() => handleHire(true)} disabled={disabled} className="text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer">
+          تأیید و اجازه‌ی درج مهر و امضا
+        </button>
+        <button
+          onClick={() => {
+            const reason = window.prompt("دلیل رد (اختیاری):");
+            if (reason !== null) onReject(reason || undefined);
+          }}
+          disabled={disabled}
+          className="text-[12.5px] font-bold px-3.5 py-2 rounded-lg bg-danger-soft text-danger disabled:opacity-50 cursor-pointer"
+        >
+          رد
+        </button>
+      </div>
     </div>
   );
 }

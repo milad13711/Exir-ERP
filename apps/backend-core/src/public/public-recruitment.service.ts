@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { RECRUITMENT_MODULE_CODE } from '../recruitment/recruitment.service.js';
+import { RECRUITMENT_MODULE_CODE, RecruitmentService } from '../recruitment/recruitment.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { AcceptOfferDto } from './dto/accept-offer.dto.js';
 
@@ -14,6 +14,7 @@ export class PublicRecruitmentService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
+    private readonly recruitment: RecruitmentService,
   ) {}
 
   private async resolveTenantCtx(slug: string): Promise<TenantRequestContext> {
@@ -58,10 +59,17 @@ export class PublicRecruitmentService {
     if (offer.status !== 'SENT') throw new BadRequestException('این شرایط همکاری در وضعیت قابل‌پاسخ نیست');
 
     if (!dto.accepted) {
+      await ctx.tenantDb.jobOffer.update({ where: { id: offer.id }, data: { status: 'REJECTED', candidateRejectedAt: new Date() } });
+      await this.recruitment.onOfferDeclined(ctx, offer.applicantId);
       return { success: true, accepted: false };
     }
 
-    await ctx.tenantDb.jobOffer.update({ where: { id: offer.id }, data: { status: 'ACCEPTED', candidateAcceptedAt: new Date() } });
+    if (!dto.signature) throw new BadRequestException('برای تأیید شرایط همکاری، امضای الکترونیک لازم است');
+    await ctx.tenantDb.jobOffer.update({
+      where: { id: offer.id },
+      data: { status: 'ACCEPTED', candidateAcceptedAt: new Date(), candidateSignature: dto.signature },
+    });
+    await this.recruitment.onOfferAccepted(ctx, offer.applicantId);
     return { success: true, accepted: true };
   }
 }

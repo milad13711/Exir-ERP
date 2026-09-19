@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { LogoMark, BriefcaseIcon } from "@/components/icons";
 import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { fetchPublicJobOffer, respondToPublicJobOffer, ApiError, type PublicJobOfferView } from "@/lib/api";
@@ -10,6 +11,9 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
   const [offer, setOffer] = useState<PublicJobOfferView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
 
   function reload() {
     fetchPublicJobOffer(slug, token)
@@ -19,10 +23,14 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
   useEffect(reload, [slug, token]);
 
   async function respond(accepted: boolean) {
+    if (accepted && (!agreed || !signature)) {
+      setError("ابتدا شرایط را تأیید کرده و امضا کنید");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await respondToPublicJobOffer(slug, token, accepted);
+      await respondToPublicJobOffer(slug, token, accepted, signature ?? undefined);
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ثبت پاسخ ناموفق بود");
@@ -57,7 +65,7 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
               <div className="border border-border rounded-xl overflow-hidden mb-5">
                 <Row label="شرح وظایف" value={offer.jobDescription} />
                 <Row label="نحوه‌ی همکاری" value={offer.collaborationType} />
-                {offer.workingHours && <Row label="ساعت حضور" value={offer.workingHours} />}
+                {offer.workingHours && <Row label="ساعت حضور روزانه در محل شرکت" value={offer.workingHours} />}
                 <Row label="حقوق و دستمزد (ماهانه)" value={formatToman(offer.salary)} />
                 {offer.benefits && <Row label="سایر تسهیلات" value={offer.benefits} />}
                 <Row label="مدت همکاری" value={offer.durationMonths ? `${offer.durationMonths} ماه` : "نامحدود"} />
@@ -66,26 +74,59 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
 
               {error && <div className="text-[13px] text-danger font-semibold text-center mb-3">{error}</div>}
 
-              {offer.status === "SENT" && (
+              {offer.status === "SENT" && !signing && (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => respond(true)}
-                    disabled={busy}
-                    className="flex-1 py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold disabled:opacity-50"
+                    onClick={() => setSigning(true)}
+                    className="flex-1 py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer"
                   >
-                    تأیید و پذیرش شرایط
+                    مشاهده‌ی شرایط و تأیید
                   </button>
                   <button
-                    onClick={() => respond(false)}
+                    onClick={() => {
+                      if (window.confirm("آیا از عدم پذیرش شرایط همکاری مطمئن هستید؟")) respond(false);
+                    }}
                     disabled={busy}
-                    className="flex-1 py-3 rounded-xl bg-slate-100 text-ink-soft text-[13.5px] font-bold disabled:opacity-50"
+                    className="flex-1 py-3 rounded-xl bg-slate-100 text-ink-soft text-[13.5px] font-bold disabled:opacity-50 cursor-pointer"
                   >
                     عدم پذیرش
                   </button>
                 </div>
               )}
+              {offer.status === "SENT" && signing && (
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="w-4 h-4 mt-0.5 cursor-pointer" />
+                    <span className="text-[12.5px] leading-6">شرایط و قوانین همکاری (قرارداد کارآموزی) را مطالعه کردم و می‌پذیرم.</span>
+                  </label>
+                  <div className="text-[12px] font-bold text-ink-soft">امضای الکترونیک شما</div>
+                  {signature ? (
+                    <div className="flex flex-col gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={signature} alt="امضای شما" className="w-full h-[100px] object-contain bg-slate-50 border border-border rounded-xl" />
+                      <button onClick={() => setSignature(null)} className="text-[12px] font-bold text-ink-soft self-start cursor-pointer">
+                        امضای مجدد
+                      </button>
+                    </div>
+                  ) : (
+                    <SignaturePad onDone={setSignature} onCancel={() => setSigning(false)} />
+                  )}
+                  <button
+                    onClick={() => respond(true)}
+                    disabled={busy || !agreed || !signature}
+                    className="w-full py-3 rounded-xl bg-success text-white text-[13.5px] font-bold disabled:opacity-50 cursor-pointer"
+                  >
+                    تأیید
+                  </button>
+                </div>
+              )}
               {offer.status === "ACCEPTED" && (
-                <div className="text-[13px] text-success font-semibold text-center py-2">همکاری شما نهایی شد 🎉</div>
+                <div className="text-[13px] text-success font-semibold text-center py-2 leading-7">
+                  با تشکر از اعلام آمادگی شما، جهت تأیید نهایی شروع همکاری، مدارک و شرایط شما به مدیریت مجموعه ارجاع شد. با توجه به ظرفیت پذیرش مجموعه، نتیجه‌ی نهایی به‌صورت پیامکی به شما اطلاع‌رسانی خواهد شد.
+                </div>
+              )}
+              {offer.status === "REJECTED" && (
+                <div className="text-[13px] text-muted font-semibold text-center py-2">پاسخ شما ثبت شد. از وقتی که گذاشتید سپاسگزاریم.</div>
               )}
             </div>
           )}

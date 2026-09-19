@@ -176,12 +176,6 @@ export class RecruitmentController {
     return this.recruitment.sendOffer(ctx, id);
   }
 
-  @Post('offers/:id/sign')
-  async signOffer(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
-    return this.recruitment.signOffer(ctx, id);
-  }
-
   @Get('offers/:id/pdf')
   async downloadOfferPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
@@ -206,9 +200,11 @@ export class RecruitmentController {
         startDate: offer.startDate,
         signedAt: offer.signedAt,
         signedByName: offer.signedBy?.name ?? null,
+        candidateSignature: offer.candidateSignature,
       },
       tenant.name,
-      seal,
+      // مهر و امضای شرکت فقط وقتی مدیر «تأیید و اجازه‌ی درج مهر و امضا» را زده باشد
+      offer.stampApplied ? seal : {},
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="job-offer.pdf"');

@@ -1,3 +1,4 @@
+import { SettingsModule } from '../settings/settings.module.js';
 import { Module } from '@nestjs/common';
 import { PermissionsModule } from '../permissions/permissions.module.js';
 import { SmsModule } from '../sms/sms.module.js';
@@ -24,7 +25,7 @@ import { RecurringInvoicesService } from './recurring-invoices.service.js';
 import { SalesAutomationTriggers } from './sales-automation.triggers.js';
 
 @Module({
-  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, WarrantyModule, ReferralMarketingModule],
+  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, WarrantyModule, ReferralMarketingModule, SettingsModule],
   controllers: [
     InvoicesController,
     QuotationsController,

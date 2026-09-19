@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { UsersService } from '../users/users.service.js';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -31,6 +32,8 @@ type SmsSettings = {
   managementApprovedTemplate: string;
   managementRejectedTemplate: string;
   interviewInvitationTemplate: string;
+  offerSentTemplate: string;
+  hiredTemplate: string;
 };
 const DEFAULT_SMS: SmsSettings = {
   enabled: false,
@@ -39,6 +42,8 @@ const DEFAULT_SMS: SmsSettings = {
   managementApprovedTemplate: 'متقاضی گرامی {name}، تبریک! همکاری شما توسط مدیریت تأیید نهایی شد.',
   managementRejectedTemplate: 'متقاضی گرامی {name}، با تشکر از وقتی که گذاشتید، در این دوره امکان جذب شما فراهم نشد.',
   interviewInvitationTemplate: 'متقاضی گرامی {name}، جلسه‌ی مصاحبه‌ی شما در تاریخ {date} ساعت {time} در {location} برگزار می‌شود.',
+  offerSentTemplate: 'متقاضی گرامی {name}، شرایط همکاری شما تعیین شد. لطفاً از لینک زیر شرایط را مشاهده و تأیید کنید: {link}',
+  hiredTemplate: 'متقاضی گرامی {name}، تبریک! همکاری شما نهایی شد. شماره پرسنلی شما {employeeCode} و واحد فعالیت شما {department} است.',
 };
 
 type CompanySeal = { signatureImage?: string; stampImage?: string };
@@ -58,13 +63,32 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 }
 
 @Injectable()
-export class RecruitmentService {
+export class RecruitmentService implements OnModuleInit {
   constructor(
     private readonly sms: ExirSmsService,
     private readonly automation: AutomationEngineService,
     private readonly users: UsersService,
     private readonly stamp: CompanyStampService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    // تأیید نهایی متقاضی از کارتابل مدیر — همان مسیر hire با پیش‌فرض‌ها (شماره‌ی پرسنلی خودکار، بدون تغییر واحد).
+    this.approvals.registerHandler('JOB_APPLICANT', {
+      approve: async (ctx, id, opts) => {
+        await this.hireApplicant(ctx, id, { applyStamp: opts.stampApplied }, { fromApprovals: true });
+      },
+      reject: async (ctx, id, opts) => {
+        await this.managementDecision(ctx, id, { approved: false, reason: opts.note }, { fromApprovals: true });
+      },
+    });
+  }
+
+  private assertManager(ctx: TenantRequestContext): void {
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
+      throw new ForbiddenException('تأیید نهایی فقط توسط مالک یا مدیر انجام می‌شود، نه کارشناسان');
+    }
+  }
 
   /* ───────────────────────── تنظیمات ───────────────────────── */
 
@@ -229,29 +253,32 @@ export class RecruitmentService {
     return updated;
   }
 
-  async managementDecision(ctx: TenantRequestContext, id: string, dto: DecisionDto) {
+  /** رد نهایی توسط مدیر (تأیید نهایی از مسیر hireApplicant انجام می‌شود). */
+  async managementDecision(ctx: TenantRequestContext, id: string, dto: DecisionDto, opts?: { fromApprovals?: boolean }) {
+    this.assertManager(ctx);
+    if (dto.approved) throw new BadRequestException('تأیید نهایی با ثبت جذب (تعیین واحد و شماره‌ی پرسنلی) انجام می‌شود');
     const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id } });
     if (!applicant) throw new NotFoundException('این متقاضی یافت نشد');
-    if (applicant.stage !== 'SPECIALIST_APPROVED') {
-      throw new BadRequestException('این متقاضی هنوز توسط کارشناس تأیید نشده است');
+    if (applicant.stage !== 'AWAITING_MANAGEMENT' && applicant.stage !== 'MANAGEMENT_APPROVED') {
+      throw new BadRequestException('این متقاضی در مرحله‌ی تأیید نهایی مدیر نیست');
     }
     const managementUserId = await resolveTenantUserId(ctx).catch(() => undefined);
 
     const updated = await ctx.tenantDb.jobApplicant.update({
       where: { id },
       data: {
-        stage: dto.approved ? 'MANAGEMENT_APPROVED' : 'MANAGEMENT_REJECTED',
+        stage: 'MANAGEMENT_REJECTED',
         managementDecisionReason: dto.reason,
         managementDecisionAt: new Date(),
         managementUserId,
       },
       include: APPLICANT_INCLUDE,
     });
+    if (!opts?.fromApprovals) await this.approvals.closeForEntity(ctx, 'JOB_APPLICANT', id, 'REJECTED');
 
     const settings = await this.getSmsSettings(ctx);
     if (settings.enabled) {
-      const template = dto.approved ? settings.managementApprovedTemplate : settings.managementRejectedTemplate;
-      await this.sms.sendSms(applicant.phone, renderTemplate(template, { name: applicant.name }));
+      await this.sms.sendSms(applicant.phone, renderTemplate(settings.managementRejectedTemplate, { name: applicant.name }));
     }
     return updated;
   }
@@ -366,87 +393,157 @@ export class RecruitmentService {
 
   /* ───────────────────────── شرایط همکاری (پیشنهاد) ───────────────────────── */
 
+  private offerLink(ctx: TenantRequestContext, token: string): string {
+    const base = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+    return `${base}/offer/${ctx.tenantSlug}/${token}`;
+  }
+
+  private async sendOfferSms(ctx: TenantRequestContext, applicantName: string, phone: string, token: string): Promise<void> {
+    const settings = await this.getSmsSettings(ctx);
+    if (!settings.enabled || !settings.offerSentTemplate) return;
+    await this.sms.sendSms(phone, renderTemplate(settings.offerSentTemplate, { name: applicantName, link: this.offerLink(ctx, token) }));
+  }
+
+  /**
+   * ثبت شرایط همکاری توسط کارشناس — بعد از تأیید کارشناس. با ثبت، شرایط همان لحظه
+   * برای متقاضی «ارسال‌شده» می‌شود و (در صورت فعال بودن پیامک) لینکش پیامک می‌شود.
+   */
   async createOrUpdateOffer(ctx: TenantRequestContext, applicantId: string, dto: CreateOfferDto) {
-    const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id: applicantId } });
+    const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id: applicantId }, include: { offer: true } });
     if (!applicant) throw new NotFoundException('این متقاضی یافت نشد');
-    if (applicant.stage !== 'MANAGEMENT_APPROVED') {
-      throw new BadRequestException('فقط برای متقاضی تأییدشده توسط مدیریت می‌توان شرایط همکاری تعیین کرد');
+    const allowedStages = ['SPECIALIST_APPROVED', 'OFFER_SENT', 'OFFER_DECLINED', 'MANAGEMENT_APPROVED'];
+    if (!allowedStages.includes(applicant.stage)) {
+      throw new BadRequestException('فقط برای متقاضی تأییدشده توسط کارشناس می‌توان شرایط همکاری تعیین کرد');
     }
 
-    return ctx.tenantDb.jobOffer.upsert({
+    const data = {
+      jobDescription: dto.jobDescription,
+      collaborationType: dto.collaborationType,
+      workingHours: dto.workingHours,
+      salary: dto.salary,
+      benefits: dto.benefits,
+      durationMonths: dto.durationMonths,
+      startDate: dto.startDate ? new Date(dto.startDate) : null,
+      status: 'SENT' as const,
+      candidateSignature: null,
+      candidateAcceptedAt: null,
+      candidateRejectedAt: null,
+    };
+    const offer = await ctx.tenantDb.jobOffer.upsert({
       where: { applicantId },
-      create: {
-        applicantId,
-        jobDescription: dto.jobDescription,
-        collaborationType: dto.collaborationType,
-        workingHours: dto.workingHours,
-        salary: dto.salary,
-        benefits: dto.benefits,
-        durationMonths: dto.durationMonths,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-      },
-      update: {
-        jobDescription: dto.jobDescription,
-        collaborationType: dto.collaborationType,
-        workingHours: dto.workingHours,
-        salary: dto.salary,
-        benefits: dto.benefits,
-        durationMonths: dto.durationMonths,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-      },
+      create: { applicantId, ...data },
+      update: data,
     });
+    await ctx.tenantDb.jobApplicant.update({ where: { id: applicantId }, data: { stage: 'OFFER_SENT' } });
+    await this.sendOfferSms(ctx, applicant.name, applicant.phone, offer.publicToken);
+    return offer;
   }
 
-  /** ارسال برای متقاضی — فقط پس از تأیید و امضای مدیر، تا تأیید نهایی همیشه بعد از تأیید مدیر باشد. */
+  /** ارسال مجدد لینک شرایط همکاری برای متقاضی (پیامک). */
   async sendOffer(ctx: TenantRequestContext, offerId: string) {
-    const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id: offerId } });
+    const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id: offerId }, include: { applicant: true } });
     if (!offer) throw new NotFoundException('این شرایط همکاری یافت نشد');
-    if (offer.status !== 'SIGNED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط مدیر تأیید و امضا شود');
-    return ctx.tenantDb.jobOffer.update({ where: { id: offerId }, data: { status: 'SENT' } });
-  }
-
-  /** تأیید و امضای مدیر روی پیش‌نویس — قبل از ارسال برای متقاضی و پیش از تأیید نهایی او. */
-  async signOffer(ctx: TenantRequestContext, offerId: string) {
-    const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id: offerId } });
-    if (!offer) throw new NotFoundException('این شرایط همکاری یافت نشد');
-    if (offer.status !== 'DRAFT') throw new BadRequestException('فقط پیش‌نویس را می‌توان توسط مدیر تأیید و امضا کرد');
-    const signedByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
-    return ctx.tenantDb.jobOffer.update({ where: { id: offerId }, data: { status: 'SIGNED', signedByUserId, signedAt: new Date() } });
+    if (offer.status !== 'SENT') throw new BadRequestException('این شرایط همکاری در وضعیت ارسال نیست');
+    await this.sendOfferSms(ctx, offer.applicant.name, offer.applicant.phone, offer.publicToken);
+    return { ...offer, link: this.offerLink(ctx, offer.publicToken) };
   }
 
   async getOfferForApplicant(ctx: TenantRequestContext, applicantId: string) {
     const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { applicantId } });
     if (!offer) throw new NotFoundException('برای این متقاضی شرایط همکاری‌ای ثبت نشده است');
-    return offer;
+    return { ...offer, link: this.offerLink(ctx, offer.publicToken) };
+  }
+
+  /** بعد از پذیرش و امضای متقاضی: مرحله به «منتظر تأیید مدیر» می‌رود و کارتابل/اعلان مدیر ساخته می‌شود. */
+  async onOfferAccepted(ctx: TenantRequestContext, applicantId: string): Promise<void> {
+    const applicant = await ctx.tenantDb.jobApplicant.update({
+      where: { id: applicantId },
+      data: { stage: 'AWAITING_MANAGEMENT' },
+      include: { jobPosting: { select: { title: true } } },
+    });
+    await this.approvals.request(ctx, {
+      moduleCode: RECRUITMENT_MODULE_CODE,
+      entityType: 'JOB_APPLICANT',
+      entityId: applicantId,
+      title: `تأیید نهایی جذب ${applicant.name}`,
+      summary: `متقاضی «${applicant.jobPosting.title}» شرایط همکاری را پذیرفته و امضا کرده است.`,
+      link: '/recruitment',
+      isOfficial: true,
+    });
+  }
+
+  async onOfferDeclined(ctx: TenantRequestContext, applicantId: string): Promise<void> {
+    await ctx.tenantDb.jobApplicant.update({ where: { id: applicantId }, data: { stage: 'OFFER_DECLINED' } });
   }
 
   /* ───────────────────────── جذب نهایی → HR ───────────────────────── */
 
-  async hireApplicant(ctx: TenantRequestContext, applicantId: string, dto: HireApplicantDto) {
+  /** شماره‌ی پرسنلی بعدی: بزرگ‌ترین شماره‌ی صادرشده + ۱، با حفظ پیشوند و تعداد ارقام. */
+  async nextEmployeeCode(ctx: TenantRequestContext): Promise<string> {
+    const rows = await ctx.tenantDb.employee.findMany({ select: { employeeCode: true } });
+    let best: { prefix: string; num: number; width: number } | null = null;
+    for (const { employeeCode } of rows) {
+      const m = /^(.*?)(\d+)$/.exec(employeeCode);
+      if (!m) continue;
+      const num = Number(m[2]);
+      if (!best || num > best.num) best = { prefix: m[1], num, width: m[2].length };
+    }
+    if (!best) return '1001';
+    return `${best.prefix}${String(best.num + 1).padStart(best.width, '0')}`;
+  }
+
+  async hireApplicant(ctx: TenantRequestContext, applicantId: string, dto: HireApplicantDto, opts?: { fromApprovals?: boolean }) {
+    this.assertManager(ctx);
     const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id: applicantId }, include: { offer: true, jobPosting: true } });
     if (!applicant) throw new NotFoundException('این متقاضی یافت نشد');
-    if (applicant.stage !== 'MANAGEMENT_APPROVED') throw new BadRequestException('این متقاضی توسط مدیریت تأیید نشده است');
-    if (!applicant.offer || applicant.offer.status !== 'ACCEPTED') throw new BadRequestException('ابتدا باید شرایط همکاری توسط مدیر تأیید و سپس توسط متقاضی پذیرفته شود');
+    if (applicant.stage !== 'AWAITING_MANAGEMENT' && applicant.stage !== 'MANAGEMENT_APPROVED') {
+      throw new BadRequestException('این متقاضی هنوز شرایط همکاری را تأیید و امضا نکرده است');
+    }
+    if (!applicant.offer || applicant.offer.status !== 'ACCEPTED') throw new BadRequestException('شرایط همکاری توسط متقاضی پذیرفته نشده است');
 
-    const department = dto.department
-      ? await ctx.tenantDb.department.upsert({
-          where: { name: dto.department },
-          create: { name: dto.department },
-          update: {},
-        })
-      : null;
+    const hiredCount = await ctx.tenantDb.jobApplicant.count({ where: { jobPostingId: applicant.jobPostingId, stage: 'HIRED' } });
+    if (hiredCount >= applicant.jobPosting.capacity) {
+      throw new BadRequestException(`ظرفیت جذب این آگهی (${applicant.jobPosting.capacity} نفر) تکمیل شده است`);
+    }
+
+    let departmentId: string | undefined;
+    let departmentName = 'تعیین نشده';
+    if (dto.departmentId) {
+      const department = await ctx.tenantDb.department.findUnique({ where: { id: dto.departmentId } });
+      if (!department) throw new BadRequestException('واحد انتخاب‌شده یافت نشد');
+      departmentId = department.id;
+      departmentName = department.name;
+    }
+
+    let employeeCode = dto.employeeCode?.trim() || (await this.nextEmployeeCode(ctx));
+    if (dto.employeeCode?.trim()) {
+      const clash = await ctx.tenantDb.employee.findUnique({ where: { employeeCode } });
+      if (clash) throw new BadRequestException('این شماره‌ی پرسنلی قبلاً صادر شده است');
+    } else {
+      // دو تأیید هم‌زمان نباید یک شماره بگیرند
+      while (await ctx.tenantDb.employee.findUnique({ where: { employeeCode } })) {
+        const m = /^(.*?)(\d+)$/.exec(employeeCode)!;
+        employeeCode = `${m[1]}${String(Number(m[2]) + 1).padStart(m[2].length, '0')}`;
+      }
+    }
 
     const employee = await ctx.tenantDb.employee.create({
       data: {
-        employeeCode: dto.employeeCode,
+        employeeCode,
         fullName: applicant.name,
         phone: applicant.phone,
         position: applicant.jobPosting.title,
-        departmentId: department?.id,
+        departmentId,
         hireDate: applicant.offer.startDate ?? new Date(),
         baseSalary: applicant.offer.salary,
         status: 'ACTIVE',
       },
+    });
+
+    const managerUserId = await resolveTenantUserId(ctx).catch(() => undefined);
+    await ctx.tenantDb.jobOffer.update({
+      where: { id: applicant.offer.id },
+      data: { stampApplied: !!dto.applyStamp, signedByUserId: managerUserId, signedAt: new Date() },
     });
 
     await ctx.tenantDb.employeeDocument.create({
@@ -460,11 +557,24 @@ export class RecruitmentService {
 
     let finalEmployee = employee;
     if (dto.createLogin && dto.roleId) {
+      // inviteUser خودش پیامک «دسترسی فعال شد + نحوه‌ی ورود» را می‌فرستد.
       const user = await this.users.inviteUser(ctx, applicant.name, applicant.phone, dto.roleId);
       finalEmployee = await ctx.tenantDb.employee.update({ where: { id: employee.id }, data: { userId: user.id } });
     }
 
-    await ctx.tenantDb.jobApplicant.update({ where: { id: applicantId }, data: { stage: 'HIRED' } });
+    await ctx.tenantDb.jobApplicant.update({
+      where: { id: applicantId },
+      data: { stage: 'HIRED', managementDecisionAt: new Date(), managementUserId: managerUserId },
+    });
+    if (!opts?.fromApprovals) await this.approvals.closeForEntity(ctx, 'JOB_APPLICANT', applicantId, 'APPROVED', !!dto.applyStamp);
+
+    const settings = await this.getSmsSettings(ctx);
+    if (settings.enabled && settings.hiredTemplate) {
+      await this.sms.sendSms(
+        applicant.phone,
+        renderTemplate(settings.hiredTemplate, { name: applicant.name, employeeCode, department: departmentName }),
+      );
+    }
     await this.automation.emit(ctx, 'recruitment.applicant.hired', { applicantName: applicant.name, jobTitle: applicant.jobPosting.title });
 
     return finalEmployee;

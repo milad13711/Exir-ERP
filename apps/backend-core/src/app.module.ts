@@ -51,6 +51,7 @@ import { FormsModule } from './forms/forms.module.js';
 import { WarrantyModule } from './warranty/warranty.module.js';
 import { AfterSalesModule } from './after-sales/after-sales.module.js';
 import { QrCodeModule } from './qr-code/qr-code.module.js';
+import { ApprovalsModule } from './approvals/approvals.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
@@ -81,6 +82,7 @@ import { ReferralMarketingModule } from './referral-marketing/referral-marketing
     WarrantyModule,
     AfterSalesModule,
     QrCodeModule,
+    ApprovalsModule,
     RecruitmentModule,
     ReportsModule,
     ReferralMarketingModule,

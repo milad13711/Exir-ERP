@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, UseGuards } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -16,12 +17,24 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 @Controller('hr/leave')
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('hr')
-export class LeaveController {
+export class LeaveController implements OnModuleInit {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly permissions: PermissionsService,
     private readonly automation: AutomationEngineService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    this.approvals.registerHandler('LEAVE_REQUEST', {
+      approve: async (ctx, id) => {
+        await this.review(id, 'APPROVED', ctx, true);
+      },
+      reject: async (ctx, id) => {
+        await this.review(id, 'REJECTED', ctx, true);
+      },
+    });
+  }
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
@@ -42,7 +55,7 @@ export class LeaveController {
     await ctx.tenantDb.employee.findUniqueOrThrow({ where: { id: dto.employeeId } });
     const daysCount = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY) + 1;
 
-    return ctx.tenantDb.leaveRequest.create({
+    const created = await ctx.tenantDb.leaveRequest.create({
       data: {
         employeeId: dto.employeeId,
         type: dto.type,
@@ -53,6 +66,21 @@ export class LeaveController {
       },
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
     });
+
+    // تأییدکننده: مدیر مستقیم کارمند (اگر کاربر داشته باشد)، وگرنه مدیران سیستم
+    const manager = await ctx.tenantDb.employee
+      .findUnique({ where: { id: dto.employeeId }, select: { manager: { select: { userId: true } } } })
+      .then((e) => e?.manager?.userId ?? undefined);
+    await this.approvals.request(ctx, {
+      moduleCode: 'hr',
+      entityType: 'LEAVE_REQUEST',
+      entityId: created.id,
+      title: `درخواست مرخصی ${created.employee.fullName}`,
+      summary: `${created.daysCount} روز — از ${created.startDate.toLocaleDateString('fa-IR')} تا ${created.endDate.toLocaleDateString('fa-IR')}`,
+      link: '/hr',
+      assigneeUserId: manager,
+    });
+    return created;
   }
 
   @Post(':id/approve')
@@ -65,7 +93,7 @@ export class LeaveController {
     return this.review(id, 'REJECTED', ctx);
   }
 
-  private async review(id: string, status: 'APPROVED' | 'REJECTED', ctx: TenantRequestContext) {
+  private async review(id: string, status: 'APPROVED' | 'REJECTED', ctx: TenantRequestContext, fromApprovals = false) {
     const request = await ctx.tenantDb.leaveRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('درخواست مرخصی یافت نشد');
     if (request.status !== 'PENDING') {
@@ -94,6 +122,8 @@ export class LeaveController {
       data: { status, reviewedByUserId, reviewedAt: new Date() },
       include: { employee: { select: { id: true, fullName: true, employeeCode: true, userId: true } } },
     });
+
+    if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'LEAVE_REQUEST', id, status);
 
     if (updated.employee.userId) {
       const statusFa = status === 'APPROVED' ? 'تأیید شد' : 'رد شد';

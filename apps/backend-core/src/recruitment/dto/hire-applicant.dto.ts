@@ -1,13 +1,20 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class HireApplicantDto {
-  @IsString()
-  @MinLength(1)
-  employeeCode!: string;
-
+  /** خالی یعنی شماره‌ی پرسنلی خودکار بر اساس آخرین شماره‌ی صادرشده. */
   @IsOptional()
   @IsString()
-  department?: string;
+  employeeCode?: string;
+
+  /** واحد فعالیت — از واحدهای تعریف‌شده‌ی منابع انسانی. */
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
+
+  /** «تأیید و اجازه‌ی درج مهر و امضا» */
+  @IsOptional()
+  @IsBoolean()
+  applyStamp?: boolean;
 
   @IsOptional()
   @IsBoolean()

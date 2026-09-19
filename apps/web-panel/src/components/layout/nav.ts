@@ -88,6 +88,7 @@ export const primaryNav: NavItem[] = [
   // بهره‌وری
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects", category: "بهره‌وری" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon, category: "بهره‌وری" },
+  { href: "/approvals", label: "کارتابل تأیید", icon: ClipboardCheckIcon, category: "بهره‌وری" },
 
   // عملیات
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet", category: "عملیات" },

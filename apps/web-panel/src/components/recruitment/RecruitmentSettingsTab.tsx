@@ -96,7 +96,8 @@ export function RecruitmentSettingsTab() {
             ["دعوت به مصاحبه", "interviewInvitationTemplate"],
             ["تأیید کارشناس", "specialistApprovedTemplate"],
             ["رد کارشناس", "specialistRejectedTemplate"],
-            ["تأیید نهایی مدیریت", "managementApprovedTemplate"],
+            ["ارسال شرایط همکاری (لینک تأیید)", "offerSentTemplate"],
+            ["تأیید نهایی و جذب (شماره‌ی پرسنلی و واحد)", "hiredTemplate"],
             ["رد نهایی مدیریت", "managementRejectedTemplate"],
           ] as const).map(([label, key]) => (
             <div key={key} className="border border-border rounded-xl p-3">
@@ -106,6 +107,16 @@ export function RecruitmentSettingsTab() {
                 onChange={(e) => setSms({ ...sms, [key]: e.target.value })}
                 className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
               />
+              {key === "offerSentTemplate" && (
+                <div className="text-[11px] text-muted mt-1.5" dir="ltr">
+                  متغیرها: {"{name} {link}"} — پس از ثبت شرایط همکاری خودکار ارسال می‌شود
+                </div>
+              )}
+              {key === "hiredTemplate" && (
+                <div className="text-[11px] text-muted mt-1.5" dir="ltr">
+                  متغیرها: {"{name} {employeeCode} {department}"}
+                </div>
+              )}
               {key === "interviewInvitationTemplate" && (
                 <div className="text-[11px] text-muted mt-1.5" dir="ltr">
                   متغیرها: {"{name} {date} {time} {location}"}

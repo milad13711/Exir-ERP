@@ -1,12 +1,11 @@
-import { IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateOfferDto {
   @IsString()
   @MinLength(2)
   jobDescription!: string;
 
-  @IsString()
-  @MinLength(1)
+  @IsIn(['پاره‌وقت', 'تمام‌وقت', 'کارآموزی', 'پروژه‌ای'])
   collaborationType!: string;
 
   @IsOptional()

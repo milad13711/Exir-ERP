@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
+import { ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
@@ -25,8 +26,24 @@ const PROJECT_INCLUDE = {
 const ACTIVE_STATUSES = ['PLANNING', 'ACTIVE', 'ON_HOLD'] as const;
 
 @Injectable()
-export class ProjectsService {
-  constructor(private readonly automation: AutomationEngineService) {}
+export class ProjectsService implements OnModuleInit {
+  constructor(
+    private readonly automation: AutomationEngineService,
+    private readonly approvals: ApprovalsService,
+  ) {}
+
+  onModuleInit(): void {
+    this.approvals.registerHandler('PROJECT_STAGE', {
+      approve: async (ctx, stageId) => {
+        const stage = await ctx.tenantDb.projectStage.findUniqueOrThrow({ where: { id: stageId } });
+        await this.approveStage(ctx, stage.projectId, stageId, true);
+      },
+      reject: async (ctx, stageId, opts) => {
+        const stage = await ctx.tenantDb.projectStage.findUniqueOrThrow({ where: { id: stageId } });
+        await this.rejectStage(ctx, stage.projectId, stageId, opts.note, true);
+      },
+    });
+  }
 
   /** Task completion counts for each project, keyed by project id — a project's own "progress" is always computed from its linked tasks, never stored. */
   private async progressByProjectId(ctx: TenantRequestContext, projectIds: string[]) {
@@ -194,6 +211,15 @@ export class ProjectsService {
       throw new ConflictException('این مرحله در وضعیتی نیست که بتوان درخواست شروع داد');
     }
     const requestedByUserId = await resolveTenantUserId(ctx);
+    await this.approvals.request(ctx, {
+      moduleCode: 'projects',
+      entityType: 'PROJECT_STAGE',
+      entityId: stageId,
+      title: `شروع مرحله‌ی «${stage.title}»`,
+      summary: 'اجراکننده درخواست شروع مرحله داده و منتظر تأیید مدیر است.',
+      link: '/projects',
+      requestedByUserId: requestedByUserId ?? undefined,
+    });
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'AWAITING_APPROVAL', requestedAt: new Date(), requestedByUserId, rejectionReason: null },
@@ -202,12 +228,13 @@ export class ProjectsService {
   }
 
   /** تأیید مدیر برای اجرای مرحله — دسترسی سطح مدیریتی (assertDelete روی ماژول projects) در کنترلر بررسی می‌شود. */
-  async approveStage(ctx: TenantRequestContext, projectId: string, stageId: string) {
+  async approveStage(ctx: TenantRequestContext, projectId: string, stageId: string, fromApprovals = false) {
     const stage = await this.findStage(ctx, projectId, stageId);
     if (stage.status !== 'AWAITING_APPROVAL') {
       throw new ConflictException('این مرحله منتظر تأیید نیست');
     }
     const approvedByUserId = await resolveTenantUserId(ctx);
+    if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'PROJECT_STAGE', stageId, 'APPROVED');
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'IN_PROGRESS', approvedAt: new Date(), approvedByUserId },
@@ -215,11 +242,12 @@ export class ProjectsService {
     });
   }
 
-  async rejectStage(ctx: TenantRequestContext, projectId: string, stageId: string, reason: string | undefined) {
+  async rejectStage(ctx: TenantRequestContext, projectId: string, stageId: string, reason: string | undefined, fromApprovals = false) {
     const stage = await this.findStage(ctx, projectId, stageId);
     if (stage.status !== 'AWAITING_APPROVAL') {
       throw new ConflictException('این مرحله منتظر تأیید نیست');
     }
+    if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'PROJECT_STAGE', stageId, 'REJECTED');
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'REJECTED', rejectionReason: reason },

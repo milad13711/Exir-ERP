@@ -3320,6 +3320,9 @@ enum ApplicantStage {
   INTERVIEWED
   SPECIALIST_APPROVED
   SPECIALIST_REJECTED
+  OFFER_SENT // شرایط همکاری برای متقاضی ارسال شده
+  OFFER_DECLINED // متقاضی شرایط همکاری را نپذیرفته
+  AWAITING_MANAGEMENT // متقاضی پذیرفته و امضا کرده؛ منتظر تأیید نهایی مدیر
   MANAGEMENT_APPROVED
   MANAGEMENT_REJECTED
   HIRED
@@ -3337,6 +3340,7 @@ enum JobOfferStatus {
   SENT
   ACCEPTED
   SIGNED
+  REJECTED
 }
 
 model JobPosting {
@@ -3439,6 +3443,9 @@ model JobOffer {
   candidateAcceptedAt DateTime?
   signedByUserId      String?
   signedAt            DateTime?
+  candidateSignature  String? // امضای الکترونیک متقاضی (data URL)
+  candidateRejectedAt DateTime?
+  stampApplied        Boolean        @default(false) // مدیر «تأیید و اجازه‌ی درج مهر و امضا» را زده
   createdAt           DateTime       @default(now())
 
   applicant JobApplicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
@@ -3565,4 +3572,40 @@ model ReportReferral {
   @@index([reportId])
   @@index([toUserId])
   @@map("report_referrals")
+}
+
+
+// ── کارتابل تأیید مدیر (مشترک بین همه‌ی ماژول‌ها) ──────────────────────────────
+// هر سندی که تأییدش با مدیر (OWNER/ADMIN) است، هنگام ایجاد یک ردیف اینجا می‌سازد
+// و برای همه‌ی مدیران اعلان می‌رود. مدیر از کارتابل «تأیید» یا (برای اسناد رسمی)
+// «تأیید و درج مهر و امضا» را می‌زند.
+
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ApprovalRequest {
+  id                String                @id @default(uuid())
+  moduleCode        String
+  entityType        String
+  entityId          String
+  title             String
+  summary           String?
+  link              String?
+  isOfficial        Boolean               @default(false) // سند رسمی — امکان درج مهر و امضا دارد
+  status            ApprovalRequestStatus @default(PENDING)
+  requestedByUserId String?
+  assigneeUserId    String? // خالی یعنی با هر مدیر (OWNER/ADMIN)؛ وگرنه فقط همین کاربر (و مدیران) می‌تواند تأیید کند
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  stampApplied      Boolean               @default(false)
+  decisionNote      String?
+  createdAt         DateTime              @default(now())
+
+  @@index([status, createdAt])
+  @@index([assigneeUserId, status])
+  @@index([entityType, entityId])
+  @@map("approval_requests")
 }

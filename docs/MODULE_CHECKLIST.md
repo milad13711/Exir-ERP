@@ -42,3 +42,22 @@
 ## نمونه‌ی واقعی
 
 `supplier-risk` و `delivery-signature` (۲۰۲۶/۰۶/۱۱) دقیقاً همین الگو را دنبال کردند: افزونه‌ی کوچک روی ماژول بزرگ‌تر، گیت سطح متد، grandfather برای تننت موجود، و `installedModules` سمت فرانت. برای جزئیات کامل کد، `apps/backend-core/src/crm/supplier-risk.service.ts` و `apps/backend-core/src/sales/invoices.controller.ts` (متدهای `sendDeliveryCode`/`confirmDelivery`) را ببین.
+
+## ۶. اسنادی که تأیید مدیر می‌خواهند (کارتابل تأیید)
+
+هر ماژولی که سندی دارد که باید مدیر (نه کارشناس) تأیید کند، باید به کارتابل مشترک (`ApprovalsService`، ماژول سراسری) وصل شود — اعلان مدیران، نمایش در کارتابل و داشبورد، و دکمه‌های «تأیید» / «تأیید و اجازه‌ی درج مهر و امضا» / «رد» خودکار فراهم می‌شوند:
+
+1. در سرویس ماژول `ApprovalsService` را inject کن و `OnModuleInit` را پیاده کن:
+   ```ts
+   onModuleInit() {
+     this.approvals.registerHandler('MY_DOC', {
+       approve: async (ctx, id, opts) => { /* opts.stampApplied: مهر/امضا مجاز است */ },
+       reject: async (ctx, id, opts) => { /* opts.note: دلیل رد */ },
+     });
+   }
+   ```
+2. هنگام ایجاد سند: `await this.approvals.request(ctx, { moduleCode, entityType: 'MY_DOC', entityId, title, summary, link, isOfficial /* سند رسمی؟ دکمه‌ی مهر و امضا */, assigneeUserId /* اختیاری؛ خالی = مدیران */ })`.
+3. اگر سند از مسیر خود ماژول هم قابل تأیید است، بعد از تصمیم `approvals.closeForEntity(ctx, 'MY_DOC', id, 'APPROVED' | 'REJECTED')` را صدا بزن تا کارتابل هم بسته شود؛ در handler این را تکرار نکن (پرچم `fromApprovals`).
+4. خود اکشن تأیید باید سمت سرور فقط برای OWNER/ADMIN (یا تأییدکننده‌ی ارجاع‌شده) مجاز باشد.
+
+نگهبان‌ها: `request()` بدون handler ثبت‌شده خطا می‌دهد و تست `approvals-wiring.spec.ts` همه‌ی `entityType`های ارسالی را با `registerHandler` مطابقت می‌دهد. اتصال‌های فعلی: JOB_APPLICANT، PURCHASE_ORDER، SALES_INVOICE (رسمی)، CONTRACT، LEAVE_REQUEST، PROJECT_STAGE. برچسب فارسی ماژول در `ApprovalsList.tsx` (`MODULE_LABELS`) اضافه شود.

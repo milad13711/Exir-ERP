@@ -14,13 +14,14 @@ type OfferForPdf = {
   startDate: Date | null;
   signedAt: Date | null;
   signedByName: string | null;
+  candidateSignature: string | null;
 };
 
 function buildHtml(offer: OfferForPdf, orgName: string, seal: { signatureImage?: string; stampImage?: string }): string {
   const rows: [string, string][] = [
     ['شرح وظایف', offer.jobDescription],
     ['نحوه‌ی همکاری', offer.collaborationType],
-    ['ساعت حضور', offer.workingHours ?? '—'],
+    ['ساعت حضور روزانه در محل شرکت', offer.workingHours ?? '—'],
     ['حقوق و دستمزد (ماهانه)', formatToman(offer.salary)],
     ['سایر تسهیلات', offer.benefits ?? '—'],
     ['مدت همکاری', offer.durationMonths ? `${offer.durationMonths} ماه` : 'نامحدود'],
@@ -59,7 +60,8 @@ function buildHtml(offer: OfferForPdf, orgName: string, seal: { signatureImage?:
   </div>
   <div class="signatures">
     <div class="sig-box">
-      <div class="sig-label">امضای متقاضی</div>
+      ${offer.candidateSignature ? `<img src="${offer.candidateSignature}" />` : ''}
+      <div class="sig-label">امضای متقاضی — ${escapeHtml(offer.applicantName)}</div>
     </div>
     <div class="sig-box">
       ${seal.stampImage ? `<img src="${seal.stampImage}" />` : ''}

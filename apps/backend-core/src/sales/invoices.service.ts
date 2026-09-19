@@ -1,4 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
+import { CompanyStampService } from '../settings/company-stamp.service.js';
 import * as bcrypt from 'bcryptjs';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -88,7 +90,35 @@ export class InvoicesService {
     private readonly warranty: WarrantyService,
     private readonly controlDb: ControlPrismaService,
     private readonly referralCommission: ReferralCommissionService,
+    private readonly approvals: ApprovalsService,
+    private readonly stamp: CompanyStampService,
   ) {}
+
+  onModuleInit(): void {
+    // فاکتور رسمی: امضا/مهر فقط با تأیید مدیر (کارتابل تأیید).
+    this.approvals.registerHandler('SALES_INVOICE', {
+      approve: (ctx, id, opts) => this.signByApproval(ctx, id, opts.stampApplied),
+      reject: async () => undefined, // رد = بدون امضا می‌ماند؛ درخواست با دلیل بسته می‌شود
+    });
+  }
+
+  /** امضای فاکتور رسمی از مسیر کارتابل مدیر — با «مهر و امضا» تصویر امضای شرکت درج می‌شود. */
+  private async signByApproval(ctx: TenantRequestContext, id: string, withStamp: boolean): Promise<void> {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.signedAt) return;
+    let signatureDataUrl: string | null = null;
+    if (withStamp) {
+      signatureDataUrl = (await this.stamp.getStamp(ctx)).signatureImage ?? null;
+      if (!signatureDataUrl) throw new BadRequestException('امضای شرکت در تنظیمات عمومی ثبت نشده است');
+    }
+    const userId = await resolveTenantUserId(ctx).catch(() => undefined);
+    const user = userId ? await ctx.tenantDb.user.findUnique({ where: { id: userId } }) : null;
+    await ctx.tenantDb.salesInvoice.update({
+      where: { id },
+      data: { signedByUserId: userId, signedByName: user?.name ?? null, signatureDataUrl, signedAt: new Date() },
+    });
+  }
 
   list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
     return ctx.tenantDb.salesInvoice.findMany({
@@ -204,6 +234,7 @@ export class InvoicesService {
     const userId = await resolveTenantUserId(ctx);
     const user = userId ? await ctx.tenantDb.user.findUnique({ where: { id: userId } }) : null;
 
+    await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'APPROVED', !!dto.signatureDataUrl);
     return ctx.tenantDb.salesInvoice.update({
       where: { id },
       data: {
@@ -394,11 +425,24 @@ export class InvoicesService {
         ),
     ]);
 
-    return ctx.tenantDb.salesInvoice.update({
+    const confirmed = await ctx.tenantDb.salesInvoice.update({
       where: { id },
       data: { status: 'CONFIRMED', confirmedAt: new Date(), journalEntryId: entry.id },
       include: INVOICE_INCLUDE,
     });
+    if (confirmed.isOfficial && !confirmed.signedAt) {
+      await this.approvals.request(ctx, {
+        moduleCode: 'sales',
+        entityType: 'SALES_INVOICE',
+        entityId: id,
+        title: `امضای فاکتور رسمی ${confirmed.invoiceNo}`,
+        summary: `${confirmed.contact?.name ?? ''} — ${confirmed.total.toLocaleString('en-US')} تومان`,
+        link: '/sales',
+        isOfficial: true,
+        requestedByUserId: userId ?? undefined,
+      });
+    }
+    return confirmed;
   }
 
   async recordPayment(ctx: TenantRequestContext, id: string, dto: RecordPaymentDto) {

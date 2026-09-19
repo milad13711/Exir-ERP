@@ -29,4 +29,12 @@ export class UpdateRecruitmentSmsSettingsDto {
   @IsOptional()
   @IsString()
   interviewInvitationTemplate?: string;
+
+  @IsOptional()
+  @IsString()
+  offerSentTemplate?: string;
+
+  @IsOptional()
+  @IsString()
+  hiredTemplate?: string;
 }

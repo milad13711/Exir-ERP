@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -53,12 +54,30 @@ export function contentHashOf(contract: { title: string; value: number; startDat
 }
 
 @Injectable()
-export class ContractsService {
+export class ContractsService implements OnModuleInit {
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly controlDb: ControlPrismaService,
     private readonly stamp: CompanyStampService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    // امضای طرف «شرکت» روی قرارداد داخلی/خارجی با تأیید مدیر و درج امضای رسمی شرکت.
+    this.approvals.registerHandler('CONTRACT', {
+      approve: async (ctx, id, opts) => {
+        if (!opts.stampApplied) {
+          throw new BadRequestException('برای امضای قرارداد باید «تأیید و اجازه‌ی درج مهر و امضا» را بزنید');
+        }
+        const { signatureImage } = await this.stamp.getStamp(ctx);
+        if (!signatureImage) throw new BadRequestException('امضای شرکت در تنظیمات عمومی ثبت نشده است');
+        const userId = await resolveTenantUserId(ctx).catch(() => undefined);
+        const user = userId ? await ctx.tenantDb.user.findUnique({ where: { id: userId } }) : null;
+        await this.signAsCompany(ctx, id, { signatureDataUrl: signatureImage, signerName: user?.name ?? 'مدیر' }, true);
+      },
+      reject: async () => undefined,
+    });
+  }
 
   list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string }) {
     return ctx.tenantDb.contract.findMany({
@@ -293,7 +312,7 @@ export class ContractsService {
     }
 
     const createdByUserId = await resolveTenantUserId(ctx);
-    return ctx.tenantDb.contract.create({
+    const created = await ctx.tenantDb.contract.create({
       data: {
         title: dto.title,
         partyMode: dto.partyMode,
@@ -322,6 +341,19 @@ export class ContractsService {
       },
       include: CONTRACT_INCLUDE,
     });
+    if (created.partyMode !== 'THIRD_PARTY') {
+      await this.approvals.request(ctx, {
+        moduleCode: 'contracts',
+        entityType: 'CONTRACT',
+        entityId: created.id,
+        title: `امضای قرارداد «${created.title}»`,
+        summary: 'امضای طرف شرکت (مهر و امضای رسمی) در انتظار مدیر است.',
+        link: '/contracts',
+        isOfficial: true,
+        requestedByUserId: createdByUserId ?? undefined,
+      });
+    }
+    return created;
   }
 
   async update(ctx: TenantRequestContext, id: string, dto: UpdateContractDto) {
@@ -399,7 +431,7 @@ export class ContractsService {
     await this.stamp.assertCanUse(ctx);
   }
 
-  async signAsCompany(ctx: TenantRequestContext, id: string, dto: SignContractDto) {
+  async signAsCompany(ctx: TenantRequestContext, id: string, dto: SignContractDto, fromApprovals = false) {
     const existing = await ctx.tenantDb.contract.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('قرارداد یافت نشد');
     if (existing.partyMode === 'THIRD_PARTY') {
@@ -419,6 +451,7 @@ export class ContractsService {
       },
     });
 
+    if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'CONTRACT', id, 'APPROVED', true);
     return this.finalizeIfComplete(ctx, id);
   }
 

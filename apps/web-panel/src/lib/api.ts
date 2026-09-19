@@ -6112,11 +6112,14 @@ export type ApplicantStage =
   | "INTERVIEWED"
   | "SPECIALIST_APPROVED"
   | "SPECIALIST_REJECTED"
+  | "OFFER_SENT"
+  | "OFFER_DECLINED"
+  | "AWAITING_MANAGEMENT"
   | "MANAGEMENT_APPROVED"
   | "MANAGEMENT_REJECTED"
   | "HIRED";
 export type InterviewStatus = "SCHEDULED" | "DONE" | "CANCELLED" | "NO_SHOW";
-export type JobOfferStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SIGNED";
+export type JobOfferStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SIGNED" | "REJECTED";
 
 export type JobPosting = {
   id: string;
@@ -6166,6 +6169,10 @@ export type JobOffer = {
   candidateAcceptedAt: string | null;
   signedByUserId: string | null;
   signedAt: string | null;
+  candidateSignature?: string | null;
+  candidateRejectedAt?: string | null;
+  stampApplied?: boolean;
+  link?: string;
   createdAt: string;
 };
 
@@ -6213,6 +6220,8 @@ export type RecruitmentSmsSettings = {
   managementApprovedTemplate: string;
   managementRejectedTemplate: string;
   interviewInvitationTemplate: string;
+  offerSentTemplate: string;
+  hiredTemplate: string;
 };
 export type RecruitmentCompanySeal = { signatureImage?: string; stampImage?: string };
 
@@ -6285,7 +6294,7 @@ export function managementDecision(applicantId: string, data: { approved: boolea
   return apiFetch<JobApplicant>(`/recruitment/applicants/${applicantId}/management-decision`, { method: "POST", body: JSON.stringify(data) });
 }
 
-export function hireApplicant(applicantId: string, data: { employeeCode: string; department?: string; createLogin?: boolean; roleId?: string }) {
+export function hireApplicant(applicantId: string, data: { employeeCode?: string; departmentId?: string; applyStamp?: boolean; createLogin?: boolean; roleId?: string }) {
   return apiFetch<Employee>(`/recruitment/applicants/${applicantId}/hire`, { method: "POST", body: JSON.stringify(data) });
 }
 
@@ -6346,10 +6355,6 @@ export function sendOffer(offerId: string) {
   return apiFetch<JobOffer>(`/recruitment/offers/${offerId}/send`, { method: "POST" });
 }
 
-export function signOffer(offerId: string) {
-  return apiFetch<JobOffer>(`/recruitment/offers/${offerId}/sign`, { method: "POST" });
-}
-
 export function openOfferPdf(offerId: string): void {
   fetchAndOpenPdf(`/recruitment/offers/${offerId}/pdf`);
 }
@@ -6394,10 +6399,10 @@ export function fetchPublicJobOffer(tenantSlug: string, token: string) {
   return apiFetch<PublicJobOfferView>(`/public/recruitment/${tenantSlug}/offer/${token}`);
 }
 
-export function respondToPublicJobOffer(tenantSlug: string, token: string, accepted: boolean) {
+export function respondToPublicJobOffer(tenantSlug: string, token: string, accepted: boolean, signature?: string) {
   return apiFetch<{ success: true; accepted: boolean }>(`/public/recruitment/${tenantSlug}/offer/${token}/respond`, {
     method: "POST",
-    body: JSON.stringify({ accepted }),
+    body: JSON.stringify({ accepted, signature }),
   });
 }
 
@@ -6655,4 +6660,35 @@ export type ResellerSupportTicket = {
 
 export function fetchMySupportTickets() {
   return apiFetch<ResellerSupportTicket[]>("/referral-marketing/me/support-tickets");
+}
+
+
+// ── کارتابل تأیید ────────────────────────────────────────────────────────────
+
+export type ApprovalRequest = {
+  id: string;
+  moduleCode: string;
+  entityType: string;
+  entityId: string;
+  title: string;
+  summary: string | null;
+  link: string | null;
+  isOfficial: boolean;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  stampApplied: boolean;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+};
+
+export function fetchApprovals(status?: "PENDING" | "APPROVED" | "REJECTED") {
+  return apiFetch<ApprovalRequest[]>(`/approvals${status ? `?status=${status}` : ""}`);
+}
+
+export function fetchPendingApprovalCount() {
+  return apiFetch<{ count: number }>("/approvals/pending-count");
+}
+
+export function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string }) {
+  return apiFetch<ApprovalRequest>(`/approvals/${id}/decision`, { method: "POST", body: JSON.stringify(data) });
 }

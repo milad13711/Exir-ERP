@@ -11,7 +11,7 @@ const ACCOUNTS_BY_CODE: Record<string, { id: string; code: string }> = {
 };
 
 const automationStub = { emit: vi.fn() };
-
+const approvalsStub = { request: vi.fn(), closeForEntity: vi.fn(), registerHandler: vi.fn() };
 function makeTenantDb(overrides: Record<string, unknown> = {}) {
   const journalEntryCalls: Array<Record<string, unknown>> = [];
   const purchasePaymentCalls: Array<Record<string, unknown>> = [];
@@ -101,7 +101,7 @@ function sumLines(lines: Array<{ debit: bigint; credit: bigint }>) {
 describe('PurchaseOrdersService.receive — double-entry posting', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never, approvalsStub as never);
   });
 
   function orderStub(overrides: Record<string, unknown> = {}) {
@@ -162,7 +162,7 @@ describe('PurchaseOrdersService.receive — double-entry posting', () => {
 describe('PurchaseOrdersService.recordPayment', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never, approvalsStub as never);
   });
 
   function orderStub(overrides: Record<string, unknown> = {}) {
@@ -220,7 +220,7 @@ describe('PurchaseOrdersService.recordPayment', () => {
 describe('PurchaseOrdersService approval authority', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never, approvalsStub as never);
   });
 
   it('lets an OWNER approve a pending order', async () => {
@@ -253,7 +253,7 @@ describe('PurchaseOrdersService approval authority', () => {
 describe('PurchaseOrdersService.create — approval threshold gating', () => {
   let service: PurchaseOrdersService;
   beforeEach(() => {
-    service = new PurchaseOrdersService(new CostingService(), automationStub as never);
+    service = new PurchaseOrdersService(new CostingService(), automationStub as never, approvalsStub as never);
   });
 
   it('marks NOT_REQUIRED when no threshold is configured', async () => {
@@ -285,6 +285,7 @@ describe('PurchaseOrdersService.create — approval threshold gating', () => {
     } as never);
 
     expect(result.approvalStatus).toBe('PENDING');
+    expect(approvalsStub.request).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ entityType: 'PURCHASE_ORDER', entityId: 'po-1' }));
   });
 
   it('stays NOT_REQUIRED for an order below the threshold', async () => {
