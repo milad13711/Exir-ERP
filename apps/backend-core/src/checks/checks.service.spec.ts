@@ -172,10 +172,10 @@ describe('ChecksService.markBounced', () => {
       tenantDb,
       expect.objectContaining({ userId: 'tu-1', type: 'check.bounced' }),
     );
-    expect(smsStub.sendSms).toHaveBeenCalledWith('0912xxx', expect.stringContaining('هشدار فوری'));
+    expect(smsStub.sendSms).toHaveBeenCalledWith(expect.anything(), '0912xxx', expect.stringContaining('هشدار فوری'));
   });
 
-  it('skips SMS when the tenant has no SMS gateway configured', async () => {
+  it('still notifies in-app when the tenant SMS panel fails to send', async () => {
     const { tenantDb } = makeTenantDb({
       user: { findMany: vi.fn().mockResolvedValue([{ id: 'tu-1', globalUserId: 'gu-1', name: 'مدیر' }]) },
     });
@@ -192,12 +192,11 @@ describe('ChecksService.markBounced', () => {
     controlDbStub.tenantMembership.findMany = vi
       .fn()
       .mockResolvedValue([{ globalUserId: 'gu-1', globalUser: { id: 'gu-1', phone: '0912xxx' } }]);
-    smsStub.isConfigured = vi.fn().mockReturnValue(false);
-    smsStub.sendSms = vi.fn();
+    smsStub.sendSms = vi.fn().mockResolvedValue({ success: false, error: 'پنل پیامکی متصل نیست' });
 
     await service.markBounced(makeCtx(tenantDb), 'chk-1');
 
-    expect(smsStub.sendSms).not.toHaveBeenCalled();
+    expect(smsStub.sendSms).toHaveBeenCalled();
     expect(notificationsStub.notify).toHaveBeenCalled();
   });
 });

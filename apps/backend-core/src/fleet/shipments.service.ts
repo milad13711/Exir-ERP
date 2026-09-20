@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { DriversService } from './drivers.service.js';
@@ -29,7 +29,7 @@ export type MatchCandidate = {
 export class ShipmentsService {
   constructor(
     private readonly drivers: DriversService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
   ) {}
@@ -177,7 +177,7 @@ export class ShipmentsService {
 
     if (shipment.createdBy) {
       const message = `راننده «${offer.driver.name}» بار شماره ${shipment.shipmentNo} را پذیرفت.\nتماس با راننده: ${offer.driver.phone}`;
-      await this.sms.sendSms(shipment.createdBy.phone, message);
+      await this.sms.sendSms(ctx, shipment.createdBy.phone, message);
       await this.notifications.notify(ctx.tenantDb, {
         userId: shipment.createdBy.id,
         type: 'fleet.offer.accepted',
@@ -232,7 +232,7 @@ export class ShipmentsService {
     if (shipment.contact?.phone) {
       const url = `${publicWebUrl}/survey/${tenantSlug}/${survey.publicToken}`;
       const message = `بار شماره ${shipment.shipmentNo} با موفقیت تحویل داده شد. نظر شما به ما کمک می‌کند: ${url}`;
-      const result = await this.sms.sendSms(shipment.contact.phone, message);
+      const result = await this.sms.sendSms(ctx, shipment.contact.phone, message);
       if (result.success) {
         await ctx.tenantDb.deliverySurvey.update({ where: { id: survey.id }, data: { sentAt: new Date() } });
       }

@@ -23,12 +23,14 @@ import {
   noShowAppointment,
   cancelAppointment,
   approveCoordination,
+  sendAppointmentDetails,
   rejectCoordination,
   type Appointment,
   type AppointmentStatus,
   type ServiceType,
 } from "@/lib/api";
 import { NewAppointmentModal } from "@/components/booking/NewAppointmentModal";
+import { ManualPaymentModal } from "@/components/booking/ManualPaymentModal";
 import { ServiceTypesModal } from "@/components/booking/ServiceTypesModal";
 import { StaffAvailabilityModal } from "@/components/booking/StaffAvailabilityModal";
 import { AppointmentsReportModal } from "@/components/booking/AppointmentsReportModal";
@@ -166,6 +168,8 @@ export default function BookingPage() {
   const [pending, setPending] = useState<Appointment[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<Appointment | null>(null);
+  const [payingFor, setPayingFor] = useState<Appointment | null>(null);
   const [serviceTypesOpen, setServiceTypesOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -432,13 +436,45 @@ export default function BookingPage() {
                         {a.customerPhone}
                       </span>
                     ) : null}
-                    {a.paymentStatus === "PENDING" ? <span className="text-warning font-semibold">در انتظار پرداخت بیعانه</span> : null}
-                    {a.paymentStatus === "PAID" ? <span className="text-success font-semibold">بیعانه پرداخت‌شده</span> : null}
+                    {a.paymentStatus === "PENDING" ? <span className="text-warning font-semibold">{a.isFullPayment ? "در انتظار پرداخت کامل" : "در انتظار پرداخت بیعانه"}</span> : null}
+                    {a.paymentStatus === "PAID" ? <span className="text-success font-semibold">{a.isFullPayment ? "پرداخت کامل شده" : "بیعانه پرداخت‌شده"}</span> : null}
+                    {a.mentoringSession ? (
+                      <a href="/mentoring" className="text-primary font-semibold">
+                        · جلسه‌ی مشاوره (صورتجلسه)
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 <div className="text-[11.5px] text-muted hidden sm:block">{formatToman(a.serviceType.price)}</div>
                 <Badge tone={STATUS_TONES[a.status]}>{STATUS_LABELS[a.status]}</Badge>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                  {(a.status === "SCHEDULED" || a.status === "CONFIRMED" || a.status === "PENDING_COORDINATION") ? (
+                    <button
+                      disabled={isBusy}
+                      onClick={() => setEditing(a)}
+                      className="text-[11px] font-bold text-ink-soft bg-slate-100 px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      ویرایش / جابه‌جایی
+                    </button>
+                  ) : null}
+                  {a.paymentStatus !== "PAID" && (a.status === "SCHEDULED" || a.status === "CONFIRMED") ? (
+                    <button
+                      disabled={isBusy}
+                      onClick={() => setPayingFor(a)}
+                      className="text-[11px] font-bold text-accent bg-accent-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      ثبت پرداخت
+                    </button>
+                  ) : null}
+                  {a.customerPhone && a.status !== "CANCELLED" ? (
+                    <button
+                      disabled={isBusy}
+                      onClick={() => runAction(() => sendAppointmentDetails(a.id), a.id)}
+                      className="text-[11px] font-bold text-ink-soft bg-slate-100 px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      ارسال جزئیات
+                    </button>
+                  ) : null}
                   {a.status === "SCHEDULED" ? (
                     <button
                       disabled={isBusy}
@@ -486,6 +522,25 @@ export default function BookingPage() {
           defaultStart={selectedDate}
           onClose={() => setNewOpen(false)}
           onCreated={reload}
+        />
+      ) : null}
+      {editing ? (
+        <NewAppointmentModal
+          serviceTypes={serviceTypes}
+          defaultStart={selectedDate}
+          appointment={editing}
+          onClose={() => setEditing(null)}
+          onCreated={reload}
+        />
+      ) : null}
+      {payingFor ? (
+        <ManualPaymentModal
+          appointment={payingFor}
+          onClose={() => setPayingFor(null)}
+          onDone={() => {
+            setPayingFor(null);
+            reload();
+          }}
         />
       ) : null}
       {serviceTypesOpen ? (

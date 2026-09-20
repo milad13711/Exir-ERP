@@ -7,7 +7,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
@@ -81,7 +81,7 @@ export class InvoicesService {
   private readonly logger = new Logger('InvoicesService');
 
   constructor(
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly creditScore: CreditScoreService,
     private readonly costing: CostingService,
     private readonly automation: AutomationEngineService,
@@ -306,10 +306,10 @@ export class InvoicesService {
     });
 
     let smsSent = false;
-    if (invoice.contact.phone && this.sms.isConfigured()) {
+    if (invoice.contact.phone) {
       const template = await this.getDeliverySmsTemplate(ctx);
       const message = renderDeliverySmsTemplate(template, { code, invoiceNo: invoice.invoiceNo });
-      const result = await this.sms.sendSms(invoice.contact.phone, message);
+      const result = await this.sms.sendSms(ctx, invoice.contact.phone, message);
       smsSent = result.success;
     }
 
@@ -556,7 +556,6 @@ export class InvoicesService {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { contact: true } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (!invoice.contact.phone) throw new BadRequestException('این مشتری شماره موبایل ثبت‌شده ندارد');
-    if (!this.sms.isConfigured()) throw new BadRequestException('سرویس پیامک پیکربندی نشده است');
 
     const url = `${publicWebUrl}/invoice/${ctx.tenantSlug}/${invoice.publicToken}`;
     const remaining = invoice.total - invoice.paidAmount;
@@ -564,7 +563,7 @@ export class InvoicesService {
       remaining > 0
         ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} تومان صادر شد.\nمشاهده و پرداخت آنلاین: ${url}`
         : `فاکتور شماره ${invoice.invoiceNo} برای شما صادر شد.\nمشاهده: ${url}`;
-    const result = await this.sms.sendSms(invoice.contact.phone, message);
+    const result = await this.sms.sendSms(ctx, invoice.contact.phone, message);
     if (!result.success) throw new BadRequestException(result.error ?? 'ارسال پیامک ناموفق بود');
     return { ok: true, url };
   }

@@ -3704,6 +3704,10 @@ export type ServiceType = {
   requiresDeposit: boolean;
   depositAmount: number | null;
   requiresCoordination: boolean;
+  requiresFullPayment?: boolean;
+  description?: string | null;
+  location?: string | null;
+  linkToMentoring?: boolean;
 };
 
 export type AppointmentStatus = "PENDING_COORDINATION" | "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
@@ -3725,6 +3729,10 @@ export type Appointment = {
   depositAmount: number | null;
   paymentRefId: number | null;
   paidAt: string | null;
+  isFullPayment?: boolean;
+  paymentMethod?: string | null;
+  location?: string | null;
+  mentoringSession?: { id: string; engagementId: string; status: string } | null;
   publicToken: string;
   serviceType: ServiceType;
   contact: { id: string; name: string; phone: string | null } | null;
@@ -3756,6 +3764,10 @@ export function createServiceType(data: {
   requiresDeposit?: boolean;
   depositAmount?: number;
   requiresCoordination?: boolean;
+  requiresFullPayment?: boolean;
+  description?: string;
+  location?: string;
+  linkToMentoring?: boolean;
 }) {
   return apiFetch<ServiceType>("/booking/service-types", { method: "POST", body: JSON.stringify(data) });
 }
@@ -3770,6 +3782,10 @@ export function updateServiceType(
     requiresDeposit: boolean;
     depositAmount: number;
     requiresCoordination: boolean;
+    requiresFullPayment: boolean;
+    description: string;
+    location: string;
+    linkToMentoring: boolean;
   }>,
 ) {
   return apiFetch<ServiceType>(`/booking/service-types/${id}`, { method: "PATCH", body: JSON.stringify(data) });
@@ -3803,6 +3819,21 @@ export function createAppointment(data: {
   notes?: string;
 }) {
   return apiFetch<Appointment>("/booking/appointments", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateAppointment(
+  id: string,
+  data: Partial<{ serviceTypeId: string; contactId: string; providerUserId: string; customerName: string; customerPhone: string; startAt: string; notes: string; location: string }>,
+) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function recordManualAppointmentPayment(id: string, data: { method: "CASH" | "CARD" | "TRANSFER"; amount?: number }) {
+  return apiFetch<Appointment>(`/booking/appointments/${id}/manual-payment`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function sendAppointmentDetails(id: string) {
+  return apiFetch<{ success: boolean }>(`/booking/appointments/${id}/send-details`, { method: "POST" });
 }
 
 export function confirmAppointment(id: string) {
@@ -3847,11 +3878,44 @@ export type PublicServiceType = {
   requiresDeposit: boolean;
   depositAmount: number | null;
   requiresCoordination: boolean;
+  requiresFullPayment?: boolean;
+  description?: string | null;
+  location?: string | null;
 };
 export type PublicProvider = { id: string; name: string };
 
 export function fetchPublicServiceTypes(slug: string) {
   return apiFetch<PublicServiceType[]>(`/public/booking/${slug}/service-types`);
+}
+
+export type PublicBookingInfo = { businessName: string; address: string | null };
+
+export function fetchPublicBookingInfo(slug: string) {
+  return apiFetch<PublicBookingInfo>(`/public/booking/${slug}/info`);
+}
+
+export type PublicAppointmentView = {
+  id: string;
+  serviceName: string;
+  description: string | null;
+  customerName: string;
+  providerName: string | null;
+  startAt: string;
+  endAt: string;
+  status: AppointmentStatus;
+  location: string | null;
+  paymentStatus: AppointmentPaymentStatus;
+  amount: number | null;
+  isFullPayment: boolean;
+  businessName: string;
+};
+
+export function fetchPublicAppointmentByToken(slug: string, token: string) {
+  return apiFetch<PublicAppointmentView>(`/public/booking/${slug}/a/${token}`);
+}
+
+export function startPublicAppointmentPaymentByToken(slug: string, token: string) {
+  return apiFetch<{ paymentUrl?: string; error?: string }>(`/public/booking/${slug}/a/${token}/pay`, { method: "POST" });
 }
 
 export function fetchPublicProviders(slug: string) {
@@ -6719,4 +6783,34 @@ export function decideApproval(id: string, data: { approved: boolean; withStamp?
 
 export function grantEmployeeAccess(employeeId: string, data: { roleId: string; phone?: string }) {
   return apiFetch<Employee>(`/hr/employees/${employeeId}/grant-access`, { method: "POST", body: JSON.stringify(data) });
+}
+
+// ── پنل پیامکی تننت ─────────────────────────────────────────────────────────
+
+export type SmsPanelStatus = {
+  mode: "NONE" | "SYSTEM" | "OWN" | "LEGACY";
+  senderNumber?: string;
+  smsCount: number | null;
+  error: string | null;
+};
+export type SmsPackageOption = { code: string; credits: number; priceToman: number };
+
+export function fetchSmsPanelStatus() {
+  return apiFetch<SmsPanelStatus>("/sms-panel/status");
+}
+
+export function setSmsPanelConnection(data: { mode: "NONE" | "SYSTEM" | "OWN"; apiKey?: string; senderNumber?: string }) {
+  return apiFetch<SmsPanelStatus>("/sms-panel/connection", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchSmsPackages() {
+  return apiFetch<SmsPackageOption[]>("/sms-panel/packages");
+}
+
+/** بسته را به فاکتور تبدیل می‌کند و کاربر را به درگاه پرداخت می‌برد؛ بعد از پرداخت، اعتبار فوراً شارژ می‌شود. */
+export async function purchaseSmsPackageAndPay(code: string): Promise<string> {
+  const { invoiceId } = await apiFetch<{ invoiceId: string }>(`/sms-panel/packages/${code}/purchase`, { method: "POST" });
+  const pay = await payPublicInvoice(invoiceId);
+  if (!pay.paymentUrl) throw new ApiError(pay.error ?? "درگاه پرداخت در دسترس نیست", 502);
+  return pay.paymentUrl;
 }

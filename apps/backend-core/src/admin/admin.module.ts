@@ -14,6 +14,7 @@ import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminInternalController } from './admin-internal.controller.js';
 import { AdminPushController } from './admin-push.controller.js';
 import { PushNotificationsModule } from '../notifications/push-notifications.module.js';
+import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
 import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
 import { ResellerApplicationsService } from './reseller-applications.service.js';
 
@@ -29,6 +30,7 @@ import { ResellerApplicationsService } from './reseller-applications.service.js'
     AdminInternalController,
     AdminPushController,
     AdminResellerApplicationsController,
+    AdminSmsPackagesController,
   ],
   providers: [AdminAuthService, AdminSupportService, ResellerApplicationsService],
 })

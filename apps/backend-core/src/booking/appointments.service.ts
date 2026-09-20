@@ -2,8 +2,9 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { faDate, faTime } from '../common/persian.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { normalizePhone } from '../voip/phone-match.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
 import { StaffAvailabilityService } from './staff-availability.service.js';
 import { isDateIranHoliday } from './iran-holidays.js';
@@ -21,6 +22,7 @@ const APPOINTMENT_INCLUDE = {
   serviceType: true,
   contact: { select: { id: true, name: true, phone: true } },
   provider: { select: { id: true, name: true, phone: true } },
+  mentoringSession: { select: { id: true, engagementId: true, status: true } },
 } as const;
 
 const ACTIVE_STATUSES = ['SCHEDULED', 'CONFIRMED'] as const;
@@ -29,10 +31,123 @@ const ACTIVE_STATUSES = ['SCHEDULED', 'CONFIRMED'] as const;
 export class AppointmentsService {
   constructor(
     private readonly automation: AutomationEngineService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly zarinpal: ZarinpalService,
     private readonly staffAvailability: StaffAvailabilityService,
   ) {}
+
+
+  // ── اتصال به CRM، آدرس و پیام‌های نوبت ────────────────────────────────
+
+  /**
+   * مشتری رزرو را با شماره‌ی همراهش به مخاطبان CRM وصل می‌کند: اگر شماره از قبل
+   * هست (با هر قالب +98 / 0098 / 09)، همان مخاطب؛ وگرنه مخاطب تازه ساخته می‌شود.
+   */
+  private async resolveContactId(ctx: TenantRequestContext, explicitContactId: string | undefined, name: string, phone: string | undefined | null) {
+    if (explicitContactId) return explicitContactId;
+    if (!phone) return null;
+    const normalized = normalizePhone(phone);
+    if (normalized.length < 9) return null;
+    const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone: { contains: normalized.slice(-10) } }, select: { id: true } });
+    if (existing) return existing.id;
+    const created = await ctx.tenantDb.crmContact.create({ data: { name, phone, source: 'رزرو نوبت' }, select: { id: true } });
+    return created.id;
+  }
+
+  /** تاریخچه‌ی ارتباط با مخاطب (تب فعالیت‌ها در پروفایل CRM). */
+  private async logContactHistory(ctx: TenantRequestContext, contactId: string | null | undefined, body: string, userId: string | null) {
+    if (!contactId) return;
+    await ctx.tenantDb.crmActivity.create({ data: { type: 'MEETING', body, contactId, userId: userId ?? undefined } });
+  }
+
+  private async resolveLocation(ctx: TenantRequestContext, appointment: { location: string | null }, serviceType: { location: string | null }): Promise<string | null> {
+    if (appointment.location?.trim()) return appointment.location.trim();
+    if (serviceType.location?.trim()) return serviceType.location.trim();
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } });
+    const v = row?.value;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  }
+
+  private publicLink(ctx: TenantRequestContext, token: string): string {
+    const base = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+    return `${base}/book/${ctx.tenantSlug}/a/${token}`;
+  }
+
+  /** مبلغ قابل پرداخت هنگام رزرو: کل مبلغ خدمت یا بیعانه؛ صفر یعنی پرداختی لازم نیست. */
+  private paymentTerms(serviceType: { requiresFullPayment: boolean; requiresDeposit: boolean; price: number; depositAmount: number | null }) {
+    if (serviceType.requiresFullPayment && serviceType.price > 0) return { amount: serviceType.price, isFull: true };
+    if (serviceType.requiresDeposit && (serviceType.depositAmount ?? 0) > 0) return { amount: serviceType.depositAmount ?? 0, isFull: false };
+    return { amount: 0, isFull: false };
+  }
+
+  /** پیام کامل جلسه: عنوان وضعیت، خدمت، تاریخ و ساعت، آدرس، لینک عمومی توضیحات و (در صورت نیاز) پرداخت. */
+  private async buildMessage(
+    ctx: TenantRequestContext,
+    appointment: { serviceType: { name: string; location: string | null }; startAt: Date; location: string | null; publicToken: string; paymentStatus: string; depositAmount: number | null; isFullPayment: boolean },
+    headline: string,
+  ): Promise<string> {
+    const location = await this.resolveLocation(ctx, appointment, appointment.serviceType);
+    const lines = [headline, `خدمت: ${appointment.serviceType.name}`, `تاریخ و ساعت: ${formatWhen(appointment.startAt)}`];
+    if (location) lines.push(`آدرس: ${location}`);
+    lines.push(`جزئیات جلسه${appointment.paymentStatus === 'PENDING' ? ' و پرداخت' : ''}: ${this.publicLink(ctx, appointment.publicToken)}`);
+    if (appointment.paymentStatus === 'PENDING' && appointment.depositAmount) {
+      lines.push(`${appointment.isFullPayment ? 'مبلغ قابل پرداخت' : 'بیعانه'}: ${appointment.depositAmount.toLocaleString('en-US')} تومان`);
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * اتصال به ماژول مشاوره و منتورینگ: نوبت خدماتِ «linkToMentoring» یک جلسه‌ی مشاوره می‌سازد
+   * (زیر همکاری فعالِ همان مشتری و مشاور، یا همکاری تازه)، تا صورتجلسه و اقدامات بعدی آنجا ثبت شود.
+   * جابه‌جایی/لغو نوبت هم روی جلسه اعمال می‌شود.
+   */
+  private async syncMentoringSession(
+    ctx: TenantRequestContext,
+    appointment: { id: string; contactId: string | null; providerUserId: string | null; startAt: Date; endAt: Date; status: string; location: string | null; serviceType: { name: string; price: number; durationMinutes: number; linkToMentoring: boolean; location: string | null } },
+  ) {
+    if (!appointment.serviceType.linkToMentoring) return;
+    const existing = await ctx.tenantDb.mentoringSession.findUnique({ where: { appointmentId: appointment.id } });
+    const location = await this.resolveLocation(ctx, appointment, appointment.serviceType);
+
+    if (existing) {
+      if (appointment.status === 'CANCELLED') {
+        if (existing.status === 'SCHEDULED') await ctx.tenantDb.mentoringSession.update({ where: { id: existing.id }, data: { status: 'CANCELLED' } });
+      } else if (existing.status === 'SCHEDULED') {
+        await ctx.tenantDb.mentoringSession.update({
+          where: { id: existing.id },
+          data: { scheduledAt: appointment.startAt, durationMinutes: appointment.serviceType.durationMinutes, location: location ?? undefined, reminderSentAt: null },
+        });
+      }
+      return;
+    }
+    if (appointment.status === 'CANCELLED' || !appointment.contactId || !appointment.providerUserId) return;
+
+    const engagement =
+      (await ctx.tenantDb.mentoringEngagement.findFirst({
+        where: { contactId: appointment.contactId, advisorUserId: appointment.providerUserId, status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+      })) ??
+      (await ctx.tenantDb.mentoringEngagement.create({
+        data: {
+          contactId: appointment.contactId,
+          advisorUserId: appointment.providerUserId,
+          title: appointment.serviceType.name,
+          pricingModel: 'HOURLY',
+          hourlyRate: appointment.serviceType.price > 0 ? appointment.serviceType.price : undefined,
+        },
+      }));
+
+    await ctx.tenantDb.mentoringSession.create({
+      data: {
+        engagementId: engagement.id,
+        appointmentId: appointment.id,
+        mode: location ? 'IN_PERSON' : 'ONLINE',
+        scheduledAt: appointment.startAt,
+        durationMinutes: appointment.serviceType.durationMinutes,
+        location: location ?? undefined,
+      },
+    });
+  }
 
   list(
     ctx: TenantRequestContext,
@@ -150,12 +265,14 @@ export class AppointmentsService {
     await this.assertNoOverlap(ctx, dto.providerUserId, startAt, endAt);
 
     const needsCoordination = serviceType.requiresCoordination;
-    const needsDeposit = serviceType.requiresDeposit;
+    const terms = this.paymentTerms(serviceType);
+    const needsDeposit = terms.amount > 0;
+    const contactId = await this.resolveContactId(ctx, dto.contactId, dto.customerName, dto.customerPhone);
 
     const appointment = await ctx.tenantDb.appointment.create({
       data: {
         serviceTypeId: dto.serviceTypeId,
-        contactId: dto.contactId,
+        contactId,
         providerUserId: dto.providerUserId,
         customerName: dto.customerName,
         customerPhone: dto.customerPhone,
@@ -165,10 +282,14 @@ export class AppointmentsService {
         createdByUserId,
         status: needsCoordination ? 'PENDING_COORDINATION' : 'SCHEDULED',
         paymentStatus: needsDeposit ? 'PENDING' : 'NONE',
-        depositAmount: needsDeposit ? serviceType.depositAmount ?? 0 : null,
+        depositAmount: needsDeposit ? terms.amount : null,
+        isFullPayment: needsDeposit && terms.isFull,
       },
       include: APPOINTMENT_INCLUDE,
     });
+
+    await this.logContactHistory(ctx, contactId, `رزرو نوبت «${serviceType.name}» برای ${formatWhen(startAt)} ثبت شد${isPublic ? ' (رزرو آنلاین)' : ''}`, createdByUserId);
+    if (!needsCoordination) await this.syncMentoringSession(ctx, appointment);
 
     await this.automation.emit(ctx, 'booking.appointment.created', {
       customerName: appointment.customerName,
@@ -178,13 +299,13 @@ export class AppointmentsService {
       providerUserId: appointment.providerUserId,
     });
 
-    if (appointment.customerPhone && this.sms.isConfigured()) {
-      const message = needsCoordination
-        ? `درخواست نوبت شما برای «${appointment.serviceType.name}» ثبت شد. پس از هماهنگی با کارشناس، لینک نهایی ثبت برایتان پیامک می‌شود.`
+    if (appointment.customerPhone) {
+      const headline = needsCoordination
+        ? 'درخواست نوبت شما ثبت شد؛ پس از هماهنگی با کارشناس، زمان نهایی برایتان پیامک می‌شود.'
         : needsDeposit
-          ? `درخواست نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} ثبت شد. برای تکمیل رزرو، بیعانه را پرداخت کنید.`
-          : `درخواست نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} ثبت شد و در انتظار تأیید است.`;
-      await this.sms.sendSms(appointment.customerPhone, message);
+          ? 'رزرو نوبت شما ثبت شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.'
+          : 'رزرو نوبت شما ثبت شد و در انتظار تأیید است.';
+      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, headline));
     }
 
     return appointment;
@@ -212,20 +333,37 @@ export class AppointmentsService {
     const providerUserId = dto.providerUserId !== undefined ? dto.providerUserId : existing.providerUserId;
     await this.assertNoOverlap(ctx, providerUserId, startAt, endAt, id);
 
-    return ctx.tenantDb.appointment.update({
+    const customerName = dto.customerName ?? existing.customerName;
+    const customerPhone = dto.customerPhone ?? existing.customerPhone;
+    const contactId =
+      dto.contactId ?? existing.contactId ?? (await this.resolveContactId(ctx, undefined, customerName, customerPhone));
+    const moved = startAt.getTime() !== existing.startAt.getTime() || serviceTypeId !== existing.serviceTypeId || providerUserId !== existing.providerUserId;
+
+    const updated = await ctx.tenantDb.appointment.update({
       where: { id },
       data: {
         serviceTypeId,
-        contactId: dto.contactId,
+        contactId,
         providerUserId,
         customerName: dto.customerName,
         customerPhone: dto.customerPhone,
         startAt,
         endAt,
         notes: dto.notes,
+        location: dto.location,
       },
       include: APPOINTMENT_INCLUDE,
     });
+
+    if (moved) {
+      const actor = await resolveTenantUserId(ctx).catch(() => null);
+      await this.logContactHistory(ctx, contactId, `نوبت «${updated.serviceType.name}» به ${formatWhen(updated.startAt)} جابه‌جا/ویرایش شد`, actor);
+      await this.syncMentoringSession(ctx, updated);
+      if (updated.customerPhone) {
+        await this.sms.sendSms(ctx, updated.customerPhone, await this.buildMessage(ctx, updated, 'زمان/مشخصات نوبت شما تغییر کرد. اطلاعات جدید:'));
+      }
+    }
+    return updated;
   }
 
   private async transition(
@@ -244,11 +382,8 @@ export class AppointmentsService {
 
   async confirm(ctx: TenantRequestContext, id: string) {
     const appointment = await this.transition(ctx, id, ['SCHEDULED'], { status: 'CONFIRMED' });
-    if (appointment.customerPhone && this.sms.isConfigured()) {
-      await this.sms.sendSms(
-        appointment.customerPhone,
-        `نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} تأیید شد.`,
-      );
+    if (appointment.customerPhone) {
+      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, 'رزرو شما تأیید شد.'));
     }
     return appointment;
   }
@@ -266,14 +401,17 @@ export class AppointmentsService {
       status: 'CANCELLED',
       cancelReason: reason,
     });
+    const actor = await resolveTenantUserId(ctx).catch(() => null);
+    await this.logContactHistory(ctx, appointment.contactId, `نوبت «${appointment.serviceType.name}» (${formatWhen(appointment.startAt)}) لغو شد${reason ? `: ${reason}` : ''}`, actor);
+    await this.syncMentoringSession(ctx, appointment);
     await this.automation.emit(ctx, 'booking.appointment.cancelled', {
       customerName: appointment.customerName,
       customerPhone: appointment.customerPhone,
       serviceName: appointment.serviceType.name,
       startAt: appointment.startAt.toISOString(),
     });
-    if (appointment.customerPhone && this.sms.isConfigured()) {
-      await this.sms.sendSms(
+    if (appointment.customerPhone) {
+      await this.sms.sendSms(ctx, 
         appointment.customerPhone,
         `متأسفانه نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} لغو شد.`,
       );
@@ -298,7 +436,8 @@ export class AppointmentsService {
 
     await this.assertNoOverlap(ctx, providerUserId, startAt, endAt, id);
 
-    const needsDeposit = existing.serviceType.requiresDeposit;
+    const terms = this.paymentTerms(existing.serviceType);
+    const needsDeposit = terms.amount > 0;
     const appointment = await ctx.tenantDb.appointment.update({
       where: { id },
       data: {
@@ -308,16 +447,16 @@ export class AppointmentsService {
         status: 'SCHEDULED',
         coordinationRespondedAt: new Date(),
         paymentStatus: needsDeposit ? 'PENDING' : 'NONE',
-        depositAmount: needsDeposit ? existing.serviceType.depositAmount ?? 0 : null,
+        depositAmount: needsDeposit ? terms.amount : null,
+        isFullPayment: needsDeposit && terms.isFull,
       },
       include: APPOINTMENT_INCLUDE,
     });
 
-    if (appointment.customerPhone && this.sms.isConfigured()) {
-      const message = needsDeposit
-        ? `هماهنگی نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} انجام شد. برای تکمیل رزرو، بیعانه را از طریق لینک ارسالی پرداخت کنید.`
-        : `نوبت شما برای «${appointment.serviceType.name}» در تاریخ ${formatWhen(appointment.startAt)} نهایی و تأیید شد.`;
-      await this.sms.sendSms(appointment.customerPhone, message);
+    await this.syncMentoringSession(ctx, appointment);
+    if (appointment.customerPhone) {
+      const headline = needsDeposit ? 'هماهنگی نوبت شما انجام شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.' : 'نوبت شما نهایی و تأیید شد.';
+      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, headline));
     }
 
     return appointment;
@@ -338,7 +477,7 @@ export class AppointmentsService {
 
     const result = await this.zarinpal.requestPayment({
       amountToman: appointment.depositAmount,
-      description: `بیعانه نوبت «${appointment.serviceType.name}» — ${appointment.customerName}`,
+      description: `${appointment.isFullPayment ? 'پرداخت' : 'بیعانه'} نوبت «${appointment.serviceType.name}» — ${appointment.customerName}`,
       callbackUrl,
       mobile: appointment.customerPhone ?? undefined,
     });
@@ -359,11 +498,28 @@ export class AppointmentsService {
     const verified = await this.zarinpal.verifyPayment({ amountToman: appointment.depositAmount, authority });
     if (!verified.success) return { success: false as const };
 
+    const updated = await this.settlePayment(ctx, id, 'ZARINPAL', verified.refId);
+
+    return { success: true as const, appointment: updated };
+  }
+
+  /** پرداخت (آنلاین یا دستی) نهایی شد: نوبت تأیید می‌شود و پیام کامل جلسه + رسید برای مشتری می‌رود. */
+  private async settlePayment(ctx: TenantRequestContext, id: string, method: string, refId?: number) {
+    const before = await ctx.tenantDb.appointment.findUniqueOrThrow({ where: { id } });
     const updated = await ctx.tenantDb.appointment.update({
       where: { id },
-      data: { paymentStatus: 'PAID', paidAt: new Date(), paymentRefId: verified.refId },
+      data: {
+        paymentStatus: 'PAID',
+        paidAt: new Date(),
+        paymentMethod: method,
+        paymentRefId: refId,
+        status: before.status === 'SCHEDULED' ? 'CONFIRMED' : undefined,
+      },
       include: APPOINTMENT_INCLUDE,
     });
+
+    const actor = await resolveTenantUserId(ctx).catch(() => null);
+    await this.logContactHistory(ctx, updated.contactId, `پرداخت ${updated.isFullPayment ? 'کامل' : 'بیعانه'} نوبت «${updated.serviceType.name}» (${(updated.depositAmount ?? 0).toLocaleString('en-US')} تومان) ثبت شد`, actor);
 
     await this.automation.emit(ctx, 'booking.appointment.deposit_paid', {
       customerName: updated.customerName,
@@ -372,17 +528,73 @@ export class AppointmentsService {
       depositAmount: updated.depositAmount,
     });
 
-    const receiptMessage = `رسید پرداخت بیعانه نوبت «${updated.serviceType.name}» در تاریخ ${formatWhen(updated.startAt)} — کد پیگیری: ${verified.refId}`;
-    if (updated.customerPhone && this.sms.isConfigured()) {
-      await this.sms.sendSms(updated.customerPhone, `${receiptMessage}. نوبت شما نهایی شد.`);
+    if (updated.customerPhone) {
+      const receipt = refId ? ` — کد پیگیری: ${refId}` : '';
+      await this.sms.sendSms(ctx, updated.customerPhone, await this.buildMessage(ctx, updated, `پرداخت شما ثبت شد${receipt} و رزرو نهایی است.`));
     }
-    if (updated.provider?.phone && this.sms.isConfigured()) {
+    if (updated.provider?.phone) {
       await this.sms.sendSms(
+        ctx,
         updated.provider.phone,
-        `بیعانه نوبت «${updated.serviceType.name}» با مشتری ${updated.customerName} در تاریخ ${formatWhen(updated.startAt)} پرداخت شد.`,
+        `پرداخت نوبت «${updated.serviceType.name}» با مشتری ${updated.customerName} در ${formatWhen(updated.startAt)} انجام شد.`,
       );
     }
+    return updated;
+  }
 
-    return { success: true as const, appointment: updated };
+  /** ثبت دستی پرداخت (نقد/کارت/انتقال) روی نوبت — برای مشتری حضوری یا وقتی آنلاین پرداخت نشده. */
+  async recordManualPayment(ctx: TenantRequestContext, id: string, dto: { method: string; amount?: number }) {
+    const appointment = await ctx.tenantDb.appointment.findUnique({ where: { id }, include: { serviceType: true } });
+    if (!appointment) throw new NotFoundException('نوبت یافت نشد');
+    if (appointment.paymentStatus === 'PAID') throw new ConflictException('پرداخت این نوبت قبلاً ثبت شده است');
+    if (appointment.status === 'CANCELLED') throw new ConflictException('نوبت لغوشده پرداخت نمی‌گیرد');
+
+    const amount = dto.amount ?? appointment.depositAmount ?? 0;
+    if (amount <= 0) throw new BadRequestException('مبلغ پرداخت را وارد کنید');
+    if (appointment.paymentStatus !== 'PENDING' || appointment.depositAmount !== amount) {
+      await ctx.tenantDb.appointment.update({
+        where: { id },
+        data: { depositAmount: amount, isFullPayment: amount >= appointment.serviceType.price && appointment.serviceType.price > 0 },
+      });
+    }
+    return this.settlePayment(ctx, id, dto.method);
+  }
+
+  /** نمای عمومی نوبت با publicToken — صفحه‌ی «توضیحات جلسه» که لینکش داخل پیامک است. */
+  async publicView(ctx: TenantRequestContext, token: string) {
+    const appointment = await ctx.tenantDb.appointment.findUnique({
+      where: { publicToken: token },
+      include: { serviceType: true, provider: { select: { name: true } } },
+    });
+    if (!appointment) throw new NotFoundException('این لینک معتبر نیست');
+    return {
+      id: appointment.id,
+      serviceName: appointment.serviceType.name,
+      description: appointment.serviceType.description,
+      customerName: appointment.customerName,
+      providerName: appointment.provider?.name ?? null,
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+      status: appointment.status,
+      location: await this.resolveLocation(ctx, appointment, appointment.serviceType),
+      paymentStatus: appointment.paymentStatus,
+      amount: appointment.depositAmount,
+      isFullPayment: appointment.isFullPayment,
+    };
+  }
+
+  async initiatePaymentByToken(ctx: TenantRequestContext, token: string, callbackBase: string) {
+    const appointment = await ctx.tenantDb.appointment.findUnique({ where: { publicToken: token }, select: { id: true } });
+    if (!appointment) throw new NotFoundException('این لینک معتبر نیست');
+    return this.initiateDepositPayment(ctx, appointment.id, `${callbackBase}/appointments/${appointment.id}/callback`);
+  }
+
+  async sendDetails(ctx: TenantRequestContext, id: string) {
+    const appointment = await ctx.tenantDb.appointment.findUnique({ where: { id }, include: APPOINTMENT_INCLUDE });
+    if (!appointment) throw new NotFoundException('نوبت یافت نشد');
+    if (!appointment.customerPhone) throw new BadRequestException('برای این نوبت شماره‌ی موبایل ثبت نشده است');
+    const result = await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, 'یادآوری جزئیات رزرو شما:'));
+    if (!result.success) throw new BadRequestException(result.error);
+    return { success: true };
   }
 }

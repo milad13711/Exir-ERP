@@ -9,6 +9,7 @@ import { AppointmentsService } from './appointments.service.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
+import { ManualPaymentDto } from './dto/manual-payment.dto.js';
 import { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
 
 @Controller('booking/appointments')
@@ -85,6 +86,19 @@ export class AppointmentsController {
   async cancel(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
     return this.appointments.cancel(ctx, id, dto.reason);
+  }
+
+  @Post(':id/manual-payment')
+  async manualPayment(@Param('id') id: string, @Body() dto: ManualPaymentDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'booking');
+    return this.appointments.recordManualPayment(ctx, id, dto);
+  }
+
+  /** ارسال مجدد پیام جزئیات جلسه (تاریخ، ساعت، آدرس، لینک عمومی) برای مشتری. */
+  @Post(':id/send-details')
+  async sendDetails(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'booking');
+    return this.appointments.sendDetails(ctx, id);
   }
 
   @Post(':id/approve-coordination')

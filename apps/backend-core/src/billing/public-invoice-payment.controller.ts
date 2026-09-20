@@ -66,6 +66,7 @@ export class PublicInvoicePaymentController {
       amountToman: invoice.amount,
       description: `فاکتور ${invoice.tenant.name} — اکسیر ERP`,
       callbackUrl: `${apiUrl}/public/invoices/${id}/callback`,
+      merchantId: invoice.purpose === 'SMS_PACKAGE' ? process.env.SMS_ZARINPAL_MERCHANT_ID : undefined,
     });
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
 
@@ -100,15 +101,22 @@ export class PublicInvoicePaymentController {
       return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
     }
 
-    const verified = await this.zarinpal.verifyPayment({ amountToman: invoice.amount, authority });
+    const verified = await this.zarinpal.verifyPayment({
+      amountToman: invoice.amount,
+      authority,
+      merchantId: invoice.purpose === 'SMS_PACKAGE' ? process.env.SMS_ZARINPAL_MERCHANT_ID : undefined,
+    });
     if (!verified.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
     await this.tenants.markInvoicePaidByGateway(id, verified.refId!);
 
     const isModuleInvoice = invoice.purpose === 'MODULE_PURCHASE' || invoice.purpose === 'MODULE_RENEWAL';
-    const bodyText = isModuleInvoice
-      ? `ماژول‌های خریداری‌شده فعال شدند. برای دیدن تغییرات، صفحه‌ی فروشگاه ماژول را در پنل خود رفرش کنید. کد پیگیری: ${verified.refId}`
-      : `محیط کاری شما اکنون فعال است. کد پیگیری: ${verified.refId}`;
+    const bodyText =
+      invoice.purpose === 'SMS_PACKAGE'
+        ? `بسته‌ی پیامکی شما همین حالا شارژ شد. کد پیگیری: ${verified.refId}`
+        : isModuleInvoice
+        ? `ماژول‌های خریداری‌شده فعال شدند. برای دیدن تغییرات، صفحه‌ی فروشگاه ماژول را در پنل خود رفرش کنید. کد پیگیری: ${verified.refId}`
+        : `محیط کاری شما اکنون فعال است. کد پیگیری: ${verified.refId}`;
 
     return res.send(
       `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>${bodyText}</p>${

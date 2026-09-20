@@ -4,7 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../../prisma/tenant-prisma.service.js';
 import { AuthService } from '../../auth/auth.service.js';
-import { ExirSmsService } from '../../sms/exir-sms.service.js';
+import { TenantSmsService } from '../../sms/tenant-sms.service.js';
 import { NotificationsService } from '../../notifications/notifications.service.js';
 import type { LabReviewTicketPayload } from '../../auth/jwt-payload.type.js';
 import type { SubmitLabReportDto } from '../dto/public-lab-review.dto.js';
@@ -27,7 +27,7 @@ export class PublicLabReviewService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auth: AuthService,
     private readonly jwt: JwtService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -276,10 +276,11 @@ export class PublicLabReviewService {
       });
     }
 
-    if (sample.contact.phone && this.sms.isConfigured()) {
+    if (sample.contact.phone) {
       const webPanelUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
       const link = webPanelUrl ? `${webPanelUrl}/ration-result/${slug}` : `/ration-result/${slug}`;
       await this.sms.sendSms(
+        { tenantId: tenant.id, tenantDb },
         sample.contact.phone,
         `نتیجه‌ی آزمایش نمونه‌ی ${sample.sampleNo} آماده است. برای مشاهده به این لینک بروید: ${link} — ${tenant.name}`,
       );

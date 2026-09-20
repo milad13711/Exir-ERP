@@ -21,6 +21,11 @@ export class PublicBookingController {
     return this.booking.listServiceTypes(slug);
   }
 
+  @Get('info')
+  info(@Param('slug') slug: string) {
+    return this.booking.getInfo(slug);
+  }
+
   @Get('providers')
   listProviders(@Param('slug') slug: string) {
     return this.booking.listProviders(slug);

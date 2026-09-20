@@ -7,6 +7,8 @@ import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { toPersianDigits, formatToman } from "@/lib/persian";
 import {
   fetchPublicServiceTypes,
+  fetchPublicBookingInfo,
+  type PublicBookingInfo,
   fetchPublicProviders,
   fetchPublicHolidays,
   requestBookingOtp,
@@ -48,11 +50,13 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [holidays, setHolidays] = useState<IranHoliday[]>([]);
+  const [info, setInfo] = useState<PublicBookingInfo | null>(null);
 
   useEffect(() => {
     fetchPublicServiceTypes(slug)
       .then(setServiceTypes)
       .catch(() => setStep("unavailable"));
+    fetchPublicBookingInfo(slug).then(setInfo).catch(() => setInfo(null));
     fetchPublicProviders(slug)
       .then(setProviders)
       .catch(() => setProviders([]));
@@ -187,12 +191,18 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
           <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center">
             <LogoMark className="w-5 h-5 text-primary" />
           </div>
-          <span className="font-extrabold">رزرو نوبت آنلاین</span>
+          <span className="font-extrabold">رزرو نوبت آنلاین{info?.businessName ? ` — ${info.businessName}` : ""}</span>
         </div>
       </div>
 
       <div className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-[520px]">
+          {step !== "unavailable" && (selectedService?.location || info?.address) && (
+            <div className="mb-5 flex items-start gap-2 bg-white border border-border rounded-xl px-4 py-3 text-[12.5px] leading-6">
+              <span className="font-bold shrink-0">آدرس محل برگزاری:</span>
+              <span>{selectedService?.location || info?.address}</span>
+            </div>
+          )}
           {step === "unavailable" && (
             <div className="text-center py-16">
               <div className="text-lg font-extrabold mb-2">این لینک در دسترس نیست</div>
@@ -238,7 +248,15 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                   این خدمت نیاز به هماهنگی اولیه دارد — زمان پیشنهادی خود را وارد کنید؛ پس از تأیید کارشناس، زمان نهایی به شما پیامک می‌شود.
                 </div>
               )}
-              {selectedService.requiresDeposit && (
+              {selectedService.description && (
+                <div className="text-[12.5px] text-ink-soft bg-white border border-border rounded-xl p-3 -mt-1 leading-6 whitespace-pre-wrap">{selectedService.description}</div>
+              )}
+              {selectedService.requiresFullPayment && (
+                <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 -mt-1">
+                  پرداخت کامل مبلغ خدمت ({formatToman(selectedService.price)}) هنگام رزرو در درگاه پرداخت انجام می‌شود؛ لینک پرداخت پیامک هم می‌شود.
+                </div>
+              )}
+              {selectedService.requiresDeposit && !selectedService.requiresFullPayment && (
                 <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 -mt-1">
                   این خدمت نیاز به پرداخت بیعانه‌ی {formatToman(selectedService.depositAmount ?? 0)} دارد.
                 </div>
@@ -417,7 +435,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
               <p className="text-[13.5px] text-ink-soft leading-relaxed">
                 {selectedService?.requiresCoordination
                   ? "پس از هماهنگی با کارشناس، زمان نهایی نوبت شما از طریق پیامک اطلاع داده می‌شود."
-                  : "نتیجه‌ی بررسی (تأیید یا لغو) از طریق پیامک به شما اطلاع داده می‌شود."}
+                  : "نتیجه‌ی بررسی (تأیید یا لغو)، تاریخ، ساعت، آدرس و لینک جزئیات جلسه از طریق پیامک برای شما ارسال می‌شود."}
               </p>
             </div>
           )}

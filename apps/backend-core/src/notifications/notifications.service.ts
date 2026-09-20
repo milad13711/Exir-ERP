@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { EmailService } from '../email/email.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { PushNotificationsService } from './push-notifications.service.js';
 
 export type NotifyInput = {
@@ -28,7 +28,7 @@ export class NotificationsService {
 
   constructor(
     private readonly email: EmailService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly push: PushNotificationsService,
   ) {}
 
@@ -56,8 +56,8 @@ export class NotificationsService {
       if (!result.success) this.logger.warn(`Email notification failed for ${user.id}: ${result.error}`);
     }
 
-    if (smsEnabled && user.phone && this.sms.isConfigured()) {
-      const result = await this.sms.sendSms(user.phone, `${input.title}${input.body ? ` — ${input.body}` : ''}`);
+    if (smsEnabled && user.phone) {
+      const result = await this.sms.sendSms({ tenantDb }, user.phone, `${input.title}${input.body ? ` — ${input.body}` : ''}`);
       if (!result.success) this.logger.warn(`SMS notification failed for ${user.id}: ${result.error}`);
     }
 

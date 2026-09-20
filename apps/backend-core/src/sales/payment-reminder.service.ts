@@ -3,7 +3,7 @@ import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import { InvoicesService } from './invoices.service.js';
@@ -27,7 +27,7 @@ export class PaymentReminderService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
     private readonly invoices: InvoicesService,
   ) {}
@@ -71,9 +71,9 @@ export class PaymentReminderService {
       const dueDateFa = faDate(invoice.dueAt!);
       const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
 
-      if (invoice.contact.phone && this.sms.isConfigured()) {
+      if (invoice.contact.phone) {
         const message = `اکسیر ERP: فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} تومان ${overdueFa}. لطفاً نسبت به تسویه اقدام فرمایید.`;
-        const result = await this.sms.sendSms(invoice.contact.phone, message);
+        const result = await this.sms.sendSms({ tenantId, tenantDb }, invoice.contact.phone, message);
         if (!result.success) {
           this.logger.warn(`Payment reminder SMS failed (tenant ${tenantId}, invoice ${invoice.id}): ${result.error}`);
         }

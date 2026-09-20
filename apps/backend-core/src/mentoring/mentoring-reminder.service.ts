@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { formatWhenFa } from './sessions.service.js';
 
 const REMINDER_HOURS_BEFORE = 3;
@@ -19,12 +19,11 @@ export class MentoringReminderService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   async sweep(): Promise<void> {
-    if (!this.sms.isConfigured()) return;
     const tenants = await this.controlDb.tenant.findMany({ where: { status: 'ACTIVE' } });
     for (const tenant of tenants) {
       const mentoringModule = await this.controlDb.tenantModule.findFirst({
@@ -32,15 +31,17 @@ export class MentoringReminderService {
       });
       if (!mentoringModule) continue;
       try {
-        await this.sweepTenant(tenant.dbHost, tenant.dbPort, tenant.dbName);
+        await this.sweepTenant(tenant.id, tenant.dbHost, tenant.dbPort, tenant.dbName);
       } catch (err) {
         this.logger.error(`Mentoring reminder sweep failed for tenant ${tenant.id}: ${err instanceof Error ? err.message : err}`);
       }
     }
   }
 
-  private async sweepTenant(dbHost: string, dbPort: number, dbName: string): Promise<void> {
+  private async sweepTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
+    // بدون پنل پیامکی متصل، یادآوری «ارسال‌شده» علامت نخورد تا بعد از اتصال هنوز ارسال شود
+    if ((await this.sms.getConnection(tenantDb)).mode === 'NONE') return;
     const now = new Date();
     const windowEnd = new Date(now.getTime() + REMINDER_HOURS_BEFORE * 3_600_000);
 
@@ -52,10 +53,10 @@ export class MentoringReminderService {
     for (const session of dueSessions) {
       const whenFa = formatWhenFa(session.scheduledAt);
       if (session.engagement.contact.phone) {
-        await this.sms.sendSms(session.engagement.contact.phone, `یادآوری: جلسه‌ی «${session.engagement.title}» شما ساعتی دیگر، در ${whenFa} برگزار می‌شود.`);
+        await this.sms.sendSms({ tenantId, tenantDb }, session.engagement.contact.phone, `یادآوری: جلسه‌ی «${session.engagement.title}» شما ساعتی دیگر، در ${whenFa} برگزار می‌شود.`);
       }
       if (session.engagement.advisor.phone) {
-        await this.sms.sendSms(session.engagement.advisor.phone, `یادآوری: جلسه‌ی شما با ${session.engagement.contact.name} در ${whenFa} برگزار می‌شود.`);
+        await this.sms.sendSms({ tenantId, tenantDb }, session.engagement.advisor.phone, `یادآوری: جلسه‌ی شما با ${session.engagement.contact.name} در ${whenFa} برگزار می‌شود.`);
       }
       await tenantDb.mentoringSession.update({ where: { id: session.id }, data: { reminderSentAt: new Date() } });
     }

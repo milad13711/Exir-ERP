@@ -4,9 +4,11 @@ import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { toDateTimeLocalValue } from "@/lib/persian";
 import {
   createAppointment,
+  updateAppointment,
   fetchCrmContacts,
   fetchUsers,
   type ServiceType,
+  type Appointment,
   type CrmContact,
   type TenantUser,
 } from "@/lib/api";
@@ -18,23 +20,27 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 export function NewAppointmentModal({
   serviceTypes,
   defaultStart,
+  appointment,
   onClose,
   onCreated,
 }: {
   serviceTypes: ServiceType[];
   defaultStart: Date;
+  /** اگر داده شود، حالت ویرایش/جابه‌جایی همین نوبت است */
+  appointment?: Appointment;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [serviceTypeId, setServiceTypeId] = useState(serviceTypes[0]?.id ?? "");
-  const [contactId, setContactId] = useState("");
+  const [serviceTypeId, setServiceTypeId] = useState(appointment?.serviceTypeId ?? serviceTypes[0]?.id ?? "");
+  const [contactId, setContactId] = useState(appointment?.contactId ?? "");
   const [contacts, setContacts] = useState<CrmContact[]>([]);
-  const [providerUserId, setProviderUserId] = useState("");
+  const [providerUserId, setProviderUserId] = useState(appointment?.providerUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [startAt, setStartAt] = useState(toDateTimeLocalValue(defaultStart));
-  const [notes, setNotes] = useState("");
+  const [customerName, setCustomerName] = useState(appointment?.customerName ?? "");
+  const [customerPhone, setCustomerPhone] = useState(appointment?.customerPhone ?? "");
+  const [startAt, setStartAt] = useState(toDateTimeLocalValue(appointment ? new Date(appointment.startAt) : defaultStart));
+  const [notes, setNotes] = useState(appointment?.notes ?? "");
+  const [location, setLocation] = useState(appointment?.location ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +64,7 @@ export function NewAppointmentModal({
     setSaving(true);
     setError(null);
     try {
-      await createAppointment({
+      const payload = {
         serviceTypeId,
         contactId: contactId || undefined,
         providerUserId: providerUserId || undefined,
@@ -66,7 +72,9 @@ export function NewAppointmentModal({
         customerPhone: customerPhone.trim() || undefined,
         startAt: new Date(startAt).toISOString(),
         notes: notes.trim() || undefined,
-      });
+      };
+      if (appointment) await updateAppointment(appointment.id, { ...payload, location: location.trim() || undefined });
+      else await createAppointment(payload);
       onCreated();
       onClose();
     } catch (err) {
@@ -77,7 +85,7 @@ export function NewAppointmentModal({
   }
 
   return (
-    <Modal title="نوبت جدید" onClose={onClose} width="max-w-[480px]">
+    <Modal title={appointment ? "ویرایش / جابه‌جایی نوبت" : "نوبت جدید"} onClose={onClose} width="max-w-[480px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>نوع خدمت</label>
@@ -131,6 +139,13 @@ export function NewAppointmentModal({
           <JalaliDateTimeInput value={startAt} onChange={setStartAt} className={inputClass} />
         </div>
 
+        {appointment ? (
+          <div>
+            <label className={labelClass}>آدرس اختصاصی این نوبت (خالی = آدرس خدمت/شرکت)</label>
+            <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass} />
+          </div>
+        ) : null}
+
         <div>
           <label className={labelClass}>یادداشت (اختیاری)</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputClass} />
@@ -143,7 +158,7 @@ export function NewAppointmentModal({
           disabled={saving || !serviceTypeId || !customerName.trim()}
           className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50"
         >
-          {saving ? "در حال ثبت..." : "ثبت نوبت"}
+          {saving ? "در حال ثبت..." : appointment ? "ذخیره و اطلاع‌رسانی به مشتری" : "ثبت نوبت"}
         </button>
       </form>
     </Modal>

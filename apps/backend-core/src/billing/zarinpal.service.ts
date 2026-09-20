@@ -47,15 +47,18 @@ export class ZarinpalService {
     description: string;
     callbackUrl: string;
     mobile?: string;
+    /** مرچنت اختصاصی (مثلاً درگاه ماژول پیامک)؛ خالی یعنی مرچنت اصلی پلتفرم */
+    merchantId?: string;
   }): Promise<{ authority: string; paymentUrl: string } | null> {
-    if (!this.isConfigured) return null;
+    const merchantId = input.merchantId || process.env.ZARINPAL_MERCHANT_ID;
+    if (!merchantId) return null;
 
     try {
       const res = await fetch(`${this.baseUrl}/request.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          merchant_id: process.env.ZARINPAL_MERCHANT_ID,
+          merchant_id: merchantId,
           amount: input.amountToman * 10,
           description: input.description,
           callback_url: input.callbackUrl,
@@ -76,15 +79,16 @@ export class ZarinpalService {
     }
   }
 
-  async verifyPayment(input: { amountToman: number; authority: string }): Promise<{ success: boolean; refId?: number }> {
-    if (!this.isConfigured) return { success: false };
+  async verifyPayment(input: { amountToman: number; authority: string; merchantId?: string }): Promise<{ success: boolean; refId?: number }> {
+    const merchantId = input.merchantId || process.env.ZARINPAL_MERCHANT_ID;
+    if (!merchantId) return { success: false };
 
     try {
       const res = await fetch(`${this.baseUrl}/verify.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          merchant_id: process.env.ZARINPAL_MERCHANT_ID,
+          merchant_id: merchantId,
           amount: input.amountToman * 10,
           authority: input.authority,
         }),

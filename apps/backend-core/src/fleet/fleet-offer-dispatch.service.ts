@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 
 const OFFER_GAP_MS = 5 * 60 * 1000;
 
@@ -21,7 +21,7 @@ export class FleetOfferDispatchService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -33,14 +33,14 @@ export class FleetOfferDispatchService {
       });
       if (!fleetModule) continue;
       try {
-        await this.dispatchTenant(tenant.dbHost, tenant.dbPort, tenant.dbName, tenant.slug);
+        await this.dispatchTenant(tenant.id, tenant.dbHost, tenant.dbPort, tenant.dbName, tenant.slug);
       } catch (err) {
         this.logger.error(`Fleet offer dispatch failed for tenant ${tenant.id}: ${err instanceof Error ? err.message : err}`);
       }
     }
   }
 
-  private async dispatchTenant(dbHost: string, dbPort: number, dbName: string, slug: string): Promise<void> {
+  private async dispatchTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string, slug: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
 
@@ -65,7 +65,7 @@ export class FleetOfferDispatchService {
       const pickup = shipment.pickupAt.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
       const message = `پیشنهاد بار جدید:\nنوع: ${shipment.cargoType}\nمقدار: ${shipment.quantity}${shipment.unit ? ' ' + shipment.unit : ''}\nآدرس تحویل: ${shipment.deliveryAddress}\nزمان بارگیری: ${pickup}\nمشاهده و پذیرش: ${offerUrl}`;
 
-      await this.sms.sendSms(nextScheduled.driver.phone, message);
+      await this.sms.sendSms({ tenantId, tenantDb }, nextScheduled.driver.phone, message);
       await tenantDb.shipmentOffer.update({ where: { id: nextScheduled.id }, data: { status: 'PENDING', sentAt: new Date() } });
     }
   }

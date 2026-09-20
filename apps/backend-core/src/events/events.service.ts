@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { InvoicesService } from '../sales/invoices.service.js';
 import type { CreateEventDto } from './dto/create-event.dto.js';
 import type { UpdateEventDto } from './dto/update-event.dto.js';
@@ -56,7 +56,7 @@ export async function withRemainingCapacity<T extends { id: string; capacity: nu
 export class EventsService {
   constructor(
     private readonly automation: AutomationEngineService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
   ) {}
 
@@ -300,12 +300,12 @@ export class EventsService {
       data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId },
     });
 
-    if (this.sms.isConfigured() && publicWebUrl) {
+    if (publicWebUrl) {
       for (const booking of bookings) {
         for (const ticket of booking.tickets) {
           const phone = ticket.attendeePhone || booking.buyerPhone;
           const url = `${publicWebUrl}/events/${ctx.tenantSlug}/ticket/${ticket.qrToken}`;
-          await this.sms.sendSms(
+          await this.sms.sendSms(ctx, 
             phone,
             `بلیط شما برای «${booking.event.title}» صادر شد. کد بلیط: ${ticket.ticketCode}\nمشاهده بلیط: ${url}`,
           );

@@ -579,3 +579,15 @@ export function fetchAuditLogs(tenantId?: string) {
 export function fetchErrorLogs(tenantId?: string) {
   return apiFetch<ErrorLogEntry[]>(`/admin/logs/errors${tenantId ? `?tenantId=${tenantId}` : ""}`);
 }
+
+// ── بسته‌های پیامکی پنل سیستمی ─────────────────────────────────────────────
+
+export type SmsPackage = { id: string; code: string; credits: number; priceToman: number; isActive: boolean; sortOrder: number };
+
+export function fetchSmsPackages() {
+  return apiFetch<SmsPackage[]>("/admin/sms-packages");
+}
+
+export function updateSmsPackage(code: string, data: { priceToman?: number; isActive?: boolean }) {
+  return apiFetch<SmsPackage>(`/admin/sms-packages/${code}`, { method: "PUT", body: JSON.stringify(data) });
+}

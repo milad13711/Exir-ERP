@@ -23,6 +23,10 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
   const [requiresDeposit, setRequiresDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState("0");
   const [requiresCoordination, setRequiresCoordination] = useState(false);
+  const [requiresFullPayment, setRequiresFullPayment] = useState(false);
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [linkToMentoring, setLinkToMentoring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -43,6 +47,10 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
         requiresDeposit,
         depositAmount: requiresDeposit ? Number(depositAmount) || 0 : undefined,
         requiresCoordination,
+        requiresFullPayment,
+        description: description.trim() || undefined,
+        location: location.trim() || undefined,
+        linkToMentoring,
       });
       setName("");
       setDuration("30");
@@ -50,6 +58,10 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
       setRequiresDeposit(false);
       setDepositAmount("0");
       setRequiresCoordination(false);
+      setRequiresFullPayment(false);
+      setDescription("");
+      setLocation("");
+      setLinkToMentoring(false);
       setAddOpen(false);
       reload();
       onChanged();
@@ -117,7 +129,11 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
               نیاز به هماهنگی اولیه با ارائه‌دهنده قبل از نهایی‌شدن رزرو
             </label>
             <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
-              <input type="checkbox" checked={requiresDeposit} onChange={(e) => setRequiresDeposit(e.target.checked)} />
+              <input type="checkbox" checked={requiresFullPayment} onChange={(e) => { setRequiresFullPayment(e.target.checked); if (e.target.checked) setRequiresDeposit(false); }} />
+              پرداخت کامل مبلغ خدمت هنگام رزرو (لینک پرداخت در پیامک)
+            </label>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
+              <input type="checkbox" checked={requiresDeposit} disabled={requiresFullPayment} onChange={(e) => setRequiresDeposit(e.target.checked)} />
               نیاز به پرداخت بیعانه/پیش‌پرداخت
             </label>
             {requiresDeposit && (
@@ -132,6 +148,18 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                 />
               </div>
             )}
+            <div>
+              <label className="text-[11px] font-semibold text-ink-soft mb-1 block">آدرس/محل برگزاری (خالی = آدرس شرکت در تنظیمات عمومی)</label>
+              <input value={location} onChange={(e) => setLocation(e.target.value)} className={`${inputClass} w-full`} />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-ink-soft mb-1 block">توضیحات جلسه (در لینک عمومی نوبت به مشتری نمایش داده می‌شود)</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={`${inputClass} w-full`} />
+            </div>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-soft cursor-pointer">
+              <input type="checkbox" checked={linkToMentoring} onChange={(e) => setLinkToMentoring(e.target.checked)} />
+              اتصال به ماژول مشاوره و منتورینگ (هر نوبت یک جلسه‌ی مشاوره می‌سازد؛ صورتجلسه و اقدامات بعدی آنجا ثبت می‌شود)
+            </label>
             <button
               type="submit"
               disabled={saving || !name.trim()}
@@ -168,6 +196,8 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                     {s.durationMinutes} دقیقه · {formatToman(s.price)}
                     {s.requiresCoordination ? " · نیاز به هماهنگی" : ""}
                     {s.requiresDeposit ? ` · بیعانه ${formatToman(s.depositAmount ?? 0)}` : ""}
+                    {s.requiresFullPayment ? " · پرداخت کامل" : ""}
+                    {s.linkToMentoring ? " · متصل به مشاوره" : ""}
                   </div>
                 </div>
                 <button

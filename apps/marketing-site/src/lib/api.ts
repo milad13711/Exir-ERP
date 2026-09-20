@@ -6,10 +6,12 @@
 // components run in the visitor's browser and need the real public URL,
 // which can never resolve an internal Docker service name — so the two
 // contexts genuinely need different base URLs, not just a fallback chain.
+// مرورگر همیشه از پروکسی هم‌مبدأ /api (src/app/api/public) می‌رود؛ آدرس مستقیم بک‌اند
+// روی HTTP خام است و از صفحه‌ی HTTPS مسدود می‌شود (mixed content).
 const API_URL =
   typeof window === "undefined"
     ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api")
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api");
+    : "/api";
 
 export class ApiError extends Error {
   constructor(

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AudienceService } from './audience.service.js';
 import { CampaignImageService, type TemplateCode } from './campaign-image.service.js';
@@ -14,7 +14,7 @@ const CAMPAIGN_INCLUDE = { recipients: { include: { contact: { select: { id: tru
 @Injectable()
 export class CampaignsService {
   constructor(
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly audience: AudienceService,
     private readonly image: CampaignImageService,
     private readonly controlDb: ControlPrismaService,
@@ -136,8 +136,8 @@ export class CampaignsService {
     if (campaign.channel === 'BALE' || campaign.channel === 'WHATSAPP') {
       throw new BadRequestException('این کانال هنوز به ارسال واقعی متصل نشده — فعلاً فقط پیامک فعال است');
     }
-    if (!this.sms.isConfigured()) {
-      throw new BadRequestException('سرویس پیامک پیکربندی نشده است');
+    if ((await this.sms.getConnection(ctx.tenantDb)).mode === 'NONE') {
+      throw new BadRequestException('پنل پیامکی متصل نیست؛ از تنظیمات ← پنل پیامکی آن را متصل کنید');
     }
 
     await ctx.tenantDb.marketingCampaign.update({ where: { id }, data: { status: 'SENDING' } });
@@ -152,7 +152,7 @@ export class CampaignsService {
         });
         continue;
       }
-      const result = await this.sms.sendSms(recipient.phone, campaign.messageText ?? '');
+      const result = await this.sms.sendSms(ctx, recipient.phone, campaign.messageText ?? '');
       if (result.success) {
         sentCount++;
         await ctx.tenantDb.marketingCampaignRecipient.update({

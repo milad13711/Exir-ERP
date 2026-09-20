@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { faDate, faTime } from '../common/persian.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { UsersService } from '../users/users.service.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
@@ -66,7 +66,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 @Injectable()
 export class RecruitmentService implements OnModuleInit {
   constructor(
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly automation: AutomationEngineService,
     private readonly users: UsersService,
     private readonly stamp: CompanyStampService,
@@ -249,7 +249,7 @@ export class RecruitmentService implements OnModuleInit {
     const settings = await this.getSmsSettings(ctx);
     if (settings.enabled) {
       const template = dto.approved ? settings.specialistApprovedTemplate : settings.specialistRejectedTemplate;
-      await this.sms.sendSms(applicant.phone, renderTemplate(template, { name: applicant.name }));
+      await this.sms.sendSms(ctx, applicant.phone, renderTemplate(template, { name: applicant.name }));
     }
     return updated;
   }
@@ -279,7 +279,7 @@ export class RecruitmentService implements OnModuleInit {
 
     const settings = await this.getSmsSettings(ctx);
     if (settings.enabled) {
-      await this.sms.sendSms(applicant.phone, renderTemplate(settings.managementRejectedTemplate, { name: applicant.name }));
+      await this.sms.sendSms(ctx, applicant.phone, renderTemplate(settings.managementRejectedTemplate, { name: applicant.name }));
     }
     return updated;
   }
@@ -349,7 +349,7 @@ export class RecruitmentService implements OnModuleInit {
         time: faTime(interview.scheduledAt),
         location: interview.location || 'دفتر شرکت',
       });
-      await this.sms.sendSms(applicant.phone, message);
+      await this.sms.sendSms(ctx, applicant.phone, message);
     }
 
     return interview;
@@ -402,7 +402,7 @@ export class RecruitmentService implements OnModuleInit {
   private async sendOfferSms(ctx: TenantRequestContext, applicantName: string, phone: string, token: string): Promise<void> {
     const settings = await this.getSmsSettings(ctx);
     if (!settings.enabled || !settings.offerSentTemplate) return;
-    await this.sms.sendSms(phone, renderTemplate(settings.offerSentTemplate, { name: applicantName, link: this.offerLink(ctx, token) }));
+    await this.sms.sendSms(ctx, phone, renderTemplate(settings.offerSentTemplate, { name: applicantName, link: this.offerLink(ctx, token) }));
   }
 
   /**
@@ -571,7 +571,7 @@ export class RecruitmentService implements OnModuleInit {
 
     const settings = await this.getSmsSettings(ctx);
     if (settings.enabled && settings.hiredTemplate) {
-      await this.sms.sendSms(
+      await this.sms.sendSms(ctx, 
         applicant.phone,
         renderTemplate(settings.hiredTemplate, { name: applicant.name, employeeCode, department: departmentName }),
       );

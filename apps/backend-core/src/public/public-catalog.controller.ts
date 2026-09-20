@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Get, NotFoundException, Post, Body } f
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { PublicExchangeRateService } from './public-exchange-rate.service.js';
 import { QuotePlanDto } from './dto/quote-plan.dto.js';
+import { SiteNotifierService } from './site-notifier.service.js';
 import { CreatePublicLeadDto } from './dto/create-public-lead.dto.js';
 
 /**
@@ -25,6 +26,7 @@ export class PublicCatalogController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly exchangeRate: PublicExchangeRateService,
+    private readonly notifier: SiteNotifierService,
   ) {}
 
   @Get('exchange-rate')
@@ -122,8 +124,8 @@ export class PublicCatalogController {
    * member picks it up via the existing assign endpoint.
    */
   @Post('lead')
-  createLead(@Body() dto: CreatePublicLeadDto) {
-    return this.controlDb.internalLead.create({
+  async createLead(@Body() dto: CreatePublicLeadDto) {
+    const lead = await this.controlDb.internalLead.create({
       data: {
         name: dto.name,
         company: dto.company,
@@ -135,5 +137,14 @@ export class PublicCatalogController {
         requestedIndustryTemplateCode: dto.requestedIndustryTemplateCode,
       },
     });
+    void this.notifier.notify('درخواست جدید از سایت eta.co.ir', {
+      نام: dto.name,
+      شرکت: dto.company,
+      تلفن: dto.phone,
+      ایمیل: dto.email,
+      پلن: dto.requestedPlanCode,
+      خلاصه: dto.configurationSummary,
+    });
+    return lead;
   }
 }

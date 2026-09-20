@@ -102,3 +102,41 @@ export class PublicBookingPaymentController {
     );
   }
 }
+
+/** صفحه‌ی عمومی «توضیحات جلسه» با publicToken — لینکی که داخل پیامک رزرو می‌رود. */
+@Controller('public/booking/:slug/a/:token')
+export class PublicBookingAppointmentController {
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly appointments: AppointmentsService,
+  ) {}
+
+  private async resolveCtx(slug: string): Promise<TenantRequestContext> {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
+    if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
+      throw new NotFoundException('این لینک دیگر معتبر نیست');
+    }
+    const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+    return { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
+  }
+
+  @Get()
+  async view(@Param('slug') slug: string, @Param('token') token: string) {
+    const ctx = await this.resolveCtx(slug);
+    const [appointment, tenant] = await Promise.all([
+      this.appointments.publicView(ctx, token),
+      this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } }),
+    ]);
+    return { ...appointment, businessName: tenant?.name ?? '' };
+  }
+
+  @Post('pay')
+  async pay(@Param('slug') slug: string, @Param('token') token: string) {
+    const ctx = await this.resolveCtx(slug);
+    const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
+    const result = await this.appointments.initiatePaymentByToken(ctx, token, `${apiUrl}/public/booking/${slug}`);
+    if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
+    return { paymentUrl: result.paymentUrl };
+  }
+}

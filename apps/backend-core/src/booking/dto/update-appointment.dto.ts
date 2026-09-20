@@ -29,4 +29,9 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** آدرس اختصاصی همین نوبت (جای‌گزین آدرس خدمت/شرکت) */
+  @IsOptional()
+  @IsString()
+  location?: string;
 }

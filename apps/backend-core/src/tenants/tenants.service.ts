@@ -525,7 +525,22 @@ export class TenantsService {
       await this.activatePurchasedModules(invoice.tenantId, invoiceId, invoice.items);
     }
 
-    await this.referralSync.onInvoicePaid(invoiceId, invoice.tenantId, invoice.amount);
+    if (invoice.purpose === 'SMS_PACKAGE') {
+      // شارژ آنی کیف پول پیامکی — فاکتور فقط یک‌بار PAID می‌شود (بالاتر برگشت زودهنگام دارد)، پس دوبار اعتبار نمی‌گیرد
+      const credits = (invoice.items as { credits?: number } | null)?.credits ?? 0;
+      if (credits > 0) {
+        await this.controlDb.tenantSmsWallet.upsert({
+          where: { tenantId: invoice.tenantId },
+          create: { tenantId: invoice.tenantId, credits },
+          update: { credits: { increment: credits } },
+        });
+      }
+    }
+
+    // خرید بسته‌ی پیامکی درآمد اشتراک/ماژول نیست؛ کمیسیون رفرال نمی‌گیرد
+    if (invoice.purpose !== 'SMS_PACKAGE') {
+      await this.referralSync.onInvoicePaid(invoiceId, invoice.tenantId, invoice.amount);
+    }
 
     return updated;
   }

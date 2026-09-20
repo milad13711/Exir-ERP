@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -84,7 +84,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 export class AfterSalesService {
   constructor(
     private readonly controlDb: ControlPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -157,7 +157,7 @@ export class AfterSalesService {
     if (!warranty.activatedByPhone) throw new BadRequestException('برای این گارانتی شماره موبایلی ثبت نشده است');
 
     const rendered = renderTemplate(message, { name: warranty.activatedByName ?? '', code: warranty.code });
-    const result = await this.sms.sendSms(warranty.activatedByPhone, rendered);
+    const result = await this.sms.sendSms(ctx, warranty.activatedByPhone, rendered);
     if (!result.success) throw new BadRequestException(result.error);
     return { ok: true };
   }
@@ -226,7 +226,7 @@ export class AfterSalesService {
         code: service.warranty.code,
         status: statusLabel,
       });
-      await this.sms.sendSms(service.warranty.activatedByPhone, message);
+      await this.sms.sendSms(ctx, service.warranty.activatedByPhone, message);
     }
 
     if (settings.serviceStatusStaffEnabled) {
@@ -245,7 +245,7 @@ export class AfterSalesService {
       const staff = await ctx.tenantDb.user.findUnique({ where: { id: staffUserId } });
       if (staff) {
         await this.notifications.notify(ctx.tenantDb, { userId: staff.id, type: 'after-sales.notice', title: 'خدمات پس از فروش', body: message, link });
-        if (smsText && staff.phone) await this.sms.sendSms(staff.phone, smsText);
+        if (smsText && staff.phone) await this.sms.sendSms(ctx, staff.phone, smsText);
         return;
       }
     }

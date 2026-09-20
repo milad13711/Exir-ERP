@@ -32,4 +32,20 @@ export class UpdateServiceTypeDto {
   @IsOptional()
   @IsBoolean()
   requiresCoordination?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresFullPayment?: boolean;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  linkToMentoring?: boolean;
 }

@@ -4,7 +4,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
@@ -32,7 +32,7 @@ const DEFAULT_REMINDER_CHANNELS: ReminderChannels = { sms: true, notification: t
 export class ChecksService {
   constructor(
     private readonly controlDb: ControlPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
   ) {}
@@ -159,9 +159,7 @@ export class ChecksService {
         body,
         link: '/checks',
       });
-      if (this.sms.isConfigured()) {
-        await this.sms.sendSms(manager.phone, smsMessage);
-      }
+      await this.sms.sendSms(ctx, manager.phone, smsMessage);
     }
   }
 

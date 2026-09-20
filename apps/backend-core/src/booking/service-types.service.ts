@@ -22,6 +22,10 @@ export class ServiceTypesService {
         requiresDeposit: dto.requiresDeposit ?? false,
         depositAmount: dto.depositAmount,
         requiresCoordination: dto.requiresCoordination ?? false,
+        requiresFullPayment: dto.requiresFullPayment ?? false,
+        description: dto.description,
+        location: dto.location,
+        linkToMentoring: dto.linkToMentoring ?? false,
       },
     });
   }

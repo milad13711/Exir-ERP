@@ -14,7 +14,7 @@ import { PublicTrackingService } from './public-tracking.service.js';
 import { PublicTrackingController } from './public-tracking.controller.js';
 import { PublicContractsService } from './public-contracts.service.js';
 import { PublicContractsController } from './public-contracts.controller.js';
-import { PublicBookingPaymentController } from './public-booking-payment.controller.js';
+import { PublicBookingPaymentController, PublicBookingAppointmentController } from './public-booking-payment.controller.js';
 import { PublicFleetOfferService } from './public-fleet-offer.service.js';
 import { PublicFleetOfferController } from './public-fleet-offer.controller.js';
 import { PublicSurveyService } from './public-survey.service.js';
@@ -44,6 +44,8 @@ import { PublicAfterSalesService } from './public-after-sales.service.js';
 import { PublicAfterSalesController } from './public-after-sales.controller.js';
 import { QrCodeModule } from '../qr-code/qr-code.module.js';
 import { PublicQrCodeController } from './public-qr-code.controller.js';
+import { EmailModule } from '../email/email.module.js';
+import { SiteNotifierService } from './site-notifier.service.js';
 import { RecruitmentModule } from '../recruitment/recruitment.module.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
@@ -59,6 +61,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
+    EmailModule,
     RecruitmentModule,
     AuthModule,
     TenantsModule,
@@ -83,6 +86,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicTrackingController,
     PublicContractsController,
     PublicBookingPaymentController,
+    PublicBookingAppointmentController,
     PublicFleetOfferController,
     PublicSurveyController,
     PublicStoreController,
@@ -117,6 +121,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicWarrantyService,
     PublicAfterSalesService,
     PublicRecruitmentService,
+    SiteNotifierService,
     PublicCertificateService,
     PublicLabReviewService,
     PublicRationResultService,

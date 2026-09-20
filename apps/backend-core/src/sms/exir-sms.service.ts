@@ -8,6 +8,7 @@ import { Injectable, Logger } from '@nestjs/common';
 // api.exirsms.ir منتشر شود یا آدرس دیگری تأیید شود.
 const DEFAULT_BASE_URL = 'https://api.limosms.com';
 
+export type SmsCredentials = { apiKey?: string; sender?: string };
 export type SendSmsResult = { success: true } | { success: false; error: string };
 
 /**
@@ -36,9 +37,15 @@ export class ExirSmsService {
     return Boolean(process.env.EXIR_SMS_API_KEY && process.env.EXIR_SMS_SENDER_LINE);
   }
 
+  /** ارسال از پنل سیستمی اکسیر — فقط برای پیامک‌های خودِ پلتفرم (OTP ورود، فاکتور/تمدید ماژول‌ها، اطلاع فعال‌سازی دسترسی). */
   async sendSms(phone: string, message: string): Promise<SendSmsResult> {
-    const apiKey = process.env.EXIR_SMS_API_KEY;
-    const sender = process.env.EXIR_SMS_SENDER_LINE;
+    return this.sendWith({ apiKey: process.env.EXIR_SMS_API_KEY, sender: process.env.EXIR_SMS_SENDER_LINE }, phone, message);
+  }
+
+  /** ارسال با اعتبارنامه‌ی دلخواه — پنل اختصاصی تننت یا پنل سیستمی. */
+  async sendWith(creds: SmsCredentials, phone: string, message: string): Promise<SendSmsResult> {
+    const apiKey = creds.apiKey;
+    const sender = creds.sender;
     if (!apiKey || !sender) {
       return { success: false, error: 'اکسیر پیامک پیکربندی نشده است (EXIR_SMS_API_KEY / EXIR_SMS_SENDER_LINE)' };
     }
@@ -71,6 +78,28 @@ export class ExirSmsService {
       const message = err instanceof Error ? err.message : 'خطای ناشناخته';
       this.logger.error(`SMS gateway request failed: ${message}`);
       return { success: false, error: `ارسال پیامک ناموفق بود: ${message}` };
+    }
+  }
+
+  /**
+   * مانده‌ی اعتبار پنل (getcurrentcredit). credit به ریال است و smsCount تعداد پیامک تخمینی
+   * را می‌دهد؛ اگر پنل smsCount نداد، null برمی‌گردد و فقط اعتبار نمایش داده می‌شود.
+   */
+  async getCredit(apiKey: string): Promise<{ success: true; smsCount: number | null; creditRial: number | null } | { success: false; error: string }> {
+    const baseUrl = (process.env.EXIR_SMS_API_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+    try {
+      const res = await fetch(`${baseUrl}/api/getcurrentcredit`, {
+        method: 'POST',
+        headers: { ApiKey: apiKey, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const body = (await res.json().catch(() => null)) as { success?: boolean; message?: string; result?: { credit?: number; smsCount?: number } } | null;
+      if (!res.ok || !body || body.success === false) {
+        return { success: false, error: body?.message ?? `سرویس پیامک خطا داد (HTTP ${res.status})` };
+      }
+      return { success: true, smsCount: body.result?.smsCount ?? null, creditRial: body.result?.credit ?? null };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'خطای ناشناخته' };
     }
   }
 }

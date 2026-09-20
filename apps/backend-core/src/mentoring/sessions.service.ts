@@ -3,7 +3,7 @@ import { faDate, faTime } from '../common/persian.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { InvoicesService } from '../sales/invoices.service.js';
 import type { CreateSessionDto } from './dto/create-session.dto.js';
 import type { UpdateSessionDto } from './dto/update-session.dto.js';
@@ -26,7 +26,7 @@ const SESSION_INCLUDE = {
 export class SessionsService {
   constructor(
     private readonly automation: AutomationEngineService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
   ) {}
 
@@ -99,15 +99,15 @@ export class SessionsService {
 
     const whenFa = formatWhenFa(scheduledAt);
     const modeLabel = MODE_LABEL_FA[mode];
-    if (engagement.contact.phone && this.sms.isConfigured()) {
+    if (engagement.contact.phone) {
       const addressPart = mode === 'IN_PERSON' && dto.location ? ` — آدرس: ${dto.location}` : '';
-      await this.sms.sendSms(
+      await this.sms.sendSms(ctx, 
         engagement.contact.phone,
         `جلسه‌ی «${engagement.title}» شما در تاریخ ${whenFa} به‌صورت ${modeLabel} ثبت شد.${addressPart}`,
       );
     }
-    if (engagement.advisor.phone && this.sms.isConfigured()) {
-      await this.sms.sendSms(
+    if (engagement.advisor.phone) {
+      await this.sms.sendSms(ctx, 
         engagement.advisor.phone,
         `جلسه‌ی جدید با ${engagement.contact.name} در تاریخ ${whenFa} (${modeLabel}) برایتان ثبت شد.`,
       );
@@ -153,9 +153,9 @@ export class SessionsService {
     });
 
     const survey = await ctx.tenantDb.mentoringSessionSurvey.create({ data: { sessionId: id } });
-    if (session.engagement.contact.phone && this.sms.isConfigured() && publicWebUrl) {
+    if (session.engagement.contact.phone && publicWebUrl) {
       const url = `${publicWebUrl}/mentoring-survey/${tenantSlug}/${survey.publicToken}`;
-      const result = await this.sms.sendSms(
+      const result = await this.sms.sendSms(ctx, 
         session.engagement.contact.phone,
         `جلسه‌ی «${session.engagement.title}» به پایان رسید. نظر شما به بهبود کیفیت جلسات کمک می‌کند: ${url}`,
       );

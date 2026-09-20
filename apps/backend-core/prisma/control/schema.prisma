@@ -98,6 +98,7 @@ model Tenant {
   memberships    TenantMembership[]
   subscriptions  Subscription[]
   invoices       Invoice[]
+  smsWallet      TenantSmsWallet?
   tenantModules  TenantModule[]
   supportTickets SupportTicket[]
   auditLogs      AuditLog[]
@@ -255,6 +256,7 @@ enum InvoicePurpose {
   PLAN_RENEWAL
   MODULE_PURCHASE
   MODULE_RENEWAL
+  SMS_PACKAGE
 }
 
 model Invoice {
@@ -667,4 +669,32 @@ model IndustryTemplate {
   createdAt           DateTime                  @default(now())
 
   @@map("industry_templates")
+}
+
+// ── بسته‌های پیامکی پنل سیستمی ───────────────────────────────────────────────
+// تننتی که پنل پیامکی اختصاصی ندارد می‌تواند از پنل مشترک اکسیر استفاده کند و
+// بسته بخرد. قیمت هر بسته را مدیر پلتفرم در پنل ادمین تعیین می‌کند؛ قیمت صفر
+// یا غیرفعال یعنی قابل خرید نیست.
+
+model SmsPackage {
+  id         String   @id @default(uuid())
+  code       String   @unique // مثلاً SMS_500
+  credits    Int // تعداد پیامک
+  priceToman Int      @default(0)
+  isActive   Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("sms_packages")
+}
+
+/// اعتبار پیامکی باقی‌مانده‌ی تننت روی پنل سیستمی — با پرداخت فاکتور SMS_PACKAGE فوراً شارژ می‌شود.
+model TenantSmsWallet {
+  tenantId  String   @id
+  credits   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_sms_wallets")
 }

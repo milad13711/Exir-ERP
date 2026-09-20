@@ -2104,6 +2104,10 @@ model ServiceType {
   requiresDeposit      Boolean  @default(false) // نیاز به واریز بیعانه/پیش‌پرداخت پیش از تأیید نهایی
   depositAmount        Int? // تومان — مبلغ بیعانه (نه لزوماً کل مبلغ خدمت)
   requiresCoordination Boolean  @default(false) // نیاز به هماهنگی اولیه با ارائه‌دهنده پیش از ارسال لینک نهایی ثبت
+  requiresFullPayment  Boolean  @default(false) // پرداخت کامل مبلغ خدمت هنگام رزرو (به‌جای بیعانه)
+  description          String? // توضیحات جلسه — در لینک عمومی نوبت برای مشتری نمایش داده می‌شود
+  location             String? // آدرس/محل برگزاری — خالی یعنی آدرس شرکت در تنظیمات عمومی
+  linkToMentoring      Boolean  @default(false) // هر نوبت این خدمت خودکار یک جلسه در ماژول مشاوره و منتورینگ می‌سازد
   createdAt            DateTime @default(now())
 
   appointments Appointment[]
@@ -2148,6 +2152,9 @@ model Appointment {
   zarinpalAuthority String?
   paymentRefId      Int?
   paidAt            DateTime?
+  isFullPayment     Boolean                  @default(false) // مبلغ قابل پرداخت (depositAmount) کل مبلغ خدمت است، نه بیعانه
+  paymentMethod     String? // آنلاین (ZARINPAL) یا دستی: CASH / CARD / TRANSFER
+  location          String? // جای‌گزین آدرس خدمت برای همین نوبت
   publicToken       String                   @unique @default(uuid()) // لینک عمومی رسید/تکمیل پرداخت
 
   // هماهنگی اولیه — رزرو ابتدا PENDING_COORDINATION می‌ماند تا کارشناس/مدیر داخلی تاریخ نهایی را تأیید کند

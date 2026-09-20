@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { WarrantyService } from './warranty.service.js';
 
@@ -23,7 +23,7 @@ export class WarrantyReminderService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly warranty: WarrantyService,
   ) {}
 
@@ -64,7 +64,7 @@ export class WarrantyReminderService {
 
     for (const warranty of expiringSoon) {
       const message = `مشتری گرامی ${warranty.activatedByName ?? ''}، گارانتی محصول شما با کد ${warranty.code} به‌زودی منقضی می‌شود. در صورت نیاز به خدمات پس از فروش، پیش از انقضا اقدام فرمایید.`;
-      await this.sms.sendSms(warranty.activatedByPhone!, message);
+      await this.sms.sendSms(ctx, warranty.activatedByPhone!, message);
     }
   }
 }

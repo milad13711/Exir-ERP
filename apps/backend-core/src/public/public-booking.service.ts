@@ -51,6 +51,17 @@ export class PublicBookingService {
     return this.serviceTypes.list(ctx, false);
   }
 
+  /** نام کسب‌وکار و آدرس دفتر/محل برگزاری — روی فرم عمومی رزرو نمایش داده می‌شود. */
+  async getInfo(slug: string) {
+    const ctx = await this.resolveTenantCtx(slug);
+    const [tenant, addressRow] = await Promise.all([
+      this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } }),
+      ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } }),
+    ]);
+    const address = typeof addressRow?.value === 'string' ? addressRow.value : null;
+    return { businessName: tenant?.name ?? '', address };
+  }
+
   async listProviders(slug: string) {
     const ctx = await this.resolveTenantCtx(slug);
     return ctx.tenantDb.user.findMany({

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { TriggerRegistryService } from './trigger-registry.service.js';
 import { renderTemplate } from './template.js';
 import { resolveFixedOrFieldTarget, type AutomationActionConfig } from './action-config.js';
@@ -23,7 +23,7 @@ export class AutomationEngineService {
     private readonly registry: TriggerRegistryService,
     private readonly controlDb: ControlPrismaService,
     private readonly notifications: NotificationsService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
   ) {}
 
   /** Fired by a module's own code, right where the real event happens (or via the manual /automation/fire endpoint). A no-op if automation isn't installed or nothing is configured for this trigger — safe to call unconditionally. */
@@ -81,7 +81,7 @@ export class AutomationEngineService {
     if (config.type === 'SEND_SMS') {
       const phone = resolveFixedOrFieldTarget(config.phoneMode, config.fixedPhone, config.payloadField, payload);
       if (!phone) throw new Error('شماره تلفن مقصد پیامک قابل تشخیص نبود');
-      const result = await this.sms.sendSms(phone, renderTemplate(config.message, payload));
+      const result = await this.sms.sendSms(ctx, phone, renderTemplate(config.message, payload));
       if (!result.success) throw new Error(result.error);
       return;
     }

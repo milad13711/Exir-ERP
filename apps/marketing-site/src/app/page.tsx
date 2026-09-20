@@ -365,22 +365,15 @@ export default async function HomePage() {
           style={{ background: "radial-gradient(circle, #2f6fed, transparent 70%)" }}
           aria-hidden
         />
-        <Image
-          src="/brand/exir-mascot-modules.webp"
-          alt=""
-          width={1536}
-          height={1024}
-          className="absolute inset-y-0 left-0 h-full w-full sm:w-3/5 object-cover object-center opacity-35 sm:opacity-60 [mask-image:linear-gradient(to_right,black_40%,transparent)] sm:[mask-image:linear-gradient(to_right,black_50%,transparent_98%)]"
-        />
-        <div className="relative max-w-[1100px] mx-auto px-6 py-14 sm:py-20 flex items-center justify-center sm:justify-end">
-          <div className="text-center sm:text-right max-w-[520px]">
+        <div className="relative max-w-[1100px] mx-auto px-6 py-14 sm:py-16 grid md:grid-cols-2 items-center gap-8 md:gap-12">
+          <div className="text-center md:text-right">
             <h2 className="font-display text-[22px] sm:text-[28px] font-extrabold leading-[1.5] text-balance">
               هنوز مطمئن نیستید کدام اکسیر مناسب شماست؟
             </h2>
             <p className="mt-3 text-[13.5px] text-white/75 leading-loose">
               صنف کسب‌وکارتان را انتخاب کنید تا مستقیم به محصول تخصصی همان صنف بروید، یا برای مشاوره با ما تماس بگیرید.
             </p>
-            <div className="mt-6 flex items-center justify-center sm:justify-start gap-3 flex-wrap">
+            <div className="mt-6 flex items-center justify-center md:justify-start gap-3 flex-wrap">
               <Link href="#products" className="px-6 py-3 rounded-2xl bg-white text-primary text-[14px] font-extrabold shadow-lg">
                 انتخاب محصول
               </Link>
@@ -388,6 +381,16 @@ export default async function HomePage() {
                 همکاری و نمایندگی
               </Link>
             </div>
+          </div>
+          <div className="rounded-2xl overflow-hidden border border-white/10 shadow-[0_24px_50px_-20px_rgba(0,0,0,0.6)]">
+            <Image
+              src="/brand/exir-mascot-modules.webp"
+              alt=""
+              width={1536}
+              height={1024}
+              sizes="(min-width: 768px) 520px, 100vw"
+              className="w-full h-auto"
+            />
           </div>
         </div>
       </section>

@@ -11,6 +11,7 @@ import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals
 import { OfflineIndicator } from "./OfflineIndicator";
 import { NotificationBell } from "./NotificationBell";
 import { PhoneWidget } from "@/components/voip/PhoneWidget";
+import { SmsCreditChip } from "@/components/sms/SmsCreditChip";
 
 export function Header({
   onOpenSupport,
@@ -158,6 +159,7 @@ export function Header({
           ) : null}
         </button>
 
+        <SmsCreditChip />
         <PhoneWidget />
         <NotificationBell />
 

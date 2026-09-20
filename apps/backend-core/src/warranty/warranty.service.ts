@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -64,7 +64,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 export class WarrantyService {
   constructor(
     private readonly controlDb: ControlPrismaService,
-    private readonly sms: ExirSmsService,
+    private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -479,7 +479,7 @@ export class WarrantyService {
 
     if (settings.enabled && settings.activationCustomerEnabled && warranty.activatedByPhone) {
       const message = renderTemplate(settings.activationCustomerTemplate, { name: warranty.activatedByName ?? '', code: warranty.code });
-      await this.sms.sendSms(warranty.activatedByPhone, message);
+      await this.sms.sendSms(ctx, warranty.activatedByPhone, message);
     }
 
     if (settings.activationStaffEnabled) {
@@ -506,7 +506,7 @@ export class WarrantyService {
       const staff = await ctx.tenantDb.user.findUnique({ where: { id: staffUserId } });
       if (staff) {
         await this.notifications.notify(ctx.tenantDb, { userId: staff.id, type: 'warranty.notice', title: 'گارانتی', body: message, link });
-        if (smsText && staff.phone) await this.sms.sendSms(staff.phone, smsText);
+        if (smsText && staff.phone) await this.sms.sendSms(ctx, staff.phone, smsText);
         return;
       }
     }
