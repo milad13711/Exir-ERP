@@ -53,6 +53,42 @@ export class ResellersController {
     return { success: true };
   }
 
+  @Get(':id/balance')
+  async balance(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'referral-marketing');
+    return this.resellers.balance(ctx, id);
+  }
+
+  @Get(':id/settlements')
+  async settlements(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'referral-marketing');
+    return this.resellers.listSettlements(ctx, id);
+  }
+
+  @Post(':id/settlements')
+  async createSettlement(@Param('id') id: string, @Body() dto: { note?: string }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.resellers.generateSettlement(ctx, id, dto?.note);
+  }
+
+  @Post('settlements/:settlementId/settle')
+  async settle(@Param('settlementId') settlementId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.resellers.settle(ctx, settlementId);
+  }
+
+  @Post(':id/end')
+  async end(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.resellers.endCooperation(ctx, id, (dto?.reason ?? 'پایان همکاری').trim());
+  }
+
+  @Post(':id/map-visibility')
+  async mapVisibility(@Param('id') id: string, @Body() dto: { hidden: boolean }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.resellers.setMapVisibility(ctx, id, !!dto.hidden);
+  }
+
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateResellerDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');

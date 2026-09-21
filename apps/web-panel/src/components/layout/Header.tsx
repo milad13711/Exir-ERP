@@ -139,11 +139,17 @@ export function Header({
             <span className="text-[12.5px] font-bold text-primary">{subscription.planName}</span>
             <span className="w-px h-3.5 bg-indigo-200" />
             <span className="text-[12.5px] text-primary">
-              {toPersianDigits(subscription.daysLeft)} روز باقی‌مانده
+              {subscription.lifetime
+                ? "لایسنس مادام‌العمر"
+                : subscription.daysLeft <= 0
+                  ? "اشتراک منقضی شده"
+                  : `${toPersianDigits(subscription.daysLeft)} روز باقی‌مانده`}
             </span>
-            <span className="border-0 bg-primary text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
-              تمدید / ارتقا
-            </span>
+            {subscription.lifetime ? null : (
+              <span className="border-0 bg-primary text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
+                تمدید / ارتقا
+              </span>
+            )}
           </Link>
         ) : null}
 

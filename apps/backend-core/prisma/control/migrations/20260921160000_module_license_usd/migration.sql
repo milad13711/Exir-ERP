@@ -1,0 +1,37 @@
+ALTER TABLE "module_definitions" ADD COLUMN "licenseUsd" INTEGER NOT NULL DEFAULT 0;
+
+-- قیمت پایه‌ی دلاری هر ماژول (منبع: src/modules-catalog/module-license-usd.ts)؛ تومان را همگام‌ساز قیمت روی استارت محاسبه می‌کند.
+UPDATE "module_definitions" SET "licenseUsd" = 0 WHERE "code" = 'tasks';
+UPDATE "module_definitions" SET "licenseUsd" = 400 WHERE "code" = 'crm';
+UPDATE "module_definitions" SET "licenseUsd" = 400 WHERE "code" = 'warehouse';
+UPDATE "module_definitions" SET "licenseUsd" = 565 WHERE "code" = 'accounting';
+UPDATE "module_definitions" SET "licenseUsd" = 465 WHERE "code" = 'hr';
+UPDATE "module_definitions" SET "licenseUsd" = 400 WHERE "code" = 'sales';
+UPDATE "module_definitions" SET "licenseUsd" = 345 WHERE "code" = 'purchasing';
+UPDATE "module_definitions" SET "licenseUsd" = 345 WHERE "code" = 'checks';
+UPDATE "module_definitions" SET "licenseUsd" = 290 WHERE "code" = 'supplier-risk';
+UPDATE "module_definitions" SET "licenseUsd" = 230 WHERE "code" = 'delivery-signature';
+UPDATE "module_definitions" SET "licenseUsd" = 465 WHERE "code" = 'production';
+UPDATE "module_definitions" SET "licenseUsd" = 290 WHERE "code" = 'quality-control';
+UPDATE "module_definitions" SET "licenseUsd" = 495 WHERE "code" = 'ration-lab';
+UPDATE "module_definitions" SET "licenseUsd" = 230 WHERE "code" = 'api-access';
+UPDATE "module_definitions" SET "licenseUsd" = 230 WHERE "code" = 'webhooks';
+UPDATE "module_definitions" SET "licenseUsd" = 575 WHERE "code" = 'mcp';
+UPDATE "module_definitions" SET "licenseUsd" = 175 WHERE "code" = 'currency-exchange';
+UPDATE "module_definitions" SET "licenseUsd" = 175 WHERE "code" = 'offline-sync';
+UPDATE "module_definitions" SET "licenseUsd" = 290 WHERE "code" = 'voip';
+UPDATE "module_definitions" SET "licenseUsd" = 465 WHERE "code" = 'automation';
+UPDATE "module_definitions" SET "licenseUsd" = 160 WHERE "code" = 'qr-code';
+UPDATE "module_definitions" SET "licenseUsd" = 415 WHERE "code" = 'recruitment';
+UPDATE "module_definitions" SET "licenseUsd" = 255 WHERE "code" = 'reports';
+UPDATE "module_definitions" SET "licenseUsd" = 345 WHERE "code" = 'booking';
+UPDATE "module_definitions" SET "licenseUsd" = 400 WHERE "code" = 'contracts';
+UPDATE "module_definitions" SET "licenseUsd" = 400 WHERE "code" = 'projects';
+UPDATE "module_definitions" SET "licenseUsd" = 370 WHERE "code" = 'mentoring';
+UPDATE "module_definitions" SET "licenseUsd" = 450 WHERE "code" = 'events';
+UPDATE "module_definitions" SET "licenseUsd" = 240 WHERE "code" = 'forms';
+UPDATE "module_definitions" SET "licenseUsd" = 255 WHERE "code" = 'warranty';
+UPDATE "module_definitions" SET "licenseUsd" = 270 WHERE "code" = 'after-sales-service';
+UPDATE "module_definitions" SET "licenseUsd" = 520 WHERE "code" = 'fleet';
+UPDATE "module_definitions" SET "licenseUsd" = 450 WHERE "code" = 'online-store';
+UPDATE "module_definitions" SET "licenseUsd" = 415 WHERE "code" = 'marketing';

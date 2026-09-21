@@ -14,13 +14,15 @@ import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminInternalController } from './admin-internal.controller.js';
 import { AdminPushController } from './admin-push.controller.js';
 import { PushNotificationsModule } from '../notifications/push-notifications.module.js';
+import { PublicModule } from '../public/public.module.js';
 import { ReferralMarketingModule } from '../referral-marketing/referral-marketing.module.js';
+import { AdminResellersController } from './admin-resellers.controller.js';
 import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
 import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
 import { ResellerApplicationsService } from './reseller-applications.service.js';
 
 @Module({
-  imports: [ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
+  imports: [PublicModule, ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
   controllers: [
     AdminAuthController,
     AdminTenantsController,
@@ -32,6 +34,7 @@ import { ResellerApplicationsService } from './reseller-applications.service.js'
     AdminPushController,
     AdminResellerApplicationsController,
     AdminSmsPackagesController,
+    AdminResellersController,
   ],
   providers: [AdminAuthService, AdminSupportService, ResellerApplicationsService],
 })

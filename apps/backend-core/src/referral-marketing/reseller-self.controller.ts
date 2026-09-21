@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Patch, Post, UseGuards } from '@nestjs/common';
 import { UpdateMyResellerProfileDto } from './dto/update-my-reseller-profile.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -6,6 +6,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator.js'
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { ResellersService } from './resellers.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 
 const RESELLER_INCLUDE = {
@@ -21,7 +22,10 @@ const RESELLER_INCLUDE = {
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('referral-marketing')
 export class ResellerSelfController {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly resellers: ResellersService,
+  ) {}
 
   @Get()
   async profile(@Ctx() ctx: TenantRequestContext) {
@@ -43,6 +47,25 @@ export class ResellerSelfController {
       await ctx.tenantDb.crmContact.update({ where: { id: reseller.contactId }, data: { company: dto.company, address: dto.address } });
     }
     return this.myResellerProfile(ctx);
+  }
+
+  /** نماینده پایان همکاری را درخواست می‌دهد — بعد از تأیید مدیر، صورتحساب مانده جهت تسویه صادر می‌شود. */
+  @Post('end-request')
+  async requestEnd(@Body() dto: { reason: string }, @Ctx() ctx: TenantRequestContext) {
+    const reseller = await this.myResellerProfile(ctx);
+    return this.resellers.requestEnd(ctx, reseller.id, dto?.reason ?? '');
+  }
+
+  @Get('settlements')
+  async mySettlements(@Ctx() ctx: TenantRequestContext) {
+    const reseller = await this.myResellerProfile(ctx);
+    return this.resellers.listSettlements(ctx, reseller.id);
+  }
+
+  @Get('balance')
+  async myBalance(@Ctx() ctx: TenantRequestContext) {
+    const reseller = await this.myResellerProfile(ctx);
+    return this.resellers.balance(ctx, reseller.id);
   }
 
   @Get('conversions')

@@ -12,6 +12,8 @@ import {
   fetchTenantModules,
   fetchTenantInvoices,
   markInvoicePaid,
+  deleteTenantInvoice,
+  markInvoiceUnpaid,
   openInvoicePdf,
   setTenantModule,
   reactivateTenant,
@@ -24,6 +26,7 @@ import {
 import { RenewTenantModal } from "@/components/tenants/RenewTenantModal";
 import { DeleteTenantModal } from "@/components/tenants/DeleteTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
+import { SubscriptionSmsCard } from "@/components/tenants/SubscriptionSmsCard";
 import { IssueInvoiceModal } from "@/components/tenants/IssueInvoiceModal";
 import { SaveAsTemplateModal } from "@/components/tenants/SaveAsTemplateModal";
 
@@ -77,6 +80,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [editInvoice, setEditInvoice] = useState<TenantInvoice | null>(null);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
@@ -229,6 +233,15 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           </span>
         </Card>
       ) : null}
+      {subscription ? (
+        <SubscriptionSmsCard
+          tenantId={id}
+          currentPeriodEnd={subscription.currentPeriodEnd}
+          status={subscription.status}
+          lifetime={(subscription as { lifetime?: boolean }).lifetime}
+          onChanged={reload}
+        />
+      ) : null}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
         <StatTile icon={<UsersIcon className="w-4 h-4" />} label="کاربران فعال" value={stats ? toPersianDigits(stats.userCount) : "..."} />
@@ -324,6 +337,31 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                 >
                   PDF
                 </button>
+                <button onClick={() => setEditInvoice(inv)} className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3.5 py-1.5 rounded-lg cursor-pointer">
+                  ویرایش
+                </button>
+                {inv.status === "PAID" ? (
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm("این فاکتور به «در انتظار پرداخت» برگردد؟ (فعال‌سازی ماژول/اشتراک ناشی از آن خودکار برگردانده نمی‌شود.)")) return;
+                      await markInvoiceUnpaid(id, inv.id);
+                      reload();
+                    }}
+                    className="text-[11.5px] font-bold text-warning bg-warning-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
+                  >
+                    بازگشت به پرداخت‌نشده
+                  </button>
+                ) : null}
+                <button
+                  onClick={async () => {
+                    if (!window.confirm("این فاکتور برای همیشه حذف شود؟")) return;
+                    await deleteTenantInvoice(id, inv.id);
+                    reload();
+                  }}
+                  className="text-[11.5px] font-bold text-danger bg-danger-soft px-3.5 py-1.5 rounded-lg cursor-pointer"
+                >
+                  حذف
+                </button>
                 {inv.status === "PENDING" ? (
                   <>
                     <button
@@ -346,6 +384,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
         )}
       </Card>
 
+      {editInvoice ? (
+        <IssueInvoiceModal tenantId={id} tenantName={tenant.name} invoice={editInvoice} onClose={() => setEditInvoice(null)} onIssued={reload} />
+      ) : null}
       {invoiceOpen ? (
         <IssueInvoiceModal
           tenantId={id}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
-import { fetchMyResellerProfile, updateMyResellerProfile, ApiError, type Reseller } from "@/lib/api";
+import { fetchMyResellerProfile, updateMyResellerProfile, requestMyResellerEnd, fetchMyResellerSettlements, ApiError, type Reseller, type ResellerSettlement } from "@/lib/api";
+import { formatToman, formatJalaliDate } from "@/lib/persian";
 
 const FIELD = "w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary";
 
@@ -28,8 +29,10 @@ export function MyProfileCard() {
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [settlements, setSettlements] = useState<ResellerSettlement[]>([]);
 
   useEffect(() => {
+    fetchMyResellerSettlements().then(setSettlements).catch(() => setSettlements([]));
     fetchMyResellerProfile().then((p) => {
       setProfile(p);
       setBio(p.bio ?? "");
@@ -95,6 +98,36 @@ export function MyProfileCard() {
       <button onClick={save} disabled={busy} className="mt-3 text-[13px] font-bold px-5 py-2.5 rounded-xl bg-primary text-white disabled:opacity-50 cursor-pointer">
         {busy ? "در حال ذخیره..." : "ذخیره پروفایل"}
       </button>
+
+      <div className="mt-5 pt-4 border-t border-border">
+        <div className="text-[13px] font-bold mb-2">پایان همکاری و صورتحساب مانده</div>
+        {profile.cooperationStatus === "END_REQUESTED" ? (
+          <div className="text-[12.5px] text-warning">درخواست پایان همکاری شما ثبت شده و منتظر تأیید مدیریت است.</div>
+        ) : profile.cooperationStatus === "ENDED" ? (
+          <div className="text-[12.5px] text-muted">همکاری شما پایان یافته است.</div>
+        ) : (
+          <button
+            onClick={async () => {
+              const reason = window.prompt("دلیل درخواست پایان همکاری:");
+              if (!reason || reason.trim().length < 3) return;
+              try {
+                await requestMyResellerEnd(reason.trim());
+                setProfile({ ...profile, cooperationStatus: "END_REQUESTED" });
+              } catch (err) {
+                setMsg(err instanceof ApiError ? err.message : "ثبت درخواست ناموفق بود");
+              }
+            }}
+            className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer"
+          >
+            درخواست پایان همکاری
+          </button>
+        )}
+        {settlements.map((s) => (
+          <div key={s.id} className="mt-2 bg-slate-50 rounded-lg p-3 text-[12px]">
+            صورتحساب {s.number} ({formatJalaliDate(s.issuedAt)}): مانده‌ی قابل پرداخت به شما <b>{formatToman(s.amountDue)}</b> — {s.status === "SETTLED" ? "تسویه شد" : "در انتظار تسویه"}
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }

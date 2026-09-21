@@ -213,6 +213,8 @@ export function setTenantModule(id: string, code: string, status: "INSTALLED" | 
 
 export type TenantInvoice = {
   id: string;
+  items?: Array<{ moduleName: string; amount: number }> | null;
+  purpose?: string | null;
   amount: number;
   status: "PENDING" | "PAID" | "FAILED";
   issuedAt: string;
@@ -224,7 +226,19 @@ export function fetchTenantInvoices(id: string) {
   return apiFetch<TenantInvoice[]>(`/admin/tenants/${id}/invoices`);
 }
 
-export function createTenantInvoice(id: string, data: { amount: number; dueAt: string }) {
+export function updateTenantInvoice(tenantId: string, invoiceId: string, data: { amount?: number; dueAt?: string; status?: "PENDING" | "FAILED"; lines?: Array<{ name: string; amount: number }> }) {
+  return apiFetch<TenantInvoice>(`/admin/tenants/${tenantId}/invoices/${invoiceId}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteTenantInvoice(tenantId: string, invoiceId: string) {
+  return apiFetch<{ success: boolean }>(`/admin/tenants/${tenantId}/invoices/${invoiceId}`, { method: "DELETE" });
+}
+
+export function markInvoiceUnpaid(tenantId: string, invoiceId: string) {
+  return apiFetch<TenantInvoice>(`/admin/tenants/${tenantId}/invoices/${invoiceId}/mark-unpaid`, { method: "POST" });
+}
+
+export function createTenantInvoice(id: string, data: { amount: number; dueAt: string; lines?: Array<{ name: string; amount: number }> }) {
   return apiFetch<TenantInvoice>(`/admin/tenants/${id}/invoices`, {
     method: "POST",
     body: JSON.stringify(data),
@@ -272,6 +286,7 @@ export type CatalogModule = {
   description: string;
   category: string;
   priceMonthly: number;
+  licenseUsd?: number;
   priceYearly: number | null;
   isCore: boolean;
   features: string[];
@@ -287,12 +302,17 @@ export function fetchCatalogModules() {
   return apiFetch<CatalogModule[]>("/admin/catalog/modules");
 }
 
+export function syncCatalogPrices() {
+  return apiFetch<{ updated: number; usdToToman: number }>("/admin/catalog/modules/sync-prices", { method: "POST" });
+}
+
 export function upsertCatalogModule(data: {
   code: string;
   name: string;
   description: string;
   category: string;
-  priceMonthly: number;
+  priceMonthly?: number;
+  licenseUsd?: number;
   priceYearly?: number;
   isCore?: boolean;
   features?: string[];
@@ -605,7 +625,7 @@ export function fetchSmsPackages() {
   return apiFetch<SmsPackage[]>("/admin/sms-packages");
 }
 
-export function updateSmsPackage(code: string, data: { priceToman?: number; isActive?: boolean }) {
+export function updateSmsPackage(code: string, data: { priceToman?: number; isActive?: boolean; credits?: number }) {
   return apiFetch<SmsPackage>(`/admin/sms-packages/${code}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
@@ -625,4 +645,57 @@ export function updateInternalTask(id: string, data: Partial<{ title: string; de
 }
 export function deleteInternalTask(id: string) {
   return apiFetch<{ success: boolean }>(`/admin/internal/tasks/${id}`, { method: "DELETE" });
+}
+
+// ── نمایندگان (رجیستری پلتفرم) ────────────────────────────────────────────────
+export type AdminReseller = {
+  id: string;
+  name: string;
+  phone: string | null;
+  city: string | null;
+  productCode: string | null;
+  isVerified: boolean;
+  hiddenFromMap: boolean;
+  cooperationStatus: "ACTIVE" | "END_REQUESTED" | "ENDED";
+  endReason: string | null;
+  hasAccess: boolean;
+  totalCommission: number;
+  amountDue: number;
+};
+export type AdminResellerSettlement = { id: string; number: number; amountDue: number; totalCommission: number; paidCommission: number; status: "ISSUED" | "SETTLED"; issuedAt: string; note: string | null };
+
+export function fetchAdminResellers() {
+  return apiFetch<AdminReseller[]>("/admin/resellers");
+}
+export function setAdminResellerMapVisibility(id: string, hidden: boolean) {
+  return apiFetch<{ success: boolean }>(`/admin/resellers/${id}/map-visibility`, { method: "POST", body: JSON.stringify({ hidden }) });
+}
+export function endAdminReseller(id: string, reason: string) {
+  return apiFetch<AdminResellerSettlement>(`/admin/resellers/${id}/end`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function fetchAdminResellerSettlements(id: string) {
+  return apiFetch<AdminResellerSettlement[]>(`/admin/resellers/${id}/settlements`);
+}
+export function createAdminResellerSettlement(id: string) {
+  return apiFetch<AdminResellerSettlement>(`/admin/resellers/${id}/settlements`, { method: "POST", body: JSON.stringify({}) });
+}
+export function settleAdminResellerSettlement(settlementId: string) {
+  return apiFetch<AdminResellerSettlement>(`/admin/resellers/settlements/${settlementId}/settle`, { method: "POST" });
+}
+
+// ── تنظیم دستی اشتراک و موجودی پیامک تننت ───────────────────────────────────
+export function updateTenantSubscription(tenantId: string, data: { currentPeriodEnd?: string; status?: "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELLED"; lifetime?: boolean; planCode?: string }) {
+  return apiFetch<unknown>(`/admin/tenants/${tenantId}/subscription`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function fetchTenantSmsWallet(tenantId: string) {
+  return apiFetch<{ tenantId: string; credits: number }>(`/admin/sms-packages/tenants/${tenantId}/wallet`);
+}
+export function adjustTenantSmsWallet(tenantId: string, data: { credits?: number; delta?: number; note?: string }) {
+  return apiFetch<{ tenantId: string; credits: number }>(`/admin/sms-packages/tenants/${tenantId}/wallet`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function createSmsPackage(data: { credits: number; priceToman: number }) {
+  return apiFetch<SmsPackage>("/admin/sms-packages", { method: "POST", body: JSON.stringify(data) });
+}
+export function deleteSmsPackage(code: string) {
+  return apiFetch<{ success: boolean }>(`/admin/sms-packages/${code}`, { method: "DELETE" });
 }

@@ -13,13 +13,13 @@ const BILLING_MODE_LABELS: Record<ModuleBillingMode, string> = {
 };
 
 function moduleYearlyPrice(m: ModuleCatalogItem): number {
-  return m.priceYearly ?? m.priceMonthly * 12;
+  return m.priceYearly ?? m.priceMonthly * 10;
 }
 
 function priceForMode(m: ModuleCatalogItem, mode: ModuleBillingMode): number {
   if (mode === "MONTHLY") return m.priceMonthly;
   if (mode === "YEARLY") return moduleYearlyPrice(m);
-  return moduleYearlyPrice(m) * 8;
+  return moduleYearlyPrice(m) * 4;
 }
 
 export function ModuleCartDrawer({

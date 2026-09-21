@@ -17,9 +17,17 @@ export class UpsertModuleDto {
   @MinLength(2)
   category!: string;
 
+  /** خالی و licenseUsd>۰ یعنی از قیمت دلاری مشتق می‌شود */
+  @IsOptional()
   @IsInt()
   @Min(0)
-  priceMonthly!: number;
+  priceMonthly?: number;
+
+  /** قیمت پایه‌ی دلاری (لایسنس مادام‌العمر) — سالانه = ÷۴ و ماهانه = ÷۱۰ آن، تومان با نرخ روز */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  licenseUsd?: number;
 
   @IsOptional()
   @IsInt()

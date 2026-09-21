@@ -38,6 +38,38 @@ const NO_ACCESS: ModuleMatrix = {
  */
 @Injectable()
 export class PermissionsService {
+  /**
+   * ماتریس دسترسی مؤثر کاربر روی همه‌ی ماژول‌ها یکجا — برای پنهان‌کردن منو/صفحه‌های بدون دسترسی.
+   * ماژولی که در نتیجه نباشد یعنی هیچ دسترسی ندارد. مدیران (OWNER/ADMIN) `manager: true` می‌گیرند.
+   */
+  async effectiveMatrix(ctx: TenantRequestContext): Promise<{ manager: boolean; modules: Record<string, ModuleMatrix> }> {
+    if (ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN') return { manager: true, modules: {} };
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    if (!userId) return { manager: false, modules: {} };
+
+    const [overrides, roleRows] = await Promise.all([
+      ctx.tenantDb.userModulePermission.findMany({ where: { userId } }),
+      ctx.tenantDb.modulePermission.findMany({ where: { role: { users: { some: { userId } } } } }),
+    ]);
+    const overridden = new Set(overrides.map((o) => o.moduleCode));
+    const modules: Record<string, ModuleMatrix> = {};
+    for (const row of roleRows) {
+      if (overridden.has(row.moduleCode)) continue; // دسترسی دستی جایگزین اتحاد نقش‌هاست
+      const acc = modules[row.moduleCode] ?? { ...NO_ACCESS };
+      modules[row.moduleCode] = {
+        canViewAll: acc.canViewAll || row.canViewAll,
+        canViewOwn: acc.canViewOwn || row.canViewOwn,
+        canCreate: acc.canCreate || row.canCreate,
+        canEdit: acc.canEdit || row.canEdit,
+        canDelete: acc.canDelete || row.canDelete,
+      };
+    }
+    for (const o of overrides) {
+      modules[o.moduleCode] = { canViewAll: o.canViewAll, canViewOwn: o.canViewOwn, canCreate: o.canCreate, canEdit: o.canEdit, canDelete: o.canDelete };
+    }
+    return { manager: false, modules };
+  }
+
   async getEffective(ctx: TenantRequestContext, moduleCode: string): Promise<ModuleMatrix> {
     if (ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN') return FULL_ACCESS;
 

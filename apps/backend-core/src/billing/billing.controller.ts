@@ -1,4 +1,6 @@
 import { Controller, ForbiddenException, Get, NotFoundException, Param, Res, UseGuards } from '@nestjs/common';
+import { RolesGuard } from '../common/guards/roles.guard.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
@@ -34,10 +36,13 @@ export class BillingController {
       hoursLeft,
       currentPeriodEnd: subscription.currentPeriodEnd,
       autoRenew: subscription.autoRenew,
+      lifetime: subscription.lifetime,
     };
   }
 
   @Get('invoices')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   invoices(@Ctx() ctx: TenantRequestContext) {
     return this.controlDb.invoice.findMany({
       where: { tenantId: ctx.tenantId },
@@ -46,6 +51,8 @@ export class BillingController {
   }
 
   @Get('invoices/:id/pdf')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   async invoicePdfDownload(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     const invoice = await this.controlDb.invoice.findUnique({
       where: { id },

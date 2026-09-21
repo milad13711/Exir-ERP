@@ -12,13 +12,22 @@ import { VoipCallOverlay } from "@/components/voip/VoipCallOverlay";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon, LogoMark } from "@/components/icons";
+import { usePathname } from "next/navigation";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
+import { canViewModule, canViewSettingsItem } from "@/lib/access";
+import { primaryNav } from "./nav";
 
 function AppShellInner({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportUnread, setSupportUnread] = useState(false);
-  const { loading, license } = useWorkspace();
+  const { loading, license, me, installedModules } = useWorkspace();
+  const pathname = usePathname();
+  const navMatch = primaryNav.filter((i) => i.moduleCode && (pathname === i.href || pathname.startsWith(`${i.href}/`))).sort((a, b) => b.href.length - a.href.length)[0];
+  const noAccess =
+    !!me &&
+    ((navMatch && !canViewModule(me, installedModules, navMatch.moduleCode)) ||
+      (pathname.startsWith("/settings/") && !canViewSettingsItem(me, pathname.replace(/\/$/, "")) ));
 
   if (loading) {
     return (
@@ -51,7 +60,16 @@ function AppShellInner({ children }: { children: ReactNode }) {
           onOpenMobileNav={() => setMobileNavOpen(true)}
           supportUnread={supportUnread}
         />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto">
+          {noAccess ? (
+            <div className="p-10 text-center">
+              <div className="text-lg font-extrabold mb-2">به این بخش دسترسی ندارید</div>
+              <p className="text-[13.5px] text-muted">برای دریافت دسترسی با مدیر مجموعه تماس بگیرید.</p>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
         <MobileBottomNav />
       </div>
 

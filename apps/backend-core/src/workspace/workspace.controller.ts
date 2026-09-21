@@ -4,6 +4,7 @@ import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
@@ -21,6 +22,7 @@ export class WorkspaceController {
     private readonly controlDb: ControlPrismaService,
     private readonly auth: AuthService,
     private readonly stamp: CompanyStampService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   @Get()
@@ -45,6 +47,7 @@ export class WorkspaceController {
       },
       tenant: { name: tenant.name, slug: tenant.slug, themeColor: tenant.themeColor },
       navOrder: tenantUser?.navOrder ?? [],
+      permissions: await this.permissions.effectiveMatrix(ctx),
     };
   }
 

@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
-import { fetchSmsPackages, updateSmsPackage, type SmsPackage } from "@/lib/api";
+import { fetchSmsPackages, updateSmsPackage, createSmsPackage, deleteSmsPackage, type SmsPackage } from "@/lib/api";
 
 /** قیمت بسته‌های پیامکی پنل سیستمی — تننت‌ها فقط بسته‌ی فعال با قیمت بیش‌از صفر را می‌بینند و می‌خرند. */
 export default function SmsPackagesPage() {
   const [packages, setPackages] = useState<SmsPackage[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [creditDrafts, setCreditDrafts] = useState<Record<string, string>>({});
+  const [newCredits, setNewCredits] = useState("");
+  const [newPrice, setNewPrice] = useState("");
   const [savingCode, setSavingCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -15,11 +18,12 @@ export default function SmsPackagesPage() {
       .then((rows) => {
         setPackages(rows);
         setDrafts(Object.fromEntries(rows.map((p) => [p.code, String(p.priceToman)])));
+        setCreditDrafts(Object.fromEntries(rows.map((p) => [p.code, String(p.credits)])));
       })
       .catch(() => setPackages([]));
   }, []);
 
-  async function save(p: SmsPackage, patch: { priceToman?: number; isActive?: boolean }) {
+  async function save(p: SmsPackage, patch: { priceToman?: number; isActive?: boolean; credits?: number }) {
     setSavingCode(p.code);
     try {
       const updated = await updateSmsPackage(p.code, patch);
@@ -42,7 +46,17 @@ export default function SmsPackagesPage() {
         ) : (
           packages.map((p, i) => (
             <div key={p.code} className={`flex items-center gap-3 px-4 py-3.5 flex-wrap ${i < packages.length - 1 ? "border-b border-border" : ""}`}>
-              <div className="w-[130px] text-[14px] font-extrabold">{p.credits.toLocaleString("fa-IR")} پیامک</div>
+              <input
+                type="number"
+                min={1}
+                value={creditDrafts[p.code] ?? ""}
+                onChange={(e) => setCreditDrafts((d) => ({ ...d, [p.code]: e.target.value }))}
+                onBlur={() => Number(creditDrafts[p.code]) > 0 && Number(creditDrafts[p.code]) !== p.credits && save(p, { credits: Number(creditDrafts[p.code]) })}
+                className="w-[100px] text-[13px] font-extrabold outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                dir="ltr"
+                title="تعداد پیامک بسته"
+              />
+              <span className="text-[12px] font-bold">پیامک</span>
               <input
                 type="number"
                 min={0}
@@ -63,9 +77,38 @@ export default function SmsPackagesPage() {
                 <input type="checkbox" checked={p.isActive} onChange={(e) => save(p, { isActive: e.target.checked })} className="w-4 h-4 cursor-pointer" />
                 <span className="text-[12.5px] font-semibold">فعال برای فروش</span>
               </label>
+              <button
+                onClick={async () => {
+                  if (!window.confirm("این بسته حذف شود؟")) return;
+                  await deleteSmsPackage(p.code);
+                  setPackages((prev) => prev?.filter((x) => x.code !== p.code) ?? prev);
+                }}
+                className="text-[11.5px] font-bold text-danger px-2 cursor-pointer"
+              >
+                حذف
+              </button>
             </div>
           ))
         )}
+      </Card>
+      <Card className="p-4 mt-4 flex items-center gap-2.5 flex-wrap">
+        <span className="text-[12.5px] font-bold">بسته‌ی جدید:</span>
+        <input type="number" min={1} value={newCredits} onChange={(e) => setNewCredits(e.target.value)} placeholder="تعداد پیامک" dir="ltr" className="w-[130px] text-[13px] outline-none bg-surface border border-border rounded-lg px-3 py-2" />
+        <input type="number" min={0} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="قیمت (تومان)" dir="ltr" className="w-[160px] text-[13px] outline-none bg-surface border border-border rounded-lg px-3 py-2" />
+        <button
+          disabled={!Number(newCredits)}
+          onClick={async () => {
+            const created = await createSmsPackage({ credits: Number(newCredits), priceToman: Number(newPrice) || 0 });
+            setPackages((prev) => [...(prev ?? []), created]);
+            setDrafts((d) => ({ ...d, [created.code]: String(created.priceToman) }));
+            setCreditDrafts((d) => ({ ...d, [created.code]: String(created.credits) }));
+            setNewCredits("");
+            setNewPrice("");
+          }}
+          className="text-[12px] font-bold text-white bg-primary px-4 py-2 rounded-lg disabled:opacity-40 cursor-pointer"
+        >
+          افزودن
+        </button>
       </Card>
     </div>
   );

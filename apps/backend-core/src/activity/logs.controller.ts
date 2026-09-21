@@ -1,4 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { RolesGuard } from '../common/guards/roles.guard.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -24,7 +26,8 @@ function parseDateRange(from: string | undefined, to: string | undefined) {
  * widget) so that page's response shape can stay simple and unpaginated.
  */
 @Controller('logs')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('OWNER', 'ADMIN')
 export class LogsController {
   constructor(private readonly controlDb: ControlPrismaService) {}
 

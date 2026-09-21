@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { UsersService } from '../users/users.service.js';
 import { ReferralCommissionService } from './referral-commission.service.js';
@@ -18,11 +19,113 @@ const RESELLER_INCLUDE = {
  * تصمیم معماری این ماژول: بدون ساخت هیچ مدل/استک موازی جدید.
  */
 @Injectable()
-export class ResellersService {
+export class ResellersService implements OnModuleInit {
   constructor(
     private readonly users: UsersService,
     private readonly commissionService: ReferralCommissionService,
+    private readonly approvals: ApprovalsService,
   ) {}
+
+  onModuleInit(): void {
+    // درخواست پایان همکاری از سوی نماینده → کارتابل مدیر؛ تأیید = پایان همکاری + صورتحساب مانده
+    this.approvals.registerHandler('RESELLER_END', {
+      approve: async (ctx, id, opts) => {
+        await this.endCooperation(ctx, id, opts.requestSummary ?? 'درخواست نماینده');
+      },
+      reject: async (ctx, id) => {
+        await ctx.tenantDb.resellerProfile.update({ where: { id }, data: { cooperationStatus: 'ACTIVE', endRequestedAt: null } });
+      },
+      describe: async (ctx, id) => {
+        const r = await ctx.tenantDb.resellerProfile.findUniqueOrThrow({ where: { id }, include: { contact: true } });
+        const b = await this.balance(ctx, id);
+        return {
+          fields: [
+            { label: 'نماینده', value: `${r.contact.company || r.contact.name} — ${r.contact.phone ?? ''}` },
+            { label: 'کل کمیسیون', value: `${b.totalCommission.toLocaleString('en-US')} تومان` },
+            { label: 'پرداخت‌شده', value: `${b.paidCommission.toLocaleString('en-US')} تومان` },
+            { label: 'مانده‌ی تسویه', value: `${b.amountDue.toLocaleString('en-US')} تومان` },
+          ],
+        };
+      },
+    });
+  }
+
+  /** مانده‌ی کمیسیون نماینده: هر کمیسیون یک سفارش خرید (بدهی) است؛ مانده = مبلغ کمیسیون − پرداخت‌شده‌ی همان سفارش. */
+  async balance(ctx: TenantRequestContext, id: string) {
+    const commissions = await ctx.tenantDb.referralCommission.findMany({
+      where: { referralConversion: { resellerProfileId: id } },
+      include: { referralConversion: { select: { contact: { select: { name: true, company: true } } } }, purchaseOrder: { select: { orderNo: true, paidAmount: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const lines = commissions.map((c) => {
+      const paid = Math.min(c.purchaseOrder.paidAmount, c.amount);
+      return {
+        customer: c.referralConversion.contact.company || c.referralConversion.contact.name,
+        kind: c.kind,
+        orderNo: c.purchaseOrder.orderNo,
+        amount: c.amount,
+        paid,
+        due: c.amount - paid,
+      };
+    });
+    const totalCommission = lines.reduce((a, l) => a + l.amount, 0);
+    const paidCommission = lines.reduce((a, l) => a + l.paid, 0);
+    return { lines, totalCommission, paidCommission, amountDue: totalCommission - paidCommission };
+  }
+
+  async generateSettlement(ctx: TenantRequestContext, id: string, note?: string) {
+    await this.detail(ctx, id);
+    const b = await this.balance(ctx, id);
+    return ctx.tenantDb.resellerSettlement.create({
+      data: { resellerProfileId: id, totalCommission: b.totalCommission, paidCommission: b.paidCommission, amountDue: b.amountDue, lines: b.lines, note },
+    });
+  }
+
+  listSettlements(ctx: TenantRequestContext, id: string) {
+    return ctx.tenantDb.resellerSettlement.findMany({ where: { resellerProfileId: id }, orderBy: { issuedAt: 'desc' } });
+  }
+
+  async settle(ctx: TenantRequestContext, settlementId: string) {
+    const s = await ctx.tenantDb.resellerSettlement.findUnique({ where: { id: settlementId } });
+    if (!s) throw new NotFoundException('صورتحساب یافت نشد');
+    if (s.status === 'SETTLED') throw new ConflictException('این صورتحساب قبلاً تسویه شده است');
+    return ctx.tenantDb.resellerSettlement.update({ where: { id: settlementId }, data: { status: 'SETTLED', settledAt: new Date() } });
+  }
+
+  /** پایان همکاری: نمایش روی نقشه متوقف می‌شود و صورتحساب مانده‌ی تسویه صادر می‌شود. */
+  async endCooperation(ctx: TenantRequestContext, id: string, reason: string) {
+    const r = await this.detail(ctx, id);
+    if (r.cooperationStatus === 'ENDED') throw new ConflictException('همکاری این نماینده قبلاً پایان یافته است');
+    await ctx.tenantDb.resellerProfile.update({
+      where: { id },
+      data: { cooperationStatus: 'ENDED', endedAt: new Date(), endReason: reason, hiddenFromMap: true, endRequestedAt: null },
+    });
+    await this.approvals.closeForEntity(ctx, 'RESELLER_END', id, 'APPROVED');
+    return this.generateSettlement(ctx, id, `پایان همکاری: ${reason}`);
+  }
+
+  async setMapVisibility(ctx: TenantRequestContext, id: string, hidden: boolean) {
+    await this.detail(ctx, id);
+    return ctx.tenantDb.resellerProfile.update({ where: { id }, data: { hiddenFromMap: hidden }, include: RESELLER_INCLUDE });
+  }
+
+  /** نماینده خودش پایان همکاری را درخواست می‌دهد؛ تا تأیید مدیر همکاری ادامه دارد. */
+  async requestEnd(ctx: TenantRequestContext, id: string, reason: string) {
+    const r = await this.detail(ctx, id);
+    if (r.cooperationStatus !== 'ACTIVE') throw new ConflictException('درخواست پایان همکاری قبلاً ثبت شده یا همکاری پایان یافته است');
+    if (reason.trim().length < 3) throw new BadRequestException('دلیل را بنویسید');
+    await ctx.tenantDb.resellerProfile.update({ where: { id }, data: { cooperationStatus: 'END_REQUESTED', endRequestedAt: new Date() } });
+    const name = r.contact.company || r.contact.name;
+    await this.approvals.request(ctx, {
+      moduleCode: 'referral-marketing',
+      entityType: 'RESELLER_END',
+      entityId: id,
+      title: `پایان همکاری نماینده ${name}`,
+      summary: reason.trim(),
+      link: '/referral-marketing',
+    });
+    return { success: true };
+  }
 
   list(ctx: TenantRequestContext) {
     return ctx.tenantDb.resellerProfile.findMany({

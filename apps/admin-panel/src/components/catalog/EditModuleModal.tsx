@@ -22,6 +22,7 @@ export function EditModuleModal({
   const [description, setDescription] = useState(module?.description ?? "");
   const [category, setCategory] = useState(module?.category ?? "");
   const [priceMonthly, setPriceMonthly] = useState(String(module?.priceMonthly ?? 0));
+  const [licenseUsd, setLicenseUsd] = useState(String(module?.licenseUsd ?? 0));
   const [priceYearly, setPriceYearly] = useState(module?.priceYearly ? String(module.priceYearly) : "");
   const [isCore, setIsCore] = useState(module?.isCore ?? false);
   const [featuresText, setFeaturesText] = useState((module?.features ?? []).join("\n"));
@@ -48,7 +49,8 @@ export function EditModuleModal({
         name: name.trim(),
         description: description.trim(),
         category: category.trim(),
-        priceMonthly: Number(priceMonthly || 0),
+        priceMonthly: Number(licenseUsd) > 0 ? undefined : Number(priceMonthly || 0),
+        licenseUsd: Number(licenseUsd || 0),
         isCore,
         features: featuresText
           .split("\n")
@@ -56,7 +58,7 @@ export function EditModuleModal({
           .filter(Boolean),
         version: version.trim() || "1.0.0",
         dependsOn,
-        priceYearly: priceYearly ? Number(priceYearly) : undefined,
+        priceYearly: Number(licenseUsd) > 0 ? undefined : priceYearly ? Number(priceYearly) : undefined,
         demoDescription: demoDescription.trim() || undefined,
         demoValueProps: demoValuePropsText
           .split("\n")
@@ -114,11 +116,26 @@ export function EditModuleModal({
             placeholder={"مدیریت مخاطبین\nقیف فروش"}
           />
         </div>
+        <div className="bg-primary-soft rounded-xl p-3.5 flex flex-col gap-2">
+          <label className={labelClass}>قیمت پایه‌ی دلاری (لایسنس مادام‌العمر)</label>
+          <input
+            value={licenseUsd}
+            onChange={(e) => setLicenseUsd(e.target.value.replace(/[^0-9]/g, ""))}
+            className={inputClass}
+            dir="ltr"
+            inputMode="numeric"
+          />
+          <div className="text-[11.5px] text-ink-soft leading-6">
+            اگر بیش از صفر باشد، همه‌ی قیمت‌ها از همین عدد مشتق می‌شوند و با نرخ روز دلار خودکار به‌روز می‌شوند: سالانه = لایسنس ÷ ۴، ماهانه = سالانه ÷ ۱۰. صفر یعنی قیمت تومانی دستی (پایین).
+            {Number(licenseUsd) > 0 ? " قیمت‌های دستی زیر نادیده گرفته می‌شود." : ""}
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-3 items-end">
           <div>
             <label className={labelClass}>قیمت ماهانه (تومان)</label>
             <input
               value={priceMonthly}
+              disabled={Number(licenseUsd) > 0}
               onChange={(e) => setPriceMonthly(e.target.value.replace(/[^0-9]/g, ""))}
               className={inputClass}
               dir="ltr"
@@ -129,6 +146,7 @@ export function EditModuleModal({
             <label className={labelClass}>قیمت سالانه (تومان)</label>
             <input
               value={priceYearly}
+              disabled={Number(licenseUsd) > 0}
               onChange={(e) => setPriceYearly(e.target.value.replace(/[^0-9]/g, ""))}
               className={inputClass}
               dir="ltr"
@@ -142,7 +160,7 @@ export function EditModuleModal({
           </div>
         </div>
         <div className="text-[11px] text-muted -mt-1.5">
-          قیمت لایسنس (خرید یک‌باره) خودکار محاسبه می‌شود: ۸ برابر قیمت سالانه، بدون تخفیف.
+          قیمت لایسنس (خرید یک‌باره، مادام‌العمر) خودکار محاسبه می‌شود: ۴ برابر قیمت سالانه؛ سالانه = ۱۰ برابر ماهانه.
         </div>
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer">
           <input

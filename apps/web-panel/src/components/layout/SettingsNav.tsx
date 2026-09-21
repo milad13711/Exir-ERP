@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { settingsNav } from "./settings-nav-items";
+import { canViewSettingsItem } from "@/lib/access";
 import { useWorkspace } from "@/lib/workspace-context";
 
 export function SettingsNav() {
   const pathname = usePathname();
-  const { installedModules } = useWorkspace();
-  const visibleNav = settingsNav.filter((item) => !item.moduleCode || installedModules.has(item.moduleCode));
+  const { installedModules, me } = useWorkspace();
+  const visibleNav = settingsNav.filter((item) => (!item.moduleCode || installedModules.has(item.moduleCode)) && canViewSettingsItem(me, item.href));
 
   return (
     <nav className="flex flex-col gap-1">

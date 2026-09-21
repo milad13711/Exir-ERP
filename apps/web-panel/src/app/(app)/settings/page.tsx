@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { settingsNav } from "@/components/layout/settings-nav-items";
+import { canViewSettingsItem } from "@/lib/access";
 import { useWorkspace } from "@/lib/workspace-context";
 import { ChevronDownIcon } from "@/components/icons";
 
@@ -11,8 +12,8 @@ import { ChevronDownIcon } from "@/components/icons";
  * روی گوشی هم قابل دسترسی باشند، نه فقط از سایدبار دسکتاپ.
  */
 export default function SettingsIndexPage() {
-  const { installedModules } = useWorkspace();
-  const visibleNav = settingsNav.filter((item) => !item.moduleCode || installedModules.has(item.moduleCode));
+  const { installedModules, me } = useWorkspace();
+  const visibleNav = settingsNav.filter((item) => (!item.moduleCode || installedModules.has(item.moduleCode)) && canViewSettingsItem(me, item.href));
 
   return (
     <div className="max-w-[560px]">

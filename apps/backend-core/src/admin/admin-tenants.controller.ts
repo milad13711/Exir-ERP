@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { AdminTeamsGuard } from '../common/guards/admin-teams.guard.js';
@@ -13,6 +13,8 @@ import { SuspendTenantDto } from './dto/suspend-tenant.dto.js';
 import { RenewTenantDto } from './dto/renew-tenant.dto.js';
 import { DeleteTenantDto } from './dto/delete-tenant.dto.js';
 import { SetTenantModuleDto } from './dto/set-tenant-module.dto.js';
+import { UpdateSubscriptionDto } from './dto/update-subscription.dto.js';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto.js';
 import { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 
 /**
@@ -90,6 +92,12 @@ export class AdminTenantsController {
     return this.tenants.reactivateTenant(id, ctx.auth.sub);
   }
 
+  @Put(':id/subscription')
+  @AdminTeams('SUPER_ADMIN', 'BILLING')
+  updateSubscription(@Param('id') id: string, @Body() dto: UpdateSubscriptionDto, @AdminCtx() ctx: AdminRequestContext) {
+    return this.tenants.updateSubscription(id, { currentPeriodEnd: dto.currentPeriodEnd ? new Date(dto.currentPeriodEnd) : undefined, status: dto.status, lifetime: dto.lifetime, planCode: dto.planCode }, ctx.auth.sub);
+  }
+
   @Post(':id/renew')
   @AdminTeams('SUPER_ADMIN', 'BILLING')
   renew(@Param('id') id: string, @Body() dto: RenewTenantDto, @AdminCtx() ctx: AdminRequestContext) {
@@ -107,7 +115,7 @@ export class AdminTenantsController {
   createInvoice(@Param('id') id: string, @Body() dto: CreateInvoiceDto, @AdminCtx() ctx: AdminRequestContext) {
     return this.tenants.createInvoice(
       id,
-      { amount: dto.amount, dueAt: new Date(dto.dueAt), subscriptionId: dto.subscriptionId },
+      { amount: dto.amount, dueAt: new Date(dto.dueAt), subscriptionId: dto.subscriptionId, lines: dto.lines },
       ctx.auth.sub,
     );
   }
@@ -120,6 +128,24 @@ export class AdminTenantsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="invoice-${invoiceId.slice(0, 8)}.pdf"`);
     res.send(pdf);
+  }
+
+  @Put(':id/invoices/:invoiceId')
+  @AdminTeams('SUPER_ADMIN', 'BILLING')
+  updateInvoice(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @Body() dto: UpdateInvoiceDto, @AdminCtx() ctx: AdminRequestContext) {
+    return this.tenants.updateInvoice(id, invoiceId, { amount: dto.amount, dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined, status: dto.status, lines: dto.lines }, ctx.auth.sub);
+  }
+
+  @Delete(':id/invoices/:invoiceId')
+  @AdminTeams('SUPER_ADMIN', 'BILLING')
+  deleteInvoice(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @AdminCtx() ctx: AdminRequestContext) {
+    return this.tenants.deleteInvoice(id, invoiceId, ctx.auth.sub);
+  }
+
+  @Post(':id/invoices/:invoiceId/mark-unpaid')
+  @AdminTeams('SUPER_ADMIN', 'BILLING')
+  markInvoiceUnpaid(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @AdminCtx() ctx: AdminRequestContext) {
+    return this.tenants.markInvoiceUnpaid(id, invoiceId, ctx.auth.sub);
   }
 
   @Post(':id/invoices/:invoiceId/mark-paid')

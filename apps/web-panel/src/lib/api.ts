@@ -275,6 +275,7 @@ export type Me = {
   };
   tenant: { name: string; slug: string; themeColor: string | null };
   navOrder: string[];
+  permissions?: { manager: boolean; modules: Record<string, { canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }> };
 };
 
 export function fetchMe() {
@@ -345,6 +346,7 @@ export type Subscription = {
   hoursLeft: number;
   currentPeriodEnd: string;
   autoRenew: boolean;
+  lifetime?: boolean;
 } | null;
 
 export type LicenseStatus =
@@ -6683,6 +6685,9 @@ export type Reseller = {
   npsAvgScore: number | null;
   bio?: string | null;
   city?: string | null;
+  cooperationStatus?: "ACTIVE" | "END_REQUESTED" | "ENDED";
+  hiddenFromMap?: boolean;
+  endReason?: string | null;
   createdAt: string;
   contact: { id: string; name: string; company: string | null; phone: string | null; address: string | null };
   user: { id: string; phone: string; status: string } | null;
@@ -6936,4 +6941,39 @@ export function updateJournalEntry(id: string, data: Parameters<typeof createJou
 
 export function updatePurchaseOrder(id: string, data: Parameters<typeof createPurchaseOrder>[0]) {
   return apiFetch<PurchaseOrderDetail>(`/purchasing/orders/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+// ── پایان همکاری نماینده و صورتحساب مانده‌ی تسویه ───────────────────────────
+export type ResellerSettlement = {
+  id: string;
+  number: number;
+  totalCommission: number;
+  paidCommission: number;
+  amountDue: number;
+  lines: Array<{ customer: string; kind: string; orderNo: number; amount: number; paid: number; due: number }>;
+  note: string | null;
+  status: "ISSUED" | "SETTLED";
+  issuedAt: string;
+  settledAt: string | null;
+};
+export function fetchResellerSettlements(id: string) {
+  return apiFetch<ResellerSettlement[]>(`/referral-marketing/resellers/${id}/settlements`);
+}
+export function createResellerSettlement(id: string, note?: string) {
+  return apiFetch<ResellerSettlement>(`/referral-marketing/resellers/${id}/settlements`, { method: "POST", body: JSON.stringify({ note }) });
+}
+export function settleResellerSettlement(settlementId: string) {
+  return apiFetch<ResellerSettlement>(`/referral-marketing/resellers/settlements/${settlementId}/settle`, { method: "POST" });
+}
+export function endResellerCooperation(id: string, reason: string) {
+  return apiFetch<ResellerSettlement>(`/referral-marketing/resellers/${id}/end`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function setResellerMapVisibility(id: string, hidden: boolean) {
+  return apiFetch<Reseller>(`/referral-marketing/resellers/${id}/map-visibility`, { method: "POST", body: JSON.stringify({ hidden }) });
+}
+export function requestMyResellerEnd(reason: string) {
+  return apiFetch<{ success: boolean }>("/referral-marketing/me/end-request", { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function fetchMyResellerSettlements() {
+  return apiFetch<ResellerSettlement[]>("/referral-marketing/me/settlements");
 }

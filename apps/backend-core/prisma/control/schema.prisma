@@ -234,6 +234,7 @@ model Subscription {
   currentPeriodEnd DateTime
   autoRenew        Boolean            @default(true)
   cancelledAt      DateTime?
+  lifetime         Boolean            @default(false) // لایسنس مادام‌العمر: هدر «مادام‌العمر» نشان می‌دهد و تاریخ پایان دور (نمایشی) است
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan     Plan      @relation(fields: [planId], references: [id])
@@ -292,6 +293,7 @@ model ModuleDefinition {
   description  String
   category     String
   priceMonthly Int      @default(0) // 0 = included in every plan
+  licenseUsd   Int      @default(0) // قیمت پایه‌ی دلاری (لایسنس مادام‌العمر)؛ >۰ یعنی قیمت‌های تومانی از روی آن و نرخ روز مشتق می‌شوند
   priceYearly  Int? // null = بدون تخفیف سالانه‌ی تعریف‌شده، معادل priceMonthly*12 محاسبه می‌شود
   isCore       Boolean  @default(false) // رایگان و پیش‌فرض فعال — اما همچنان قابل غیرفعال‌سازی توسط تننت
   version      String   @default("1.0.0")

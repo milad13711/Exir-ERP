@@ -46,6 +46,7 @@ import { QrCodeModule } from '../qr-code/qr-code.module.js';
 import { PublicQrCodeController } from './public-qr-code.controller.js';
 import { EmailModule } from '../email/email.module.js';
 import { SiteNotifierService } from './site-notifier.service.js';
+import { ModulePricingSyncService } from './module-pricing-sync.service.js';
 import { RecruitmentModule } from '../recruitment/recruitment.module.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
@@ -123,9 +124,11 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicAfterSalesService,
     PublicRecruitmentService,
     SiteNotifierService,
+    ModulePricingSyncService,
     PublicCertificateService,
     PublicLabReviewService,
     PublicRationResultService,
   ],
+  exports: [ModulePricingSyncService],
 })
 export class PublicModule {}

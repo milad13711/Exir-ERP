@@ -2,6 +2,7 @@ import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { AdminTeamsGuard } from '../common/guards/admin-teams.guard.js';
 import { AdminTeams } from '../common/decorators/admin-teams.decorator.js';
+import { ModulePricingSyncService } from '../public/module-pricing-sync.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { UpsertModuleDto } from './dto/upsert-module.dto.js';
@@ -21,6 +22,7 @@ export class AdminCatalogController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
+    private readonly pricing: ModulePricingSyncService,
   ) {}
 
   @Get('modules')
@@ -29,18 +31,26 @@ export class AdminCatalogController {
     return this.controlDb.moduleDefinition.findMany({ orderBy: { createdAt: 'asc' } });
   }
 
+  /** همگام‌سازی دستی قیمت‌ها از روی قیمت دلاری و نرخ روز. */
+  @Post('modules/sync-prices')
+  @AdminTeams('SUPER_ADMIN', 'BILLING')
+  syncPrices() {
+    return this.pricing.syncAll();
+  }
+
   @Post('modules')
   @AdminTeams('SUPER_ADMIN', 'BILLING')
   async upsertModule(@Body() dto: UpsertModuleDto) {
-    return this.controlDb.moduleDefinition.upsert({
+    const saved = await this.controlDb.moduleDefinition.upsert({
       where: { code: dto.code },
       create: {
         code: dto.code,
         name: dto.name,
         description: dto.description,
         category: dto.category,
-        priceMonthly: dto.priceMonthly,
+        priceMonthly: dto.priceMonthly ?? 0,
         priceYearly: dto.priceYearly,
+        licenseUsd: dto.licenseUsd ?? 0,
         isCore: dto.isCore ?? false,
         features: dto.features ?? [],
         version: dto.version ?? '1.0.0',
@@ -54,8 +64,9 @@ export class AdminCatalogController {
         name: dto.name,
         description: dto.description,
         category: dto.category,
-        priceMonthly: dto.priceMonthly,
+        ...(dto.priceMonthly !== undefined ? { priceMonthly: dto.priceMonthly } : {}),
         priceYearly: dto.priceYearly,
+        ...(dto.licenseUsd !== undefined ? { licenseUsd: dto.licenseUsd } : {}),
         isCore: dto.isCore ?? false,
         features: dto.features ?? [],
         version: dto.version ?? '1.0.0',
@@ -66,6 +77,9 @@ export class AdminCatalogController {
         demoScreenshot2Url: dto.demoScreenshot2Url,
       },
     });
+    // قیمت تومانی از روی قیمت دلاری و نرخ روز همگام می‌شود (اگر licenseUsd تعریف شده باشد)
+    if (saved.licenseUsd > 0) await this.pricing.syncAll();
+    return this.controlDb.moduleDefinition.findUniqueOrThrow({ where: { code: saved.code } });
   }
 
   /** Slim shape for the tenant-creation picker. Full detail is GET :code. */

@@ -1027,6 +1027,37 @@ enum ResellerProductCode {
 }
 
 /// فیلدهای مخصوص نمایندگی، ماهواره‌ای روی یک CrmContact موجود (isSupplier: true).
+enum ResellerCooperationStatus {
+  ACTIVE
+  END_REQUESTED // نماینده درخواست پایان همکاری داده — منتظر تأیید مدیر
+  ENDED
+}
+
+enum ResellerSettlementStatus {
+  ISSUED
+  SETTLED
+}
+
+/// صورتحساب مانده‌ی تسویه‌ی نماینده — کمیسیون‌های تعهدی که هنوز پرداخت نشده در لحظه‌ی صدور.
+model ResellerSettlement {
+  id                String                   @id @default(uuid())
+  number            Int                      @unique @default(autoincrement())
+  resellerProfileId String
+  totalCommission   Int
+  paidCommission    Int
+  amountDue         Int // مانده‌ی قابل پرداخت به نماینده
+  lines             Json
+  note              String?
+  status            ResellerSettlementStatus @default(ISSUED)
+  issuedAt          DateTime                 @default(now())
+  settledAt         DateTime?
+
+  resellerProfile ResellerProfile @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([resellerProfileId])
+  @@map("reseller_settlements")
+}
+
 model ResellerProfile {
   id                            String               @id @default(uuid())
   contactId                     String               @unique
@@ -1041,6 +1072,11 @@ model ResellerProfile {
   commissionRenewalPercent      Int                  @default(5)
   referralCode                  String               @unique @default(uuid())
   npsAvgScore                   Float?
+  cooperationStatus             ResellerCooperationStatus @default(ACTIVE)
+  endRequestedAt                DateTime?
+  endedAt                       DateTime?
+  endReason                     String?
+  hiddenFromMap                 Boolean              @default(false) // ادمین نمایش روی نقشه را متوقف کرده
   bio                           String? // معرفی کوتاه نماینده — روی نقشه‌ی eta.co.ir نمایش داده می‌شود
   city                          String? // برای پین‌گذاری روی نقشه‌ی نمایندگان (eta.co.ir)
   productCode                   ResellerProductCode?
@@ -1050,6 +1086,7 @@ model ResellerProfile {
   contact     CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   conversions ReferralConversion[]
+  settlements ResellerSettlement[]
 
   @@map("reseller_profiles")
 }

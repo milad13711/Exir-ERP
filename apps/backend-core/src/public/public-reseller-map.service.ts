@@ -25,7 +25,7 @@ export class PublicResellerMapService {
     const tenantDb = this.tenantPrisma.forTenant(registryTenant);
 
     const resellers = await tenantDb.resellerProfile.findMany({
-      where: { isVerified: true, city: { not: null }, productCode: productCode ? (productCode as never) : undefined },
+      where: { isVerified: true, hiddenFromMap: false, cooperationStatus: { not: 'ENDED' }, city: { not: null }, productCode: productCode ? (productCode as never) : undefined },
       select: {
         id: true,
         city: true,

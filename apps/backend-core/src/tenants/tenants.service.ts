@@ -450,7 +450,7 @@ export class TenantsService {
    */
   async createInvoice(
     tenantId: string,
-    input: { amount: number; dueAt: Date; subscriptionId?: string },
+    input: { amount: number; dueAt: Date; subscriptionId?: string; lines?: Array<{ name: string; amount: number }> },
     actorAdminId: string,
   ) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { id: tenantId } });
@@ -464,6 +464,7 @@ export class TenantsService {
           amount: input.amount,
           status: 'PENDING',
           dueAt: input.dueAt,
+          items: input.lines?.length ? (input.lines.map((l) => ({ moduleCode: 'manual', moduleName: l.name, billingMode: 'MANUAL', amount: l.amount })) as never) : undefined,
         },
       }),
       this.controlDb.auditLog.create({
@@ -478,6 +479,89 @@ export class TenantsService {
       }),
     ]);
     return invoice;
+  }
+
+  /** تنظیم دستی اشتراک: روز باقی‌مانده (تاریخ پایان)، وضعیت، مادام‌العمر و پلن — با ثبت در لاگ ممیزی. */
+  async updateSubscription(
+    tenantId: string,
+    input: { currentPeriodEnd?: Date; status?: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED'; lifetime?: boolean; planCode?: string },
+    actorAdminId: string,
+  ) {
+    const subscription = await this.controlDb.subscription.findFirst({ where: { tenantId }, orderBy: { startedAt: 'desc' } });
+    if (!subscription) throw new NotFoundException('این تننت اشتراکی ندارد');
+    let planId: string | undefined;
+    if (input.planCode) {
+      const plan = await this.controlDb.plan.findUnique({ where: { code: input.planCode } });
+      if (!plan) throw new NotFoundException('پلن یافت نشد');
+      planId = plan.id;
+    }
+    const lifetime = input.lifetime ?? subscription.lifetime;
+    // مادام‌العمر: تاریخ پایان صد سال بعد (نمایشی)؛ کرون‌های انقضا هرگز آن را منقضی نمی‌کنند
+    const end = input.currentPeriodEnd ?? (input.lifetime && !subscription.lifetime ? new Date(Date.now() + 100 * 365 * 86_400_000) : undefined);
+
+    const updated = await this.controlDb.subscription.update({
+      where: { id: subscription.id },
+      data: { currentPeriodEnd: end, status: input.status, lifetime: input.lifetime, planId },
+    });
+    if (input.status === 'ACTIVE' || input.status === 'TRIAL') {
+      await this.controlDb.tenant.updateMany({ where: { id: tenantId, status: 'PENDING_PAYMENT' }, data: { status: 'ACTIVE' } });
+    }
+    await this.controlDb.auditLog.create({
+      data: { actorType: 'admin_user', actorId: actorAdminId, tenantId, action: 'subscription.updated', entityType: 'Subscription', entityId: subscription.id, metadata: { before: { end: subscription.currentPeriodEnd, status: subscription.status, lifetime: subscription.lifetime }, after: { end, status: input.status, lifetime } } as never },
+    });
+    return updated;
+  }
+
+  /** ویرایش فاکتور توسط ادمین (مبلغ، مهلت، ردیف‌های دستی، وضعیت غیرپرداخت). */
+  async updateInvoice(
+    tenantId: string,
+    invoiceId: string,
+    input: { amount?: number; dueAt?: Date; status?: 'PENDING' | 'FAILED'; lines?: Array<{ name: string; amount: number }> },
+    actorAdminId: string,
+  ) {
+    const invoice = await this.controlDb.invoice.findFirst({ where: { id: invoiceId, tenantId } });
+    if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
+    const updated = await this.controlDb.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        amount: input.amount,
+        dueAt: input.dueAt,
+        status: input.status,
+        ...(input.status ? { paidAt: null, paymentRefId: null } : {}),
+        ...(input.lines ? { items: input.lines.map((l) => ({ moduleCode: 'manual', moduleName: l.name, billingMode: 'MANUAL', amount: l.amount })) as never } : {}),
+      },
+    });
+    await this.controlDb.auditLog.create({
+      data: { actorType: 'admin_user', actorId: actorAdminId, tenantId, action: 'invoice.updated', entityType: 'Invoice', entityId: invoiceId, metadata: { before: { amount: invoice.amount, status: invoice.status }, after: input } as never },
+    });
+    return updated;
+  }
+
+  /** بازگرداندن فاکتور «پرداخت‌شده» به «در انتظار» — برای پرداخت‌های غیرواقعی (سندباکس). ماژول/اشتراکی که با آن پرداخت فعال شده به‌طور خودکار برنمی‌گردد. */
+  async markInvoiceUnpaid(tenantId: string, invoiceId: string, actorAdminId: string) {
+    const invoice = await this.controlDb.invoice.findFirst({ where: { id: invoiceId, tenantId } });
+    if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
+    const updated = await this.controlDb.invoice.update({
+      where: { id: invoiceId },
+      data: { status: 'PENDING', paidAt: null, paymentRefId: null, zarinpalAuthority: null },
+    });
+    await this.controlDb.auditLog.create({
+      data: { actorType: 'admin_user', actorId: actorAdminId, tenantId, action: 'invoice.marked_unpaid', entityType: 'Invoice', entityId: invoiceId, metadata: { previousPaidAt: invoice.paidAt } as never },
+    });
+    return updated;
+  }
+
+  /** حذف فاکتور (مثلاً فاکتورهای قدیمی پرداخت‌شده‌ی غیرواقعی) — با ثبت در لاگ ممیزی. */
+  async deleteInvoice(tenantId: string, invoiceId: string, actorAdminId: string) {
+    const invoice = await this.controlDb.invoice.findFirst({ where: { id: invoiceId, tenantId } });
+    if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
+    await this.controlDb.$transaction([
+      this.controlDb.invoice.delete({ where: { id: invoiceId } }),
+      this.controlDb.auditLog.create({
+        data: { actorType: 'admin_user', actorId: actorAdminId, tenantId, action: 'invoice.deleted', entityType: 'Invoice', entityId: invoiceId, metadata: { amount: invoice.amount, status: invoice.status, purpose: invoice.purpose } as never },
+      }),
+    ]);
+    return { success: true };
   }
 
   async markInvoicePaid(invoiceId: string, actorAdminId: string) {

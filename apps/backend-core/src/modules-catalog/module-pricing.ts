@@ -1,14 +1,15 @@
 import type { ModuleDefinition } from '../../generated/control-client/index.js';
 import type { ModuleBillingMode } from '../../generated/control-client/index.js';
+import { LICENSE_TO_YEARLY_DIVISOR, YEARLY_TO_MONTHLY_DIVISOR } from './module-license-usd.js';
 
-/** بدون تخفیف سالانه‌ی تعریف‌شده در کاتالوگ، معادل ۱۲ ماه محاسبه می‌شود. */
+/** سالانه‌ی تعریف‌شده؛ وگرنه ۱۰ برابر ماهانه (دو ماه رایگان) — همان قاعده‌ی مشتق‌شده از قیمت دلاری. */
 export function moduleYearlyPrice(m: Pick<ModuleDefinition, 'priceMonthly' | 'priceYearly'>): number {
-  return m.priceYearly ?? m.priceMonthly * 12;
+  return m.priceYearly ?? m.priceMonthly * YEARLY_TO_MONTHLY_DIVISOR;
 }
 
-/** قیمت استاندارد لایسنس (خرید یک‌باره) — همیشه ۸ برابر اشتراک سالانه، بدون تخفیف. */
+/** قیمت استاندارد لایسنس مادام‌العمر (خرید یک‌باره) — ۴ برابر اشتراک سالانه؛ سالانه ۱۰ برابر ماهانه (module-license-usd.ts). */
 export function moduleLicensePrice(m: Pick<ModuleDefinition, 'priceMonthly' | 'priceYearly'>): number {
-  return moduleYearlyPrice(m) * 8;
+  return moduleYearlyPrice(m) * LICENSE_TO_YEARLY_DIVISOR;
 }
 
 export function modulePriceForMode(

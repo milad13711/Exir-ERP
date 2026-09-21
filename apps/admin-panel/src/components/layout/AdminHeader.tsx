@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "وظایف" },
   { href: "/leads", label: "فروش" },
   { href: "/reseller-applications", label: "درخواست نمایندگی" },
+  { href: "/resellers", label: "همکاران" },
   { href: "/sms-packages", label: "بسته‌های پیامک" },
   { href: "/licenses", label: "لایسنس‌ها" },
   { href: "/logs", label: "لاگ‌ها" },
