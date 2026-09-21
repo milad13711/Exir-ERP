@@ -9,6 +9,8 @@ import {
   fetchInternalTasks,
   createInternalTask,
   toggleInternalTask,
+  updateInternalTask,
+  deleteInternalTask,
   fetchStaff,
   type InternalTask,
   type StaffMember,
@@ -47,6 +49,17 @@ export default function TasksPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleEdit(id: string, patch: { title?: string; description?: string }) {
+    await updateInternalTask(id, patch);
+    reload();
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("این وظیفه حذف شود؟")) return;
+    await deleteInternalTask(id);
+    reload();
   }
 
   async function handleToggle(id: string) {
@@ -105,14 +118,14 @@ export default function TasksPage() {
         ) : open.length === 0 ? (
           <div className="p-8 text-center text-muted text-sm">وظیفه‌ی بازی نیست</div>
         ) : (
-          open.map((t, i) => <TaskRow key={t.id} task={t} onToggle={handleToggle} isLast={i === open.length - 1} />)
+          open.map((t, i) => <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} isLast={i === open.length - 1} />)
         )}
       </Card>
 
       {done.length > 0 ? (
         <Card className="mt-4 p-2 opacity-70">
           {done.map((t, i) => (
-            <TaskRow key={t.id} task={t} onToggle={handleToggle} isLast={i === done.length - 1} />
+            <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} isLast={i === done.length - 1} />
           ))}
         </Card>
       ) : null}
@@ -120,8 +133,23 @@ export default function TasksPage() {
   );
 }
 
-function TaskRow({ task, onToggle, isLast }: { task: InternalTask; onToggle: (id: string) => void; isLast: boolean }) {
+function TaskRow({
+  task,
+  onToggle,
+  onEdit,
+  onDelete,
+  isLast,
+}: {
+  task: InternalTask;
+  onToggle: (id: string) => void;
+  onEdit: (id: string, patch: { title?: string; description?: string }) => Promise<void>;
+  onDelete: (id: string) => void;
+  isLast: boolean;
+}) {
   const done = task.status === "DONE";
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
   return (
     <div className={`flex items-center gap-3 px-4 py-3 ${isLast ? "" : "border-b border-border"}`}>
       <button
@@ -133,7 +161,19 @@ function TaskRow({ task, onToggle, isLast }: { task: InternalTask; onToggle: (id
         <CheckIcon className="w-3.5 h-3.5" />
       </button>
       <div className="flex-1 min-w-0">
+        {editing ? (
+          <div className="flex flex-col gap-1.5">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-1.5" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="توضیحات" className="text-[12px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-1.5" />
+            <div className="flex gap-2">
+              <button onClick={async () => { await onEdit(task.id, { title, description }); setEditing(false); }} className="text-[11.5px] font-bold text-white bg-primary px-3 py-1 rounded-lg cursor-pointer">ذخیره</button>
+              <button onClick={() => setEditing(false)} className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3 py-1 rounded-lg cursor-pointer">انصراف</button>
+            </div>
+          </div>
+        ) : (
+          <>
         <div className={`text-[13px] font-semibold ${done ? "line-through text-muted" : ""}`}>{task.title}</div>
+        {task.description ? <div className="text-[11.5px] text-ink-soft mt-0.5">{task.description}</div> : null}
         <div className="text-[11px] text-muted mt-0.5 flex items-center gap-2">
           {task.assignedTo ? <span>ارجاع به {task.assignedTo.name}</span> : <span>بدون ارجاع</span>}
           {task.dueAt ? (
@@ -143,7 +183,15 @@ function TaskRow({ task, onToggle, isLast }: { task: InternalTask; onToggle: (id
             </span>
           ) : null}
         </div>
+          </>
+        )}
       </div>
+      {!editing && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => setEditing(true)} className="text-[11px] font-bold text-ink-soft bg-slate-100 px-2.5 py-1 rounded-lg cursor-pointer">ویرایش</button>
+          <button onClick={() => onDelete(task.id)} className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer">حذف</button>
+        </div>
+      )}
       {!done && task.dueAt && new Date(task.dueAt) < new Date() ? <Badge tone="danger">عقب‌افتاده</Badge> : null}
     </div>
   );

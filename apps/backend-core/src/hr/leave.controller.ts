@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, UseGuards } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
@@ -33,6 +33,17 @@ export class LeaveController implements OnModuleInit {
       },
       reject: async (ctx, id) => {
         await this.review(id, 'REJECTED', ctx, true);
+      },
+      describe: async (ctx, id) => {
+        const l = await ctx.tenantDb.leaveRequest.findUniqueOrThrow({ where: { id }, include: { employee: true } });
+        return {
+          fields: [
+            { label: 'پرسنل', value: `${l.employee.fullName} (${l.employee.employeeCode})` },
+            { label: 'نوع مرخصی', value: l.type },
+            { label: 'بازه', value: `${faDate(l.startDate)} تا ${faDate(l.endDate)} — ${l.daysCount} روز` },
+            { label: 'دلیل', value: l.reason ?? '—' },
+          ],
+        };
       },
     });
   }
@@ -82,6 +93,18 @@ export class LeaveController implements OnModuleInit {
       assigneeUserId: manager,
     });
     return created;
+  }
+
+  /** حذف درخواست مرخصی — فقط در انتظار/ردشده؛ مرخصی تأییدشده روی حقوق و حضور اثر دارد. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'hr');
+    const l = await ctx.tenantDb.leaveRequest.findUnique({ where: { id } });
+    if (!l) throw new NotFoundException('درخواست مرخصی یافت نشد');
+    if (l.status === 'APPROVED') throw new ConflictException('مرخصی تأییدشده حذف نمی‌شود');
+    await ctx.tenantDb.leaveRequest.delete({ where: { id } });
+    await this.approvals.closeForEntity(ctx, 'LEAVE_REQUEST', id, 'REJECTED');
+    return { success: true };
   }
 
   @Post(':id/approve')

@@ -26,6 +26,17 @@ export class UsersService implements OnModuleInit {
         await this.executeDelete(ctx, userId);
       },
       reject: async () => undefined,
+      describe: async (ctx, userId) => {
+        const u = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id: userId }, include: { roles: { include: { role: true } } } });
+        return {
+          fields: [
+            { label: 'کاربر', value: u.name },
+            { label: 'موبایل', value: u.phone ?? '—' },
+            { label: 'نقش‌ها', value: u.roles.map((r) => r.role.name).join('، ') || '—' },
+            { label: 'وضعیت', value: u.status },
+          ],
+        };
+      },
     });
   }
 

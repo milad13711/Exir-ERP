@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { tehranParts } from './tehran-time.js';
 import type { SaveAvailabilitySlotsDto } from './dto/save-availability-slots.dto.js';
 
 @Injectable()
@@ -51,8 +52,7 @@ export class StaffAvailabilityService {
     const slots = await ctx.tenantDb.staffAvailabilitySlot.findMany({ where: { userId } });
     if (slots.length === 0) return true;
 
-    const weekday = startAt.getDay();
-    const startMinute = startAt.getHours() * 60 + startAt.getMinutes();
+    const { weekday, minutes: startMinute } = tehranParts(startAt);
     const endMinute = startMinute + (endAt.getTime() - startAt.getTime()) / 60_000;
 
     return slots.some((s) => s.weekday === weekday && s.startMinute <= startMinute && s.endMinute >= endMinute);

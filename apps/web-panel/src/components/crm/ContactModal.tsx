@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { deleteCrmContact } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PhoneIcon, MailIcon, BuildingIcon, PlusIcon } from "@/components/icons";
@@ -32,9 +34,11 @@ export function ContactModal({
   contactId,
   onClose,
   onNewDeal,
+  onDeleted,
 }: {
   contactId: string;
   onClose: () => void;
+  onDeleted?: () => void;
   onNewDeal: (contactId: string) => void;
 }) {
   const { installedModules } = useWorkspace();
@@ -382,6 +386,7 @@ export function ContactModal({
           </div>
         </div>
       )}
+      <DeleteRecordButton confirmText="این مخاطب حذف شود؟ اگر فاکتور یا نوبتی به او وصل باشد حذف نمی‌شود." onDelete={() => deleteCrmContact(contactId)} onDeleted={() => { onDeleted?.(); onClose(); }} />
     </Modal>
   );
 }

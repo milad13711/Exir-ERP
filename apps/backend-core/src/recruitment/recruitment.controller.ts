@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { ConflictException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { safeDelete } from '../common/safe-delete.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -56,6 +57,22 @@ export class RecruitmentController {
   async createPosting(@Body() dto: CreateJobPostingDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.createPosting(ctx, dto);
+  }
+
+  @Delete('postings/:id')
+  async removePosting(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, RECRUITMENT_MODULE_CODE);
+    await safeDelete(() => ctx.tenantDb.jobPosting.delete({ where: { id } }));
+    return { success: true };
+  }
+
+  @Delete('applicants/:id')
+  async removeApplicant(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, RECRUITMENT_MODULE_CODE);
+    const a = await ctx.tenantDb.jobApplicant.findUnique({ where: { id } });
+    if (a?.stage === 'HIRED') throw new ConflictException('متقاضی جذب‌شده حذف نمی‌شود؛ پرونده‌ی پرسنلی او در منابع انسانی است');
+    await safeDelete(() => ctx.tenantDb.jobApplicant.delete({ where: { id } }));
+    return { success: true };
   }
 
   @Patch('postings/:id')

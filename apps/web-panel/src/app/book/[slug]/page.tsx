@@ -3,14 +3,14 @@
 import { use, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { LogoMark, CheckIcon } from "@/components/icons";
-import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
+import { SlotPicker } from "@/components/booking/SlotPicker";
 import { toPersianDigits, formatToman } from "@/lib/persian";
 import {
   fetchPublicServiceTypes,
+  fetchPublicFreeSlots,
   fetchPublicBookingInfo,
   type PublicBookingInfo,
   fetchPublicProviders,
-  fetchPublicHolidays,
   requestBookingOtp,
   verifyBookingOtp,
   createPublicAppointment,
@@ -18,9 +18,7 @@ import {
   ApiError,
   type PublicServiceType,
   type PublicProvider,
-  type IranHoliday,
 } from "@/lib/api";
-import { toJalali } from "@/lib/persian";
 
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 48;
@@ -49,7 +47,6 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
   const [customerName, setCustomerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [holidays, setHolidays] = useState<IranHoliday[]>([]);
   const [info, setInfo] = useState<PublicBookingInfo | null>(null);
 
   useEffect(() => {
@@ -60,19 +57,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
     fetchPublicProviders(slug)
       .then(setProviders)
       .catch(() => setProviders([]));
-    const thisYear = toJalali(new Date()).year;
-    Promise.all([fetchPublicHolidays(slug, thisYear), fetchPublicHolidays(slug, thisYear + 1)])
-      .then(([a, b]) => setHolidays([...a, ...b]))
-      .catch(() => setHolidays([]));
   }, [slug]);
-
-  function isHolidayDate(isoDateOrDateTime: string): boolean {
-    if (!isoDateOrDateTime) return false;
-    const d = new Date(isoDateOrDateTime);
-    if (Number.isNaN(d.getTime())) return false;
-    const j = toJalali(d);
-    return holidays.some((h) => h.month === j.month && h.day === j.day);
-  }
 
   useEffect(() => {
     if (step !== "otp" || secondsLeft <= 0) return;
@@ -88,10 +73,6 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
   function handleDetailsSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!startAt) return;
-    if (!selectedService?.requiresCoordination && isHolidayDate(startAt)) {
-      setError("این روز تعطیل رسمی است، لطفاً روز دیگری را انتخاب کنید");
-      return;
-    }
     setError(null);
     setStep("phone");
   }
@@ -159,7 +140,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
         serviceTypeId: selectedService.id,
         providerUserId: providerUserId || undefined,
         customerName: customerName.trim(),
-        startAt: new Date(startAt).toISOString(),
+        startAt,
         notes: notes.trim() || undefined,
       });
 
@@ -180,6 +161,14 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
       setSubmitting(false);
     }
   }
+
+  const payment = selectedService
+    ? selectedService.requiresFullPayment && selectedService.price > 0
+      ? { isFull: true, amount: selectedService.price }
+      : selectedService.requiresDeposit && (selectedService.depositAmount ?? 0) > 0
+        ? { isFull: false, amount: selectedService.depositAmount ?? 0 }
+        : null
+    : null;
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
@@ -281,16 +270,12 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
               )}
 
               <div>
-                <label className="block text-[13px] font-semibold mb-1.5">تاریخ و ساعت</label>
-                <JalaliDateTimeInput
+                <label className="block text-[13px] font-semibold mb-1.5">وقت آزاد را انتخاب کنید</label>
+                <SlotPicker
+                  loadSlots={(d) => fetchPublicFreeSlots(slug, selectedService.id, providerUserId || undefined, d)}
                   value={startAt}
                   onChange={setStartAt}
-                  disabledDate={
-                    selectedService.requiresCoordination
-                      ? undefined
-                      : (y, m, d) => holidays.some((h) => h.month === m && h.day === d)
-                  }
-                  className="w-full text-[13.5px] outline-none bg-white border-2 border-border focus:border-primary rounded-xl px-3.5 py-3"
+                  refreshKey={`${selectedService.id}:${providerUserId}`}
                 />
               </div>
 
@@ -407,6 +392,14 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
           {step === "confirm" && selectedService && (
             <form onSubmit={handleConfirmSubmit} className="max-w-sm mx-auto w-full flex flex-col gap-4">
               <div className="text-xl font-extrabold mb-1">تکمیل رزرو</div>
+              {payment ? (
+                <div className="text-[13px] leading-7 bg-primary-soft text-ink rounded-xl p-3.5">
+                  <div className="font-bold mb-1">{payment.isFull ? "پرداخت کامل مبلغ جلسه" : "پرداخت بیعانه‌ی رزرو"}</div>
+                  {payment.isFull
+                    ? `مبلغ ${formatToman(payment.amount)} کل هزینه‌ی جلسه است و برای ثبت نهایی رزرو همین حالا در درگاه پرداخت می‌شود.`
+                    : `مبلغ ${formatToman(payment.amount)} فقط بیعانه‌ی رزرو است (کل هزینه‌ی جلسه ${formatToman(selectedService.price)})؛ برای ثبت نهایی جلسه پرداخت می‌شود و باقی‌مانده را در زمان جلسه تسویه می‌کنید.`}
+                </div>
+              ) : null}
               <div>
                 <label className="block text-[13px] font-semibold mb-1.5">نام و نام خانوادگی</label>
                 <input
@@ -421,7 +414,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                 disabled={submitting || !customerName.trim()}
                 className="py-4 rounded-2xl bg-primary text-white text-base font-bold disabled:opacity-40"
               >
-                {submitting ? "در حال ثبت..." : "ثبت نهایی نوبت"}
+                {submitting ? "در حال ثبت..." : payment ? "تأیید و رفتن به درگاه پرداخت" : "ثبت نهایی نوبت"}
               </button>
             </form>
           )}

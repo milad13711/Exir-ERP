@@ -6,6 +6,7 @@ import {
   createSupplier,
   fetchProducts,
   createPurchaseOrder,
+  updatePurchaseOrder,
   ApiError,
   type Supplier,
   type Product,
@@ -29,16 +30,19 @@ function emptyLine(): DraftLine {
 export function NewPurchaseOrderModal({
   onClose,
   onCreated,
+  order: editing,
 }: {
   onClose: () => void;
   onCreated: (order: PurchaseOrderDetail) => void;
+  /** ویرایش سفارش پیش‌نویس */
+  order?: PurchaseOrderDetail;
 }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(editing?.supplier.id ?? "");
   const [newSupplierName, setNewSupplierName] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
-  const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const [lines, setLines] = useState<DraftLine[]>(editing ? editing.lines.map((l) => ({ productId: l.product?.id ?? "", description: l.description, quantity: String(l.quantity), unitCost: String(l.unitCost) })) : [emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +92,7 @@ export function NewPurchaseOrderModal({
     if (!supplierId || validLines.length === 0) return;
     setSubmitting(true);
     try {
-      const order = await createPurchaseOrder({
+      const payload = {
         supplierId,
         lines: validLines.map((l) => ({
           productId: l.productId || undefined,
@@ -99,7 +103,8 @@ export function NewPurchaseOrderModal({
           unitCostFx: l.unitCostFx,
           exchangeRateFx: l.exchangeRateFx,
         })),
-      });
+      };
+      const order = editing ? await updatePurchaseOrder(editing.id, payload) : await createPurchaseOrder(payload);
       onCreated(order);
       onClose();
     } catch (err) {
@@ -110,7 +115,7 @@ export function NewPurchaseOrderModal({
   }
 
   return (
-    <Modal title="سفارش خرید جدید" onClose={onClose} width="max-w-[640px]">
+    <Modal title={editing ? `ویرایش سفارش پیش‌نویس ${editing.orderNo}` : "سفارش خرید جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">تأمین‌کننده</label>

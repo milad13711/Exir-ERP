@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { deleteJobPosting } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { toPersianDigits, formatToman } from "@/lib/persian";
@@ -230,6 +232,7 @@ export function PostingDetailModal({
           </button>
         )}
       </div>
+      <DeleteRecordButton confirmText="این آگهی همراه با همه‌ی متقاضیان و مصاحبه‌هایش حذف شود؟" onDelete={() => deleteJobPosting(id)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );
 }

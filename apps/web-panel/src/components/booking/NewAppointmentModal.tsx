@@ -21,6 +21,7 @@ export function NewAppointmentModal({
   serviceTypes,
   defaultStart,
   appointment,
+  reopen,
   onClose,
   onCreated,
 }: {
@@ -28,6 +29,8 @@ export function NewAppointmentModal({
   defaultStart: Date;
   /** اگر داده شود، حالت ویرایش/جابه‌جایی همین نوبت است */
   appointment?: Appointment;
+  /** بازگشایی نوبت لغوشده/عدم‌حضور با زمان جدید */
+  reopen?: boolean;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -41,6 +44,8 @@ export function NewAppointmentModal({
   const [startAt, setStartAt] = useState(toDateTimeLocalValue(appointment ? new Date(appointment.startAt) : defaultStart));
   const [notes, setNotes] = useState(appointment?.notes ?? "");
   const [location, setLocation] = useState(appointment?.location ?? "");
+  const [cancelReason, setCancelReason] = useState(appointment?.cancelReason ?? "");
+  const closed = !!appointment && !reopen && (appointment.status === "CANCELLED" || appointment.status === "COMPLETED" || appointment.status === "NO_SHOW");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +78,7 @@ export function NewAppointmentModal({
         startAt: new Date(startAt).toISOString(),
         notes: notes.trim() || undefined,
       };
-      if (appointment) await updateAppointment(appointment.id, { ...payload, location: location.trim() || undefined });
+      if (appointment) await updateAppointment(appointment.id, { ...payload, location: location.trim() || undefined, reopen: reopen || undefined, cancelReason: cancelReason.trim() || undefined });
       else await createAppointment(payload);
       onCreated();
       onClose();
@@ -85,7 +90,7 @@ export function NewAppointmentModal({
   }
 
   return (
-    <Modal title={appointment ? "ویرایش / جابه‌جایی نوبت" : "نوبت جدید"} onClose={onClose} width="max-w-[480px]">
+    <Modal title={reopen ? "بازگشایی نوبت با زمان جدید" : appointment ? "ویرایش / جابه‌جایی نوبت" : "نوبت جدید"} onClose={onClose} width="max-w-[480px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>نوع خدمت</label>
@@ -134,10 +139,22 @@ export function NewAppointmentModal({
           </select>
         </div>
 
-        <div>
-          <label className={labelClass}>زمان شروع</label>
-          <JalaliDateTimeInput value={startAt} onChange={setStartAt} className={inputClass} />
-        </div>
+        {closed ? (
+          <div className="text-[12px] text-warning bg-warning-soft rounded-lg p-3">
+            این نوبت بسته شده است؛ فقط اطلاعات مشتری، یادداشت و آدرس قابل اصلاح است. برای تغییر زمان از «بازگشایی» استفاده کنید.
+          </div>
+        ) : (
+          <div>
+            <label className={labelClass}>زمان شروع</label>
+            <JalaliDateTimeInput value={startAt} onChange={setStartAt} className={inputClass} />
+          </div>
+        )}
+        {closed && appointment?.status === "CANCELLED" ? (
+          <div>
+            <label className={labelClass}>دلیل لغو</label>
+            <input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} className={inputClass} />
+          </div>
+        ) : null}
 
         {appointment ? (
           <div>
@@ -158,7 +175,7 @@ export function NewAppointmentModal({
           disabled={saving || !serviceTypeId || !customerName.trim()}
           className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50"
         >
-          {saving ? "در حال ثبت..." : appointment ? "ذخیره و اطلاع‌رسانی به مشتری" : "ثبت نوبت"}
+          {saving ? "در حال ثبت..." : reopen ? "بازگشایی و اطلاع‌رسانی به مشتری" : appointment ? "ذخیره و اطلاع‌رسانی به مشتری" : "ثبت نوبت"}
         </button>
       </form>
     </Modal>

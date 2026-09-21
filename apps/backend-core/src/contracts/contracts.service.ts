@@ -76,6 +76,19 @@ export class ContractsService implements OnModuleInit {
         await this.signAsCompany(ctx, id, { signatureDataUrl: signatureImage, signerName: user?.name ?? 'مدیر' }, true);
       },
       reject: async () => undefined,
+      describe: async (ctx, id) => {
+        const c = await ctx.tenantDb.contract.findUniqueOrThrow({ where: { id } });
+        return {
+          fields: [
+            { label: 'عنوان', value: c.title },
+            { label: 'شماره', value: String(c.contractNo) },
+            { label: 'نوع طرفین', value: c.partyMode },
+            { label: 'مبلغ', value: `${Number(c.value ?? 0).toLocaleString('en-US')} تومان` },
+            { label: 'شروع تا پایان', value: `${c.startDate.toLocaleDateString('fa-IR')} تا ${c.endDate.toLocaleDateString('fa-IR')}` },
+            { label: 'متن قرارداد', value: c.terms ?? '—' },
+          ],
+        };
+      },
     });
   }
 

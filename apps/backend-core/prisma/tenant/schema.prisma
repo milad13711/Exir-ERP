@@ -529,6 +529,8 @@ enum SalesInvoiceStatus {
 }
 
 model SalesInvoice {
+  cancelledAt  DateTime?
+  cancelReason String?
   id              String             @id @default(uuid())
   invoiceNo       Int                @unique @default(autoincrement())
   contactId       String
@@ -1039,6 +1041,7 @@ model ResellerProfile {
   commissionRenewalPercent      Int                  @default(5)
   referralCode                  String               @unique @default(uuid())
   npsAvgScore                   Float?
+  bio                           String? // معرفی کوتاه نماینده — روی نقشه‌ی eta.co.ir نمایش داده می‌شود
   city                          String? // برای پین‌گذاری روی نقشه‌ی نمایندگان (eta.co.ir)
   productCode                   ResellerProductCode?
   createdAt                     DateTime             @default(now())
@@ -1152,9 +1155,14 @@ model JournalEntry {
   createdByUserId String?
   createdAt       DateTime           @default(now())
   postedAt        DateTime?
+  voidedAt        DateTime? // سند قطعی‌شده حذف نمی‌شود؛ با سند معکوس ابطال می‌شود
+  voidReason      String?
+  reversalOfId    String?            @unique // اگر این سند، معکوسِ سند دیگری است
 
-  createdBy User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  lines     JournalLine[]
+  createdBy  User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reversalOf JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversedBy JournalEntry? @relation("JournalReversal")
+  lines      JournalLine[]
 
   @@index([date])
   @@map("accounting_journal_entries")
@@ -2152,6 +2160,7 @@ model Appointment {
   zarinpalAuthority String?
   paymentRefId      Int?
   paidAt            DateTime?
+  providerToken     String                   @unique @default(uuid()) // لینک خصوصی متخصص: مشاهده‌ی متقاضی، تأیید/رد/جابه‌جایی
   isFullPayment     Boolean                  @default(false) // مبلغ قابل پرداخت (depositAmount) کل مبلغ خدمت است، نه بیعانه
   paymentMethod     String? // آنلاین (ZARINPAL) یا دستی: CASH / CARD / TRANSFER
   location          String? // جای‌گزین آدرس خدمت برای همین نوبت

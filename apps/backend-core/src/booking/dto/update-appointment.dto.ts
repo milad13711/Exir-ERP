@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateAppointmentDto {
   @IsOptional()
@@ -34,4 +34,13 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsString()
+  cancelReason?: string;
+
+  /** بازگشایی نوبت لغوشده/عدم‌حضور با زمان جدید */
+  @IsOptional()
+  @IsBoolean()
+  reopen?: boolean;
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { deleteMentoringEngagement } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon } from "@/components/icons";
@@ -324,6 +326,7 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
       </div>
 
       {newSessionOpen && <NewSessionModal engagement={engagement} onClose={() => setNewSessionOpen(false)} onCreated={reload} />}
+      <DeleteRecordButton confirmText="این همکاری با همه‌ی جلسات و اهدافش حذف شود؟" onDelete={() => deleteMentoringEngagement(engagementId)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );
 }

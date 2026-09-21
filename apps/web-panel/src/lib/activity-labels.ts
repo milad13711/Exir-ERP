@@ -23,6 +23,32 @@ export const ACTIVITY_LABELS: Record<string, (userName: string | null) => string
   "module.uninstalled": (u) => `${u ?? "یک کاربر"} یک ماژول را حذف کرد.`,
 };
 
+const VERB_LABELS: Record<string, string> = {
+  created: "ایجاد کرد",
+  updated: "ویرایش کرد",
+  deleted: "حذف کرد",
+  approved: "تأیید کرد",
+  rejected: "رد کرد",
+  confirmed: "تأیید نهایی کرد",
+  cancelled: "لغو/ابطال کرد",
+  voided: "ابطال کرد",
+  posted: "ثبت قطعی کرد",
+  decided: "تصمیم‌گیری کرد",
+  signed: "امضا کرد",
+  received: "دریافت ثبت کرد",
+  completed: "تکمیل کرد",
+  hired: "جذب نهایی کرد",
+};
+
+/** لاگ خودکار (module.entity.verb) که ماژول‌ها برچسب اختصاصی ندارند. */
+function genericLabel(action: string, userName: string | null): string | null {
+  const parts = action.split(".");
+  const verb = parts[parts.length - 1];
+  if (parts.length < 3 || !VERB_LABELS[verb]) return null;
+  const module = MODULE_LABELS_FA[parts[0]] ?? parts[0];
+  return `${userName ?? "یک کاربر"} در بخش «${module}» یک رکورد (${parts.slice(1, -1).join(" / ")}) را ${VERB_LABELS[verb]}.`;
+}
+
 export function formatActivityAction(action: string, userName: string | null): string {
-  return (ACTIVITY_LABELS[action] ?? (() => action))(userName);
+  return (ACTIVITY_LABELS[action] ?? (() => genericLabel(action, userName) ?? action))(userName);
 }

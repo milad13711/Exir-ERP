@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import { fetchJournalEntry, postJournalEntry, type JournalEntry } from "@/lib/api";
+import { fetchAccounts, fetchJournalEntry, postJournalEntry, deleteJournalEntry, voidJournalEntry, type Account, type JournalEntry } from "@/lib/api";
+import { NewEntryModal } from "./NewEntryModal";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { ENTRY_STATUS_LABELS, ENTRY_STATUS_TONES } from "./accounting-shared";
 
 export function EntryDetailModal({
@@ -16,9 +18,13 @@ export function EntryDetailModal({
 }) {
   const [entry, setEntry] = useState<JournalEntry | null>(null);
   const [posting, setPosting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJournalEntry(entryId).then(setEntry);
+    fetchAccounts().then(setAccounts).catch(() => setAccounts([]));
   }, [entryId]);
 
   async function handlePost() {
@@ -75,14 +81,69 @@ export function EntryDetailModal({
             </table>
           </div>
 
+          {entry.voidedAt ? (
+            <div className="text-[12.5px] text-danger bg-danger-soft rounded-lg p-3">این سند باطل شده است{entry.voidReason ? ` — ${entry.voidReason}` : ""}؛ سند معکوس آن ثبت شده است.</div>
+          ) : null}
+          {entry.reversalOfId ? <div className="text-[12.5px] text-muted">این سند، سند معکوسِ ابطال یک سند دیگر است.</div> : null}
+          {msg ? <div className="text-[12.5px] font-semibold text-ink-soft">{msg}</div> : null}
+
           {entry.status === "DRAFT" ? (
+            <>
+              <button
+                onClick={handlePost}
+                disabled={posting}
+                className="w-full py-2.5 rounded-xl bg-success text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
+              >
+                {posting ? "در حال ثبت..." : "ثبت قطعی سند"}
+              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditing(true)} className="text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-lg cursor-pointer">
+                  ویرایش پیش‌نویس
+                </button>
+                <div className="mr-auto">
+                  <DeleteRecordButton
+                    confirmText="این سند پیش‌نویس حذف شود؟"
+                    onDelete={() => deleteJournalEntry(entry.id)}
+                    onDeleted={() => {
+                      onChanged(entry);
+                      onClose();
+                    }}
+                  />
+                </div>
+              </div>
+            </>
+          ) : !entry.voidedAt && !entry.reversalOfId ? (
             <button
-              onClick={handlePost}
-              disabled={posting}
-              className="w-full py-2.5 rounded-xl bg-success text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
+              onClick={async () => {
+                const reason = window.prompt("دلیل ابطال سند (یک سند معکوس ثبت می‌شود):");
+                if (!reason || reason.trim().length < 3) return;
+                try {
+                  const res = await voidJournalEntry(entry.id, reason.trim());
+                  setMsg(res.pendingApproval ? "درخواست ابطال در کارتابل مدیر ثبت شد." : "سند باطل و سند معکوس ثبت شد.");
+                  if (!res.pendingApproval) {
+                    const fresh = await fetchJournalEntry(entryId);
+                    setEntry(fresh);
+                    onChanged(fresh);
+                  }
+                } catch (err) {
+                  setMsg(err instanceof Error ? err.message : "ابطال ناموفق بود");
+                }
+              }}
+              className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer self-start"
             >
-              {posting ? "در حال ثبت..." : "ثبت قطعی سند"}
+              ابطال سند
             </button>
+          ) : null}
+          {editing ? (
+            <NewEntryModal
+              accounts={accounts}
+              entry={entry}
+              onClose={() => setEditing(false)}
+              onCreated={(e) => {
+                setEntry(e);
+                onChanged(e);
+              }}
+            />
           ) : null}
         </div>
       )}

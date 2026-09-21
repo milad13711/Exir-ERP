@@ -1,21 +1,9 @@
-import {
-  BadRequestException,
-  Body,
-  ConflictException,
-  Controller,
-  Get,
-  NotFoundException,
-  Param,
-  Patch,
-  Post,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { safeDelete } from '../common/safe-delete.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -299,6 +287,15 @@ export class EmployeesController {
     });
     if (!employee) throw new NotFoundException('کارمند یافت نشد');
     return employee;
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'hr');
+    const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('کارمند یافت نشد');
+    await safeDelete(() => ctx.tenantDb.employee.delete({ where: { id } }));
+    return { success: true };
   }
 
   @Patch(':id')

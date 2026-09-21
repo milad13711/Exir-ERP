@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -50,6 +50,24 @@ export class PurchaseOrdersController {
   async create(@Body() dto: CreatePurchaseOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'purchasing');
     return this.orders.create(ctx, dto);
+  }
+
+  @Put(':id')
+  async updateDraft(@Param('id') id: string, @Body() dto: CreatePurchaseOrderDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'purchasing');
+    return this.orders.updateDraft(ctx, id, dto);
+  }
+
+  @Delete(':id')
+  async removeDraft(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'purchasing');
+    return this.orders.removeDraft(ctx, id);
+  }
+
+  @Post(':id/cancel')
+  async cancelDraft(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'purchasing');
+    return this.orders.cancelDraft(ctx, id, (dto?.reason ?? 'بدون توضیح').trim());
   }
 
   @Post(':id/receive')

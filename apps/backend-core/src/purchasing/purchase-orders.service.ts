@@ -48,6 +48,19 @@ export class PurchaseOrdersService implements OnModuleInit {
       reject: async (ctx, id, opts) => {
         await this.reject(ctx, id, opts.note, { fromApprovals: true });
       },
+      describe: async (ctx, id) => {
+        const o = await ctx.tenantDb.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { supplier: true, lines: true } });
+        return {
+          fields: [
+            { label: 'شماره سفارش', value: String(o.orderNo) },
+            { label: 'تأمین‌کننده', value: `${o.supplier.name}${o.supplier.phone ? ` — ${o.supplier.phone}` : ''}` },
+            { label: 'اقلام', value: o.lines.map((l) => `${l.description} × ${l.quantity} @ ${l.unitCost.toLocaleString('en-US')}`).join('\n') },
+            { label: 'جمع کل', value: `${o.total.toLocaleString('en-US')} تومان` },
+            { label: 'تحویل مورد انتظار', value: o.expectedAt ? o.expectedAt.toLocaleDateString('fa-IR') : '—' },
+            { label: 'یادداشت', value: o.notes ?? '—' },
+          ],
+        };
+      },
     });
   }
 
@@ -310,5 +323,70 @@ export class PurchaseOrdersService implements OnModuleInit {
     const account = await ctx.tenantDb.account.findUnique({ where: { code } });
     if (!account) throw new BadRequestException(`کدینگ حسابداری ${code} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
     return account;
+  }
+
+  /** ویرایش سفارش خرید پیش‌نویس (قبل از دریافت کالا). مبلغ تغییر کند، نیاز به تأیید مدیر دوباره سنجیده می‌شود. */
+  async updateDraft(ctx: TenantRequestContext, id: string, dto: CreatePurchaseOrderDto) {
+    const existing = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('سفارش خرید یافت نشد');
+    if (existing.status !== 'DRAFT') throw new BadRequestException('سفارش دریافت‌شده ویرایش نمی‌شود؛ از مرجوعی خرید استفاده کنید');
+    await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.supplierId } });
+
+    const lines = dto.lines.map((l) => ({ ...l, lineTotal: l.quantity * l.unitCost }));
+    const total = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+    const threshold = await this.getApprovalThreshold(ctx);
+    const needsApproval = threshold != null && total >= threshold;
+
+    await ctx.tenantDb.purchaseOrderLine.deleteMany({ where: { orderId: id } });
+    const updated = await ctx.tenantDb.purchaseOrder.update({
+      where: { id },
+      data: {
+        supplierId: dto.supplierId,
+        expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
+        notes: dto.notes,
+        subtotal: total,
+        total,
+        approvalStatus: needsApproval ? 'PENDING' : 'NOT_REQUIRED',
+        approvedByUserId: null,
+        approvedAt: null,
+        lines: { create: lines },
+      },
+      include: ORDER_INCLUDE,
+    });
+    await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'REJECTED');
+    if (needsApproval) {
+      await this.approvals.request(ctx, {
+        moduleCode: 'purchasing',
+        entityType: 'PURCHASE_ORDER',
+        entityId: id,
+        title: `تأیید سفارش خرید ${updated.orderNo}`,
+        summary: `${updated.supplier?.name ?? ''} — ${updated.total.toLocaleString('en-US')} تومان (ویرایش‌شده)`,
+        link: '/purchasing',
+      });
+    }
+    return updated;
+  }
+
+  async removeDraft(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('سفارش خرید یافت نشد');
+    if (existing.status !== 'DRAFT') throw new BadRequestException('فقط سفارش پیش‌نویس حذف می‌شود؛ سفارش دریافت‌شده را با مرجوعی برگردانید');
+    await ctx.tenantDb.purchaseOrder.delete({ where: { id } });
+    await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'REJECTED');
+    return { success: true };
+  }
+
+  /** لغو سفارش دریافت‌نشده — سابقه می‌ماند ولی دیگر قابل دریافت/پرداخت نیست. */
+  async cancelDraft(ctx: TenantRequestContext, id: string, reason: string) {
+    const existing = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('سفارش خرید یافت نشد');
+    if (existing.status !== 'DRAFT') throw new BadRequestException('فقط سفارش دریافت‌نشده لغو می‌شود');
+    const updated = await ctx.tenantDb.purchaseOrder.update({
+      where: { id },
+      data: { status: 'CANCELLED', notes: `${existing.notes ? `${existing.notes}\n` : ''}لغو شد: ${reason}` },
+      include: ORDER_INCLUDE,
+    });
+    await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'REJECTED');
+    return updated;
   }
 }

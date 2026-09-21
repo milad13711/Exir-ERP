@@ -1,3 +1,6 @@
+import { NewPurchaseOrderModal } from "./NewPurchaseOrderModal";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { cancelPurchaseOrder, deletePurchaseOrder } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -51,6 +54,7 @@ export function PurchaseOrderDetailModal({
   onChanged: () => void;
 }) {
   const [order, setOrder] = useState<PurchaseOrderDetail | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,6 +331,49 @@ export function PurchaseOrderDetailModal({
           onCreated={() => {
             reload();
             onChanged();
+          }}
+        />
+      ) : null}
+      {order && order.status === "DRAFT" ? (
+        <div className="mt-4 pt-3 border-t border-border flex items-center gap-2 flex-wrap">
+          <button onClick={() => setEditOpen(true)} className="text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-lg cursor-pointer">
+            ویرایش سفارش
+          </button>
+          <button
+            onClick={async () => {
+              const reason = window.prompt("دلیل لغو سفارش:");
+              if (!reason) return;
+              try {
+                await cancelPurchaseOrder(order.id, reason);
+                onChanged();
+                onClose();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "لغو ناموفق بود");
+              }
+            }}
+            className="text-[12px] font-bold text-warning bg-warning-soft px-3.5 py-2 rounded-lg cursor-pointer"
+          >
+            لغو سفارش
+          </button>
+          <div className="mr-auto">
+            <DeleteRecordButton
+              confirmText="این سفارش پیش‌نویس حذف شود؟"
+              onDelete={() => deletePurchaseOrder(order.id)}
+              onDeleted={() => {
+                onChanged();
+                onClose();
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+      {editOpen && order ? (
+        <NewPurchaseOrderModal
+          order={order}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            onChanged();
+            onClose();
           }}
         />
       ) : null}

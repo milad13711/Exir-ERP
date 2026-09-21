@@ -14,12 +14,13 @@ import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminInternalController } from './admin-internal.controller.js';
 import { AdminPushController } from './admin-push.controller.js';
 import { PushNotificationsModule } from '../notifications/push-notifications.module.js';
+import { ReferralMarketingModule } from '../referral-marketing/referral-marketing.module.js';
 import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
 import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
 import { ResellerApplicationsService } from './reseller-applications.service.js';
 
 @Module({
-  imports: [TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
+  imports: [ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
   controllers: [
     AdminAuthController,
     AdminTenantsController,

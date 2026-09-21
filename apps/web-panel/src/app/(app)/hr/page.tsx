@@ -25,6 +25,7 @@ import {
   updatePayrollTaxSettings,
   fetchOrgChart,
   type Employee,
+  deleteLeaveRequest,
   type HrSummary,
   type LeaveRequest,
   type PayrollSlip,
@@ -396,6 +397,22 @@ function LeaveTab() {
                   رد
                 </button>
               </div>
+            ) : null}
+            {l.status !== "APPROVED" ? (
+              <button
+                onClick={async () => {
+                  if (!window.confirm("این درخواست مرخصی حذف شود؟")) return;
+                  try {
+                    await deleteLeaveRequest(l.id);
+                    reload();
+                  } catch (err) {
+                    window.alert(err instanceof Error ? err.message : "حذف ناموفق بود");
+                  }
+                }}
+                className="text-[11.5px] font-bold text-danger px-2.5 py-1.5 rounded-lg cursor-pointer shrink-0"
+              >
+                حذف
+              </button>
             ) : null}
           </div>
         ))

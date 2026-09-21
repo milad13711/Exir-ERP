@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { AdminTeamsGuard } from '../common/guards/admin-teams.guard.js';
 import { AdminTeams } from '../common/decorators/admin-teams.decorator.js';
@@ -8,6 +8,8 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { CreateInternalTaskDto } from './dto/create-internal-task.dto.js';
 import { CreateInternalLeadDto } from './dto/create-internal-lead.dto.js';
 import { UpdateLeadStageDto } from './dto/update-lead-stage.dto.js';
+import { UpdateInternalLeadDto } from './dto/update-internal-lead.dto.js';
+import { UpdateInternalTaskDto } from './dto/update-internal-task.dto.js';
 import { AssignLeadDto } from './dto/assign-lead.dto.js';
 
 const ALL_TEAMS = ['SUPER_ADMIN', 'SUPPORT', 'BILLING', 'ENGINEERING'] as const;
@@ -100,6 +102,52 @@ export class AdminInternalController {
       data: { ...dto, ownerAdminId: ctx.auth.sub },
       include: { owner: { select: { id: true, name: true } } },
     });
+  }
+
+  @Get('internal/leads/:id')
+  @AdminTeams(...ALL_TEAMS)
+  async getLead(@Param('id') id: string) {
+    const lead = await this.controlDb.internalLead.findUnique({ where: { id }, include: { owner: { select: { id: true, name: true } } } });
+    if (!lead) throw new NotFoundException('فرصت فروش یافت نشد');
+    return lead;
+  }
+
+  @Put('internal/leads/:id')
+  @AdminTeams(...ALL_TEAMS)
+  async updateLead(@Param('id') id: string, @Body() dto: UpdateInternalLeadDto) {
+    const lead = await this.controlDb.internalLead.findUnique({ where: { id } });
+    if (!lead) throw new NotFoundException('فرصت فروش یافت نشد');
+    return this.controlDb.internalLead.update({ where: { id }, data: dto, include: { owner: { select: { id: true, name: true } } } });
+  }
+
+  @Delete('internal/leads/:id')
+  @AdminTeams('SUPER_ADMIN', 'SUPPORT')
+  async deleteLead(@Param('id') id: string) {
+    const lead = await this.controlDb.internalLead.findUnique({ where: { id } });
+    if (!lead) throw new NotFoundException('فرصت فروش یافت نشد');
+    await this.controlDb.internalLead.delete({ where: { id } });
+    return { success: true };
+  }
+
+  @Put('internal/tasks/:id')
+  @AdminTeams(...ALL_TEAMS)
+  async updateTask(@Param('id') id: string, @Body() dto: UpdateInternalTaskDto) {
+    const task = await this.controlDb.internalTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('وظیفه یافت نشد');
+    return this.controlDb.internalTask.update({
+      where: { id },
+      data: { title: dto.title, description: dto.description, dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined },
+      include: { assignedTo: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } },
+    });
+  }
+
+  @Delete('internal/tasks/:id')
+  @AdminTeams(...ALL_TEAMS)
+  async deleteTask(@Param('id') id: string) {
+    const task = await this.controlDb.internalTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('وظیفه یافت نشد');
+    await this.controlDb.internalTask.delete({ where: { id } });
+    return { success: true };
   }
 
   @Post('internal/leads/:id/stage')

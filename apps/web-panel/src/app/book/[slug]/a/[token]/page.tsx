@@ -78,7 +78,18 @@ export default function PublicAppointmentPage({ params }: { params: Promise<{ sl
                 {view.description && <Row label="توضیحات جلسه" value={view.description} />}
               </div>
 
-              {view.paymentStatus === "PAID" && <div className="text-[13px] text-success font-semibold text-center">پرداخت شما ثبت شده است ✓</div>}
+              {view.paymentStatus === "PAID" && (
+                <div className="border-2 border-success/30 bg-success-soft rounded-xl p-4 text-[13px]">
+                  <div className="text-success font-extrabold text-center mb-2">✓ رسید تأیید رزرو</div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between"><span className="text-muted">مبلغ پرداخت‌شده</span><span className="font-bold">{formatToman(view.amount ?? 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">نوع پرداخت</span><span className="font-bold">{view.isFullPayment ? "پرداخت کامل" : "بیعانه"}</span></div>
+                    {view.paidAt && <div className="flex justify-between"><span className="text-muted">تاریخ پرداخت</span><span className="font-bold">{formatJalaliDateTime(view.paidAt)}</span></div>}
+                    {view.paymentRefId ? <div className="flex justify-between"><span className="text-muted">کد پیگیری</span><span className="font-bold" dir="ltr">{view.paymentRefId}</span></div> : null}
+                  </div>
+                </div>
+              )}
+              {view.status === "CANCELLED" && view.cancelReason && <div className="text-[12.5px] text-danger mt-3">دلیل لغو: {view.cancelReason}</div>}
               {view.paymentStatus === "PENDING" && view.amount && view.status !== "CANCELLED" && (
                 <div className="flex flex-col gap-2">
                   {error && <div className="text-[12.5px] text-danger font-semibold text-center">{error}</div>}

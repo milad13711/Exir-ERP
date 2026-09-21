@@ -5,6 +5,7 @@ import {
   fetchCrmContacts,
   fetchProducts,
   createSalesInvoice,
+  updateSalesInvoice,
   ApiError,
   type CrmContact,
   type Product,
@@ -37,19 +38,22 @@ export function NewInvoiceModal({
   onClose,
   onCreated,
   prefill,
+  invoice: editing,
 }: {
   onClose: () => void;
   onCreated: (invoice: SalesInvoiceDetail) => void;
   prefill?: InvoicePrefill;
+  /** حالت ویرایش فاکتور پیش‌نویس */
+  invoice?: SalesInvoiceDetail;
 }) {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [contactId, setContactId] = useState(prefill?.contactId ?? "");
-  const [discount, setDiscount] = useState("");
-  const [isOfficial, setIsOfficial] = useState(false);
-  const [taxRate, setTaxRate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([
+  const [contactId, setContactId] = useState(editing?.contact.id ?? prefill?.contactId ?? "");
+  const [discount, setDiscount] = useState(editing?.discount ? String(editing.discount) : "");
+  const [isOfficial, setIsOfficial] = useState(editing?.isOfficial ?? false);
+  const [taxRate, setTaxRate] = useState(editing?.taxRate ? String(editing.taxRate) : "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [lines, setLines] = useState<DraftLine[]>(editing ? editing.lines.map((l) => ({ productId: l.productId ?? "", description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) })) : [
     prefill?.description
       ? { productId: "", description: prefill.description, quantity: "1", unitPrice: String(prefill.unitPrice ?? "") }
       : emptyLine(),
@@ -91,7 +95,7 @@ export function NewInvoiceModal({
     if (!contactId || validLines.length === 0) return;
     setSubmitting(true);
     try {
-      const invoice = await createSalesInvoice({
+      const payload = {
         contactId,
         dealId: prefill?.dealId,
         projectId: prefill?.projectId,
@@ -108,7 +112,8 @@ export function NewInvoiceModal({
           unitPriceFx: l.unitPriceFx,
           exchangeRateFx: l.exchangeRateFx,
         })),
-      });
+      };
+      const invoice = editing ? await updateSalesInvoice(editing.id, payload) : await createSalesInvoice(payload);
       onCreated(invoice);
       onClose();
     } catch (err) {
@@ -119,7 +124,7 @@ export function NewInvoiceModal({
   }
 
   return (
-    <Modal title="فاکتور فروش جدید" onClose={onClose} width="max-w-[640px]">
+    <Modal title={editing ? `ویرایش فاکتور پیش‌نویس ${editing.invoiceNo}` : "فاکتور فروش جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>

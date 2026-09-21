@@ -1378,6 +1378,9 @@ export type JournalEntry = {
   status: JournalEntryStatus;
   createdAt: string;
   postedAt: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  reversalOfId?: string | null;
   lines: JournalLine[];
   createdBy: { name: string } | null;
 };
@@ -3734,6 +3737,7 @@ export type Appointment = {
   location?: string | null;
   mentoringSession?: { id: string; engagementId: string; status: string } | null;
   publicToken: string;
+  providerToken?: string;
   serviceType: ServiceType;
   contact: { id: string; name: string; phone: string | null } | null;
   provider: { id: string; name: string; phone: string | null } | null;
@@ -3823,13 +3827,17 @@ export function createAppointment(data: {
 
 export function updateAppointment(
   id: string,
-  data: Partial<{ serviceTypeId: string; contactId: string; providerUserId: string; customerName: string; customerPhone: string; startAt: string; notes: string; location: string }>,
+  data: Partial<{ serviceTypeId: string; contactId: string; providerUserId: string; customerName: string; customerPhone: string; startAt: string; notes: string; location: string; cancelReason: string; reopen: boolean }>,
 ) {
   return apiFetch<Appointment>(`/booking/appointments/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
 export function recordManualAppointmentPayment(id: string, data: { method: "CASH" | "CARD" | "TRANSFER"; amount?: number }) {
   return apiFetch<Appointment>(`/booking/appointments/${id}/manual-payment`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteAppointment(id: string) {
+  return apiFetch<{ success: boolean }>(`/booking/appointments/${id}`, { method: "DELETE" });
 }
 
 export function sendAppointmentDetails(id: string) {
@@ -3888,6 +3896,13 @@ export function fetchPublicServiceTypes(slug: string) {
   return apiFetch<PublicServiceType[]>(`/public/booking/${slug}/service-types`);
 }
 
+export type FreeSlot = { startAt: string; time: string; providerIds: string[] };
+
+export function fetchPublicFreeSlots(slug: string, serviceTypeId: string, providerUserId: string | undefined, date: string) {
+  const qs = new URLSearchParams({ serviceTypeId, date, ...(providerUserId ? { providerUserId } : {}) }).toString();
+  return apiFetch<FreeSlot[]>(`/public/booking/${slug}/slots?${qs}`);
+}
+
 export type PublicBookingInfo = { businessName: string; address: string | null };
 
 export function fetchPublicBookingInfo(slug: string) {
@@ -3908,10 +3923,47 @@ export type PublicAppointmentView = {
   amount: number | null;
   isFullPayment: boolean;
   businessName: string;
+  paidAt?: string | null;
+  paymentRefId?: number | null;
+  paymentMethod?: string | null;
+  cancelReason?: string | null;
 };
 
 export function fetchPublicAppointmentByToken(slug: string, token: string) {
   return apiFetch<PublicAppointmentView>(`/public/booking/${slug}/a/${token}`);
+}
+
+export type ProviderAppointmentView = {
+  serviceName: string;
+  customerName: string;
+  customerPhone: string | null;
+  notes: string | null;
+  startAt: string;
+  endAt: string;
+  status: AppointmentStatus;
+  cancelReason: string | null;
+  paymentStatus: AppointmentPaymentStatus;
+  amount: number | null;
+  isFullPayment: boolean;
+  location: string | null;
+  canAct: boolean;
+  serviceTypeId: string;
+};
+
+export function fetchProviderAppointment(slug: string, token: string) {
+  return apiFetch<ProviderAppointmentView>(`/public/booking/${slug}/s/${token}`);
+}
+export function fetchProviderSlots(slug: string, token: string, date: string) {
+  return apiFetch<FreeSlot[]>(`/public/booking/${slug}/s/${token}/slots?date=${date}`);
+}
+export function providerConfirmAppointment(slug: string, token: string) {
+  return apiFetch<{ success: boolean }>(`/public/booking/${slug}/s/${token}/confirm`, { method: "POST" });
+}
+export function providerRejectAppointment(slug: string, token: string, reason: string) {
+  return apiFetch<{ success: boolean }>(`/public/booking/${slug}/s/${token}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function providerRescheduleAppointment(slug: string, token: string, startAt: string) {
+  return apiFetch<{ success: boolean }>(`/public/booking/${slug}/s/${token}/reschedule`, { method: "POST", body: JSON.stringify({ startAt }) });
 }
 
 export function startPublicAppointmentPaymentByToken(slug: string, token: string) {
@@ -6629,6 +6681,8 @@ export type Reseller = {
   commissionRenewalPercent: number;
   referralCode: string;
   npsAvgScore: number | null;
+  bio?: string | null;
+  city?: string | null;
   createdAt: string;
   contact: { id: string; name: string; company: string | null; phone: string | null; address: string | null };
   user: { id: string; phone: string; status: string } | null;
@@ -6727,6 +6781,10 @@ export function fetchMyResellerProfile() {
   return apiFetch<Reseller>("/referral-marketing/me");
 }
 
+export function updateMyResellerProfile(data: { logoUrl?: string; bio?: string; websiteUrl?: string; city?: string; company?: string; address?: string }) {
+  return apiFetch<Reseller>("/referral-marketing/me", { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function fetchMyReferralConversions() {
   return apiFetch<ReferralConversion[]>("/referral-marketing/me/conversions");
 }
@@ -6773,6 +6831,12 @@ export function fetchApprovals(status?: "PENDING" | "APPROVED" | "REJECTED") {
   return apiFetch<ApprovalRequest[]>(`/approvals${status ? `?status=${status}` : ""}`);
 }
 
+export type ApprovalDetail = { request: ApprovalRequest; detail: { fields: Array<{ label: string; value: string }> } };
+
+export function fetchApprovalDetail(id: string) {
+  return apiFetch<ApprovalDetail>(`/approvals/${id}/detail`);
+}
+
 export function fetchPendingApprovalCount() {
   return apiFetch<{ count: number }>("/approvals/pending-count");
 }
@@ -6813,4 +6877,63 @@ export async function purchaseSmsPackageAndPay(code: string): Promise<string> {
   const pay = await payPublicInvoice(invoiceId);
   if (!pay.paymentUrl) throw new ApiError(pay.error ?? "درگاه پرداخت در دسترس نیست", 502);
   return pay.paymentUrl;
+}
+
+// ── حذف رکوردها (با محافظ سوابق وابسته در سرور) ─────────────────────────────
+export function deleteCrmContact(id: string) {
+  return apiFetch<{ success: boolean }>(`/crm/contacts/${id}`, { method: "DELETE" });
+}
+export function deleteEmployee(id: string) {
+  return apiFetch<{ success: boolean }>(`/hr/employees/${id}`, { method: "DELETE" });
+}
+export function deleteLeaveRequest(id: string) {
+  return apiFetch<{ success: boolean }>(`/hr/leave/${id}`, { method: "DELETE" });
+}
+export function deleteJobPosting(id: string) {
+  return apiFetch<{ success: boolean }>(`/recruitment/postings/${id}`, { method: "DELETE" });
+}
+export function deleteJobApplicant(id: string) {
+  return apiFetch<{ success: boolean }>(`/recruitment/applicants/${id}`, { method: "DELETE" });
+}
+export function deleteMentoringEngagement(id: string) {
+  return apiFetch<{ success: boolean }>(`/mentoring/engagements/${id}`, { method: "DELETE" });
+}
+export function deleteMentoringGoal(id: string) {
+  return apiFetch<{ success: boolean }>(`/mentoring/goals/${id}`, { method: "DELETE" });
+}
+export function deleteReseller(id: string) {
+  return apiFetch<{ success: boolean }>(`/referral-marketing/resellers/${id}`, { method: "DELETE" });
+}
+
+// ── ویرایش/حذف/ابطال اسناد مالی (استاندارد: پیش‌نویس ویرایش‌پذیر، سند قطعی فقط با ابطال و سند معکوس) ──
+export type ControlledActionResult = { success: boolean; pendingApproval?: boolean };
+
+export function updateSalesInvoice(id: string, data: Parameters<typeof createSalesInvoice>[0]) {
+  return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function deleteSalesInvoice(id: string) {
+  return apiFetch<{ success: boolean }>(`/sales/invoices/${id}`, { method: "DELETE" });
+}
+export function cancelSalesInvoice(id: string, reason: string) {
+  return apiFetch<ControlledActionResult>(`/sales/invoices/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function deleteJournalEntry(id: string) {
+  return apiFetch<{ success: boolean }>(`/accounting/entries/${id}`, { method: "DELETE" });
+}
+export function voidJournalEntry(id: string, reason: string) {
+  return apiFetch<ControlledActionResult>(`/accounting/entries/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function deletePurchaseOrder(id: string) {
+  return apiFetch<{ success: boolean }>(`/purchasing/orders/${id}`, { method: "DELETE" });
+}
+export function cancelPurchaseOrder(id: string, reason: string) {
+  return apiFetch<unknown>(`/purchasing/orders/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function updateJournalEntry(id: string, data: Parameters<typeof createJournalEntry>[0]) {
+  return apiFetch<JournalEntry>(`/accounting/entries/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function updatePurchaseOrder(id: string, data: Parameters<typeof createPurchaseOrder>[0]) {
+  return apiFetch<PurchaseOrderDetail>(`/purchasing/orders/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }

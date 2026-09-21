@@ -33,6 +33,7 @@ export class PublicResellerMapService {
         tier: true,
         logoUrl: true,
         websiteUrl: true,
+        bio: true,
         contact: { select: { name: true, company: true } },
       },
     });
@@ -45,6 +46,7 @@ export class PublicResellerMapService {
       tier: r.tier,
       logoUrl: r.logoUrl,
       websiteUrl: r.websiteUrl,
+      bio: r.bio,
     }));
   }
 }

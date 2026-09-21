@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -72,6 +72,26 @@ export class InvoicesController {
   async create(@Body() dto: CreateInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'sales');
     return this.invoices.create(ctx, dto);
+  }
+
+  @Put(':id')
+  async updateDraft(@Param('id') id: string, @Body() dto: CreateInvoiceDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    return this.invoices.updateDraft(ctx, id, dto);
+  }
+
+  @Delete(':id')
+  async removeDraft(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'sales');
+    return this.invoices.removeDraft(ctx, id);
+  }
+
+  @Post(':id/cancel')
+  async cancel(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'sales');
+    const reason = (dto?.reason ?? '').trim();
+    if (reason.length < 3) throw new BadRequestException('دلیل ابطال را بنویسید');
+    return this.invoices.cancel(ctx, id, reason);
   }
 
   @Post(':id/confirm')

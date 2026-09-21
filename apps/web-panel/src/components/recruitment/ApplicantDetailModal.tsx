@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { deleteJobApplicant } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
@@ -190,6 +192,7 @@ export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; o
             </div>
           ))}
       </div>
+      <DeleteRecordButton confirmText="این متقاضی حذف شود؟" onDelete={() => deleteJobApplicant(id)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );
 }

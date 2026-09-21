@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PlusIcon, CloseIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
-import { createJournalEntry, type Account, type JournalEntry } from "@/lib/api";
+import { createJournalEntry, updateJournalEntry, type Account, type JournalEntry } from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -19,15 +19,18 @@ export function NewEntryModal({
   accounts,
   onClose,
   onCreated,
+  entry: editing,
 }: {
   accounts: Account[];
   onClose: () => void;
   onCreated: (entry: JournalEntry) => void;
+  /** ویرایش سند پیش‌نویس */
+  entry?: JournalEntry;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
-  const [description, setDescription] = useState("");
-  const [lines, setLines] = useState<LineDraft[]>([
+  const [date, setDate] = useState(editing ? editing.date.slice(0, 10) : today);
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [lines, setLines] = useState<LineDraft[]>(editing ? editing.lines.map((l) => ({ accountId: l.accountId, side: l.debit > 0 ? ("debit" as const) : ("credit" as const), amount: String(l.debit > 0 ? l.debit : l.credit), description: l.description ?? "" })) : [
     emptyLine(accounts[0]?.id ?? ""),
     { ...emptyLine(accounts[1]?.id ?? accounts[0]?.id ?? ""), side: "credit" },
   ]);
@@ -48,7 +51,7 @@ export function NewEntryModal({
     setSubmitting(true);
     setError(null);
     try {
-      const entry = await createJournalEntry({
+      const payload = {
         date,
         description: description.trim() || undefined,
         lines: lines
@@ -59,7 +62,8 @@ export function NewEntryModal({
             credit: l.side === "credit" ? Number(l.amount) : 0,
             description: l.description.trim() || undefined,
           })),
-      });
+      };
+      const entry = editing ? await updateJournalEntry(editing.id, payload) : await createJournalEntry(payload);
       onCreated(entry);
       onClose();
     } catch (err) {
@@ -70,7 +74,7 @@ export function NewEntryModal({
   }
 
   return (
-    <Modal title="سند حسابداری جدید" onClose={onClose} width="max-w-[600px]">
+    <Modal title={editing ? `ویرایش سند پیش‌نویس ${editing.number}` : "سند حسابداری جدید"} onClose={onClose} width="max-w-[600px]">
       {accounts.length < 2 ? (
         <div className="text-[13px] text-muted text-center py-6">ابتدا باید حداقل دو حساب داشته باشید.</div>
       ) : (

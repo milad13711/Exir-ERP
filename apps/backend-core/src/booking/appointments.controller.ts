@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -86,6 +86,12 @@ export class AppointmentsController {
   async cancel(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
     return this.appointments.cancel(ctx, id, dto.reason);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'booking');
+    return this.appointments.remove(ctx, id);
   }
 
   @Post(':id/manual-payment')

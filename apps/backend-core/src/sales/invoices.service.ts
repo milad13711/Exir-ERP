@@ -95,10 +95,42 @@ export class InvoicesService {
   ) {}
 
   onModuleInit(): void {
+    this.approvals.registerHandler('SALES_INVOICE_CANCEL', {
+      approve: async (ctx, id, opts) => {
+        await this.cancelConfirmed(ctx, id, opts.requestSummary ?? 'ابطال با تأیید مدیر');
+      },
+      reject: async () => undefined,
+      describe: async (ctx, id) => {
+        const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: { contact: true } });
+        return {
+          fields: [
+            { label: 'فاکتور', value: String(inv.invoiceNo) },
+            { label: 'مشتری', value: inv.contact.name },
+            { label: 'مبلغ', value: `${inv.total.toLocaleString('en-US')} تومان` },
+            { label: 'دلیل ابطال', value: 'در توضیح درخواست' },
+          ],
+        };
+      },
+    });
     // فاکتور رسمی: امضا/مهر فقط با تأیید مدیر (کارتابل تأیید).
     this.approvals.registerHandler('SALES_INVOICE', {
       approve: (ctx, id, opts) => this.signByApproval(ctx, id, opts.stampApplied),
       reject: async () => undefined, // رد = بدون امضا می‌ماند؛ درخواست با دلیل بسته می‌شود
+      describe: async (ctx, id) => {
+        const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: { contact: true, lines: true } });
+        return {
+          fields: [
+            { label: 'شماره فاکتور', value: String(inv.invoiceNo) },
+            { label: 'مشتری', value: `${inv.contact.name}${inv.contact.phone ? ` — ${inv.contact.phone}` : ''}` },
+            { label: 'اقلام', value: inv.lines.map((l) => `${l.description} × ${l.quantity} @ ${l.unitPrice.toLocaleString('en-US')}`).join('\n') },
+            { label: 'تخفیف', value: `${inv.discount.toLocaleString('en-US')} تومان` },
+            { label: 'مالیات', value: `${inv.taxAmount.toLocaleString('en-US')} تومان` },
+            { label: 'مبلغ نهایی', value: `${inv.total.toLocaleString('en-US')} تومان` },
+            { label: 'سررسید', value: inv.dueAt ? inv.dueAt.toLocaleDateString('fa-IR') : '—' },
+            { label: 'یادداشت', value: inv.notes ?? '—' },
+          ],
+        };
+      },
     });
   }
 
@@ -605,6 +637,123 @@ export class InvoicesService {
       method: 'ONLINE_GATEWAY',
       note: result.refId ? `کد پیگیری زرین‌پال: ${result.refId}` : undefined,
     });
+    return { success: true };
+  }
+
+  /** ویرایش فاکتور پیش‌نویس (اقلام، تخفیف، سررسید، یادداشت). فاکتور تأییدشده ویرایش نمی‌شود؛ ابطال و فاکتور جدید. */
+  async updateDraft(ctx: TenantRequestContext, id: string, dto: CreateInvoiceDto) {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس قابل ویرایش است؛ فاکتور تأییدشده را باطل و فاکتور تازه صادر کنید');
+    await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
+
+    const lines = dto.lines.map((l) => ({ ...l, lineTotal: l.quantity * l.unitPrice }));
+    const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+    const discount = dto.discount ?? 0;
+    if (discount > subtotal) throw new BadRequestException('تخفیف نمی‌تواند از جمع اقلام بیشتر باشد');
+    const taxRate = invoice.isOfficial ? (dto.taxRate ?? invoice.taxRate ?? 0) : undefined;
+    const taxAmount = invoice.isOfficial && taxRate ? Math.round(((subtotal - discount) * taxRate) / 100) : 0;
+
+    await ctx.tenantDb.salesInvoiceLine.deleteMany({ where: { invoiceId: id } });
+    return ctx.tenantDb.salesInvoice.update({
+      where: { id },
+      data: {
+        contactId: dto.contactId,
+        dealId: dto.dealId,
+        projectId: dto.projectId,
+        dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+        discount,
+        subtotal,
+        taxRate,
+        taxAmount,
+        total: subtotal - discount + taxAmount,
+        notes: dto.notes,
+        lines: { create: lines },
+      },
+      include: INVOICE_INCLUDE,
+    });
+  }
+
+  async removeDraft(ctx: TenantRequestContext, id: string) {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس حذف می‌شود؛ فاکتور تأییدشده را باطل کنید');
+    await ctx.tenantDb.salesInvoice.delete({ where: { id } });
+    await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
+    return { success: true };
+  }
+
+  /**
+   * ابطال فاکتور تأییدشده: سند حسابداری معکوس، برگشت موجودی کالاها و وضعیت CANCELLED. فقط برای فاکتور
+   * بدون پرداخت و بدون مرجوعی (وگرنه ابتدا آن‌ها باید برگردانده شوند). غیرمدیر فقط درخواست ثبت می‌کند.
+   */
+  async cancel(ctx: TenantRequestContext, id: string, reason: string) {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    this.assertCancellable(invoice);
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const outcome = await this.approvals.runOrRequest(
+      ctx,
+      { moduleCode: 'sales', entityType: 'SALES_INVOICE_CANCEL', entityId: id, title: `ابطال فاکتور فروش ${invoice.invoiceNo}`, summary: reason, link: '/sales', requestedByUserId: userId ?? undefined },
+      () => this.cancelConfirmed(ctx, id, reason),
+    );
+    return { success: true, pendingApproval: !outcome.executed };
+  }
+
+  private assertCancellable(invoice: { status: string; paidAmount: number }) {
+    if (invoice.status !== 'CONFIRMED') throw new BadRequestException('فقط فاکتور تأییدشده‌ی بدون پرداخت قابل ابطال است');
+    if (invoice.paidAmount > 0) throw new BadRequestException('این فاکتور پرداخت دارد؛ ابتدا پرداخت‌ها را برگردانید');
+  }
+
+  private async cancelConfirmed(ctx: TenantRequestContext, id: string, reason: string) {
+    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { lines: true } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    this.assertCancellable(invoice);
+    const returns = await ctx.tenantDb.salesReturn.count({ where: { invoiceId: id } });
+    if (returns > 0) throw new BadRequestException('برای این فاکتور مرجوعی ثبت شده است و ابطال کامل ممکن نیست');
+
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
+    const original = invoice.journalEntryId
+      ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: invoice.journalEntryId }, include: { lines: true } })
+      : null;
+
+    await ctx.tenantDb.$transaction([
+      ...(original
+        ? [
+            ctx.tenantDb.journalEntry.create({
+              data: {
+                date: new Date(),
+                description: `ابطال فاکتور فروش شماره ${invoice.invoiceNo}: ${reason}`,
+                status: 'POSTED',
+                postedAt: new Date(),
+                reversalOfId: original.id,
+                createdByUserId: userId ?? undefined,
+                lines: { create: original.lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, description: l.description })) },
+              },
+            }),
+            ctx.tenantDb.journalEntry.update({ where: { id: original.id }, data: { voidedAt: new Date(), voidReason: reason } }),
+          ]
+        : []),
+      ...invoice.lines
+        .filter((l) => l.productId)
+        .map((l) =>
+          ctx.tenantDb.stockMovement.create({
+            data: {
+              productId: l.productId!,
+              warehouseId: warehouse.id,
+              type: 'SALES_RETURN',
+              quantityDelta: l.quantity,
+              reference: `ابطال فاکتور فروش #${invoice.invoiceNo}`,
+              createdByUserId: userId ?? undefined,
+            },
+          }),
+        ),
+      ctx.tenantDb.salesInvoice.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason } }),
+    ]);
+    await this.approvals.closeForEntity(ctx, 'SALES_INVOICE_CANCEL', id, 'APPROVED');
+    await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
     return { success: true };
   }
 }

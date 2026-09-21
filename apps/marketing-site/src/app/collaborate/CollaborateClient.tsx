@@ -99,7 +99,11 @@ function ResellerMap() {
         </svg>
 
         {hovered ? (
-          <div className="absolute bottom-4 start-4 bg-white border border-border rounded-xl shadow-lg px-4 py-3 text-right max-w-[240px]">
+          <div className="absolute bottom-4 start-4 bg-white border border-border rounded-xl shadow-lg px-4 py-3 text-right max-w-[280px]">
+            {hovered.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={hovered.logoUrl} alt={hovered.name} className="w-14 h-14 rounded-xl object-cover mb-2" />
+            ) : null}
             <div className="text-[13px] font-bold">{hovered.name}</div>
             <div className="text-[11.5px] text-muted mt-0.5">{hovered.city}</div>
             {hovered.productCode ? (
@@ -107,6 +111,7 @@ function ResellerMap() {
                 {PRODUCT_LABELS[hovered.productCode]}
               </div>
             ) : null}
+            {hovered.bio ? <p className="text-[11.5px] text-ink-soft leading-relaxed mt-1.5">{hovered.bio}</p> : null}
           </div>
         ) : null}
 

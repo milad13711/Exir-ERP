@@ -140,6 +140,7 @@ export type ResellerMapPin = {
   tier: "A_PLUS" | "A" | "B";
   logoUrl: string | null;
   websiteUrl: string | null;
+  bio?: string | null;
 };
 
 export function fetchResellerMap(productCode?: ProductCode) {

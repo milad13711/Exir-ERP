@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { safeDelete } from '../common/safe-delete.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -42,6 +43,14 @@ export class ResellersController {
   async create(@Body() dto: CreateResellerDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'referral-marketing');
     return this.resellers.create(ctx, dto);
+  }
+
+  /** فقط پروفایل نمایندگی حذف می‌شود؛ مخاطب CRM و سوابق مالی سر جایشان می‌مانند. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'referral-marketing');
+    await safeDelete(() => ctx.tenantDb.resellerProfile.delete({ where: { id } }));
+    return { success: true };
   }
 
   @Patch(':id')

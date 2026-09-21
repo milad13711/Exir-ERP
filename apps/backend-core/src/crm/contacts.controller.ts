@@ -1,8 +1,9 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { safeDelete } from '../common/safe-delete.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -211,6 +212,14 @@ export class ContactsController {
     const contact = await ctx.tenantDb.crmContact.findFirst({ where: { id, ...scope } });
     if (!contact) throw new NotFoundException('مخاطب یافت نشد');
     return this.supplierRisk.assess(ctx, id);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'crm');
+    await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
+    await safeDelete(() => ctx.tenantDb.crmContact.delete({ where: { id } }));
+    return { success: true };
   }
 
   @Put(':id')

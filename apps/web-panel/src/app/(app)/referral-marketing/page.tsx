@@ -185,6 +185,8 @@ function DashboardTab() {
   );
 }
 
+import { MyProfileCard } from "@/components/referral-marketing/MyProfileCard";
+
 function MyPanelTab() {
   const [conversions, setConversions] = useState<ReferralConversion[] | null>(null);
   const [commissions, setCommissions] = useState<ReferralCommission[] | null>(null);
@@ -203,6 +205,7 @@ function MyPanelTab() {
 
   return (
     <div className="flex flex-col gap-5">
+      <MyProfileCard />
       <div className="grid sm:grid-cols-3 gap-3">
         <Card className="p-4">
           <div className="text-[11.5px] text-muted">مشتریان معرفی‌شده</div>

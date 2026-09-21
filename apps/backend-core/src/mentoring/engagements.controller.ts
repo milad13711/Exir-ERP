@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { safeDelete } from '../common/safe-delete.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -39,6 +40,13 @@ export class EngagementsController {
   async create(@Body() dto: CreateEngagementDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'mentoring');
     return this.engagements.create(ctx, dto);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'mentoring');
+    await safeDelete(() => ctx.tenantDb.mentoringEngagement.delete({ where: { id } }));
+    return { success: true };
   }
 
   @Patch(':id')

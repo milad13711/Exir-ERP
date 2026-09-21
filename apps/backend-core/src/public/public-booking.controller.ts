@@ -26,6 +26,11 @@ export class PublicBookingController {
     return this.booking.getInfo(slug);
   }
 
+  @Get('slots')
+  slots(@Param('slug') slug: string, @Query('serviceTypeId') serviceTypeId: string, @Query('providerUserId') providerUserId: string | undefined, @Query('date') date: string) {
+    return this.booking.listFreeSlots(slug, serviceTypeId, providerUserId, date);
+  }
+
   @Get('providers')
   listProviders(@Param('slug') slug: string) {
     return this.booking.listProviders(slug);

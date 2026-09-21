@@ -1,4 +1,5 @@
-import { Controller, Get, NotFoundException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common';
+import { UpdateMyResellerProfileDto } from './dto/update-my-reseller-profile.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -24,6 +25,23 @@ export class ResellerSelfController {
 
   @Get()
   async profile(@Ctx() ctx: TenantRequestContext) {
+    return this.myResellerProfile(ctx);
+  }
+
+  /** نماینده عکس و اطلاعات نمایشی‌اش را برای پین نقشه‌ی همکاران eta.co.ir خودش ویرایش می‌کند. */
+  @Patch()
+  async updateProfile(@Body() dto: UpdateMyResellerProfileDto, @Ctx() ctx: TenantRequestContext) {
+    const reseller = await this.myResellerProfile(ctx);
+    if (dto.logoUrl && !/^data:image\/(png|jpe?g|webp);base64,/.test(dto.logoUrl)) {
+      throw new BadRequestException('فقط تصویر PNG، JPG یا WEBP مجاز است');
+    }
+    await ctx.tenantDb.resellerProfile.update({
+      where: { id: reseller.id },
+      data: { logoUrl: dto.logoUrl, bio: dto.bio, websiteUrl: dto.websiteUrl, city: dto.city },
+    });
+    if (dto.company !== undefined || dto.address !== undefined) {
+      await ctx.tenantDb.crmContact.update({ where: { id: reseller.contactId }, data: { company: dto.company, address: dto.address } });
+    }
     return this.myResellerProfile(ctx);
   }
 

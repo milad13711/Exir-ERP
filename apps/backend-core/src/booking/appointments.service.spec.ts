@@ -17,7 +17,7 @@ function setup(existingContact: { id: string } | null, serviceOverrides: Record<
     mentoringSession: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
   };
   const sms = { sendSms: vi.fn().mockResolvedValue({ success: true }) };
-  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, {} as never, {} as never);
+  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, {} as never, {} as never, { findSlot: vi.fn().mockResolvedValue({ startAt: '2026-09-25T08:30:00Z', time: '12:00', providerIds: [] }) } as never);
   const ctx = { tenantId: 't', tenantSlug: 'acme', tenantDb, auth: { role: 'OWNER', sub: 'g' } } as never;
   return { service, ctx, tenantDb, sms };
 }

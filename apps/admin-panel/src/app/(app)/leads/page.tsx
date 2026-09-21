@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadModal } from "@/components/LeadModal";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
@@ -31,6 +32,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<InternalLead[] | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [openLead, setOpenLead] = useState<InternalLead | null>(null);
   const [convertLead, setConvertLead] = useState<InternalLead | null>(null);
 
   function reload() {
@@ -79,7 +81,8 @@ export default function LeadsPage() {
           leads.map((lead, i) => (
             <div
               key={lead.id}
-              className={`flex items-center gap-3 px-4 py-3.5 flex-wrap ${
+              onClick={() => setOpenLead(lead)}
+              className={`flex items-center gap-3 px-4 py-3.5 flex-wrap cursor-pointer hover:bg-slate-50 ${
                 i < leads.length - 1 ? "border-b border-border" : ""
               }`}
             >
@@ -92,6 +95,7 @@ export default function LeadsPage() {
               {lead.value ? <div className="text-[12.5px] font-bold shrink-0">{formatToman(lead.value)}</div> : null}
               <select
                 value={lead.stage}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => handleStageChange(lead.id, e.target.value as LeadStage)}
                 className="text-[12px] font-bold bg-slate-50 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer shrink-0"
               >
@@ -103,6 +107,7 @@ export default function LeadsPage() {
               </select>
               <select
                 value={lead.owner?.id ?? ""}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => e.target.value && handleAssign(lead.id, e.target.value)}
                 className="text-[12px] bg-slate-50 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer shrink-0"
               >
@@ -117,7 +122,10 @@ export default function LeadsPage() {
               </select>
               {lead.stage !== "WON" ? (
                 <button
-                  onClick={() => setConvertLead(lead)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConvertLead(lead);
+                  }}
                   className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer shrink-0"
                 >
                   تبدیل به تننت
@@ -128,6 +136,7 @@ export default function LeadsPage() {
         )}
       </Card>
 
+      {openLead ? <LeadModal lead={openLead} onClose={() => setOpenLead(null)} onChanged={reload} /> : null}
       {createOpen ? <CreateLeadModal onClose={() => setCreateOpen(false)} onCreated={reload} /> : null}
 
       {convertLead ? (

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { deleteEmployee } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
@@ -770,6 +772,7 @@ export function EmployeeModal({
           </div>
         </div>
       )}
+      <DeleteRecordButton confirmText="این پرسنل حذف شود؟ اگر فیش حقوقی، مرخصی یا سوابق دیگری دارد حذف نمی‌شود و باید «خاتمه‌ی همکاری» ثبت کنید." onDelete={() => deleteEmployee(employeeId)} onDeleted={() => { onChanged?.(); onClose(); }} />
     </Modal>
   );
 }

@@ -82,6 +82,27 @@ export class RecruitmentService implements OnModuleInit {
       reject: async (ctx, id, opts) => {
         await this.managementDecision(ctx, id, { approved: false, reason: opts.note }, { fromApprovals: true });
       },
+      describe: async (ctx, id) => {
+        const a = await ctx.tenantDb.jobApplicant.findUniqueOrThrow({ where: { id }, include: { jobPosting: true, offer: true } });
+        const o = a.offer;
+        const fields = [
+          { label: 'متقاضی', value: `${a.name} — ${a.phone}` },
+          { label: 'آگهی', value: `${a.jobPosting.title} (ظرفیت ${a.jobPosting.capacity} نفر)` },
+          { label: 'رشته/مهارت‌ها', value: [a.educationField, a.skillTags.join('، ')].filter(Boolean).join(' — ') || '—' },
+          { label: 'تأیید کارشناس', value: a.specialistDecisionReason ?? 'تأیید شده' },
+        ];
+        if (o) {
+          fields.push(
+            { label: 'شرح وظایف', value: o.jobDescription },
+            { label: 'نحوه‌ی همکاری', value: o.collaborationType },
+            { label: 'ساعت حضور روزانه', value: o.workingHours ?? '—' },
+            { label: 'حقوق ماهانه', value: `${o.salary.toLocaleString('en-US')} تومان` },
+            { label: 'مدت همکاری', value: o.durationMonths ? `${o.durationMonths} ماه` : 'نامحدود' },
+            { label: 'امضای متقاضی', value: o.candidateSignature ? 'ثبت شده ✓' : 'ثبت نشده' },
+          );
+        }
+        return { fields };
+      },
     });
   }
 

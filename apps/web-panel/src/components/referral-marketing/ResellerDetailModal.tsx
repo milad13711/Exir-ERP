@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { deleteReseller } from "@/lib/api";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, toPersianDigits } from "@/lib/persian";
@@ -234,6 +236,7 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
           </div>
         </div>
       </div>
+      <DeleteRecordButton confirmText="پروفایل این نماینده حذف شود؟ مخاطب CRM و سوابق مالی باقی می‌ماند." onDelete={() => deleteReseller(id)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );
 }

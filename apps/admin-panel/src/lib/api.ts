@@ -487,8 +487,25 @@ export function fetchResellerApplications(status?: ResellerApplicationStatus) {
   return apiFetch<ResellerApplication[]>(`/admin/reseller-applications${status ? `?status=${status}` : ""}`);
 }
 
+export type ResellerApplicationApproval = ResellerApplication & { accessGranted?: boolean; accessError?: string | null; pinnedOnMap?: boolean };
+
 export function approveResellerApplication(id: string) {
-  return apiFetch<ResellerApplication>(`/admin/reseller-applications/${id}/approve`, { method: "POST" });
+  return apiFetch<ResellerApplicationApproval>(`/admin/reseller-applications/${id}/approve`, { method: "POST" });
+}
+
+export function fetchResellerApplication(id: string) {
+  return apiFetch<ResellerApplication & { reviewedBy?: { name: string } | null }>(`/admin/reseller-applications/${id}`);
+}
+
+export function updateResellerApplication(
+  id: string,
+  data: Partial<{ name: string; company: string; phone: string; email: string; city: string; websiteUrl: string; productCode: string; message: string }>,
+) {
+  return apiFetch<ResellerApplication>(`/admin/reseller-applications/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteResellerApplication(id: string) {
+  return apiFetch<{ success: boolean }>(`/admin/reseller-applications/${id}`, { method: "DELETE" });
 }
 
 export function rejectResellerApplication(id: string, rejectionNote?: string) {
@@ -590,4 +607,22 @@ export function fetchSmsPackages() {
 
 export function updateSmsPackage(code: string, data: { priceToman?: number; isActive?: boolean }) {
   return apiFetch<SmsPackage>(`/admin/sms-packages/${code}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+// ── مشاهده/ویرایش/حذف فرصت فروش و وظیفه ─────────────────────────────────────
+
+export function fetchInternalLead(id: string) {
+  return apiFetch<InternalLead>(`/admin/internal/leads/${id}`);
+}
+export function updateInternalLead(id: string, data: Partial<{ name: string; company: string; phone: string; email: string; value: number; notes: string }>) {
+  return apiFetch<InternalLead>(`/admin/internal/leads/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function deleteInternalLead(id: string) {
+  return apiFetch<{ success: boolean }>(`/admin/internal/leads/${id}`, { method: "DELETE" });
+}
+export function updateInternalTask(id: string, data: Partial<{ title: string; description: string; dueAt: string }>) {
+  return apiFetch<InternalTask>(`/admin/internal/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function deleteInternalTask(id: string) {
+  return apiFetch<{ success: boolean }>(`/admin/internal/tasks/${id}`, { method: "DELETE" });
 }

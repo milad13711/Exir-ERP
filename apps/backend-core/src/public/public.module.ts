@@ -14,7 +14,7 @@ import { PublicTrackingService } from './public-tracking.service.js';
 import { PublicTrackingController } from './public-tracking.controller.js';
 import { PublicContractsService } from './public-contracts.service.js';
 import { PublicContractsController } from './public-contracts.controller.js';
-import { PublicBookingPaymentController, PublicBookingAppointmentController } from './public-booking-payment.controller.js';
+import { PublicBookingPaymentController, PublicBookingAppointmentController, PublicBookingProviderController } from './public-booking-payment.controller.js';
 import { PublicFleetOfferService } from './public-fleet-offer.service.js';
 import { PublicFleetOfferController } from './public-fleet-offer.controller.js';
 import { PublicSurveyService } from './public-survey.service.js';
@@ -87,6 +87,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicContractsController,
     PublicBookingPaymentController,
     PublicBookingAppointmentController,
+    PublicBookingProviderController,
     PublicFleetOfferController,
     PublicSurveyController,
     PublicStoreController,

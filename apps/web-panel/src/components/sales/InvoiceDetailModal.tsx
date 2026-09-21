@@ -21,6 +21,9 @@ import {
   type SalesPaymentMethod,
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
+import { NewInvoiceModal } from "./NewInvoiceModal";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { cancelSalesInvoice, deleteSalesInvoice } from "@/lib/api";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
@@ -62,6 +65,8 @@ export function InvoiceDetailModal({
   const { installedModules } = useWorkspace();
   const deliverySignatureEnabled = installedModules.has("delivery-signature");
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [cancelMsg, setCancelMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -595,6 +600,56 @@ export function InvoiceDetailModal({
           </div>
         </div>
       )}
+
+      {invoice && invoice.status === "DRAFT" ? (
+        <div className="mt-4 pt-3 border-t border-border flex items-center gap-2 flex-wrap">
+          <button onClick={() => setEditOpen(true)} className="text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-lg cursor-pointer">
+            ویرایش پیش‌نویس
+          </button>
+          <div className="mr-auto">
+            <DeleteRecordButton
+              confirmText="این فاکتور پیش‌نویس حذف شود؟"
+              onDelete={() => deleteSalesInvoice(invoice.id)}
+              onDeleted={() => {
+                onChanged();
+                onClose();
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+      {invoice && invoice.status === "CONFIRMED" && invoice.paidAmount === 0 ? (
+        <div className="mt-4 pt-3 border-t border-border flex items-center gap-3 flex-wrap">
+          <button
+            onClick={async () => {
+              const reason = window.prompt("دلیل ابطال فاکتور (برای سند معکوس و سابقه):");
+              if (!reason || reason.trim().length < 3) return;
+              try {
+                const res = await cancelSalesInvoice(invoice.id, reason.trim());
+                setCancelMsg(res.pendingApproval ? "درخواست ابطال در کارتابل مدیر ثبت شد؛ پس از تأیید مدیر اجرا می‌شود." : "فاکتور باطل شد و سند معکوس و برگشت موجودی ثبت شد.");
+                reload();
+                onChanged();
+              } catch (err) {
+                setCancelMsg(err instanceof Error ? err.message : "ابطال ناموفق بود");
+              }
+            }}
+            className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer"
+          >
+            ابطال فاکتور
+          </button>
+          {cancelMsg && <span className="text-[12px] font-semibold text-ink-soft">{cancelMsg}</span>}
+        </div>
+      ) : null}
+      {editOpen && invoice ? (
+        <NewInvoiceModal
+          invoice={invoice}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            reload();
+            onChanged();
+          }}
+        />
+      ) : null}
 
       {returnModalOpen && invoice ? (
         <NewSalesReturnModal

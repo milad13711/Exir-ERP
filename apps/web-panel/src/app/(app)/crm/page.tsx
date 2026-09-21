@@ -250,6 +250,7 @@ export default function CrmPage() {
         <ContactModal
           contactId={openContactId}
           onClose={() => setOpenContactId(null)}
+          onDeleted={() => setContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev)}
           onNewDeal={(contactId) => {
             setOpenContactId(null);
             setNewDealFor({ contactId });

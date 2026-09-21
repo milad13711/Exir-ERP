@@ -42,6 +42,16 @@ export class ProjectsService implements OnModuleInit {
         const stage = await ctx.tenantDb.projectStage.findUniqueOrThrow({ where: { id: stageId } });
         await this.rejectStage(ctx, stage.projectId, stageId, opts.note, true);
       },
+      describe: async (ctx, stageId) => {
+        const s = await ctx.tenantDb.projectStage.findUniqueOrThrow({ where: { id: stageId }, include: { project: true } });
+        return {
+          fields: [
+            { label: 'پروژه', value: `${s.project.name} (#${s.project.projectNo})` },
+            { label: 'مرحله', value: s.title },
+            { label: 'وضعیت', value: s.status },
+          ],
+        };
+      },
     });
   }
 

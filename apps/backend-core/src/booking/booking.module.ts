@@ -10,12 +10,13 @@ import { AppointmentsController } from './appointments.controller.js';
 import { AppointmentsService } from './appointments.service.js';
 import { StaffAvailabilityController } from './staff-availability.controller.js';
 import { StaffAvailabilityService } from './staff-availability.service.js';
+import { BookingSlotsService } from './booking-slots.service.js';
 import { BookingAutomationTriggers } from './booking-automation.triggers.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule, SmsModule, BillingModule],
   controllers: [ServiceTypesController, AppointmentsController, StaffAvailabilityController],
-  providers: [ServiceTypesService, AppointmentsService, StaffAvailabilityService, BookingAutomationTriggers],
-  exports: [ServiceTypesService, AppointmentsService, StaffAvailabilityService],
+  providers: [ServiceTypesService, AppointmentsService, StaffAvailabilityService, BookingSlotsService, BookingAutomationTriggers],
+  exports: [ServiceTypesService, AppointmentsService, StaffAvailabilityService, BookingSlotsService],
 })
 export class BookingModule {}

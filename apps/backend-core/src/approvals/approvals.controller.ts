@@ -33,6 +33,11 @@ export class ApprovalsController {
     return this.approvals.pendingCount(ctx);
   }
 
+  @Get(':id/detail')
+  detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    return this.approvals.detail(ctx, id);
+  }
+
   @Post(':id/decision')
   decide(@Param('id') id: string, @Body() dto: DecideApprovalDto, @Ctx() ctx: TenantRequestContext) {
     return this.approvals.decide(ctx, id, dto.approved, { withStamp: dto.withStamp, note: dto.note });

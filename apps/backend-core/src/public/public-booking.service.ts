@@ -6,6 +6,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { ServiceTypesService } from '../booking/service-types.service.js';
 import { AppointmentsService } from '../booking/appointments.service.js';
+import { BookingSlotsService } from '../booking/booking-slots.service.js';
 import type { BookingTicketPayload } from '../auth/jwt-payload.type.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreatePublicAppointmentDto } from './dto/create-public-appointment.dto.js';
@@ -28,6 +29,7 @@ export class PublicBookingService {
     private readonly auth: AuthService,
     private readonly serviceTypes: ServiceTypesService,
     private readonly appointments: AppointmentsService,
+    private readonly slots: BookingSlotsService,
     private readonly jwt: JwtService,
   ) {}
 
@@ -60,6 +62,11 @@ export class PublicBookingService {
     ]);
     const address = typeof addressRow?.value === 'string' ? addressRow.value : null;
     return { businessName: tenant?.name ?? '', address };
+  }
+
+  async listFreeSlots(slug: string, serviceTypeId: string, providerUserId: string | undefined, date: string) {
+    const ctx = await this.resolveTenantCtx(slug);
+    return this.slots.listFreeSlots(ctx, { serviceTypeId, providerUserId: providerUserId || undefined, date });
   }
 
   async listProviders(slug: string) {

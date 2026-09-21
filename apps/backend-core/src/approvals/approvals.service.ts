@@ -5,12 +5,16 @@ import { getManagerUsers } from '../common/manager-users.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 
-export type ApprovalDecisionOptions = { stampApplied: boolean; note?: string; requestedByUserId?: string | null };
+export type ApprovalDecisionOptions = { stampApplied: boolean; note?: string; requestedByUserId?: string | null; requestSummary?: string | null };
+
+export type ApprovalDetail = { fields: Array<{ label: string; value: string }> };
 
 /** هر ماژولی که سندش با تأیید مدیر پیش می‌رود، برای entityType خودش یکی از این‌ها را ثبت می‌کند. */
 export type ApprovalHandler = {
   approve(ctx: TenantRequestContext, entityId: string, opts: ApprovalDecisionOptions): Promise<void>;
   reject(ctx: TenantRequestContext, entityId: string, opts: ApprovalDecisionOptions): Promise<void>;
+  /** جزئیات سند برای نمایش در کارتابل — مدیر قبل از تصمیم همه‌ی اطلاعات را می‌بیند */
+  describe?(ctx: TenantRequestContext, entityId: string): Promise<ApprovalDetail>;
 };
 
 export type ApprovalRequestInput = {
@@ -89,6 +93,17 @@ export class ApprovalsService {
     return created;
   }
 
+  /**
+   * عمل حساس (ابطال سند مالی، حذف قطعی): مدیر مستقیم اجرا می‌کند، غیرمدیر فقط درخواست می‌سازد
+   * و پس از تأیید مدیر در کارتابل اجرا می‌شود. خروجی می‌گوید کدام اتفاق افتاد.
+   */
+  async runOrRequest<T>(ctx: TenantRequestContext, input: ApprovalRequestInput, action: () => Promise<T>): Promise<{ executed: true; result: T } | { executed: false; pendingApproval: true }> {
+    if (this.isManager(ctx)) return { executed: true, result: await action() };
+    const requestedByUserId = (await resolveTenantUserId(ctx).catch(() => null)) ?? undefined;
+    await this.request(ctx, { ...input, requestedByUserId });
+    return { executed: false, pendingApproval: true };
+  }
+
   /** وقتی سند از مسیر خود ماژول (نه کارتابل) تأیید/رد شد، درخواست متناظر هم بسته می‌شود. */
   async closeForEntity(ctx: TenantRequestContext, entityType: string, entityId: string, status: 'APPROVED' | 'REJECTED', stampApplied = false) {
     const decidedByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
@@ -139,6 +154,22 @@ export class ApprovalsService {
     return { count: await ctx.tenantDb.approvalRequest.count({ where: { ...scope, status: 'PENDING' } }) };
   }
 
+  /** جزئیات کامل درخواست + سند مرتبط؛ همان کنترل دسترسیِ فهرست کارتابل. */
+  async detail(ctx: TenantRequestContext, id: string) {
+    const request = await ctx.tenantDb.approvalRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('این درخواست یافت نشد');
+    if (!this.isManager(ctx)) {
+      const me = await resolveTenantUserId(ctx).catch(() => null);
+      if (!me || request.assigneeUserId !== me) throw new ForbiddenException('این سند برای شما ارجاع نشده است');
+    }
+    const handler = this.handlers.get(request.entityType);
+    let detail: ApprovalDetail = { fields: [] };
+    if (handler?.describe) {
+      detail = await handler.describe(ctx, request.entityId).catch(() => ({ fields: [{ label: 'توضیح', value: 'سند مرتبط در دسترس نیست (ممکن است حذف شده باشد)' }] }));
+    }
+    return { request, detail };
+  }
+
   async decide(ctx: TenantRequestContext, id: string, approved: boolean, opts: { withStamp?: boolean; note?: string }) {
     const request = await ctx.tenantDb.approvalRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('این درخواست یافت نشد');
@@ -156,7 +187,7 @@ export class ApprovalsService {
     // تأییدکننده‌ی تعیین‌شده (غیرمدیر) فقط برای همین سند از طرف مدیر عمل می‌کند؛
     // اجرای handler با نقش مدیر است، ولی هیچ اندپوینت دیگری باز نمی‌شود.
     const actingCtx: TenantRequestContext = this.isManager(ctx) ? ctx : { ...ctx, auth: { ...ctx.auth, role: 'ADMIN' } };
-    const handlerOpts = { stampApplied, note: opts.note, requestedByUserId: request.requestedByUserId };
+    const handlerOpts = { stampApplied, note: opts.note, requestedByUserId: request.requestedByUserId, requestSummary: request.summary };
     if (approved) await handler.approve(actingCtx, request.entityId, handlerOpts);
     else await handler.reject(actingCtx, request.entityId, { ...handlerOpts, stampApplied: false });
 

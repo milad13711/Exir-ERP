@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ResellerApplicationModal } from "@/components/ResellerApplicationModal";
 import {
   fetchResellerApplications,
   approveResellerApplication,
@@ -31,6 +32,7 @@ export default function ResellerApplicationsPage() {
   const [apps, setApps] = useState<ResellerApplication[] | null>(null);
   const [filter, setFilter] = useState<Filter>("PENDING");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
 
@@ -93,7 +95,7 @@ export default function ResellerApplicationsPage() {
           <div className="p-8 text-center text-muted text-sm">درخواستی در این وضعیت نیست</div>
         ) : (
           filtered.map((app, i) => (
-            <div key={app.id} className={clsx("px-4 py-3.5", i < filtered.length - 1 && "border-b border-border")}>
+            <div key={app.id} onClick={() => setOpenId(app.id)} className={clsx("px-4 py-3.5 cursor-pointer hover:bg-slate-50", i < filtered.length - 1 && "border-b border-border")}>
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex-1 min-w-[180px]">
                   <div className="text-[13px] font-bold">{app.name}</div>
@@ -106,7 +108,7 @@ export default function ResellerApplicationsPage() {
                   {STATUS_LABEL[app.status]}
                 </Badge>
                 {app.status === "PENDING" ? (
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleApprove(app.id)}
                       disabled={busyId === app.id}
@@ -136,7 +138,7 @@ export default function ResellerApplicationsPage() {
               ) : null}
 
               {rejectingId === app.id ? (
-                <div className="flex items-center gap-2 mt-3">
+                <div className="flex items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     value={rejectionNote}
                     onChange={(e) => setRejectionNote(e.target.value)}
@@ -156,6 +158,7 @@ export default function ResellerApplicationsPage() {
           ))
         )}
       </Card>
+      {openId ? <ResellerApplicationModal id={openId} onClose={() => setOpenId(null)} onChanged={reload} /> : null}
     </div>
   );
 }

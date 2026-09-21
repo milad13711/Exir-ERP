@@ -30,6 +30,7 @@ import {
   type ServiceType,
 } from "@/lib/api";
 import { NewAppointmentModal } from "@/components/booking/NewAppointmentModal";
+import { AppointmentDetailModal } from "@/components/booking/AppointmentDetailModal";
 import { ManualPaymentModal } from "@/components/booking/ManualPaymentModal";
 import { ServiceTypesModal } from "@/components/booking/ServiceTypesModal";
 import { StaffAvailabilityModal } from "@/components/booking/StaffAvailabilityModal";
@@ -169,6 +170,8 @@ export default function BookingPage() {
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [newOpen, setNewOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
+  const [reopening, setReopening] = useState<Appointment | null>(null);
+  const [viewing, setViewing] = useState<Appointment | null>(null);
   const [payingFor, setPayingFor] = useState<Appointment | null>(null);
   const [serviceTypesOpen, setServiceTypesOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
@@ -414,8 +417,9 @@ export default function BookingPage() {
             return (
               <div
                 key={a.id}
+                onClick={() => setViewing(a)}
                 className={clsx(
-                  "flex items-center gap-3 px-4 py-3.5 flex-wrap",
+                  "flex items-center gap-3 px-4 py-3.5 flex-wrap cursor-pointer hover:bg-slate-50",
                   i < appointments.length - 1 && "border-b border-border",
                 )}
               >
@@ -447,7 +451,7 @@ export default function BookingPage() {
                 </div>
                 <div className="text-[11.5px] text-muted hidden sm:block">{formatToman(a.serviceType.price)}</div>
                 <Badge tone={STATUS_TONES[a.status]}>{STATUS_LABELS[a.status]}</Badge>
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
                   {(a.status === "SCHEDULED" || a.status === "CONFIRMED" || a.status === "PENDING_COORDINATION") ? (
                     <button
                       disabled={isBusy}
@@ -523,6 +527,28 @@ export default function BookingPage() {
           onClose={() => setNewOpen(false)}
           onCreated={reload}
         />
+      ) : null}
+      {viewing ? (
+        <AppointmentDetailModal
+          appointment={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => {
+            setEditing(viewing);
+            setViewing(null);
+          }}
+          onReopen={() => {
+            setReopening(viewing);
+            setViewing(null);
+          }}
+          onPay={() => {
+            setPayingFor(viewing);
+            setViewing(null);
+          }}
+          onChanged={reload}
+        />
+      ) : null}
+      {reopening ? (
+        <NewAppointmentModal serviceTypes={serviceTypes} defaultStart={selectedDate} appointment={reopening} reopen onClose={() => setReopening(null)} onCreated={reload} />
       ) : null}
       {editing ? (
         <NewAppointmentModal

@@ -1,4 +1,5 @@
-import { Controller, Get, NotFoundException, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from '@nestjs/common';
+import { ProviderRejectDto, ProviderRescheduleDto } from './dto/provider-actions.dto.js';
 import type { Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -95,11 +96,9 @@ export class PublicBookingPaymentController {
     const result = await this.appointments.verifyDepositPayment(ctx, id, authority);
     if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
-    return res.send(
-      `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>نوبت شما نهایی شد. رسید پرداخت برای شما پیامک شد.</p>${
-        bookingUrl ? `<a class="btn" href="${bookingUrl}/book/${slug}">بازگشت</a>` : ''
-      }${BRAND_PAGE_TAIL}`,
-    );
+    // رسید و تأیید رزرو روی صفحه‌ی عمومی جزئیات جلسه نمایش داده می‌شود
+    if (bookingUrl) return res.redirect(`${bookingUrl}/book/${slug}/a/${result.appointment.publicToken}?paid=1`);
+    return res.send(`${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>رزرو شما نهایی شد. رسید برای شما پیامک شد.</p>${BRAND_PAGE_TAIL}`);
   }
 }
 
@@ -138,5 +137,49 @@ export class PublicBookingAppointmentController {
     const result = await this.appointments.initiatePaymentByToken(ctx, token, `${apiUrl}/public/booking/${slug}`);
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
     return { paymentUrl: result.paymentUrl };
+  }
+}
+
+/** لینک خصوصی متخصص: مشاهده‌ی متقاضی، تأیید، رد با دلیل، جابه‌جایی به وقت آزاد. */
+@Controller('public/booking/:slug/s/:token')
+export class PublicBookingProviderController {
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly appointments: AppointmentsService,
+  ) {}
+
+  private async resolveCtx(slug: string): Promise<TenantRequestContext> {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
+    if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
+      throw new NotFoundException('این لینک دیگر معتبر نیست');
+    }
+    const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+    return { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
+  }
+
+  @Get()
+  async view(@Param('slug') slug: string, @Param('token') token: string) {
+    return this.appointments.providerView(await this.resolveCtx(slug), token);
+  }
+
+  @Get('slots')
+  async slots(@Param('slug') slug: string, @Param('token') token: string, @Query('date') date: string) {
+    return this.appointments.providerSlots(await this.resolveCtx(slug), token, date);
+  }
+
+  @Post('confirm')
+  async confirm(@Param('slug') slug: string, @Param('token') token: string) {
+    return this.appointments.providerConfirm(await this.resolveCtx(slug), token);
+  }
+
+  @Post('reject')
+  async reject(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: ProviderRejectDto) {
+    return this.appointments.providerReject(await this.resolveCtx(slug), token, dto.reason);
+  }
+
+  @Post('reschedule')
+  async reschedule(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: ProviderRescheduleDto) {
+    return this.appointments.providerReschedule(await this.resolveCtx(slug), token, dto.startAt);
   }
 }
