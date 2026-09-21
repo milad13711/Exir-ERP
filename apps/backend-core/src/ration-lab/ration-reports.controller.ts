@@ -28,7 +28,7 @@ export class RationReportsController {
   /** روند یک دامدار: نقطه‌ی شروع (نمونه‌ی اولیه) + هر چک‌این تکمیل‌شده، به ترتیب تاریخ. */
   @Get('sample/:sampleId/trend')
   async sampleTrend(@Param('sampleId') sampleId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     const sample = await ctx.tenantDb.rationSample.findUnique({
       where: { id: sampleId },
       include: { followUps: { where: { completedAt: { not: null } }, orderBy: { scheduledAt: 'asc' } } },
@@ -63,7 +63,7 @@ export class RationReportsController {
    */
   @Get('aggregate')
   async aggregate(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     const samples = await ctx.tenantDb.rationSample.findMany({
       where: { avgMilkYieldPerAnimalLiters: { not: null } },
       include: { followUps: { where: { completedAt: { not: null } }, orderBy: { scheduledAt: 'desc' }, take: 1 } },

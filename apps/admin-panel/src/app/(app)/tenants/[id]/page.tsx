@@ -26,6 +26,7 @@ import {
 import { RenewTenantModal } from "@/components/tenants/RenewTenantModal";
 import { DeleteTenantModal } from "@/components/tenants/DeleteTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
+import { ModuleInvoiceModal } from "@/components/tenants/ModuleInvoiceModal";
 import { SubscriptionSmsCard } from "@/components/tenants/SubscriptionSmsCard";
 import { IssueInvoiceModal } from "@/components/tenants/IssueInvoiceModal";
 import { SaveAsTemplateModal } from "@/components/tenants/SaveAsTemplateModal";
@@ -80,6 +81,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [moduleInvoiceOpen, setModuleInvoiceOpen] = useState(false);
   const [editInvoice, setEditInvoice] = useState<TenantInvoice | null>(null);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -303,11 +305,18 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             فاکتورها
           </div>
           <button
+            onClick={() => setModuleInvoiceOpen(true)}
+            className="flex items-center gap-1 text-[12px] font-bold text-white bg-primary px-3 py-1.5 rounded-lg cursor-pointer"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            فاکتور ماژول (اشتراک/لایسنس)
+          </button>
+          <button
             onClick={() => setInvoiceOpen(true)}
             className="flex items-center gap-1 text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
           >
             <PlusIcon className="w-3.5 h-3.5" />
-            صدور پیش‌فاکتور
+            صدور فاکتور دستی
           </button>
         </div>
         {invoices === null ? (
@@ -384,6 +393,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
         )}
       </Card>
 
+      {moduleInvoiceOpen ? <ModuleInvoiceModal tenantId={id} tenantName={tenant.name} onClose={() => setModuleInvoiceOpen(false)} onIssued={reload} /> : null}
       {editInvoice ? (
         <IssueInvoiceModal tenantId={id} tenantName={tenant.name} invoice={editInvoice} onClose={() => setEditInvoice(null)} onIssued={reload} />
       ) : null}

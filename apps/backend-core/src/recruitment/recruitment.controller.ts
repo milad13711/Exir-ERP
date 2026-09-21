@@ -37,19 +37,19 @@ export class RecruitmentController {
 
   @Get('postings')
   async listPostings(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.listPostings(ctx, status);
   }
 
   @Get('postings/:id')
   async postingDetail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.postingDetail(ctx, id);
   }
 
   @Get('postings/:id/report')
   async postingReport(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.postingReport(ctx, id);
   }
 
@@ -96,13 +96,13 @@ export class RecruitmentController {
     @Query('search') search: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.listApplicants(ctx, { jobPostingId, stage, search });
   }
 
   @Get('applicants/:id')
   async applicantDetail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.applicantDetail(ctx, id);
   }
 
@@ -145,7 +145,7 @@ export class RecruitmentController {
     @Query('interviewerUserId') interviewerUserId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.listInterviews(ctx, { from, to, interviewerUserId });
   }
 
@@ -177,7 +177,7 @@ export class RecruitmentController {
 
   @Get('applicants/:id/offer')
   async getOffer(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     return this.recruitment.getOfferForApplicant(ctx, id);
   }
 
@@ -195,7 +195,7 @@ export class RecruitmentController {
 
   @Get('offers/:id/pdf')
   async downloadOfferPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE);
     const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { id }, include: { applicant: { select: { name: true } }, signedBy: { select: { name: true } } } });
     if (!offer) {
       res.status(404).json({ message: 'این شرایط همکاری یافت نشد' });

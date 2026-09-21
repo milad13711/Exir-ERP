@@ -22,7 +22,7 @@ export class PersonnelRewardsController {
 
   @Get()
   async list(@Query('employeeId') employeeId: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return ctx.tenantDb.personnelReward.findMany({
       where: employeeId ? { employeeId } : {},
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } }, createdBy: { select: { id: true, name: true } } },
@@ -66,7 +66,7 @@ export class PersonnelPenaltiesController {
 
   @Get()
   async list(@Query('employeeId') employeeId: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return ctx.tenantDb.personnelPenalty.findMany({
       where: employeeId ? { employeeId } : {},
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } }, createdBy: { select: { id: true, name: true } } },

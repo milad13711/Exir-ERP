@@ -17,7 +17,7 @@ export class RationFollowupsController {
   /** پیگیری‌های هنوز تکمیل‌نشده‌ای که سررسیدشان رسیده یا نزدیک است — برای داشبورد کارشناس. */
   @Get('due')
   async listDue(@Query('withinDays') withinDays: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     const horizon = new Date();
     horizon.setDate(horizon.getDate() + Number(withinDays ?? 7));
     return ctx.tenantDb.rationFollowUpCheckin.findMany({

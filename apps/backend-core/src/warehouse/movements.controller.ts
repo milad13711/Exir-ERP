@@ -36,7 +36,7 @@ export class MovementsController {
     @Query('warehouseId') warehouseId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'warehouse');
+    await this.permissions.assertViewAll(ctx, 'warehouse');
     return ctx.tenantDb.stockMovement.findMany({
       where: {
         ...(type ? { type: type as never } : {}),

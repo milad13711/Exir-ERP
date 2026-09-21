@@ -49,7 +49,7 @@ export class RationSamplesController {
 
   @Get()
   async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     return ctx.tenantDb.rationSample.findMany({
       where: status ? { status: status as never } : undefined,
       include: SAMPLE_INCLUDE,
@@ -59,7 +59,7 @@ export class RationSamplesController {
 
   @Get(':id')
   async get(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id }, include: SAMPLE_INCLUDE });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     return sample;
@@ -203,7 +203,7 @@ export class RationSamplesController {
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab');
     const sample = await ctx.tenantDb.rationSample.findUnique({
       where: { id },
       include: {

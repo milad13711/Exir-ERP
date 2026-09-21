@@ -15,7 +15,7 @@ export class WarehouseSummaryController {
 
   @Get()
   async summary(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warehouse');
+    await this.permissions.assertViewAll(ctx, 'warehouse');
     const products = await ctx.tenantDb.product.findMany({
       include: { movements: { select: { quantityDelta: true } } },
     });

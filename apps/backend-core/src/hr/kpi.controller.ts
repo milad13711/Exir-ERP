@@ -23,7 +23,7 @@ export class KpiController {
     @Query('to') to: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return this.kpi.compute(ctx, id, from, to);
   }
 }

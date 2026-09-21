@@ -46,7 +46,7 @@ export class PayrollController {
     @Query('month') month: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     if (!year || !month) throw new BadRequestException('سال و ماه شمسی الزامی است');
     return ctx.tenantDb.payrollSlip.findMany({
       where: { periodYear: Number(year), periodMonth: Number(month) },
@@ -133,7 +133,7 @@ export class PayrollController {
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const slip = await ctx.tenantDb.payrollSlip.findUnique({
       where: { id },
       include: { employee: employeeSelect },

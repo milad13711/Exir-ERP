@@ -20,13 +20,13 @@ export class FormsController {
 
   @Get()
   async list(@Query('status') status: string | undefined, @Query('type') type: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.list(ctx, { status, type });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.detail(ctx, id);
   }
 
@@ -68,25 +68,25 @@ export class FormsController {
 
   @Get(':id/submissions')
   async listSubmissions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.listSubmissions(ctx, id);
   }
 
   @Get(':id/stats')
   async stats(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.stats(ctx, id);
   }
 
   @Get('submissions/by-contact/:contactId')
   async listSubmissionsByContact(@Param('contactId') contactId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.listSubmissionsByContact(ctx, contactId);
   }
 
   @Get('submissions/:submissionId')
   async submissionDetail(@Param('submissionId') submissionId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms');
     return this.forms.submissionDetail(ctx, submissionId);
   }
 }

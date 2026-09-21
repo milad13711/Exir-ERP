@@ -134,7 +134,7 @@ export class AccountsController {
 
   @Get(':id/ledger')
   async ledger(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const account = await ctx.tenantDb.account.findUnique({ where: { id } });
     if (!account) throw new NotFoundException('حساب یافت نشد');
 

@@ -23,7 +23,7 @@ export class SessionsController {
 
   @Get('upcoming')
   async upcoming(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.sessions.upcomingThisWeek(ctx);
   }
 
@@ -36,7 +36,7 @@ export class SessionsController {
     @Query('to') to: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.sessions.list(ctx, {
       engagementId,
       contactId,
@@ -48,13 +48,13 @@ export class SessionsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.sessions.detail(ctx, id);
   }
 
   @Get(':id/suggested-amount')
   async suggestedAmount(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return { amount: await this.sessions.suggestedAmount(ctx, id) };
   }
 

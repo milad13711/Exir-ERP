@@ -23,7 +23,7 @@ export class ReconciliationController {
 
   @Get(':accountId')
   async overview(@Param('accountId') accountId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const account = await ctx.tenantDb.account.findUnique({ where: { id: accountId } });
     if (!account) throw new NotFoundException('حساب یافت نشد');
 

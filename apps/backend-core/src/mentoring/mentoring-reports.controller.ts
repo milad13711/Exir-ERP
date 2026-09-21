@@ -18,19 +18,19 @@ export class MentoringReportsController {
 
   @Get('overview')
   async overview(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.reports.overview(ctx);
   }
 
   @Get('client-lifetime')
   async clientLifetime(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.reports.clientLifetime(ctx);
   }
 
   @Get('by-advisor')
   async byAdvisor(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.reports.byAdvisor(ctx);
   }
 }

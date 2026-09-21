@@ -30,13 +30,13 @@ export class EventsController {
 
   @Get()
   async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     return this.events.list(ctx, { status });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     return this.events.detail(ctx, id);
   }
 
@@ -90,13 +90,13 @@ export class EventsController {
 
   @Get(':id/bookings')
   async listBookings(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     return this.events.listBookings(ctx, id);
   }
 
   @Get(':id/tickets')
   async listTickets(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     return this.events.listTickets(ctx, id);
   }
 
@@ -122,13 +122,13 @@ export class EventsController {
   /** برای نمایش تاریخچه‌ی بلیط‌های یک مخاطب در پروفایل CRM. */
   @Get('tickets/by-contact/:contactId')
   async listTicketsByContact(@Param('contactId') contactId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     return this.events.listTicketsByContact(ctx, contactId);
   }
 
   @Get('tickets/:qrToken/qr.png')
   async ticketQrImage(@Param('qrToken') qrToken: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     const ticket = await ctx.tenantDb.eventTicket.findUnique({ where: { qrToken } });
     if (!ticket) {
       res.status(404).end();
@@ -142,7 +142,7 @@ export class EventsController {
   /** پوستر آماده‌ی انتشار در استوری/پست اینستاگرام یا واتس‌اپ — فقط تصویر می‌سازد، ارسال واقعی به شبکه‌ی اجتماعی وجود ندارد. */
   @Get(':id/poster')
   async getPoster(@Param('id') id: string, @Query('code') code: PosterTemplateCode | undefined, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
     const event = await ctx.tenantDb.event.findUnique({ where: { id } });
     if (!event) {
       res.status(404).end();

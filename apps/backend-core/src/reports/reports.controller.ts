@@ -52,7 +52,7 @@ export class ReportsController {
     @Query('referredToMe') referredToMe: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports');
     return this.reports.list(ctx, {
       categoryId,
       isArchived: parseBool(isArchived),
@@ -63,7 +63,7 @@ export class ReportsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports');
     return this.reports.detail(ctx, id);
   }
 

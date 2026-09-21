@@ -22,7 +22,7 @@ export class ReportsController {
   /** Every account's debit/credit turnover and ending balance, as of a date — should always balance (total debits = total credits). */
   @Get('trial-balance')
   async trialBalance(@Query('asOf') asOf: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const cutoff = asOf ? new Date(asOf) : new Date();
 
@@ -65,7 +65,7 @@ export class ReportsController {
     @Query('to') to: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const toDate = to ? new Date(to) : new Date();
     const fromDate = from ? new Date(from) : new Date(toDate.getTime() - 365 * 86_400_000);
@@ -120,7 +120,7 @@ export class ReportsController {
    */
   @Get('balance-sheet')
   async balanceSheet(@Query('asOf') asOf: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const cutoff = asOf ? new Date(asOf) : new Date();
 

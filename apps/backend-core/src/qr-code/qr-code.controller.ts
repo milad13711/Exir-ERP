@@ -21,13 +21,13 @@ export class QrCodeController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'qr-code');
+    await this.permissions.assertViewAll(ctx, 'qr-code');
     return this.qrCodes.list(ctx);
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'qr-code');
+    await this.permissions.assertViewAll(ctx, 'qr-code');
     return this.qrCodes.detail(ctx, id);
   }
 
@@ -51,7 +51,7 @@ export class QrCodeController {
 
   @Get(':id/image.png')
   async image(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'qr-code');
+    await this.permissions.assertViewAll(ctx, 'qr-code');
     const png = await this.qrCodes.imagePngBuffer(ctx, id);
     res.setHeader('Content-Type', 'image/png');
     res.send(png);

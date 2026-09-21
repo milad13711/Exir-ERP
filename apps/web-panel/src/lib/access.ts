@@ -2,6 +2,9 @@ import { PERMISSION_GATED_MODULE_CODES, type Me } from "./api";
 
 const MANAGER_ONLY_SETTINGS_EXCEPTIONS = new Set(["/settings/profile", "/settings/notifications"]);
 
+/** ماژول‌هایی که سرور برایشان فیلتر «فقط خودم» دارد (viewScope یا زنجیره‌ی سازمانی). */
+const OWN_SCOPED_MODULES = new Set(["crm", "sales", "accounting", "purchasing", "hr", "tasks"]);
+
 export function isManager(me: Me | null): boolean {
   return me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN";
 }
@@ -16,7 +19,9 @@ export function canViewModule(me: Me | null, installed: Set<string>, moduleCode?
   if (moduleCode === "checks") return viewable("sales") || viewable("purchasing");
   if (!(PERMISSION_GATED_MODULE_CODES as readonly string[]).includes(moduleCode)) return true;
   const m = me.permissions?.modules[moduleCode];
-  return !!m && (m.canViewAll || m.canViewOwn);
+  if (!m) return false;
+  // فقط این ماژول‌ها دیدِ «فقط خودم» واقعی دارند؛ برای بقیه فقط «مشاهده‌ی همه» صفحه‌ی ماژول را باز می‌کند (سرور هم همین را اعمال می‌کند)
+  return OWN_SCOPED_MODULES.has(moduleCode) ? m.canViewAll || m.canViewOwn : m.canViewAll || (moduleCode === "referral-marketing" && m.canViewOwn);
 }
 
 /** بخش‌های تنظیمات به‌جز پروفایل و اعلان‌ها فقط برای مدیران است. */

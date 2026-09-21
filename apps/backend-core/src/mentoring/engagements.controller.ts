@@ -26,13 +26,13 @@ export class EngagementsController {
     @Query('advisorUserId') advisorUserId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.engagements.list(ctx, { status, contactId, advisorUserId });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.engagements.detail(ctx, id);
   }
 

@@ -50,7 +50,7 @@ export class LeaveController implements OnModuleInit {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return ctx.tenantDb.leaveRequest.findMany({
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
       orderBy: { createdAt: 'desc' },

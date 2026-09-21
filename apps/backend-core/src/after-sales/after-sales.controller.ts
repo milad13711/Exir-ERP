@@ -21,13 +21,13 @@ export class AfterSalesController {
 
   @Get('services')
   async listServices(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, AFTER_SALES_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, AFTER_SALES_MODULE_CODE);
     return this.afterSales.listServices(ctx, status);
   }
 
   @Get('services/:id')
   async serviceDetail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, AFTER_SALES_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, AFTER_SALES_MODULE_CODE);
     return this.afterSales.serviceDetail(ctx, id);
   }
 
@@ -50,7 +50,7 @@ export class AfterSalesController {
 
   @Get('reports')
   async reports(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, AFTER_SALES_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, AFTER_SALES_MODULE_CODE);
     return this.afterSales.getReportsData(ctx);
   }
 

@@ -19,13 +19,13 @@ export class PurchaseReturnsController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'purchasing');
+    await this.permissions.assertViewAll(ctx, 'purchasing');
     return this.returns.list(ctx);
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'purchasing');
+    await this.permissions.assertViewAll(ctx, 'purchasing');
     return this.returns.detail(ctx, id);
   }
 

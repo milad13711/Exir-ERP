@@ -34,7 +34,7 @@ export class CertificatesController {
 
   @Get()
   async list(@Query('employeeId') employeeId: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return ctx.tenantDb.certificate.findMany({
       where: employeeId ? { employeeId } : {},
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } }, issuedBy: { select: { id: true, name: true } } },
@@ -44,7 +44,7 @@ export class CertificatesController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const cert = await ctx.tenantDb.certificate.findUnique({
       where: { id },
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } }, issuedBy: { select: { id: true, name: true } } },
@@ -92,7 +92,7 @@ export class CertificatesController {
 
   @Get(':id/image.png')
   async downloadImage(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const png = await this.renderImage(id, ctx);
     res.setHeader('Content-Type', 'image/png');
     res.send(png);

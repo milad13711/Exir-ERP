@@ -16,7 +16,7 @@ export class StoreReviewsController {
 
   @Get()
   async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store');
     return ctx.tenantDb.storeReview.findMany({
       where: status ? { status: status as never } : {},
       include: { product: { select: { name: true, publicSlug: true } } },

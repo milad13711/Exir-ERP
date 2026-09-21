@@ -16,7 +16,7 @@ export class AccountingSummaryController {
 
   @Get()
   async summary(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
 
     const monthStart = new Date();

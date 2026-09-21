@@ -21,7 +21,7 @@ export class AttendanceController {
 
   @Get()
   async list(@Query('date') dateParam: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const date = startOfDay(dateParam ?? new Date().toISOString());
 
     const [employees, records] = await Promise.all([

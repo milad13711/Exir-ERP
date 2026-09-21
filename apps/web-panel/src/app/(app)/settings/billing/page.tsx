@@ -21,7 +21,9 @@ const invoicePurposeLabel: Record<NonNullable<Invoice["purpose"]>, string> = {
   PLAN_RENEWAL: "تمدید پلن",
   MODULE_PURCHASE: "خرید ماژول",
   MODULE_RENEWAL: "تمدید ماژول",
+  SMS_PACKAGE: "بسته‌ی پیامک",
 };
+const BILLING_MODE_LABEL: Record<string, string> = { MONTHLY: "اشتراک ماهانه", YEARLY: "اشتراک سالانه", LICENSE: "لایسنس مادام‌العمر" };
 
 export default function BillingSettingsPage() {
   const [subscription, setSubscription] = useState<Subscription>(null);
@@ -97,7 +99,7 @@ export default function BillingSettingsPage() {
                     </td>
                     <td className="p-4 text-[12.5px] text-ink-soft">
                       {inv.items && inv.items.length > 0
-                        ? inv.items.map((it) => it.moduleName).join("، ")
+                        ? inv.items.map((it) => `${it.moduleName}${BILLING_MODE_LABEL[it.billingMode] ? ` (${BILLING_MODE_LABEL[it.billingMode]})` : ""}`).join("، ")
                         : inv.purpose
                           ? invoicePurposeLabel[inv.purpose]
                           : "—"}

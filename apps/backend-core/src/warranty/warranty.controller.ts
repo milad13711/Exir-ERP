@@ -36,19 +36,19 @@ export class WarrantyController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.listCodes(ctx, { status, search, invoiceId, noInvoice: noInvoice === 'true', contactId });
   }
 
   @Get('codes/invoice-groups')
   async invoiceGroups(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.getInvoiceGroups(ctx);
   }
 
   @Get('codes/:id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.detail(ctx, id);
   }
 
@@ -78,13 +78,13 @@ export class WarrantyController {
 
   @Get('invoices/search')
   async searchInvoices(@Query('term') term: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.searchInvoices(ctx, term ?? '');
   }
 
   @Get('invoices/:id/summary')
   async invoiceSummary(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.invoiceSummary(ctx, id);
   }
 
@@ -107,7 +107,7 @@ export class WarrantyController {
 
   @Get('products')
   async listProducts(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.listProducts(ctx);
   }
 
@@ -119,13 +119,13 @@ export class WarrantyController {
 
   @Get('invoices/:id/has-issuable-warranty')
   async invoiceHasIssuableWarranty(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return { hasIssuable: await this.warranty.invoiceHasIssuableWarranty(ctx, id) };
   }
 
   @Get('reports')
   async reports(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty');
     return this.warranty.getReportsData(ctx);
   }
 

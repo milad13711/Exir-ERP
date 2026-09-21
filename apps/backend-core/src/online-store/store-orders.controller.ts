@@ -23,13 +23,13 @@ export class StoreOrdersController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store');
     return this.orders.list(ctx, status, contactId);
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store');
     return this.orders.detail(ctx, id);
   }
 

@@ -24,7 +24,7 @@ export class ShipmentsController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet');
     return this.shipments.list(ctx, { status, contactId });
   }
 
@@ -36,13 +36,13 @@ export class ShipmentsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet');
     return this.shipments.detail(ctx, id);
   }
 
   @Get(':id/match-candidates')
   async matchCandidates(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet');
     return this.shipments.matchCandidates(ctx, id);
   }
 

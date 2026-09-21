@@ -54,13 +54,13 @@ export class AutomationController {
 
   @Get('rules')
   async listRules(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'automation');
+    await this.permissions.assertViewAll(ctx, 'automation');
     return ctx.tenantDb.automationRule.findMany({ include: RULE_INCLUDE, orderBy: { createdAt: 'desc' } });
   }
 
   @Get('rules/:id')
   async getRule(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'automation');
+    await this.permissions.assertViewAll(ctx, 'automation');
     const rule = await ctx.tenantDb.automationRule.findUnique({
       where: { id },
       include: { ...RULE_INCLUDE, runLogs: { orderBy: { ranAt: 'desc' as const }, take: 20 } },

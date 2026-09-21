@@ -28,7 +28,7 @@ export class QualitySamplesController {
 
   @Get()
   async list(@Query('productionOrderId') productionOrderId: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control');
     return ctx.tenantDb.qualitySample.findMany({
       where: productionOrderId ? { productionOrderId } : undefined,
       include: SAMPLE_INCLUDE,
@@ -38,7 +38,7 @@ export class QualitySamplesController {
 
   @Get(':id')
   async get(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control');
     const sample = await ctx.tenantDb.qualitySample.findUnique({ where: { id }, include: SAMPLE_INCLUDE });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     return sample;

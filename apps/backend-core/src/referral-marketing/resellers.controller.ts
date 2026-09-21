@@ -23,19 +23,19 @@ export class ResellersController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.list(ctx);
   }
 
   @Get('dashboard')
   async dashboard(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.dashboard(ctx);
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.detail(ctx, id);
   }
 
@@ -55,13 +55,13 @@ export class ResellersController {
 
   @Get(':id/balance')
   async balance(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.balance(ctx, id);
   }
 
   @Get(':id/settlements')
   async settlements(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.listSettlements(ctx, id);
   }
 
@@ -103,7 +103,7 @@ export class ResellersController {
 
   @Get(':id/conversions')
   async conversions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.conversions(ctx, id);
   }
 
@@ -116,7 +116,7 @@ export class ResellersController {
 
   @Get(':id/commissions')
   async commissions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.commissions(ctx, id);
   }
 }

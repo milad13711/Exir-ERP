@@ -20,13 +20,13 @@ export class BudgetsController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     return ctx.tenantDb.budget.findMany({ orderBy: { periodStart: 'desc' } });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const budget = await ctx.tenantDb.budget.findUnique({ where: { id }, include: BUDGET_INCLUDE });
     if (!budget) throw new NotFoundException('بودجه یافت نشد');
 

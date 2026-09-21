@@ -86,7 +86,7 @@ export class EmployeesController {
   /** Every employee, flat, with just enough to build the org chart client-side. */
   @Get('org-chart')
   async orgChart(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     return ctx.tenantDb.employee.findMany({
       select: {
         id: true,
@@ -102,7 +102,7 @@ export class EmployeesController {
 
   @Get('export')
   async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const employees = await ctx.tenantDb.employee.findMany({
       where: { status: 'ACTIVE' },
       include: EMPLOYEE_INCLUDE,

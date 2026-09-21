@@ -20,7 +20,7 @@ export class HrSummaryController {
 
   @Get()
   async summary(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
     const today = startOfDay();
     const [totalEmployees, presentToday, pendingLeaveCount, monthlyPayrollTotal] = await Promise.all([
       ctx.tenantDb.employee.count({ where: { status: 'ACTIVE' } }),

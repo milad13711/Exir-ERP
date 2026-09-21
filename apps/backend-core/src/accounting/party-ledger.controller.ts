@@ -57,7 +57,7 @@ export class PartyLedgerController {
 
   @Get('receivables')
   async receivables(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const rows = await this.balancesWithContacts(ctx);
     return rows
       .filter((r) => r.arBalance > 0)
@@ -68,7 +68,7 @@ export class PartyLedgerController {
   /** apBalance > 0 یعنی به این تأمین‌کننده بدهکاریم (سفارش‌های تسویه‌نشده بیشتر از پرداختی‌ها) — همان علامتی که PartyStatementService.statement() برمی‌گرداند. */
   @Get('payables')
   async payables(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const rows = await this.balancesWithContacts(ctx);
     return rows
       .filter((r) => r.apBalance > 0)
@@ -78,7 +78,7 @@ export class PartyLedgerController {
 
   @Get('receivables/export')
   async exportReceivables(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const rows = await this.balancesWithContacts(ctx);
     const buffer = await buildExcelBuffer(
       PARTY_BALANCE_EXCEL_HEADERS,
@@ -95,7 +95,7 @@ export class PartyLedgerController {
 
   @Get('payables/export')
   async exportPayables(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const rows = await this.balancesWithContacts(ctx);
     const buffer = await buildExcelBuffer(
       PARTY_BALANCE_EXCEL_HEADERS,
@@ -112,7 +112,7 @@ export class PartyLedgerController {
 
   @Get(':id/statement')
   async statement(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id }, select: { id: true, name: true, company: true, phone: true } });
     if (!contact) throw new NotFoundException('مخاطب یافت نشد');
     const { lines, arBalance, apBalance } = await this.partyStatement.statement(ctx, id);
@@ -121,7 +121,7 @@ export class PartyLedgerController {
 
   @Get(':id/statement/export')
   async exportStatement(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id }, select: { name: true } });
     if (!contact) throw new NotFoundException('مخاطب یافت نشد');
     const { lines } = await this.partyStatement.statement(ctx, id);

@@ -372,7 +372,7 @@ export type Invoice = {
   id: string;
   amount: number;
   status: "PENDING" | "PAID" | "FAILED";
-  purpose: "TENANT_SETUP" | "PLAN_RENEWAL" | "MODULE_PURCHASE" | "MODULE_RENEWAL" | null;
+  purpose: "TENANT_SETUP" | "PLAN_RENEWAL" | "MODULE_PURCHASE" | "MODULE_RENEWAL" | "SMS_PACKAGE" | null;
   items: { moduleCode: string; moduleName: string; billingMode: string; amount: number }[] | null;
   issuedAt: string;
   dueAt: string;

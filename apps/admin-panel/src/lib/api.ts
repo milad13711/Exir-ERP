@@ -699,3 +699,8 @@ export function createSmsPackage(data: { credits: number; priceToman: number }) 
 export function deleteSmsPackage(code: string) {
   return apiFetch<{ success: boolean }>(`/admin/sms-packages/${code}`, { method: "DELETE" });
 }
+
+export type ModuleBillingChoice = "MONTHLY" | "YEARLY" | "LICENSE";
+export function createTenantModuleInvoice(tenantId: string, data: { items: Array<{ code: string; billingMode: ModuleBillingChoice }>; dueAt?: string; note?: string }) {
+  return apiFetch<TenantInvoice>(`/admin/tenants/${tenantId}/module-invoice`, { method: "POST", body: JSON.stringify(data) });
+}

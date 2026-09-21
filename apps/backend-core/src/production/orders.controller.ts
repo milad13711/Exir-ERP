@@ -36,7 +36,7 @@ export class ProductionOrdersController {
 
   @Get()
   async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production');
     return ctx.tenantDb.productionOrder.findMany({
       where: status ? { status: status as never } : undefined,
       include: ORDER_INCLUDE,
@@ -46,7 +46,7 @@ export class ProductionOrdersController {
 
   @Get(':id')
   async get(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production');
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id }, include: ORDER_INCLUDE });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
     return order;

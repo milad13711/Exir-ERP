@@ -16,7 +16,7 @@ export class StoreAnalyticsController {
 
   @Get('summary')
   async summary(@Query('days') daysParam: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store');
     const days = Math.min(Math.max(Number(daysParam) || 7, 1), 90);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 

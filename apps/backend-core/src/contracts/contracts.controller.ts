@@ -59,7 +59,7 @@ export class ContractsController {
 
   @Get('expiring-soon')
   async expiringSoon(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.expiringSoon(ctx);
   }
 
@@ -85,19 +85,19 @@ export class ContractsController {
     @Query('category') category: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.list(ctx, { type, status, contactId, legalCategory, category });
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.detail(ctx, id);
   }
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     const [contract, tenant, stamp] = await Promise.all([
       this.contracts.detail(ctx, id),
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
@@ -167,7 +167,7 @@ export class ContractsController {
 
   @Get(':id/edit-requests')
   async editRequests(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.listEditRequests(ctx, id);
   }
 
@@ -179,7 +179,7 @@ export class ContractsController {
 
   @Get(':id/amendments')
   async amendments(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.listAmendments(ctx, id);
   }
 
@@ -197,7 +197,7 @@ export class ContractsController {
 
   @Get(':id/witnesses')
   async witnesses(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'contracts');
+    await this.permissions.assertViewAll(ctx, 'contracts');
     return this.contracts.listWitnesses(ctx, id);
   }
 

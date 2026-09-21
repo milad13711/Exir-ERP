@@ -23,13 +23,13 @@ export class AppointmentsController {
 
   @Get('upcoming-this-week')
   async upcomingThisWeek(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking');
     return this.appointments.upcomingThisWeek(ctx);
   }
 
   @Get('report')
   async report(@Query('from') from: string, @Query('to') to: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking');
     return this.appointments.reportByServiceAndProvider(ctx, new Date(from), new Date(to));
   }
 
@@ -42,7 +42,7 @@ export class AppointmentsController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking');
     return this.appointments.list(ctx, {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,

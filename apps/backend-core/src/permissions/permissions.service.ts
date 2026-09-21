@@ -116,6 +116,12 @@ export class PermissionsService {
     }
   }
 
+  /** برای بخش‌های مدیریتی که دیدِ «فقط خودم» برایشان معنا ندارد (مثلاً فهرست همه‌ی نمایندگان) — فقط «مشاهده‌ی همه». */
+  async assertViewAll(ctx: TenantRequestContext, moduleCode: string): Promise<void> {
+    const matrix = await this.getEffective(ctx, moduleCode);
+    if (!matrix.canViewAll) throw new ForbiddenException('فقط با دسترسی «مشاهده‌ی همه» می‌توانید این بخش را ببینید');
+  }
+
   async assertCreate(ctx: TenantRequestContext, moduleCode: string): Promise<void> {
     const matrix = await this.getEffective(ctx, moduleCode);
     if (!matrix.canCreate) throw new ForbiddenException('اجازه‌ی ایجاد رکورد جدید در این بخش را ندارید');

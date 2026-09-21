@@ -67,7 +67,7 @@ export class ProjectsController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertView(ctx, 'projects');
+    await this.permissions.assertViewAll(ctx, 'projects');
     return this.projects.list(ctx, { status, contactId });
   }
 
@@ -79,7 +79,7 @@ export class ProjectsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'projects');
+    await this.permissions.assertViewAll(ctx, 'projects');
     return this.projects.detail(ctx, id);
   }
 
@@ -115,7 +115,7 @@ export class ProjectsController {
 
   @Get(':id/invoices')
   async listInvoices(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'projects');
+    await this.permissions.assertViewAll(ctx, 'projects');
     return this.projects.listInvoices(ctx, id);
   }
 

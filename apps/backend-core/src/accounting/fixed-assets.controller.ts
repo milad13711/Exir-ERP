@@ -25,14 +25,14 @@ export class FixedAssetsController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const assets = await ctx.tenantDb.fixedAsset.findMany({ orderBy: { purchaseDate: 'desc' } });
     return assets.map((a) => ({ ...a, depreciation: computeDepreciation(a) }));
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const asset = await ctx.tenantDb.fixedAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('دارایی ثابت یافت نشد');
     return { ...asset, depreciation: computeDepreciation(asset) };
