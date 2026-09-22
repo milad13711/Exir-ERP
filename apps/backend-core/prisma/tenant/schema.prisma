@@ -36,6 +36,8 @@ model User {
 
   roles                         UserRole[]
   tasks                         Task[]                     @relation("TaskAssignee")
+  dailyChecklistItems           DailyChecklistItem[]       @relation("DailyChecklistOwner")
+  createdDailyChecklistItems     DailyChecklistItem[]       @relation("DailyChecklistCreatedBy")
   activityLogs                  ActivityLog[]
   ownedContacts                 CrmContact[]               @relation("CrmContactOwner")
   ownedDeals                    CrmDeal[]                  @relation("CrmDealOwner")
@@ -205,8 +207,33 @@ model Task {
 
   assignee  User?      @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   reminders Reminder[]
+  dailyChecklistItem DailyChecklistItem?
 
   @@map("tasks")
+}
+
+/// چک‌لیست کارهای روزانه‌ی هر پرسنل — ویجت داشبورد، شبیه یادداشت چسبان. مدیر می‌تواند
+/// چک‌لیست زیردستان را هم ببیند و آیتم اضافه کند (createdByUserId با userId فرق می‌کند).
+model DailyChecklistItem {
+  id              String    @id @default(uuid())
+  userId          String // صاحب چک‌لیست — این آیتم برای کیست
+  date            DateTime // فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود
+  title           String
+  description     String?
+  done            Boolean   @default(false)
+  doneAt          DateTime?
+  taskId          String?   @unique // اگر رویش وظیفه ساخته شده
+  createdByUserId String? // خودش یا مدیرش
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User  @relation("DailyChecklistOwner", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("DailyChecklistCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  task      Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@map("daily_checklist_items")
 }
 
 enum ReminderChannel {

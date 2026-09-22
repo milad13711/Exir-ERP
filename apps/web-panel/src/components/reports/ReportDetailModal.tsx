@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { toPersianDigits, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
 import {
   fetchReport,
@@ -306,6 +307,8 @@ export function ReportDetailModal({ id, onClose, onChanged }: { id: string; onCl
             </button>
           </form>
         )}
+
+        <AttachmentsSection entityType="Report" entityId={report.id} />
 
         <div>
           <div className="text-[12px] text-muted mb-2">تاریخچه‌ی ارجاع‌ها ({toPersianDigits(report.referrals.length)})</div>

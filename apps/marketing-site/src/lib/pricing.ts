@@ -42,6 +42,7 @@ const MONTHLY_DIVISOR = 10;
  */
 export const MODULE_LICENSE_WEIGHTS_USD: Record<string, number> = {
   "tasks": 0,
+  "daily-checklist": 0,
   "crm": 400,
   "warehouse": 400,
   "accounting": 565,

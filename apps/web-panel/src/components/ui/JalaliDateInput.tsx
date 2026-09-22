@@ -125,7 +125,7 @@ export function JalaliDateInput({
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
-            {WEEKDAYS_SHORT_FA.slice().reverse().map((w, i) => (
+            {WEEKDAY_ORDER.map((idx) => WEEKDAYS_SHORT_FA[idx]).map((w, i) => (
               <div key={i} className="text-center text-[10.5px] text-muted font-bold py-1">
                 {w}
               </div>

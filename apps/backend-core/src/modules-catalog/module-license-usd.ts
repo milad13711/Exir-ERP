@@ -8,6 +8,7 @@
  */
 export const MODULE_LICENSE_USD: Record<string, number> = {
   "tasks": 0,
+  "daily-checklist": 0,
   "crm": 400,
   "warehouse": 400,
   "accounting": 565,

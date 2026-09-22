@@ -3,6 +3,8 @@ import { Modal } from "@/components/ui/Modal";
 import { fetchMyAvailability, replaceMyAvailability, type StaffAvailabilitySlot } from "@/lib/api";
 
 const WEEKDAY_NAMES = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه", "شنبه"];
+// ترتیب نمایش هفته‌ی فارسی: شنبه تا جمعه — WEEKDAY_NAMES بر اساس اندیس backend (0=یکشنبه) می‌ماند، فقط ترتیب رندر می‌چرخد.
+const DISPLAY_ORDER = [6, 0, 1, 2, 3, 4, 5];
 
 function minutesToTime(m: number): string {
   const h = Math.floor(m / 60)
@@ -70,7 +72,8 @@ export function StaffAvailabilityModal({ onClose }: { onClose: () => void }) {
           <div className="py-8 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : (
           <div className="flex flex-col gap-2">
-            {WEEKDAY_NAMES.map((name, weekday) => {
+            {DISPLAY_ORDER.map((weekday) => {
+              const name = WEEKDAY_NAMES[weekday];
               const d = days[weekday];
               return (
                 <div key={weekday} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-xl px-3 py-2.5">

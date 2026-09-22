@@ -31,6 +31,7 @@ import { formatJalaliDate, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
+import { DailyChecklistWidget } from "@/components/dashboard/DailyChecklistWidget";
 import Link from "next/link";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function DashboardPage() {
@@ -76,6 +77,8 @@ export default function DashboardPage() {
           <p className="text-[13.5px] text-muted mt-1">خلاصه‌ی امروز کسب‌وکار شما</p>
         </div>
       </div>
+
+      {installedModules.has("daily-checklist") && <DailyChecklistWidget />}
 
       <Card className="p-5 mb-5">
         <div className="flex items-center justify-between mb-3">

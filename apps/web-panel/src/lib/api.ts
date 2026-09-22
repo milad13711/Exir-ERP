@@ -526,6 +526,7 @@ export const PERMISSION_GATED_MODULE_CODES = [
   "hr",
   "recruitment",
   "tasks",
+  "daily-checklist",
   "projects",
   "contracts",
   "booking",
@@ -3494,6 +3495,55 @@ export function createAttachment(data: { entityType: string; entityId: string; t
 
 export function deleteAttachment(id: string) {
   return apiFetch<{ success: boolean }>(`/attachments/${id}`, { method: "DELETE" });
+}
+
+// ── لیست کارهای روزانه (Daily Checklist) ────────────────────────────────
+
+export type DailyChecklistItem = {
+  id: string;
+  userId: string;
+  date: string;
+  title: string;
+  description: string | null;
+  done: boolean;
+  doneAt: string | null;
+  taskId: string | null;
+  createdByUserId: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  task: { id: string; status: "OPEN" | "DONE" } | null;
+};
+
+export type DailyChecklistSubordinate = { userId: string; name: string };
+
+export function fetchDailyChecklist(date: string, forUserId?: string) {
+  const qs = new URLSearchParams({ date, ...(forUserId ? { forUserId } : {}) }).toString();
+  return apiFetch<DailyChecklistItem[]>(`/daily-checklist?${qs}`);
+}
+
+export function fetchDailyChecklistSubordinates() {
+  return apiFetch<DailyChecklistSubordinate[]>("/daily-checklist/subordinates");
+}
+
+export function createDailyChecklistItem(data: { title: string; description?: string; date: string; forUserId?: string }) {
+  return apiFetch<DailyChecklistItem>("/daily-checklist", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateDailyChecklistItem(id: string, data: { title?: string; description?: string; done?: boolean }) {
+  return apiFetch<DailyChecklistItem>(`/daily-checklist/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteDailyChecklistItem(id: string) {
+  return apiFetch<{ success: boolean }>(`/daily-checklist/${id}`, { method: "DELETE" });
+}
+
+export function createDailyChecklistTask(id: string, data: { dueAt?: string; priority?: "NORMAL" | "MEDIUM" | "URGENT" } = {}) {
+  return apiFetch<DailyChecklistItem>(`/daily-checklist/${id}/task`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function generateDailyChecklistReport(date: string, forUserId?: string) {
+  return apiFetch<Report>("/daily-checklist/generate-report", { method: "POST", body: JSON.stringify({ date, forUserId }) });
 }
 
 // ── اتوماسیون (Automation) ──────────────────────────────────────────────

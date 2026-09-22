@@ -16,6 +16,7 @@ import { BillingModule } from './billing/billing.module.js';
 import { ModulesCatalogModule } from './modules-catalog/modules-catalog.module.js';
 import { UsersModule } from './users/users.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
+import { DailyChecklistModule } from './daily-checklist/daily-checklist.module.js';
 import { SupportModule } from './support/support.module.js';
 import { ActivityModule } from './activity/activity.module.js';
 import { CrmModule } from './crm/crm.module.js';
@@ -99,6 +100,7 @@ import { ReferralMarketingModule } from './referral-marketing/referral-marketing
     ModulesCatalogModule,
     UsersModule,
     TasksModule,
+    DailyChecklistModule,
     SupportModule,
     ActivityModule,
     CrmModule,
