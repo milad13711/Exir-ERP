@@ -58,7 +58,7 @@ export function Header({
   }
 
   return (
-    <header className="h-17 bg-surface border-b border-border flex items-center justify-between px-4 lg:px-7 shrink-0">
+    <header className="h-17 bg-surface border-b border-border flex items-center justify-between px-3 sm:px-4 lg:px-7 shrink-0">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -74,7 +74,7 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 lg:gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 min-w-0">
         <OfflineIndicator />
 
         {moduleRenewals.length > 0 ? (
@@ -165,17 +165,18 @@ export function Header({
           ) : null}
         </button>
 
-        <SmsCreditChip />
+        <div className="hidden sm:block"><SmsCreditChip /></div>
         <PhoneWidget />
         <NotificationBell />
 
-        <div className="relative hidden sm:block">
+        <div className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2.5 ps-3 border-s border-border"
+            className="flex items-center gap-2.5 sm:ps-3 sm:border-s border-border"
+            aria-label="منوی حساب کاربری"
           >
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <div className="text-[13px] font-bold">{me?.user.name ?? me?.user.phone}</div>
               <div className="text-[11.5px] text-muted">{me?.user.roleTitle ?? ""}</div>
             </div>
@@ -187,13 +188,17 @@ export function Header({
                 getInitials(me?.user.name)
               )}
             </div>
-            <ChevronDownIcon className="w-3.5 h-3.5 text-muted" />
+            <ChevronDownIcon className="w-3.5 h-3.5 text-muted hidden sm:block" />
           </button>
 
           {menuOpen ? (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute top-full mt-2 end-0 w-56 bg-surface border border-border rounded-xl shadow-lg py-1.5 z-20">
+              <div className="absolute top-full mt-2 end-0 w-64 max-w-[calc(100vw-1.5rem)] max-h-[70dvh] overflow-y-auto bg-surface border border-border rounded-xl shadow-lg py-1.5 z-20">
+                <div className="sm:hidden px-3.5 pt-1.5 pb-2 border-b border-border mb-1">
+                  <div className="text-[13px] font-bold">{me?.user.name ?? me?.user.phone}</div>
+                  <div className="text-[11.5px] text-muted">{me?.user.roleTitle ?? ""}</div>
+                </div>
                 <Link
                   href="/settings/profile"
                   onClick={() => setMenuOpen(false)}

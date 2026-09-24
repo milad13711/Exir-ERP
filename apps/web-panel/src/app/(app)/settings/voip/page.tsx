@@ -17,7 +17,6 @@ export default function VoipSettingsPage() {
 
   const [config, setConfig] = useState<VoipConfig>(null);
   const [sipDomain, setSipDomain] = useState("");
-  const [wssUrl, setWssUrl] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
   const [savingDomain, setSavingDomain] = useState(false);
@@ -35,8 +34,6 @@ export default function VoipSettingsPage() {
         setConfig(c);
         const domain = c?.config.sipDomain;
         if (typeof domain === "string") setSipDomain(domain);
-        const wss = c?.config.wssUrl;
-        if (typeof wss === "string") setWssUrl(wss);
         if (typeof c?.config.apiToken === "string") setApiToken(c.config.apiToken);
         if (typeof c?.config.adminPhone === "string") setAdminPhone(c.config.adminPhone);
       })
@@ -60,7 +57,6 @@ export default function VoipSettingsPage() {
         providerCode: VOIP_PROVIDER_CODE,
         config: {
           sipDomain: sipDomain.trim(),
-          wssUrl: wssUrl.trim() || undefined,
           apiToken: apiToken.trim() || undefined,
           adminPhone: adminPhone.trim() || undefined,
         },
@@ -112,20 +108,6 @@ export default function VoipSettingsPage() {
                 className={inputClass}
                 dir="ltr"
               />
-            </div>
-            <div>
-              <label className={labelClass}>آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری)</label>
-              <input
-                value={wssUrl}
-                onChange={(e) => setWssUrl(e.target.value)}
-                placeholder="wss://voice.navaphone.com:8089/ws"
-                className={inputClass}
-                dir="ltr"
-              />
-              <p className="text-[11px] text-muted mt-1.5 leading-relaxed">
-                اگر پر شود، تماس خروجی و ورودی مستقیماً در همین مرورگر برقرار می‌شود (بدون نیاز به تلفن IP جدا) —
-                دقیقاً مثل ویجت تلفن Odoo. آدرس دقیق را از پشتیبانی سرویس VoIP خودتان بپرسید.
-              </p>
             </div>
             <div>
               <label className={labelClass}>توکن API نواتل (برای تماس با یک کلیک)</label>

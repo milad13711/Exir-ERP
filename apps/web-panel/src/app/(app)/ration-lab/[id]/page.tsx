@@ -476,7 +476,7 @@ function RationLinesTable({ title, lines }: { title: string; lines: RationSample
       {lines.length === 0 ? (
         <div className="text-[12px] text-muted">ثبت نشده</div>
       ) : (
-        <table className="w-full text-[11.5px] border-collapse">
+        <div className="overflow-x-auto"><table className="w-full text-[11.5px] border-collapse min-w-[420px]">
           <thead>
             <tr className="border-b border-border">
               <th className="text-right py-1.5 font-semibold text-muted">ماده</th>
@@ -497,7 +497,7 @@ function RationLinesTable({ title, lines }: { title: string; lines: RationSample
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

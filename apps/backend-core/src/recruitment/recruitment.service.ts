@@ -36,8 +36,9 @@ type SmsSettings = {
   offerSentTemplate: string;
   hiredTemplate: string;
 };
+// پیش‌فرض روشن: وقتی مدیر هرگز تنظیمات پیامک این ماژول را ذخیره نکرده، انتظار دارد پیام‌ها ارسال شوند (خاموش‌کردن صریح از تنظیمات ممکن است)
 const DEFAULT_SMS: SmsSettings = {
-  enabled: false,
+  enabled: true,
   specialistApprovedTemplate: 'متقاضی گرامی {name}، رزومه‌ی شما توسط کارشناس بررسی و تأیید شد و وارد مرحله‌ی تأیید نهایی مدیریت شد.',
   specialistRejectedTemplate: 'متقاضی گرامی {name}، با تشکر از وقتی که گذاشتید، در این مرحله امکان ادامه‌ی همکاری فراهم نشد.',
   managementApprovedTemplate: 'متقاضی گرامی {name}، تبریک! همکاری شما توسط مدیریت تأیید نهایی شد.',

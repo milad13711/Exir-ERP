@@ -480,6 +480,7 @@ function LabeledField({ label, hint, children }: { label: string; hint?: string;
 }
 
 function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onChanged: () => void }) {
+  const { me } = useWorkspace();
   const offer = applicant.offer;
   const canEdit = ["SPECIALIST_APPROVED", "OFFER_SENT", "OFFER_DECLINED"].includes(applicant.stage);
   const [editing, setEditing] = useState(!offer && canEdit);
@@ -536,10 +537,13 @@ function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onCha
 
   async function handleCopyLink() {
     if (!offer) return;
-    const ok = await copyToClipboard(offer.link ?? "");
+    const link = offer.link || `${window.location.origin}/offer/${me?.tenant.slug ?? ""}/${offer.publicToken}`;
+    const ok = await copyToClipboard(link);
     if (ok) {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
+    } else {
+      window.prompt("کپی خودکار انجام نشد؛ لینک را کپی کنید:", link);
     }
   }
 

@@ -27,10 +27,6 @@ export class NovatelVoipProvider implements OnModuleInit {
         { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain) — مثلاً voice.navaphone.com با پروتکل TCP' },
         { key: 'apiToken', label: 'توکن API نواتل (برای تماس با یک کلیک و دریافت رکورد مکالمات)' },
         { key: 'adminPhone', label: 'شماره‌ی ادمین مرکز تلفنی نواتل (برای تماس با یک کلیک)' },
-        {
-          key: 'wssUrl',
-          label: 'آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری — از پشتیبانی نواتل بپرسید، مثلاً wss://voice.navaphone.com:8089/ws)',
-        },
       ],
       parseWebhook: (rawBody: unknown): IncomingCallEvent | null => {
         if (!rawBody || typeof rawBody !== 'object') return null;
@@ -115,11 +111,15 @@ export class NovatelVoipProvider implements OnModuleInit {
             body: JSON.stringify({ from: fromExtension, to: toNumber, admin: adminPhone }),
             signal: AbortSignal.timeout(15_000),
           });
-          if (!res.ok) {
-            this.logger.warn(`Navatel click2dial failed (HTTP ${res.status})`);
-            return { success: false, error: `نواتل خطا داد (HTTP ${res.status})` };
-          }
           const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          if (!res.ok || data?.ok === false) {
+            const reason = typeof data?.err === 'string' ? data.err : '';
+            this.logger.warn(`Navatel click2dial failed (HTTP ${res.status}): ${reason}`);
+            const hints: Record<string, string> = {
+              'internal phone not matched': 'داخلی شما در نواتل پیدا نشد — «نام کاربری SIP» شما در تنظیمات باید دقیقاً همان شماره‌ی داخلی اپراتور در پنل نواتل باشد',
+            };
+            return { success: false, error: hints[reason] ?? `نواتل خطا داد (HTTP ${res.status})${reason ? `: ${reason}` : ''}` };
+          }
           const id = data && (data.callID ?? data.callId ?? data.id);
           return { success: true, callId: typeof id === 'string' || typeof id === 'number' ? String(id) : undefined };
         } catch (err) {
