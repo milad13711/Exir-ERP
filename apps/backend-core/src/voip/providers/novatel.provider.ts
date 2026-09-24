@@ -111,9 +111,16 @@ export class NovatelVoipProvider implements OnModuleInit {
             body: JSON.stringify({ from: fromExtension, to: toNumber, admin: adminPhone }),
             signal: AbortSignal.timeout(15_000),
           });
-          const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          const rawText = await res.text();
+          let data: Record<string, unknown> | null = null;
+          try {
+            data = JSON.parse(rawText) as Record<string, unknown>;
+          } catch {
+            data = null;
+          }
           if (!res.ok || data?.ok === false) {
-            const reason = typeof data?.err === 'string' ? data.err : '';
+            const pickText = (v: unknown): string => (typeof v === 'string' ? v : '');
+            const reason = pickText(data?.err) || pickText(data?.error) || pickText(data?.message) || pickText(data?.msg) || rawText.slice(0, 200);
             this.logger.warn(`Navatel click2dial failed (HTTP ${res.status}): ${reason}`);
             const hints: Record<string, string> = {
               'internal phone not matched': 'داخلی شما در نواتل پیدا نشد — «نام کاربری SIP» شما در تنظیمات باید دقیقاً همان شماره‌ی داخلی اپراتور در پنل نواتل باشد',
