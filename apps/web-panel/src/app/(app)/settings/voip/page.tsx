@@ -17,6 +17,7 @@ export default function VoipSettingsPage() {
 
   const [config, setConfig] = useState<VoipConfig>(null);
   const [sipDomain, setSipDomain] = useState("");
+  const [wssUrl, setWssUrl] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
   const [savingDomain, setSavingDomain] = useState(false);
@@ -34,6 +35,7 @@ export default function VoipSettingsPage() {
         setConfig(c);
         const domain = c?.config.sipDomain;
         if (typeof domain === "string") setSipDomain(domain);
+        if (typeof c?.config.wssUrl === "string") setWssUrl(c.config.wssUrl);
         if (typeof c?.config.apiToken === "string") setApiToken(c.config.apiToken);
         if (typeof c?.config.adminPhone === "string") setAdminPhone(c.config.adminPhone);
       })
@@ -57,6 +59,7 @@ export default function VoipSettingsPage() {
         providerCode: VOIP_PROVIDER_CODE,
         config: {
           sipDomain: sipDomain.trim(),
+          wssUrl: wssUrl.trim() || undefined,
           apiToken: (apiToken.match(/[0-9a-fA-F]{64}/)?.[0] ?? apiToken.trim()) || undefined,
           adminPhone: adminPhone.trim() || undefined,
         },
@@ -108,6 +111,13 @@ export default function VoipSettingsPage() {
                 className={inputClass}
                 dir="ltr"
               />
+            </div>
+            <div>
+              <label className={labelClass}>آدرس WebSocket برای تماس مستقیم از مرورگر</label>
+              <input value={wssUrl} onChange={(e) => setWssUrl(e.target.value)} placeholder="wss://…" className={inputClass} dir="ltr" />
+              <p className="text-[11px] text-muted mt-1.5 leading-relaxed">
+                با پر شدن این آدرس، تماس مستقیم از همین مرورگر (SIP روی WebSocket) برقرار می‌شود، بدون اینکه ابتدا تلفن شما زنگ بخورد؛ سریع‌تر و با کیفیت‌تر. آدرس دقیق را از پشتیبانی نواتل بگیرید.
+              </p>
             </div>
             <div>
               <label className={labelClass}>توکن API نواتل (برای تماس با یک کلیک)</label>

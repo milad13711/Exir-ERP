@@ -13,6 +13,13 @@ import type { CallEndedEvent, IncomingCallEvent, OriginateResult } from '../type
  * payload وب‌هوک نواتل در دسترس باشد (از پشتیبانی نواتل)، این فایل باید
  * بازبینی شود.
  */
+/** اگر کاربر به‌جای خودِ توکن، کل متن {"api_key":"..."} را چسبانده باشد، فقط مقدار توکن جدا می‌شود. */
+export function normalizeNavatelToken(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  const embedded = raw.match(/[0-9a-fA-F]{64}/);
+  return raw.startsWith('{') || raw.startsWith('"') ? (embedded?.[0] ?? raw) : raw;
+}
+
 @Injectable()
 export class NovatelVoipProvider implements OnModuleInit {
   private readonly logger = new Logger('NovatelVoipProvider');
@@ -26,6 +33,7 @@ export class NovatelVoipProvider implements OnModuleInit {
       configFields: [
         { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain) — مثلاً voice.navaphone.com با پروتکل TCP' },
         { key: 'apiToken', label: 'توکن API نواتل (برای تماس با یک کلیک و دریافت رکورد مکالمات)' },
+        { key: 'wssUrl', label: 'آدرس WebSocket برای تماس مستقیم از مرورگر (از پشتیبانی نواتل بگیرید)' },
         { key: 'adminPhone', label: 'شماره‌ی ادمین مرکز تلفنی نواتل (برای تماس با یک کلیک)' },
       ],
       parseWebhook: (rawBody: unknown): IncomingCallEvent | null => {
@@ -100,9 +108,7 @@ export class NovatelVoipProvider implements OnModuleInit {
       // تماس با یک کلیک — طبق مستند رسمی نواتل: POST /ipbx/api/v1/click2dial/dial با هدر Authorization (توکن)
       originateCall: async (config, fromExtension, toNumber): Promise<OriginateResult> => {
         // اگر کاربر به‌جای خودِ توکن، کل متن {"api_key":"..."} را چسبانده باشد، فقط مقدار توکن جدا می‌شود
-        const rawToken = typeof config.apiToken === 'string' ? config.apiToken.trim() : '';
-        const embedded = rawToken.match(/[0-9a-fA-F]{64}/);
-        const token = rawToken.startsWith('{') || rawToken.startsWith('"') ? (embedded?.[0] ?? rawToken) : rawToken;
+        const token = normalizeNavatelToken(config.apiToken);
         const adminPhone = typeof config.adminPhone === 'string' ? config.adminPhone.trim() : '';
         if (!token || !adminPhone) {
           return { success: false, error: 'توکن API و شماره‌ی ادمین نواتل در تنظیمات VoIP کامل نشده است' };
