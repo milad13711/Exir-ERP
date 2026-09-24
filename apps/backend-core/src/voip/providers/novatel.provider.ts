@@ -99,7 +99,10 @@ export class NovatelVoipProvider implements OnModuleInit {
       },
       // تماس با یک کلیک — طبق مستند رسمی نواتل: POST /ipbx/api/v1/click2dial/dial با هدر Authorization (توکن)
       originateCall: async (config, fromExtension, toNumber): Promise<OriginateResult> => {
-        const token = typeof config.apiToken === 'string' ? config.apiToken.trim() : '';
+        // اگر کاربر به‌جای خودِ توکن، کل متن {"api_key":"..."} را چسبانده باشد، فقط مقدار توکن جدا می‌شود
+        const rawToken = typeof config.apiToken === 'string' ? config.apiToken.trim() : '';
+        const embedded = rawToken.match(/[0-9a-fA-F]{64}/);
+        const token = rawToken.startsWith('{') || rawToken.startsWith('"') ? (embedded?.[0] ?? rawToken) : rawToken;
         const adminPhone = typeof config.adminPhone === 'string' ? config.adminPhone.trim() : '';
         if (!token || !adminPhone) {
           return { success: false, error: 'توکن API و شماره‌ی ادمین نواتل در تنظیمات VoIP کامل نشده است' };

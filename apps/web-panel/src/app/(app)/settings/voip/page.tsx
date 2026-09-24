@@ -57,7 +57,7 @@ export default function VoipSettingsPage() {
         providerCode: VOIP_PROVIDER_CODE,
         config: {
           sipDomain: sipDomain.trim(),
-          apiToken: apiToken.trim() || undefined,
+          apiToken: (apiToken.match(/[0-9a-fA-F]{64}/)?.[0] ?? apiToken.trim()) || undefined,
           adminPhone: adminPhone.trim() || undefined,
         },
       });
