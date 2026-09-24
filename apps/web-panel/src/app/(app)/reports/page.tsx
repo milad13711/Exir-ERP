@@ -138,6 +138,8 @@ function ReportsList({ tab }: { tab: ViewFilter }) {
                   {r.title}
                 </div>
                 <div className="text-[11.5px] text-muted mt-0.5 truncate">
+                  <span className="font-bold text-ink-soft">گزارش‌دهنده: {r.createdBy?.name ?? "نامشخص"}</span>
+                  {" · "}
                   {r.category?.name ?? "بدون دسته‌بندی"}
                   {r.executionAt ? ` · زمان اجرا: ${formatJalaliDate(r.executionAt)}` : ""}
                   {r.referrals.length > 0 ? ` · ${toPersianDigits(r.referrals.length)} ارجاع` : ""}

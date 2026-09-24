@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PlaceholderPalette, CONTRACT_PLACEHOLDERS } from "@/components/contracts/PlaceholderPalette";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
@@ -137,6 +138,8 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
   const [autoRenew, setAutoRenew] = useState(false);
   const [renewalReminderDays, setRenewalReminderDays] = useState("30");
   const [terms, setTerms] = useState("");
+  const termsRef = useRef<HTMLTextAreaElement>(null);
+  const guaranteeRef = useRef<HTMLTextAreaElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -454,18 +457,22 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
 
         <div>
           <label className={labelClass}>شرح بندها و شرایط {selectedTemplate ? "(اختیاری — اگر خالی بماند، از قالب پر می‌شود)" : "(اختیاری)"}</label>
-          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={3} className={inputClass} />
+          <div className="text-[11px] text-muted mb-1.5">با درج «فیلد پویا»، مشخصات طرفین، تاریخ‌ها و مبلغ همین قرارداد به‌طور خودکار جایگزین می‌شود.</div>
+          <textarea ref={termsRef} value={terms} onChange={(e) => setTerms(e.target.value)} rows={4} className={inputClass} />
+          <PlaceholderPalette fields={CONTRACT_PLACEHOLDERS} targetRef={termsRef} value={terms} onChange={setTerms} />
         </div>
 
         <div>
           <label className={labelClass}>ضمانت اجرا (اختیاری)</label>
           <textarea
+            ref={guaranteeRef}
             value={guaranteeTerms}
             onChange={(e) => setGuaranteeTerms(e.target.value)}
             rows={2}
             placeholder="جریمه، وثیقه یا تعهدات در صورت نقض قرارداد..."
             className={inputClass}
           />
+          <PlaceholderPalette fields={CONTRACT_PLACEHOLDERS} targetRef={guaranteeRef} value={guaranteeTerms} onChange={setGuaranteeTerms} />
         </div>
 
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}

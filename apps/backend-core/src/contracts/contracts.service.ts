@@ -92,9 +92,10 @@ export class ContractsService implements OnModuleInit {
     });
   }
 
-  list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string }) {
+  list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string }, scope: Record<string, unknown> = {}) {
     return ctx.tenantDb.contract.findMany({
       where: {
+        ...scope,
         ...(filters.type ? { type: filters.type as never } : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.contactId ? { contactId: filters.contactId } : {}),
@@ -126,9 +127,9 @@ export class ContractsService implements OnModuleInit {
     });
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const contract = await ctx.tenantDb.contract.findUnique({
-      where: { id },
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const contract = await ctx.tenantDb.contract.findFirst({
+      where: { id, ...scope },
       include: {
         ...CONTRACT_INCLUDE,
         editRequests: { orderBy: { createdAt: 'desc' } },
@@ -179,6 +180,7 @@ export class ContractsService implements OnModuleInit {
       startDate: Date;
       endDate: Date;
       value: number;
+      title?: string;
       customFields?: Record<string, string>;
     },
   ): string {
@@ -201,6 +203,8 @@ export class ContractsService implements OnModuleInit {
       'تاریخ_پایان': formatJalaliDate(values.endDate),
       'ارزش_قرارداد': values.value.toLocaleString('fa-IR'),
       'مبلغ_قرارداد': values.value.toLocaleString('fa-IR'),
+      'عنوان_قرارداد': values.title ?? '',
+      'تاریخ_امروز': formatJalaliDate(new Date()),
       ...values.customFields,
     };
     return body.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key: string) => map[key.trim()] ?? match);
@@ -307,21 +311,28 @@ export class ContractsService implements OnModuleInit {
     const companyName = tenant?.name ?? '';
 
     let terms = dto.terms;
+    let guaranteeTerms = dto.guaranteeTerms;
     if (!terms && dto.templateId) {
       const template = await ctx.tenantDb.contractTemplate.findUnique({ where: { id: dto.templateId } });
-      if (template?.body) {
-        const companyInfo = await this.resolveCompanyInfo(ctx, companyName);
-        const { partyA, partyB } = await this.resolveParties(ctx, dto, companyInfo);
-        terms = this.fillTemplatePlaceholders(template.body, {
+      terms = template?.body ?? undefined;
+    }
+    // فیلدهای پویا ({{نام_طرف_اول}} و…) در متن بندها و ضمانت اجرا — چه از قالب آمده باشند چه مستقیم تایپ شده باشند
+    if ((terms && terms.includes('{{')) || (guaranteeTerms && guaranteeTerms.includes('{{'))) {
+      const companyInfo = await this.resolveCompanyInfo(ctx, companyName);
+      const { partyA, partyB } = await this.resolveParties(ctx, dto, companyInfo);
+      const fill = (text: string) =>
+        this.fillTemplatePlaceholders(text, {
           companyName,
           partyA,
           partyB,
           startDate,
           endDate,
           value: dto.value,
+          title: dto.title,
           customFields: dto.customFields,
         });
-      }
+      if (terms) terms = fill(terms);
+      if (guaranteeTerms) guaranteeTerms = fill(guaranteeTerms);
     }
 
     const createdByUserId = await resolveTenantUserId(ctx);
@@ -332,7 +343,7 @@ export class ContractsService implements OnModuleInit {
         type: dto.type,
         legalCategory: dto.legalCategory ?? 'GENERAL',
         category: dto.category,
-        guaranteeTerms: dto.guaranteeTerms,
+        guaranteeTerms,
         referredSignerUserId: dto.referredSignerUserId,
         templateId: dto.templateId,
         contactId: dto.partyMode === 'INTERNAL' ? undefined : dto.contactId,
@@ -380,6 +391,42 @@ export class ContractsService implements OnModuleInit {
     const endDate = dto.endDate ? new Date(dto.endDate) : existing.endDate;
     if (dto.startDate || dto.endDate) this.validateDateRange(startDate, endDate);
 
+    let terms = dto.terms;
+    let guaranteeTerms = dto.guaranteeTerms;
+    if ((terms && terms.includes('{{')) || (guaranteeTerms && guaranteeTerms.includes('{{'))) {
+      const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } });
+      const companyName = tenant?.name ?? '';
+      const companyInfo = await this.resolveCompanyInfo(ctx, companyName);
+      const { partyA, partyB } = await this.resolveParties(
+        ctx,
+        {
+          partyMode: existing.partyMode,
+          contactId: dto.contactId ?? existing.contactId ?? undefined,
+          employeeId: existing.employeeId ?? undefined,
+          secondPartyContactId: existing.secondPartyContactId ?? undefined,
+          secondPartyName: existing.secondPartyName ?? undefined,
+          secondPartyPhone: existing.secondPartyPhone ?? undefined,
+          secondPartyNationalId: existing.secondPartyNationalId ?? undefined,
+          secondPartyRegistrationNumber: existing.secondPartyRegistrationNumber ?? undefined,
+          secondPartyAddress: existing.secondPartyAddress ?? undefined,
+        },
+        companyInfo,
+      );
+      const fill = (text: string) =>
+        this.fillTemplatePlaceholders(text, {
+          companyName,
+          partyA,
+          partyB,
+          startDate,
+          endDate,
+          value: dto.value ?? existing.value,
+          title: dto.title ?? existing.title,
+          customFields: (existing.customFieldValues as Record<string, string> | null) ?? undefined,
+        });
+      if (terms) terms = fill(terms);
+      if (guaranteeTerms) guaranteeTerms = fill(guaranteeTerms);
+    }
+
     return ctx.tenantDb.contract.update({
       where: { id },
       data: {
@@ -390,9 +437,9 @@ export class ContractsService implements OnModuleInit {
         endDate,
         autoRenew: dto.autoRenew,
         renewalReminderDays: dto.renewalReminderDays,
-        terms: dto.terms,
+        terms,
         category: dto.category,
-        guaranteeTerms: dto.guaranteeTerms,
+        guaranteeTerms,
         referredSignerUserId: dto.referredSignerUserId,
       },
       include: CONTRACT_INCLUDE,

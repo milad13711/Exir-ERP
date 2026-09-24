@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 
 // اکسیر پیامک (exirsms.ir) نماینده‌ی لیمو پیامک است — طبق تأیید کارفرما،
 // مستندات و ساختار وب‌سرویس exirsms.ir دقیقاً همان لیمو پیامک است. آدرس
@@ -9,6 +10,8 @@ import { Injectable, Logger } from '@nestjs/common';
 const DEFAULT_BASE_URL = 'https://api.limosms.com';
 
 export type SmsCredentials = { apiKey?: string; sender?: string };
+export type SmsSource = 'PLATFORM' | 'TENANT_OWN' | 'TENANT_SYSTEM' | 'TENANT_LEGACY';
+export type SmsLogMeta = { tenantId?: string; source?: SmsSource };
 export type SendSmsResult = { success: true } | { success: false; error: string };
 
 /**
@@ -33,17 +36,52 @@ export type SendSmsResult = { success: true } | { success: false; error: string 
 export class ExirSmsService {
   private readonly logger = new Logger('ExirSmsService');
 
+  constructor(@Optional() private readonly controlDb?: ControlPrismaService) {}
+
   isConfigured(): boolean {
     return Boolean(process.env.EXIR_SMS_API_KEY && process.env.EXIR_SMS_SENDER_LINE);
   }
 
   /** ارسال از پنل سیستمی اکسیر — فقط برای پیامک‌های خودِ پلتفرم (OTP ورود، فاکتور/تمدید ماژول‌ها، اطلاع فعال‌سازی دسترسی). */
-  async sendSms(phone: string, message: string): Promise<SendSmsResult> {
-    return this.sendWith({ apiKey: process.env.EXIR_SMS_API_KEY, sender: process.env.EXIR_SMS_SENDER_LINE }, phone, message);
+  async sendSms(phone: string, message: string, meta: SmsLogMeta = {}): Promise<SendSmsResult> {
+    return this.sendWith(
+      { apiKey: process.env.EXIR_SMS_API_KEY, sender: process.env.EXIR_SMS_SENDER_LINE },
+      phone,
+      message,
+      { source: 'PLATFORM', ...meta },
+    );
   }
 
   /** ارسال با اعتبارنامه‌ی دلخواه — پنل اختصاصی تننت یا پنل سیستمی. */
-  async sendWith(creds: SmsCredentials, phone: string, message: string): Promise<SendSmsResult> {
+  async sendWith(creds: SmsCredentials, phone: string, message: string, meta: SmsLogMeta = {}): Promise<SendSmsResult> {
+    const result = await this.dispatch(creds, phone, message);
+    void this.record(phone, message, result, meta);
+    return result;
+  }
+
+  /** ثبت هر ارسال (موفق یا ناموفق) برای لاگ ادمین — هرگز ارسال اصلی را خراب یا کند نمی‌کند. */
+  private async record(phone: string, message: string, result: SendSmsResult, meta: SmsLogMeta): Promise<void> {
+    if (!this.controlDb) return;
+    const source = meta.source ?? 'PLATFORM';
+    // کد یک‌بارمصرف/رمز داخل پیامک‌های خودِ پلتفرم (OTP ورود و…) در لاگ ذخیره نمی‌شود
+    const safeMessage = source === 'PLATFORM' ? message.replace(/[0-9۰-۹]{4,8}/g, '••••') : message;
+    try {
+      await this.controlDb.smsLog.create({
+        data: {
+          tenantId: meta.tenantId ?? null,
+          source,
+          phone,
+          message: safeMessage.slice(0, 500),
+          success: result.success,
+          error: result.success ? null : result.error.slice(0, 500),
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`SMS log write failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  private async dispatch(creds: SmsCredentials, phone: string, message: string): Promise<SendSmsResult> {
     const apiKey = creds.apiKey;
     const sender = creds.sender;
     if (!apiKey || !sender) {

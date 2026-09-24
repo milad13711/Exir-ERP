@@ -73,9 +73,10 @@ export class ProjectsService implements OnModuleInit {
     return map;
   }
 
-  async list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }) {
+  async list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }, scope: Record<string, unknown> = {}) {
     const projects = await ctx.tenantDb.project.findMany({
       where: {
+        ...scope,
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.contactId ? { contactId: filters.contactId } : {}),
       },
@@ -86,8 +87,8 @@ export class ProjectsService implements OnModuleInit {
     return projects.map((p) => ({ ...p, progress: progress.get(p.id) ?? { total: 0, done: 0 } }));
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const project = await ctx.tenantDb.project.findUnique({ where: { id }, include: PROJECT_INCLUDE });
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const project = await ctx.tenantDb.project.findFirst({ where: { id, ...scope }, include: PROJECT_INCLUDE });
     if (!project) throw new NotFoundException('پروژه یافت نشد');
     const progress = await this.progressByProjectId(ctx, [id]);
     return { ...project, progress: progress.get(id) ?? { total: 0, done: 0 } };
@@ -206,6 +207,43 @@ export class ProjectsService implements OnModuleInit {
       data: { responsibleUserId: responsibleUserId ?? null },
       include: STAGE_INCLUDE,
     });
+  }
+
+  async updateStage(
+    ctx: TenantRequestContext,
+    projectId: string,
+    stageId: string,
+    dto: { title?: string; responsibleUserId?: string | null },
+  ) {
+    await this.findStage(ctx, projectId, stageId);
+    return ctx.tenantDb.projectStage.update({
+      where: { id: stageId },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+        ...(dto.responsibleUserId !== undefined ? { responsibleUserId: dto.responsibleUserId || null } : {}),
+      },
+      include: STAGE_INCLUDE,
+    });
+  }
+
+  async removeStage(ctx: TenantRequestContext, projectId: string, stageId: string) {
+    await this.findStage(ctx, projectId, stageId);
+    await ctx.tenantDb.projectStage.delete({ where: { id: stageId } });
+    return { success: true };
+  }
+
+  /** حذف کامل پروژه — مراحل و اعضا خودکار پاک می‌شوند و وظایف مرتبط هم حذف می‌شوند؛ اگر فاکتوری به پروژه وصل باشد اجازه نمی‌دهد. */
+  async remove(ctx: TenantRequestContext, id: string) {
+    const project = await ctx.tenantDb.project.findUnique({ where: { id }, include: { _count: { select: { invoices: true } } } });
+    if (!project) throw new NotFoundException('پروژه یافت نشد');
+    if (project._count.invoices > 0) {
+      throw new ConflictException('به این پروژه فاکتور متصل است؛ به‌جای حذف، پروژه را لغو کنید');
+    }
+    await ctx.tenantDb.$transaction([
+      ctx.tenantDb.task.deleteMany({ where: { relatedModule: 'project', relatedEntityId: id } }),
+      ctx.tenantDb.project.delete({ where: { id } }),
+    ]);
+    return { success: true };
   }
 
   private async findStage(ctx: TenantRequestContext, projectId: string, stageId: string) {

@@ -16,4 +16,8 @@ export class CreateInternalTaskDto {
   @IsOptional()
   @IsString()
   assignedToId?: string;
+
+  @IsOptional()
+  @IsString()
+  ticketId?: string;
 }

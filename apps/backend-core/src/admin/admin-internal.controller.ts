@@ -5,6 +5,7 @@ import { AdminTeams } from '../common/decorators/admin-teams.decorator.js';
 import { AdminCtx } from '../common/decorators/ctx.decorator.js';
 import type { AdminRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { PushNotificationsService } from '../notifications/push-notifications.service.js';
 import { CreateInternalTaskDto } from './dto/create-internal-task.dto.js';
 import { CreateInternalLeadDto } from './dto/create-internal-lead.dto.js';
 import { UpdateLeadStageDto } from './dto/update-lead-stage.dto.js';
@@ -24,7 +25,10 @@ const ALL_TEAMS = ['SUPER_ADMIN', 'SUPPORT', 'BILLING', 'ENGINEERING'] as const;
 @Controller('admin')
 @UseGuards(AdminJwtAuthGuard, AdminTeamsGuard)
 export class AdminInternalController {
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly push: PushNotificationsService,
+  ) {}
 
   @Get('staff')
   @AdminTeams(...ALL_TEAMS)
@@ -46,26 +50,35 @@ export class AdminInternalController {
       include: {
         assignedTo: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
+        ticket: { select: { id: true, subject: true } },
       },
     });
   }
 
   @Post('internal/tasks')
   @AdminTeams(...ALL_TEAMS)
-  createTask(@Body() dto: CreateInternalTaskDto, @AdminCtx() ctx: AdminRequestContext) {
-    return this.controlDb.internalTask.create({
+  async createTask(@Body() dto: CreateInternalTaskDto, @AdminCtx() ctx: AdminRequestContext) {
+    const task = await this.controlDb.internalTask.create({
       data: {
         title: dto.title,
         description: dto.description,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         assignedToId: dto.assignedToId,
+        ticketId: dto.ticketId,
         createdById: ctx.auth.sub,
       },
       include: {
         assignedTo: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
+        ticket: { select: { id: true, subject: true } },
       },
     });
+    if (task.assignedToId && task.assignedToId !== ctx.auth.sub) {
+      void this.push
+        .sendToAdmin(task.assignedToId, { title: 'وظیفه‌ی جدید برای شما', body: task.title, url: '/tasks' })
+        .catch(() => {});
+    }
+    return task;
   }
 
   @Post('internal/tasks/:id/toggle')
@@ -80,6 +93,7 @@ export class AdminInternalController {
       include: {
         assignedTo: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
+        ticket: { select: { id: true, subject: true } },
       },
     });
   }
@@ -136,8 +150,17 @@ export class AdminInternalController {
     if (!task) throw new NotFoundException('وظیفه یافت نشد');
     return this.controlDb.internalTask.update({
       where: { id },
-      data: { title: dto.title, description: dto.description, dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined },
-      include: { assignedTo: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } },
+      data: {
+        title: dto.title,
+        description: dto.description,
+        dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
+        assignedToId: dto.assignedToId,
+      },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        ticket: { select: { id: true, subject: true } },
+      },
     });
   }
 

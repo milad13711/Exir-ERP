@@ -28,8 +28,17 @@ export function NotificationBell() {
 
   useEffect(() => {
     reload();
-    const interval = setInterval(reload, 60_000);
-    return () => clearInterval(interval);
+    const interval = setInterval(reload, 15_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", reload);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", reload);
+    };
   }, []);
 
   async function handleClick(n: AppNotification) {

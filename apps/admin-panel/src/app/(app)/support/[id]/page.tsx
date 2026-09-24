@@ -2,6 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { TicketTaskModal } from "@/components/support/TicketTaskModal";
 import { Badge } from "@/components/ui/Badge";
 import { SendIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
@@ -31,6 +32,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [resolveNote, setResolveNote] = useState("");
   const [showResolve, setShowResolve] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showTask, setShowTask] = useState(false);
+  const [taskMsg, setTaskMsg] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   function reload() {
@@ -142,6 +145,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               پیگیری این تیکت
             </button>
           ) : null}
+          <button
+            onClick={() => setShowTask(true)}
+            className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-1.5 rounded-lg cursor-pointer"
+          >
+            ایجاد وظیفه
+          </button>
           {ticket.status !== "RESOLVED" && ticket.status !== "CLOSED" ? (
             <button
               onClick={() => setShowResolve((v) => !v)}
@@ -152,6 +161,17 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           ) : null}
         </div>
       </div>
+
+      {taskMsg ? <div className="text-[12px] text-success font-semibold mt-2 shrink-0">{taskMsg}</div> : null}
+      {showTask ? (
+        <TicketTaskModal
+          ticketId={ticket.id}
+          ticketSubject={ticket.subject}
+          tenantName={ticket.tenant.name}
+          onClose={() => setShowTask(false)}
+          onCreated={() => setTaskMsg("وظیفه روی این تیکت ثبت شد — در بخش «وظایف» قابل مشاهده است")}
+        />
+      ) : null}
 
       {showResolve ? (
         <form onSubmit={handleResolve} className="flex items-center gap-2 mt-3 shrink-0">

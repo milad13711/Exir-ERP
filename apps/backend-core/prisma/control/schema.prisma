@@ -102,6 +102,7 @@ model Tenant {
   tenantModules  TenantModule[]
   supportTickets SupportTicket[]
   auditLogs      AuditLog[]
+  smsLogs        SmsLog[]
   errorLogs      ErrorLog[]
   licenses       License[]
   apiKeys        ApiKey[]
@@ -415,13 +416,16 @@ model InternalTask {
   dueAt        DateTime?
   assignedToId String?
   createdById  String
+  ticketId     String? // اگر از روی یک تیکت پشتیبانی ساخته شده
   createdAt    DateTime           @default(now())
   completedAt  DateTime?
 
-  assignedTo AdminUser? @relation("AssignedInternalTasks", fields: [assignedToId], references: [id])
-  createdBy  AdminUser  @relation("CreatedInternalTasks", fields: [createdById], references: [id])
+  assignedTo AdminUser?     @relation("AssignedInternalTasks", fields: [assignedToId], references: [id])
+  createdBy  AdminUser      @relation("CreatedInternalTasks", fields: [createdById], references: [id])
+  ticket     SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([assignedToId])
+  @@index([ticketId])
   @@map("internal_tasks")
 }
 
@@ -556,6 +560,7 @@ model SupportTicket {
   createdByUser GlobalUser       @relation(fields: [createdByUserId], references: [id])
   assignedAdmin AdminUser?       @relation(fields: [assignedAdminId], references: [id])
   messages      SupportMessage[]
+  internalTasks InternalTask[]
 
   @@map("support_tickets")
 }
@@ -600,6 +605,25 @@ model AuditLog {
   @@index([tenantId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+/// لاگ همه‌ی پیامک‌هایی که سیستم می‌فرستد (OTP، اعلان‌ها، پیامک تننت‌ها) — موفق یا ناموفق، با دلیل خطا.
+model SmsLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  source    String // PLATFORM | TENANT_OWN | TENANT_SYSTEM | TENANT_LEGACY
+  phone     String
+  message   String
+  success   Boolean
+  error     String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([success])
+  @@map("sms_logs")
 }
 
 enum LogLevel {

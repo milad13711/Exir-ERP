@@ -418,6 +418,7 @@ export type InternalTask = {
   completedAt: string | null;
   assignedTo: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
+  ticket?: { id: string; subject: string } | null;
 };
 
 export function fetchInternalTasks() {
@@ -429,6 +430,7 @@ export function createInternalTask(data: {
   description?: string;
   dueAt?: string;
   assignedToId?: string;
+  ticketId?: string;
 }) {
   return apiFetch<InternalTask>("/admin/internal/tasks", { method: "POST", body: JSON.stringify(data) });
 }
@@ -609,6 +611,26 @@ export type ErrorLogEntry = {
   tenant: { name: string; slug: string } | null;
 };
 
+export type SmsLogEntry = {
+  id: string;
+  tenantId: string | null;
+  source: "PLATFORM" | "TENANT_OWN" | "TENANT_SYSTEM" | "TENANT_LEGACY";
+  phone: string;
+  message: string;
+  success: boolean;
+  error: string | null;
+  createdAt: string;
+  tenant: { name: string; slug: string } | null;
+};
+
+export function fetchSmsLogs(tenantId?: string, status?: "success" | "failed") {
+  const qs = new URLSearchParams();
+  if (tenantId) qs.set("tenantId", tenantId);
+  if (status) qs.set("status", status);
+  const q = qs.toString();
+  return apiFetch<SmsLogEntry[]>(`/admin/logs/sms${q ? `?${q}` : ""}`);
+}
+
 export function fetchAuditLogs(tenantId?: string) {
   return apiFetch<AuditLogEntry[]>(`/admin/logs/audit${tenantId ? `?tenantId=${tenantId}` : ""}`);
 }
@@ -640,7 +662,7 @@ export function updateInternalLead(id: string, data: Partial<{ name: string; com
 export function deleteInternalLead(id: string) {
   return apiFetch<{ success: boolean }>(`/admin/internal/leads/${id}`, { method: "DELETE" });
 }
-export function updateInternalTask(id: string, data: Partial<{ title: string; description: string; dueAt: string }>) {
+export function updateInternalTask(id: string, data: Partial<{ title: string; description: string; dueAt: string; assignedToId: string }>) {
   return apiFetch<InternalTask>(`/admin/internal/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 export function deleteInternalTask(id: string) {

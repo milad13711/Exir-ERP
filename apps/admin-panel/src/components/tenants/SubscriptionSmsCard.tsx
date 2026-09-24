@@ -1,5 +1,6 @@
 "use client";
 
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { adjustTenantSmsWallet, fetchTenantSmsWallet, updateTenantSubscription, ApiError } from "@/lib/api";
@@ -53,7 +54,9 @@ export function SubscriptionSmsCard({
         <div className="flex items-center gap-2.5 flex-wrap">
           <label className="flex items-center gap-2 text-[12px] font-semibold">
             تاریخ پایان
-            <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} disabled={isLifetime} className={FIELD} />
+            <div className={isLifetime ? "w-[170px] opacity-50 pointer-events-none" : "w-[170px]"}>
+              <JalaliDateInput value={end} onChange={setEnd} placeholder="انتخاب تاریخ" />
+            </div>
           </label>
           <select value={subStatus} onChange={(e) => setSubStatus(e.target.value)} className={FIELD}>
             <option value="TRIAL">آزمایشی</option>

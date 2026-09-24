@@ -594,9 +594,13 @@ export function deleteRole(roleId: string) {
 
 // ── Tasks ────────────────────────────────────────────────────────────────
 
+export type ApiTaskChecklistItem = { id: string; taskId: string; text: string; done: boolean; order: number };
+
 export type ApiTask = {
   id: string;
   title: string;
+  description?: string | null;
+  checklist?: ApiTaskChecklistItem[];
   dueAt: string | null;
   priority: "NORMAL" | "MEDIUM" | "URGENT";
   status: "OPEN" | "DONE";
@@ -615,6 +619,8 @@ export function fetchTasks(filter?: { relatedModule: string; relatedEntityId: st
 
 export function createTask(data: {
   title: string;
+  description?: string;
+  checklist?: string[];
   priority?: ApiTask["priority"];
   dueAt?: string;
   assignedUserId?: string;
@@ -630,9 +636,31 @@ export function toggleTask(id: string) {
 
 export function updateTask(
   id: string,
-  data: Partial<{ title: string; priority: ApiTask["priority"]; dueAt: string | null; assignedUserId: string }>,
+  data: Partial<{
+    title: string;
+    description: string | null;
+    priority: ApiTask["priority"];
+    dueAt: string | null;
+    assignedUserId: string;
+  }>,
 ) {
   return apiFetch<ApiTask>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function fetchTask(id: string) {
+  return apiFetch<ApiTask>(`/tasks/${id}`);
+}
+
+export function addTaskChecklistItem(taskId: string, text: string) {
+  return apiFetch<ApiTaskChecklistItem>(`/tasks/${taskId}/checklist`, { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export function updateTaskChecklistItem(taskId: string, itemId: string, data: { text?: string; done?: boolean }) {
+  return apiFetch<ApiTaskChecklistItem>(`/tasks/${taskId}/checklist/${itemId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteTaskChecklistItem(taskId: string, itemId: string) {
+  return apiFetch<{ success: boolean }>(`/tasks/${taskId}/checklist/${itemId}`, { method: "DELETE" });
 }
 
 export function deleteTask(id: string) {
@@ -4404,6 +4432,18 @@ export function updateProject(id: string, data: Partial<Parameters<typeof create
   return apiFetch<Project>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export function deleteProject(id: string) {
+  return apiFetch<{ success: boolean }>(`/projects/${id}`, { method: "DELETE" });
+}
+
+export function updateProjectStage(projectId: string, stageId: string, data: { title?: string; responsibleUserId?: string }) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteProjectStage(projectId: string, stageId: string) {
+  return apiFetch<{ success: boolean }>(`/projects/${projectId}/stages/${stageId}`, { method: "DELETE" });
+}
+
 export function startProject(id: string) {
   return apiFetch<Project>(`/projects/${id}/start`, { method: "POST" });
 }
@@ -6321,6 +6361,7 @@ export type JobPosting = {
   status: JobPostingStatus;
   closedAt: string | null;
   contractId?: string | null;
+  contractTemplateId?: string | null;
   createdAt: string;
   _count?: { applicants: number };
 };
@@ -6435,6 +6476,7 @@ export function createJobPosting(data: {
   publishBudget?: number;
   description?: string;
   contractId?: string;
+  contractTemplateId?: string | null;
 }) {
   return apiFetch<JobPosting>("/recruitment/postings", { method: "POST", body: JSON.stringify(data) });
 }

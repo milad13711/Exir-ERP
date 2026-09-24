@@ -18,6 +18,8 @@ export default function VoipSettingsPage() {
   const [config, setConfig] = useState<VoipConfig>(null);
   const [sipDomain, setSipDomain] = useState("");
   const [wssUrl, setWssUrl] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
   const [savingDomain, setSavingDomain] = useState(false);
   const [domainError, setDomainError] = useState<string | null>(null);
 
@@ -35,6 +37,8 @@ export default function VoipSettingsPage() {
         if (typeof domain === "string") setSipDomain(domain);
         const wss = c?.config.wssUrl;
         if (typeof wss === "string") setWssUrl(wss);
+        if (typeof c?.config.apiToken === "string") setApiToken(c.config.apiToken);
+        if (typeof c?.config.adminPhone === "string") setAdminPhone(c.config.adminPhone);
       })
       .catch(() => {});
     fetchMyVoipExtension()
@@ -54,7 +58,12 @@ export default function VoipSettingsPage() {
     try {
       const saved = await saveVoipConfig({
         providerCode: VOIP_PROVIDER_CODE,
-        config: { sipDomain: sipDomain.trim(), wssUrl: wssUrl.trim() || undefined },
+        config: {
+          sipDomain: sipDomain.trim(),
+          wssUrl: wssUrl.trim() || undefined,
+          apiToken: apiToken.trim() || undefined,
+          adminPhone: adminPhone.trim() || undefined,
+        },
       });
       setConfig(saved);
     } catch (err) {
@@ -118,6 +127,24 @@ export default function VoipSettingsPage() {
                 دقیقاً مثل ویجت تلفن Odoo. آدرس دقیق را از پشتیبانی سرویس VoIP خودتان بپرسید.
               </p>
             </div>
+            <div>
+              <label className={labelClass}>توکن API نواتل (برای تماس با یک کلیک)</label>
+              <input type="password" value={apiToken} onChange={(e) => setApiToken(e.target.value)} className={inputClass} dir="ltr" autoComplete="off" />
+            </div>
+            <div>
+              <label className={labelClass}>شماره‌ی ادمین مرکز تلفنی نواتل</label>
+              <input value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} className={inputClass} dir="ltr" placeholder="مثلاً 9821000000" />
+            </div>
+            {config?.webhookSecret && me ? (
+              <div className="bg-slate-50 border border-border rounded-xl p-3 text-[11.5px] leading-6">
+                <div className="font-semibold text-ink-soft mb-1">اتصال وب‌هوک نواتل (نمایش تماس ورودی و ثبت پایان مکالمه)</div>
+                <div>در پنل نواتل، قسمت «لینک اتصال»:</div>
+                <div className="text-muted">آدرس (URL):</div>
+                <div dir="ltr" className="font-mono break-all select-all">{`${typeof window !== "undefined" ? window.location.origin : ""}/api/public/voip/navatel/${me.tenant.slug}`}</div>
+                <div className="text-muted mt-1">ApiKey:</div>
+                <div dir="ltr" className="font-mono break-all select-all">{config.webhookSecret}</div>
+              </div>
+            ) : null}
             {domainError ? <div className="text-[12px] text-danger">{domainError}</div> : null}
             <button
               type="submit"

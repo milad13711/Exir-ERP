@@ -3,7 +3,7 @@ import { PERMISSION_GATED_MODULE_CODES, type Me } from "./api";
 const MANAGER_ONLY_SETTINGS_EXCEPTIONS = new Set(["/settings/profile", "/settings/notifications"]);
 
 /** ماژول‌هایی که سرور برایشان فیلتر «فقط خودم» دارد (viewScope یا زنجیره‌ی سازمانی). */
-const OWN_SCOPED_MODULES = new Set(["crm", "sales", "accounting", "purchasing", "hr", "tasks"]);
+const OWN_SCOPED_MODULES = new Set(["crm", "sales", "accounting", "purchasing", "hr", "tasks", "projects", "contracts"]);
 
 export function isManager(me: Me | null): boolean {
   return me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN";

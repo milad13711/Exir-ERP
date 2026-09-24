@@ -10,6 +10,12 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/update-task.dto.js';
+import { CreateChecklistItemDto, UpdateChecklistItemDto } from './dto/checklist-item.dto.js';
+
+const TASK_INCLUDE = {
+  assignee: { select: { name: true } },
+  checklist: { orderBy: [{ order: 'asc' as const }, { createdAt: 'asc' as const }] },
+};
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -30,7 +36,7 @@ export class TasksController {
     const scope = await this.permissions.viewScope(ctx, 'tasks', 'assignedUserId');
     return ctx.tenantDb.task.findMany({
       where: { ...scope, ...(relatedModule ? { relatedModule } : {}), ...(relatedEntityId ? { relatedEntityId } : {}) },
-      include: { assignee: { select: { name: true } } },
+      include: TASK_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -50,13 +56,17 @@ export class TasksController {
     const task = await ctx.tenantDb.task.create({
       data: {
         title: dto.title,
+        description: dto.description?.trim() || undefined,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         priority: dto.priority ?? 'NORMAL',
         assignedUserId,
         relatedModule: dto.relatedModule,
         relatedEntityId: dto.relatedEntityId,
+        checklist: dto.checklist?.length
+          ? { create: dto.checklist.filter((t) => t.trim()).map((text, order) => ({ text: text.trim(), order })) }
+          : undefined,
       },
-      include: { assignee: { select: { name: true } } },
+      include: TASK_INCLUDE,
     });
     await ctx.tenantDb.activityLog.create({
       data: {
@@ -93,7 +103,7 @@ export class TasksController {
         task.status === 'DONE'
           ? { status: 'OPEN', completedAt: null }
           : { status: 'DONE', completedAt: new Date() },
-      include: { assignee: { select: { name: true } } },
+      include: TASK_INCLUDE,
     });
   }
 
@@ -116,9 +126,10 @@ export class TasksController {
         title: dto.title,
         priority: dto.priority,
         assignedUserId,
+        ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
         ...(dto.dueAt !== undefined ? { dueAt: dto.dueAt ? new Date(dto.dueAt) : null } : {}),
       },
-      include: { assignee: { select: { name: true } } },
+      include: TASK_INCLUDE,
     });
 
     if (assignedUserId && assignedUserId !== existing.assignedUserId) {
@@ -133,7 +144,72 @@ export class TasksController {
         });
       }
     }
+    const dueChanged =
+      dto.dueAt !== undefined && (existing.dueAt?.getTime() ?? null) !== (task.dueAt?.getTime() ?? null);
+    if (dueChanged && task.assignedUserId) {
+      const actorUserId = await resolveTenantUserId(ctx);
+      if (task.assignedUserId !== actorUserId) {
+        await this.notifications.notify(ctx.tenantDb, {
+          userId: task.assignedUserId,
+          type: 'task.rescheduled',
+          title: `موعد یک وظیفه تغییر کرد: «${task.title}»`,
+          body: task.dueAt ? 'سررسید جدید ثبت شد' : 'سررسید برداشته شد',
+          link: '/tasks',
+        });
+      }
+    }
     return task;
+  }
+
+  @Get(':id')
+  async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    const scope = await this.permissions.viewScope(ctx, 'tasks', 'assignedUserId');
+    const task = await ctx.tenantDb.task.findFirst({ where: { id, ...scope }, include: TASK_INCLUDE });
+    if (!task) throw new NotFoundException('وظیفه یافت نشد');
+    return task;
+  }
+
+  @Post(':id/checklist')
+  async addChecklistItem(@Param('id') id: string, @Body() dto: CreateChecklistItemDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'tasks');
+    await this.requireTask(ctx, id);
+    const last = await ctx.tenantDb.taskChecklistItem.findFirst({ where: { taskId: id }, orderBy: { order: 'desc' } });
+    return ctx.tenantDb.taskChecklistItem.create({ data: { taskId: id, text: dto.text.trim(), order: (last?.order ?? -1) + 1 } });
+  }
+
+  @Patch(':id/checklist/:itemId')
+  async updateChecklistItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateChecklistItemDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'tasks');
+    await this.requireChecklistItem(ctx, id, itemId);
+    return ctx.tenantDb.taskChecklistItem.update({
+      where: { id: itemId },
+      data: { ...(dto.text !== undefined ? { text: dto.text.trim() } : {}), ...(dto.done !== undefined ? { done: dto.done } : {}) },
+    });
+  }
+
+  @Delete(':id/checklist/:itemId')
+  async removeChecklistItem(@Param('id') id: string, @Param('itemId') itemId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'tasks');
+    await this.requireChecklistItem(ctx, id, itemId);
+    await ctx.tenantDb.taskChecklistItem.delete({ where: { id: itemId } });
+    return { success: true };
+  }
+
+  private async requireTask(ctx: TenantRequestContext, id: string) {
+    const task = await ctx.tenantDb.task.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('وظیفه یافت نشد');
+    return task;
+  }
+
+  private async requireChecklistItem(ctx: TenantRequestContext, taskId: string, itemId: string) {
+    const item = await ctx.tenantDb.taskChecklistItem.findFirst({ where: { id: itemId, taskId } });
+    if (!item) throw new NotFoundException('آیتم چک‌لیست یافت نشد');
+    return item;
   }
 
   @Delete(':id')

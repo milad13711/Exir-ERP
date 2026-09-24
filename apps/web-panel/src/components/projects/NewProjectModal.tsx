@@ -3,6 +3,8 @@ import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   createProject,
+  updateProject,
+  type Project,
   fetchCrmContacts,
   fetchUsers,
   fetchStageTemplates,
@@ -15,17 +17,18 @@ const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
-export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [name, setName] = useState("");
-  const [contactId, setContactId] = useState("");
+export function NewProjectModal({ project, onClose, onCreated }: { project?: Project; onClose: () => void; onCreated: () => void }) {
+  const editing = !!project;
+  const [name, setName] = useState(project?.name ?? "");
+  const [contactId, setContactId] = useState(project?.contactId ?? "");
   const [contacts, setContacts] = useState<CrmContact[]>([]);
-  const [managerUserId, setManagerUserId] = useState("");
+  const [managerUserId, setManagerUserId] = useState(project?.managerUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
-  const [memberUserIds, setMemberUserIds] = useState<string[]>([]);
-  const [budget, setBudget] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [description, setDescription] = useState("");
+  const [memberUserIds, setMemberUserIds] = useState<string[]>(project?.members.map((m) => m.userId) ?? []);
+  const [budget, setBudget] = useState(project?.budget != null ? String(project.budget) : "");
+  const [startDate, setStartDate] = useState(project?.startDate ? project.startDate.slice(0, 10) : "");
+  const [endDate, setEndDate] = useState(project?.endDate ? project.endDate.slice(0, 10) : "");
+  const [description, setDescription] = useState(project?.description ?? "");
   const [stageTemplateId, setStageTemplateId] = useState("");
   const [stageTemplates, setStageTemplates] = useState<StageTemplate[]>([]);
   const [saving, setSaving] = useState(false);
@@ -43,7 +46,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
     setSaving(true);
     setError(null);
     try {
-      await createProject({
+      const payload = {
         name: name.trim(),
         contactId: contactId || undefined,
         managerUserId: managerUserId || undefined,
@@ -52,8 +55,10 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
         endDate: endDate || undefined,
         description: description.trim() || undefined,
         stageTemplateId: stageTemplateId || undefined,
-        memberUserIds: memberUserIds.length > 0 ? memberUserIds : undefined,
-      });
+        memberUserIds: editing ? memberUserIds : memberUserIds.length > 0 ? memberUserIds : undefined,
+      };
+      if (project) await updateProject(project.id, payload);
+      else await createProject(payload);
       onCreated();
       onClose();
     } catch (err) {
@@ -64,7 +69,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
   }
 
   return (
-    <Modal title="پروژه جدید" onClose={onClose} width="max-w-[520px]">
+    <Modal title={editing ? "ویرایش پروژه" : "پروژه جدید"} onClose={onClose} width="max-w-[520px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>نام پروژه</label>
@@ -125,7 +130,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
           </div>
         </div>
 
-        {stageTemplates.length > 0 && (
+        {!editing && stageTemplates.length > 0 && (
           <div>
             <label className={labelClass}>قالب مراحل (اختیاری)</label>
             <select value={stageTemplateId} onChange={(e) => setStageTemplateId(e.target.value)} className={inputClass}>
@@ -172,7 +177,7 @@ export function NewProjectModal({ onClose, onCreated }: { onClose: () => void; o
           disabled={saving || !name.trim()}
           className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50"
         >
-          {saving ? "در حال ثبت..." : "ثبت پروژه"}
+          {saving ? "در حال ثبت..." : editing ? "ذخیره تغییرات" : "ثبت پروژه"}
         </button>
       </form>
     </Modal>

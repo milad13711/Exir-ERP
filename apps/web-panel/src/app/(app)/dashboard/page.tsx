@@ -27,23 +27,25 @@ import {
   type Contract,
   type Appointment,
 } from "@/lib/api";
-import { formatJalaliDate, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
 import { DailyChecklistWidget } from "@/components/dashboard/DailyChecklistWidget";
 import Link from "next/link";
+import { TaskModal } from "@/components/tasks/TaskModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function DashboardPage() {
   const { me, installedModules } = useWorkspace();
   const [tasks, setTasks] = useState<ApiTask[] | null>(null);
+  const [openTask, setOpenTask] = useState<ApiTask | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [expiringContracts, setExpiringContracts] = useState<Contract[] | null>(null);
   const [weekAppointments, setWeekAppointments] = useState<Appointment[] | null>(null);
 
   useEffect(() => {
-    fetchTasks().then((t) => setTasks(t.slice(0, 4))).catch(() => setTasks([]));
+    fetchTasks().then((t) => setTasks([...t].sort((a, b) => Number(a.status === "DONE") - Number(b.status === "DONE")).slice(0, 5))).catch(() => setTasks([]));
     fetchActivity().then((a) => setActivity(a.slice(0, 3))).catch(() => setActivity([]));
     fetchDashboardSummary().then(setSummary).catch(() => {});
   }, []);
@@ -182,12 +184,13 @@ export default function DashboardPage() {
                     >
                       {done ? <CheckIcon className="w-2.5 h-2.5 text-white" strokeWidth={3} /> : null}
                     </button>
-                    <div className="flex-1">
+                    <div className="flex-1 cursor-pointer" onClick={() => setOpenTask(task)}>
                       <div className={clsx("text-[13px] font-semibold", done && "text-muted line-through")}>
                         {task.title}
                       </div>
                       <div className="text-[11.5px] text-muted mt-0.5">
-                        {task.dueAt ? formatJalaliDate(task.dueAt) : formatJalaliDate(task.createdAt)}
+                        {task.dueAt ? formatJalaliDateTime(task.dueAt) : formatJalaliDate(task.createdAt)}
+                        {task.assignee ? ` · ${task.assignee.name}` : ""}
                       </div>
                     </div>
                     {task.priority !== "NORMAL" ? (
@@ -200,12 +203,26 @@ export default function DashboardPage() {
               })
             )}
           </div>
-          <a
-            href="/tasks"
-            className="mt-4 py-2.5 rounded-[10px] border-[1.5px] border-dashed border-border text-[12.5px] font-semibold text-muted text-center"
+          <button
+            type="button"
+            onClick={() => setOpenTask({ id: "", title: "", dueAt: null, priority: "NORMAL", status: "OPEN", createdAt: "", completedAt: null })}
+            className="mt-4 py-2.5 rounded-[10px] border-[1.5px] border-dashed border-border text-[12.5px] font-semibold text-muted text-center cursor-pointer"
           >
             + افزودن وظیفه
-          </a>
+          </button>
+          {openTask ? (
+            <TaskModal
+              key={openTask.id || "new"}
+              task={openTask.id ? openTask : null}
+              onClose={() => setOpenTask(null)}
+              onSaved={(saved) =>
+                setTasks((prev) => {
+                  const list = prev ?? [];
+                  return list.some((t) => t.id === saved.id) ? list.map((t) => (t.id === saved.id ? saved : t)) : [saved, ...list].slice(0, 5);
+                })
+              }
+            />
+          ) : null}
         </Card>
       </div>
 

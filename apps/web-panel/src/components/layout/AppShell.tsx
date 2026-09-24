@@ -10,6 +10,7 @@ import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { VoipCallOverlay } from "@/components/voip/VoipCallOverlay";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
+import { PushPrompt } from "./PushPrompt";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon, LogoMark } from "@/components/icons";
 import { usePathname } from "next/navigation";
@@ -72,6 +73,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         </main>
         <MobileBottomNav />
       </div>
+      <PushPrompt />
 
       <button
         type="button"

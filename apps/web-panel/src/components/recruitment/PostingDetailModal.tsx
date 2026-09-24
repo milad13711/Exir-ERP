@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { deleteJobPosting } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { NewPostingModal } from "@/components/recruitment/NewPostingModal";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { toPersianDigits, formatToman } from "@/lib/persian";
@@ -53,6 +54,7 @@ export function PostingDetailModal({
   const [posting, setPosting] = useState<(JobPosting & { applicants: JobApplicant[] }) | null>(null);
   const [report, setReport] = useState<RecruitmentPostingReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const [addingApplicant, setAddingApplicant] = useState(false);
   const [applicantName, setApplicantName] = useState("");
@@ -124,7 +126,12 @@ export function PostingDetailModal({
           <div className="text-[12.5px] text-muted">
             {posting.jobField} · {EMPLOYMENT_TYPE_LABELS[posting.employmentType]} · ظرفیت {toPersianDigits(posting.capacity)}
           </div>
-          <Badge tone={posting.status === "OPEN" ? "success" : "neutral"}>{posting.status === "OPEN" ? "باز" : "بسته‌شده"}</Badge>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setEditOpen(true)} className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer">
+              ویرایش آگهی
+            </button>
+            <Badge tone={posting.status === "OPEN" ? "success" : "neutral"}>{posting.status === "OPEN" ? "باز" : "بسته‌شده"}</Badge>
+          </div>
         </div>
 
         {(posting.publishChannel || posting.publishBudget) && (
@@ -233,6 +240,17 @@ export function PostingDetailModal({
         )}
       </div>
       <DeleteRecordButton confirmText="این آگهی همراه با همه‌ی متقاضیان و مصاحبه‌هایش حذف شود؟" onDelete={() => deleteJobPosting(id)} onDeleted={() => { onChanged(); onClose(); }} />
+      {editOpen ? (
+        <NewPostingModal
+          posting={posting}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            setEditOpen(false);
+            reload();
+            onChanged();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

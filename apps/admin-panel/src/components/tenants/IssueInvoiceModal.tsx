@@ -1,3 +1,4 @@
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { createTenantInvoice, updateTenantInvoice, ApiError, type TenantInvoice } from "@/lib/api";
@@ -76,18 +77,12 @@ export function IssueInvoiceModal({
         </div>
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مهلت پرداخت</label>
-          <input
-            type="date"
-            required
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          />
+          <JalaliDateInput value={dueAt} onChange={setDueAt} placeholder="انتخاب تاریخ" />
         </div>
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !dueAt}
           className="mt-1.5 w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
           {submitting ? "در حال ذخیره..." : invoice ? "ذخیره تغییرات" : "صدور فاکتور"}

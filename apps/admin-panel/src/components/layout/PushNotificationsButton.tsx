@@ -92,10 +92,10 @@ export function PushNotificationsButton() {
     <button
       onClick={state === "on" ? disable : enable}
       disabled={state === "loading"}
-      className="text-[11.5px] font-bold px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50 hover:bg-slate-100 text-ink-soft"
+      className="text-[11.5px] font-bold px-2 sm:px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50 hover:bg-slate-100 text-ink-soft whitespace-nowrap"
       title={state === "on" ? "اعلان‌های این دستگاه فعال است" : "برای دریافت اعلان چت زنده روی این دستگاه، فعال کنید"}
     >
-      {state === "loading" ? "..." : state === "on" ? "🔔 اعلان فعال" : "🔕 فعال‌سازی اعلان‌ها"}
+      {state === "loading" ? "..." : state === "on" ? "🔔" : "🔕"}<span className="hidden sm:inline">{state === "on" ? " اعلان فعال" : " فعال‌سازی اعلان‌ها"}</span>
     </button>
   );
 }

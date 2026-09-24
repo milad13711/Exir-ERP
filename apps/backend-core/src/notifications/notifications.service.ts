@@ -37,34 +37,55 @@ export class NotificationsService {
       data: { userId: input.userId, type: input.type, title: input.title, body: input.body, link: input.link },
     });
 
-    const [user, preference] = await Promise.all([
-      tenantDb.user.findUnique({ where: { id: input.userId } }),
-      tenantDb.notificationPreference.findUnique({ where: { userId: input.userId } }),
-    ]);
-    if (!user) return;
+    // اعلان درون‌برنامه ثبت شد؛ کانال‌های بیرونی (پوش/ایمیل/پیامک) در پس‌زمینه و موازی می‌روند تا
+    // کندی SMTP یا درگاه پیامک نه پاسخ درخواست را عقب بیندازد و نه پوش را دیر برساند.
+    void this.deliverExternal(tenantDb, input).catch((err) =>
+      this.logger.warn(`External notification delivery failed for ${input.userId}: ${err instanceof Error ? err.message : err}`),
+    );
+  }
 
-    const emailEnabled = preference?.emailEnabled ?? true;
-    const smsEnabled = preference?.smsEnabled ?? false;
-
-    if (emailEnabled && user.email && this.email.isConfigured()) {
-      const result = await this.email.sendEmail(
-        user.email,
-        input.title,
-        `<div dir="rtl" style="font-family: Tahoma, sans-serif;"><p>${input.title}</p>${input.body ? `<p>${input.body}</p>` : ''}</div>`,
-        input.emailCc?.length ? { cc: input.emailCc } : undefined,
-      );
-      if (!result.success) this.logger.warn(`Email notification failed for ${user.id}: ${result.error}`);
-    }
-
-    if (smsEnabled && user.phone) {
-      const result = await this.sms.sendSms({ tenantDb }, user.phone, `${input.title}${input.body ? ` — ${input.body}` : ''}`);
-      if (!result.success) this.logger.warn(`SMS notification failed for ${user.id}: ${result.error}`);
-    }
-
-    await this.push.sendToTenantUser(tenantDb, input.userId, {
+  private async deliverExternal(tenantDb: TenantPrismaClient, input: NotifyInput): Promise<void> {
+    const pushPromise = this.push.sendToTenantUser(tenantDb, input.userId, {
       title: input.title,
       body: input.body ?? '',
       url: input.link,
     });
+
+    const [user, preference] = await Promise.all([
+      tenantDb.user.findUnique({ where: { id: input.userId } }),
+      tenantDb.notificationPreference.findUnique({ where: { userId: input.userId } }),
+    ]);
+    if (!user) {
+      await pushPromise;
+      return;
+    }
+
+    const emailEnabled = preference?.emailEnabled ?? true;
+    const smsEnabled = preference?.smsEnabled ?? false;
+
+    const emailPromise =
+      emailEnabled && user.email && this.email.isConfigured()
+        ? this.email
+            .sendEmail(
+              user.email,
+              input.title,
+              `<div dir="rtl" style="font-family: Tahoma, sans-serif;"><p>${input.title}</p>${input.body ? `<p>${input.body}</p>` : ''}</div>`,
+              input.emailCc?.length ? { cc: input.emailCc } : undefined,
+            )
+            .then((result) => {
+              if (!result.success) this.logger.warn(`Email notification failed for ${user.id}: ${result.error}`);
+            })
+        : Promise.resolve();
+
+    const smsPromise =
+      smsEnabled && user.phone
+        ? this.sms
+            .sendSms({ tenantDb }, user.phone, `${input.title}${input.body ? ` — ${input.body}` : ''}`)
+            .then((result) => {
+              if (!result.success) this.logger.warn(`SMS notification failed for ${user.id}: ${result.error}`);
+            })
+        : Promise.resolve();
+
+    await Promise.allSettled([pushPromise, emailPromise, smsPromise]);
   }
 }

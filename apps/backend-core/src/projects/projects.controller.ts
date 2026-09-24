@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -14,6 +14,8 @@ import { AddStageDto } from './dto/add-stage.dto.js';
 import { RejectStageDto } from './dto/reject-stage.dto.js';
 import { AssignStageDto } from './dto/assign-stage.dto.js';
 import { CompleteStageDto } from './dto/complete-stage.dto.js';
+import { UpdateStageDto } from './dto/update-stage.dto.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 
 /**
  * The `stage-templates/*` routes are static path segments living under the
@@ -32,6 +34,33 @@ export class ProjectsController {
     private readonly stageTemplates: StageTemplatesService,
     private readonly permissions: PermissionsService,
   ) {}
+
+  /**
+   * «مشاهده‌ی همه» = همه‌ی پروژه‌ها؛ «فقط خودم» = فقط پروژه‌هایی که کاربر مدیر، سازنده، عضو تیم
+   * یا مسئول یکی از مراحلشان است.
+   */
+  private async projectScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    const matrix = await this.permissions.getEffective(ctx, 'projects');
+    if (matrix.canViewAll) return {};
+    if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+    const userId = await resolveTenantUserId(ctx);
+    return {
+      OR: [
+        { managerUserId: userId },
+        { createdByUserId: userId },
+        { members: { some: { userId } } },
+        { stages: { some: { responsibleUserId: userId } } },
+      ],
+    };
+  }
+
+  /** دسترسی به یک پروژه‌ی مشخص — برای کاربر «فقط خودم»، فقط پروژه‌های خودش. */
+  private async requireAccess(ctx: TenantRequestContext, id: string): Promise<void> {
+    const scope = await this.projectScope(ctx);
+    if (Object.keys(scope).length === 0) return;
+    const found = await ctx.tenantDb.project.findFirst({ where: { id, ...scope }, select: { id: true } });
+    if (!found) throw new ForbiddenException('به این پروژه دسترسی ندارید');
+  }
 
   @Get('stage-templates')
   async listStageTemplates(@Ctx() ctx: TenantRequestContext) {
@@ -67,8 +96,7 @@ export class ProjectsController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertViewAll(ctx, 'projects');
-    return this.projects.list(ctx, { status, contactId });
+    return this.projects.list(ctx, { status, contactId }, await this.projectScope(ctx));
   }
 
   @Post()
@@ -79,50 +107,81 @@ export class ProjectsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertViewAll(ctx, 'projects');
-    return this.projects.detail(ctx, id);
+    return this.projects.detail(ctx, id, await this.projectScope(ctx));
   }
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateProjectDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.update(ctx, id, dto);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projects.remove(ctx, id);
   }
 
   @Post(':id/start')
   async start(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.start(ctx, id);
   }
 
   @Post(':id/hold')
   async hold(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.hold(ctx, id);
   }
 
   @Post(':id/complete')
   async complete(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.complete(ctx, id);
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.cancel(ctx, id);
   }
 
   @Get(':id/invoices')
   async listInvoices(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertViewAll(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.listInvoices(ctx, id);
   }
 
   @Post(':id/stages')
   async addStage(@Param('id') id: string, @Body() dto: AddStageDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.addStage(ctx, id, dto.title, dto.responsibleUserId);
+  }
+
+  @Patch(':id/stages/:stageId')
+  async updateStage(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body() dto: UpdateStageDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projects.updateStage(ctx, id, stageId, dto);
+  }
+
+  @Delete(':id/stages/:stageId')
+  async removeStage(@Param('id') id: string, @Param('stageId') stageId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projects.removeStage(ctx, id, stageId);
   }
 
   @Post(':id/stages/:stageId/assign')
@@ -133,6 +192,7 @@ export class ProjectsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.assignStage(ctx, id, stageId, dto.responsibleUserId);
   }
 
@@ -143,6 +203,7 @@ export class ProjectsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.requestStageStart(ctx, id, stageId);
   }
 
@@ -150,6 +211,7 @@ export class ProjectsController {
   @Post(':id/stages/:stageId/approve')
   async approveStage(@Param('id') id: string, @Param('stageId') stageId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.approveStage(ctx, id, stageId);
   }
 
@@ -161,6 +223,7 @@ export class ProjectsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertDelete(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.rejectStage(ctx, id, stageId, dto.reason);
   }
 
@@ -172,6 +235,7 @@ export class ProjectsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
     return this.projects.completeStage(ctx, id, stageId, dto.report);
   }
 }

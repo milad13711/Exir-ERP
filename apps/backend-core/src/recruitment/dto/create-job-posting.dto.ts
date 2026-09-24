@@ -34,4 +34,8 @@ export class CreateJobPostingDto {
   @IsOptional()
   @IsString()
   contractId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  contractTemplateId?: string | null;
 }

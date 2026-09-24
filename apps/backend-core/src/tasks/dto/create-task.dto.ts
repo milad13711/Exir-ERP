@@ -1,4 +1,4 @@
-import { IsIn, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsISO8601, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateTaskDto {
   @IsString()
@@ -6,8 +6,21 @@ export class CreateTaskDto {
   title!: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @IsOptional()
   @IsISO8601()
   dueAt?: string;
+
+  /** آیتم‌های چک‌لیستی اولیه‌ی وظیفه (هرکدام یک مرحله‌ی تیک‌خور). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  checklist?: string[];
 
   @IsOptional()
   @IsIn(['NORMAL', 'MEDIUM', 'URGENT'])

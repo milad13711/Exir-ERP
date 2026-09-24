@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CheckIcon, ClockIcon, PlusIcon } from "@/components/icons";
@@ -51,7 +53,7 @@ export default function TasksPage() {
     }
   }
 
-  async function handleEdit(id: string, patch: { title?: string; description?: string }) {
+  async function handleEdit(id: string, patch: { title?: string; description?: string; dueAt?: string; assignedToId?: string }) {
     await updateInternalTask(id, patch);
     reload();
   }
@@ -83,12 +85,9 @@ export default function TasksPage() {
             placeholder="عنوان وظیفه..."
             className="flex-1 text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
           />
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-            className="text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          />
+          <div className="sm:w-[230px]">
+            <JalaliDateTimeInput value={dueAt} onChange={setDueAt} placeholder="سررسید (اختیاری)" />
+          </div>
           <select
             value={assignedToId}
             onChange={(e) => setAssignedToId(e.target.value)}
@@ -118,14 +117,14 @@ export default function TasksPage() {
         ) : open.length === 0 ? (
           <div className="p-8 text-center text-muted text-sm">وظیفه‌ی بازی نیست</div>
         ) : (
-          open.map((t, i) => <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} isLast={i === open.length - 1} />)
+          open.map((t, i) => <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} staff={staff} isLast={i === open.length - 1} />)
         )}
       </Card>
 
       {done.length > 0 ? (
         <Card className="mt-4 p-2 opacity-70">
           {done.map((t, i) => (
-            <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} isLast={i === done.length - 1} />
+            <TaskRow key={t.id} task={t} onToggle={handleToggle} onEdit={handleEdit} onDelete={handleDelete} staff={staff} isLast={i === done.length - 1} />
           ))}
         </Card>
       ) : null}
@@ -138,18 +137,22 @@ function TaskRow({
   onToggle,
   onEdit,
   onDelete,
+  staff,
   isLast,
 }: {
   task: InternalTask;
   onToggle: (id: string) => void;
-  onEdit: (id: string, patch: { title?: string; description?: string }) => Promise<void>;
+  onEdit: (id: string, patch: { title?: string; description?: string; dueAt?: string; assignedToId?: string }) => Promise<void>;
   onDelete: (id: string) => void;
+  staff: StaffMember[];
   isLast: boolean;
 }) {
   const done = task.status === "DONE";
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
+  const [editDue, setEditDue] = useState(task.dueAt ?? "");
+  const [editAssignee, setEditAssignee] = useState(task.assignedTo?.id ?? "");
   return (
     <div className={`flex items-center gap-3 px-4 py-3 ${isLast ? "" : "border-b border-border"}`}>
       <button
@@ -165,8 +168,17 @@ function TaskRow({
           <div className="flex flex-col gap-1.5">
             <input value={title} onChange={(e) => setTitle(e.target.value)} className="text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-1.5" />
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="توضیحات" className="text-[12px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-1.5" />
+            <JalaliDateTimeInput value={editDue} onChange={setEditDue} placeholder="موعد انجام" />
+            <select value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)} className="text-[12px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-1.5">
+              <option value="">بدون ارجاع</option>
+              {staff.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-2">
-              <button onClick={async () => { await onEdit(task.id, { title, description }); setEditing(false); }} className="text-[11.5px] font-bold text-white bg-primary px-3 py-1 rounded-lg cursor-pointer">ذخیره</button>
+              <button onClick={async () => { await onEdit(task.id, { title, description, dueAt: editDue ? new Date(editDue).toISOString() : undefined, assignedToId: editAssignee || undefined }); setEditing(false); }} className="text-[11.5px] font-bold text-white bg-primary px-3 py-1 rounded-lg cursor-pointer">ذخیره</button>
               <button onClick={() => setEditing(false)} className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-3 py-1 rounded-lg cursor-pointer">انصراف</button>
             </div>
           </div>
@@ -176,6 +188,11 @@ function TaskRow({
         {task.description ? <div className="text-[11.5px] text-ink-soft mt-0.5">{task.description}</div> : null}
         <div className="text-[11px] text-muted mt-0.5 flex items-center gap-2">
           {task.assignedTo ? <span>ارجاع به {task.assignedTo.name}</span> : <span>بدون ارجاع</span>}
+          {task.ticket ? (
+            <Link href={`/support/${task.ticket.id}`} className="text-primary font-bold">
+              تیکت: {task.ticket.subject}
+            </Link>
+          ) : null}
           {task.dueAt ? (
             <span className="flex items-center gap-1">
               <ClockIcon className="w-3 h-3" />

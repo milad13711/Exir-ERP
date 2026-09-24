@@ -5,12 +5,16 @@ import { CheckIcon, PlusIcon } from "@/components/icons";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { NewProjectModal } from "@/components/projects/NewProjectModal";
 import { NewInvoiceModal } from "@/components/sales/NewInvoiceModal";
 import {
   startProject,
   holdProject,
   completeProject,
   cancelProject,
+  deleteProject,
+  updateProjectStage,
+  deleteProjectStage,
   addProjectStage,
   assignProjectStage,
   requestStageStart,
@@ -86,6 +90,9 @@ export function ProjectDetailModal({
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [completingStageId, setCompletingStageId] = useState<string | null>(null);
   const [completionReport, setCompletionReport] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editStageTitle, setEditStageTitle] = useState("");
 
   function reloadInvoices() {
     fetchProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([]));
@@ -187,6 +194,27 @@ export function ProjectDetailModal({
     }
   }
 
+  async function handleSaveStageTitle(stageId: string) {
+    if (!editStageTitle.trim()) return;
+    await runStageAction(() => updateProjectStage(project.id, stageId, { title: editStageTitle.trim() }));
+    setEditingStageId(null);
+  }
+
+  async function handleDeleteStage(stageId: string) {
+    if (!window.confirm("این مرحله حذف شود؟")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteProjectStage(project.id, stageId);
+      setStages((prev) => prev.filter((s) => s.id !== stageId));
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حذف مرحله ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const progressPct = project.progress.total > 0 ? Math.round((project.progress.done / project.progress.total) * 100) : 0;
 
   return (
@@ -202,7 +230,31 @@ export function ProjectDetailModal({
               </div>
             )}
           </div>
-          <Badge tone={STATUS_TONES[project.status]}>{STATUS_LABELS[project.status]}</Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge tone={STATUS_TONES[project.status]}>{STATUS_LABELS[project.status]}</Badge>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 -mt-2">
+          {project.status !== "COMPLETED" && project.status !== "CANCELLED" && (
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+            >
+              ویرایش پروژه
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("این پروژه با همه‌ی مراحل و وظایفش برای همیشه حذف شود؟")) runAction(() => deleteProject(project.id));
+            }}
+            disabled={busy}
+            className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+          >
+            حذف پروژه
+          </button>
         </div>
 
         <div>
@@ -345,9 +397,50 @@ export function ProjectDetailModal({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-[11px] text-muted shrink-0">{i + 1}.</span>
-                      <span className="text-[12.5px] font-bold truncate">{s.title}</span>
+                      {editingStageId === s.id ? (
+                        <input
+                          autoFocus
+                          value={editStageTitle}
+                          onChange={(e) => setEditStageTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveStageTitle(s.id);
+                            if (e.key === "Escape") setEditingStageId(null);
+                          }}
+                          className="text-[12.5px] font-bold outline-none bg-white border border-border rounded-lg px-2 py-1 min-w-0"
+                        />
+                      ) : (
+                        <span className="text-[12.5px] font-bold truncate">{s.title}</span>
+                      )}
                     </div>
-                    <Badge tone={STAGE_STATUS_TONES[s.status]}>{STAGE_STATUS_LABELS[s.status]}</Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {editingStageId === s.id ? (
+                        <>
+                          <button type="button" onClick={() => handleSaveStageTitle(s.id)} disabled={busy} className="text-[11px] font-bold text-primary cursor-pointer">
+                            ذخیره
+                          </button>
+                          <button type="button" onClick={() => setEditingStageId(null)} className="text-[11px] font-bold text-ink-soft cursor-pointer">
+                            انصراف
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStageId(s.id);
+                              setEditStageTitle(s.title);
+                            }}
+                            className="text-[11px] font-bold text-ink-soft cursor-pointer"
+                          >
+                            ویرایش
+                          </button>
+                          <button type="button" onClick={() => handleDeleteStage(s.id)} disabled={busy} className="text-[11px] font-bold text-danger cursor-pointer disabled:opacity-50">
+                            حذف
+                          </button>
+                        </>
+                      )}
+                      <Badge tone={STAGE_STATUS_TONES[s.status]}>{STAGE_STATUS_LABELS[s.status]}</Badge>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 mt-1.5">
@@ -521,6 +614,16 @@ export function ProjectDetailModal({
           prefill={{ contactId: project.contactId ?? undefined, projectId: project.id }}
         />
       )}
+      {editOpen ? (
+        <NewProjectModal
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            onChanged();
+            onClose();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

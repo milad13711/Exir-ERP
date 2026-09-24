@@ -175,6 +175,23 @@ export function DailyChecklistWidget() {
 
                 {expanded && (
                   <div className="px-3 pb-3 pt-1 border-t border-[#eddca0] bg-white/50 flex flex-col gap-2.5">
+                    <input
+                      key={`t-${item.id}-${item.title}`}
+                      defaultValue={item.title}
+                      aria-label="عنوان آیتم"
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (!v) {
+                          e.target.value = item.title;
+                        } else if (v !== item.title) {
+                          updateDailyChecklistItem(item.id, { title: v }).then(reload);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      className="text-[13px] font-semibold outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2"
+                    />
                     <textarea
                       defaultValue={item.description ?? ""}
                       placeholder="توضیح بیشتر (اختیاری)..."

@@ -196,6 +196,7 @@ enum TaskStatus {
 model Task {
   id              String       @id @default(uuid())
   title           String
+  description     String?
   dueAt           DateTime?
   priority        TaskPriority @default(NORMAL)
   status          TaskStatus   @default(OPEN)
@@ -208,8 +209,24 @@ model Task {
   assignee  User?      @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   reminders Reminder[]
   dailyChecklistItem DailyChecklistItem?
+  checklist TaskChecklistItem[]
 
   @@map("tasks")
+}
+
+/// آیتم‌های چک‌لیستی داخل یک وظیفه — هر وظیفه می‌تواند به چند مرحله‌ی کوچک تیک‌خور تقسیم شود.
+model TaskChecklistItem {
+  id        String   @id @default(uuid())
+  taskId    String
+  text      String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_checklist_items")
 }
 
 /// چک‌لیست کارهای روزانه‌ی هر پرسنل — ویجت داشبورد، شبیه یادداشت چسبان. مدیر می‌تواند
@@ -2305,6 +2322,7 @@ model ContractTemplate {
 
   createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   contracts Contract[]
+  jobPostings JobPosting[]
 
   @@map("contract_templates")
 }
@@ -3437,12 +3455,14 @@ model JobPosting {
   description     String?
   status          JobPostingStatus  @default(OPEN)
   closedAt        DateTime?
-  contractId      String? // قرارداد/شرایط و قوانین همکاری مربوط به این آگهی — متقاضی قبل از امضا می‌بیند
+  contractId      String? // (قدیمی) قرارداد آماده‌ی سیستمی — آگهی‌های جدید به‌جای آن از contractTemplateId استفاده می‌کنند
+  contractTemplateId String? // قالب قرارداد با فیلدهای پویا — برای هر متقاضی با اطلاعات خودش پر می‌شود و قبل از امضا نمایش داده می‌شود
   createdByUserId String?
   createdAt       DateTime          @default(now())
 
   createdBy  User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   contract   Contract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  contractTemplate ContractTemplate? @relation(fields: [contractTemplateId], references: [id], onDelete: SetNull)
   applicants JobApplicant[]
 
   @@index([status])

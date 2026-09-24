@@ -29,4 +29,17 @@ export class AdminLogsController {
       include: { tenant: { select: { name: true, slug: true } } },
     });
   }
+
+  @Get('sms')
+  sms(@Query('tenantId') tenantId?: string, @Query('status') status?: string) {
+    return this.controlDb.smsLog.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        ...(status === 'success' ? { success: true } : status === 'failed' ? { success: false } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { tenant: { select: { name: true, slug: true } } },
+    });
+  }
 }

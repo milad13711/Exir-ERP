@@ -38,4 +38,8 @@ export class UpdateJobPostingDto {
   @IsOptional()
   @IsString()
   contractId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  contractTemplateId?: string | null;
 }

@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ContractsService, contractPartyName, contractSecondPartyName } from './contracts.service.js';
@@ -27,6 +28,15 @@ export class ContractsController {
     private readonly pdf: ContractPdfService,
     private readonly controlDb: ControlPrismaService,
   ) {}
+
+  /** «مشاهده‌ی همه» = همه‌ی قراردادها؛ «فقط خودم» = قراردادهایی که خودش ساخته، امضای شرکتشان به او ارجاع شده یا قرارداد داخلی خودش است. */
+  private async contractScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    const matrix = await this.permissions.getEffective(ctx, 'contracts');
+    if (matrix.canViewAll) return {};
+    if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+    const userId = await resolveTenantUserId(ctx);
+    return { OR: [{ createdByUserId: userId }, { referredSignerUserId: userId }, { employee: { userId } }] };
+  }
 
   // نکته: مسیرهای ثابت (stage-templates‌مانند) باید قبل از مسیرهای پارامتری
   // ':id' ثبت شوند وگرنه اکسپرس آن‌ها را به‌عنوان مقدار ':id' تفسیر می‌کند
@@ -85,21 +95,19 @@ export class ContractsController {
     @Query('category') category: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.permissions.assertViewAll(ctx, 'contracts');
-    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category });
+    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category }, await this.contractScope(ctx));
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertViewAll(ctx, 'contracts');
-    return this.contracts.detail(ctx, id);
+    return this.contracts.detail(ctx, id, await this.contractScope(ctx));
   }
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    await this.permissions.assertViewAll(ctx, 'contracts');
+    const scope = await this.contractScope(ctx);
     const [contract, tenant, stamp] = await Promise.all([
-      this.contracts.detail(ctx, id),
+      this.contracts.detail(ctx, id, scope),
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
       this.contracts.getCompanySignature(ctx),
     ]);

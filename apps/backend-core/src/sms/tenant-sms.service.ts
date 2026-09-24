@@ -64,7 +64,7 @@ export class TenantSmsService {
     const conn = await this.getConnection(tenant.tenantDb);
 
     if (conn.mode === 'OWN') {
-      return this.gateway.sendWith({ apiKey: conn.apiKey, sender: conn.senderNumber }, phone, message);
+      return this.gateway.sendWith({ apiKey: conn.apiKey, sender: conn.senderNumber }, phone, message, { tenantId: tenant.tenantId, source: 'TENANT_OWN' });
     }
 
     if (conn.mode === 'SYSTEM') {
@@ -79,14 +79,14 @@ export class TenantSmsService {
       if (debited.count === 0) {
         return { success: false, error: 'اعتبار بسته‌ی پیامکی شما تمام شده است؛ از تنظیمات ← پنل پیامکی شارژ کنید' };
       }
-      const result = await this.gateway.sendSms(phone, message);
+      const result = await this.gateway.sendSms(phone, message, { tenantId, source: 'TENANT_SYSTEM' });
       if (!result.success) {
         await this.controlDb.tenantSmsWallet.update({ where: { tenantId }, data: { credits: { increment: parts } } });
       }
       return result;
     }
 
-    if (conn.mode === 'LEGACY') return this.gateway.sendSms(phone, message);
+    if (conn.mode === 'LEGACY') return this.gateway.sendSms(phone, message, { tenantId: tenant.tenantId, source: 'TENANT_LEGACY' });
 
     this.logger.warn(`Tenant ${tenant.tenantId ?? '?'}: SMS skipped — no SMS panel connected`);
     return { success: false, error: 'پنل پیامکی متصل نیست؛ از تنظیمات ← پنل پیامکی آن را متصل کنید' };

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PlaceholderPalette, CONTRACT_PLACEHOLDERS, RECRUITMENT_PLACEHOLDERS } from "@/components/contracts/PlaceholderPalette";
 import { Modal } from "@/components/ui/Modal";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import {
@@ -33,6 +34,7 @@ function TemplateForm({
   const [partyMode, setPartyMode] = useState<ContractPartyMode>(initial?.partyMode ?? "EXTERNAL");
   const [type, setType] = useState<ContractType | "">(initial?.type ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -79,7 +81,9 @@ function TemplateForm({
           </button>
         </div>
       )}
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="متن بندها و شرایط قرارداد..." className={inputClass} />
+      <textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} rows={7} placeholder="متن بندها و شرایط قرارداد..." className={inputClass} />
+      <PlaceholderPalette fields={CONTRACT_PLACEHOLDERS} targetRef={bodyRef} value={body} onChange={setBody} />
+      <PlaceholderPalette fields={RECRUITMENT_PLACEHOLDERS} targetRef={bodyRef} value={body} onChange={setBody} label="مخصوص قالب استخدام:" />
       <div className="text-[11px] text-muted bg-slate-50 rounded-lg p-2.5">
         <div className="font-semibold text-ink-soft mb-1">فیلدهای قابل استفاده — با تایپ این‌ها داخل متن، هنگام ثبت هر قرارداد به‌طور خودکار پر می‌شوند:</div>
         <div className="flex flex-wrap gap-1.5" dir="ltr">

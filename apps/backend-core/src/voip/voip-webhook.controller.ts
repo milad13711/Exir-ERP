@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Headers, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { VoipProviderRegistryService } from './voip-provider-registry.service.js';
@@ -17,7 +17,7 @@ import type { CallEndedEvent, IncomingCallEvent } from './types.js';
  * and compared with a timing-safe-ish plain equality (short-lived, low-
  * value secret; not worth the extra dependency for a real HMAC compare).
  */
-@Controller('public/voip/webhook/:slug/:providerCode')
+@Controller('public/voip')
 export class VoipWebhookController {
   constructor(
     private readonly controlDb: ControlPrismaService,
@@ -28,7 +28,7 @@ export class VoipWebhookController {
     private readonly callLog: CallLogService,
   ) {}
 
-  @Post()
+  @Post('webhook/:slug/:providerCode')
   async receive(
     @Param('slug') slug: string,
     @Param('providerCode') providerCode: string,
@@ -52,6 +52,39 @@ export class VoipWebhookController {
     if (endedEvent) return this.handleEnded(tenantDb, endedEvent);
 
     return { received: true }; // not an event we act on — 200 so the PBX doesn't retry forever
+  }
+
+  /**
+   * وب‌هوک نواتل: در پنل نواتل فقط «آدرس پایه» وارد می‌شود و خود نواتل مسیرهای
+   * /api/navatel/Voip/Call (زنگ خوردن)، /Answer (پاسخ) و /Endcall (پایان) را به آن اضافه می‌کند و
+   * کلید را در هدر ApiKey می‌فرستد — این کلید همان webhookSecret تنظیمات VoIP است.
+   */
+  @Post('navatel/:slug/api/navatel/Voip/:action')
+  async receiveNavatel(
+    @Param('slug') slug: string,
+    @Param('action') action: string,
+    @Headers('apikey') apiKey: string | undefined,
+    @Body() body: unknown,
+  ) {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
+    if (!tenant) throw new NotFoundException('تننت یافت نشد');
+    const tenantDb = this.tenantPrisma.forTenant(tenant);
+    const providerConfig = await tenantDb.voipProviderConfig.findFirst({ where: { providerCode: 'novatel', isActive: true } });
+    if (!providerConfig || !apiKey || providerConfig.webhookSecret !== apiKey) throw new ForbiddenException('وب‌هوک نامعتبر است');
+
+    const adapter = this.registry.get('novatel');
+    const kind = action.toLowerCase();
+    if (kind === 'call') {
+      const event = adapter?.parseWebhook(body);
+      return event ? this.handleIncoming(tenant, tenantDb, event) : { received: true };
+    }
+    if (kind === 'answer') {
+      const id = body && typeof body === 'object' ? (body as Record<string, unknown>).callID : undefined;
+      if (id != null) await tenantDb.callLog.updateMany({ where: { providerCallId: String(id), status: 'RINGING' }, data: { status: 'ANSWERED' } });
+      return { received: true };
+    }
+    const ended = adapter?.parseCallEndedWebhook?.(body);
+    return ended ? this.handleEnded(tenantDb, ended) : { received: true };
   }
 
   private async handleIncoming(tenant: { id: string; slug: string }, tenantDb: TenantPrismaClient, event: IncomingCallEvent) {

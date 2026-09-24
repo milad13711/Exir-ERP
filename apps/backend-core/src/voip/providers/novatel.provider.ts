@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { VoipProviderRegistryService } from '../voip-provider-registry.service.js';
-import type { CallEndedEvent, IncomingCallEvent } from '../types.js';
+import type { CallEndedEvent, IncomingCallEvent, OriginateResult } from '../types.js';
 
 /**
  * نواتل (navatel.ir) — یک سانترال ابری ایرانی که طبق محتوای عمومی سایتشان
@@ -24,7 +24,9 @@ export class NovatelVoipProvider implements OnModuleInit {
       code: 'novatel',
       name: 'نواتل (Navatel)',
       configFields: [
-        { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain)' },
+        { key: 'sipDomain', label: 'دامنه‌ی ثبت‌نام تلفن IP / سافت‌فون (SIP Domain) — مثلاً voice.navaphone.com با پروتکل TCP' },
+        { key: 'apiToken', label: 'توکن API نواتل (برای تماس با یک کلیک و دریافت رکورد مکالمات)' },
+        { key: 'adminPhone', label: 'شماره‌ی ادمین مرکز تلفنی نواتل (برای تماس با یک کلیک)' },
         {
           key: 'wssUrl',
           label: 'آدرس WebSocket برای تماس مستقیم از مرورگر (اختیاری — از پشتیبانی نواتل بپرسید، مثلاً wss://voice.navaphone.com:8089/ws)',
@@ -43,9 +45,15 @@ export class NovatelVoipProvider implements OnModuleInit {
           return null;
         };
 
-        const fromNumber = pick(['caller', 'from', 'src', 'callerNumber', 'caller_id']);
-        const toExtension = pick(['callee', 'extension', 'dst', 'destination', 'internal']);
-        const callId = pick(['callId', 'uniqueid', 'call_id', 'id']) ?? '';
+        // ساختار مستند‌شده‌ی وب‌هوک نواتل: callID/source/destination/direction/eventType — فقط «ringing ورودی» تماس ورودی است
+        const eventType = pick(['eventType']);
+        const direction = pick(['direction']);
+        if (eventType && eventType !== 'ringing') return null;
+        if (direction && direction !== 'in') return null;
+
+        const fromNumber = pick(['source', 'caller', 'from', 'src', 'callerNumber', 'caller_id']);
+        const toExtension = pick(['destination', 'callee', 'extension', 'dst', 'internal']);
+        const callId = pick(['callID', 'callId', 'uniqueid', 'call_id', 'id']) ?? '';
 
         if (!fromNumber || !toExtension) {
           this.logger.warn(`Could not parse a Navatel webhook payload — field names unconfirmed: ${JSON.stringify(body)}`);
@@ -70,15 +78,22 @@ export class NovatelVoipProvider implements OnModuleInit {
           return null;
         };
 
-        const callId = pick(['callId', 'uniqueid', 'call_id', 'id']);
+        const eventType = pick(['eventType']);
+        if (eventType && eventType !== 'hangup') return null;
+        const callId = pick(['callID', 'callId', 'uniqueid', 'call_id', 'id']);
         if (!callId) return null;
         const durationRaw = pick(['duration', 'billsec', 'call_duration']);
         const durationSeconds = durationRaw ? Number(durationRaw) : undefined;
-        const recordingUrl = pick(['recordingUrl', 'recording_url', 'recording']) ?? undefined;
-        const statusRaw = pick(['status', 'disposition']);
+        const recFile = pick(['rec_file']);
+        const recordingUrl =
+          pick(['recordingUrl', 'recording_url', 'recording']) ??
+          (recFile ? `https://navaphone.com/ipbx/api/v1/download/${recFile}` : undefined);
+        const statusRaw = pick(['state', 'status', 'disposition']);
         const status =
-          statusRaw === 'ANSWERED' || statusRaw === 'ANSWER'
+          statusRaw === 'answered' || statusRaw === 'ANSWERED' || statusRaw === 'ANSWER'
             ? 'ANSWERED'
+            : statusRaw === 'unanswered'
+              ? 'MISSED'
             : statusRaw === 'NO ANSWER' || statusRaw === 'NO_ANSWER'
               ? 'NO_ANSWER'
               : statusRaw === 'BUSY' || statusRaw === 'FAILED'
@@ -86,10 +101,31 @@ export class NovatelVoipProvider implements OnModuleInit {
                 : undefined;
         return { callId, durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : undefined, recordingUrl, status };
       },
-      // originateCall عمداً پیاده‌سازی نشده: نواتل هیچ مستند فنی عمومی
-      // برای تریگر تماس خروجی (endpoint، احراز هویت) منتشر نکرده — پیاده‌سازی
-      // بدون آن یعنی حدس‌زدن یک API که ممکن است حتی وجود نداشته باشد.
-      // اگر پشتیبانی نواتل این مستند را در اختیار بگذارد، اینجا تکمیل شود.
+      // تماس با یک کلیک — طبق مستند رسمی نواتل: POST /ipbx/api/v1/click2dial/dial با هدر Authorization (توکن)
+      originateCall: async (config, fromExtension, toNumber): Promise<OriginateResult> => {
+        const token = typeof config.apiToken === 'string' ? config.apiToken.trim() : '';
+        const adminPhone = typeof config.adminPhone === 'string' ? config.adminPhone.trim() : '';
+        if (!token || !adminPhone) {
+          return { success: false, error: 'توکن API و شماره‌ی ادمین نواتل در تنظیمات VoIP کامل نشده است' };
+        }
+        try {
+          const res = await fetch('https://navaphone.com/ipbx/api/v1/click2dial/dial', {
+            method: 'POST',
+            headers: { Authorization: token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: fromExtension, to: toNumber, admin: adminPhone }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (!res.ok) {
+            this.logger.warn(`Navatel click2dial failed (HTTP ${res.status})`);
+            return { success: false, error: `نواتل خطا داد (HTTP ${res.status})` };
+          }
+          const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          const id = data && (data.callID ?? data.callId ?? data.id);
+          return { success: true, callId: typeof id === 'string' || typeof id === 'number' ? String(id) : undefined };
+        } catch (err) {
+          return { success: false, error: `اتصال به نواتل ناموفق بود: ${err instanceof Error ? err.message : 'خطای ناشناخته'}` };
+        }
+      },
     });
   }
 }

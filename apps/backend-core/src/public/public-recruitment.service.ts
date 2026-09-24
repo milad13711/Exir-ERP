@@ -3,6 +3,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { RECRUITMENT_MODULE_CODE, RecruitmentService } from '../recruitment/recruitment.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { fillPlaceholders } from '../common/template-placeholders.util.js';
 import type { AcceptOfferDto } from './dto/accept-offer.dto.js';
 
 /**
@@ -34,9 +35,45 @@ export class PublicRecruitmentService {
     const ctx = await this.resolveTenantCtx(slug);
     const offer = await ctx.tenantDb.jobOffer.findUnique({
       where: { publicToken: token },
-      include: { applicant: { select: { name: true, phone: true, jobPosting: { select: { title: true, contract: { select: { title: true, terms: true } } } } } } },
+      include: {
+        applicant: {
+          select: {
+            name: true,
+            phone: true,
+            jobPosting: {
+              select: {
+                title: true,
+                contract: { select: { title: true, terms: true } },
+                contractTemplate: { select: { name: true, body: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!offer) throw new NotFoundException('این لینک یافت نشد');
+
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug }, select: { name: true } });
+    const posting = offer.applicant.jobPosting;
+    const templateText = posting.contractTemplate
+      ? fillPlaceholders(posting.contractTemplate.body, {
+          'شرکت': tenant?.name,
+          'نام_شرکت': tenant?.name,
+          'نام_متقاضی': offer.applicant.name,
+          'نام_طرف_دوم': offer.applicant.name,
+          'شماره_تماس_متقاضی': offer.applicant.phone,
+          'شماره_تماس_طرف_دوم': offer.applicant.phone,
+          'عنوان_شغل': posting.title,
+          'شرح_وظایف': offer.jobDescription,
+          'نوع_همکاری': offer.collaborationType,
+          'ساعت_کاری': offer.workingHours,
+          'حقوق': offer.salary.toLocaleString('fa-IR'),
+          'مبلغ_قرارداد': offer.salary.toLocaleString('fa-IR'),
+          'مزایا': offer.benefits,
+          'مدت_قرارداد_ماه': offer.durationMonths,
+          'تاریخ_شروع': offer.startDate ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'long' }).format(offer.startDate) : undefined,
+        })
+      : null;
 
     return {
       applicantName: offer.applicant.name,
@@ -51,8 +88,8 @@ export class PublicRecruitmentService {
       candidateAcceptedAt: offer.candidateAcceptedAt,
       jobTitle: offer.applicant.jobPosting.title,
       // شرایط و قوانین همکاری (قرارداد مربوط به آگهی) — متقاضی قبل از امضا آن را می‌خواند
-      contractTitle: offer.applicant.jobPosting.contract?.title ?? null,
-      contractTerms: offer.applicant.jobPosting.contract?.terms ?? null,
+      contractTitle: posting.contractTemplate?.name ?? posting.contract?.title ?? null,
+      contractTerms: templateText ?? posting.contract?.terms ?? null,
     };
   }
 

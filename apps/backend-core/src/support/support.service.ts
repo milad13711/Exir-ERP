@@ -21,7 +21,7 @@ export class SupportService {
     if (ticket.assignedAdminId) {
       await this.push.sendToAdmin(ticket.assignedAdminId, payload);
     } else {
-      await this.push.sendToTeam('SUPPORT', payload);
+      await Promise.all([this.push.sendToTeam('SUPPORT', payload), this.push.sendToTeam('SUPER_ADMIN', payload)]);
     }
   }
 
@@ -38,7 +38,7 @@ export class SupportService {
       include: { messages: true, tenant: { select: { name: true, slug: true } } },
     });
     this.gateway.notifyTicketCreated(ticket);
-    await this.pushForTicket(ticket, message);
+    void this.pushForTicket(ticket, message).catch(() => {});
     return ticket;
   }
 
@@ -84,7 +84,7 @@ export class SupportService {
       data: { ticketId: ticket.id, senderType: 'TENANT_USER', senderId: globalUserId, body },
     });
     this.gateway.notifyNewMessage(ticket, message);
-    await this.pushForTicket(ticket, body);
+    void this.pushForTicket(ticket, body).catch(() => {});
     return message;
   }
 }
