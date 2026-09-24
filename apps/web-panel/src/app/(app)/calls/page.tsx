@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/Badge";
 import { PhoneIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { fetchCallLogs, originateCall, ApiError, type CallLog, type CallDirection } from "@/lib/api";
+import { NavatelReports } from "@/components/voip/NavatelReports";
+import { useWorkspace } from "@/lib/workspace-context";
+import { isManager } from "@/lib/access";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 
 const STATUS_LABEL: Record<CallLog["status"], string> = {
@@ -20,6 +23,8 @@ const STATUS_LABEL: Record<CallLog["status"], string> = {
 type DirectionFilter = "همه" | CallDirection;
 
 export default function CallHistoryPage() {
+  const { me } = useWorkspace();
+  const [view, setView] = useState<"erp" | "navatel">("erp");
   const [logs, setLogs] = useState<CallLog[] | null>(null);
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>("همه");
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +76,23 @@ export default function CallHistoryPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-5 mb-4">
+      {isManager(me) ? (
+        <div className="flex items-center gap-2 mt-5">
+          {([["erp", "تاریخچه‌ی ثبت‌شده"], ["navatel", "گزارش سانترال نواتل"]] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setView(k)} className={clsx("text-[12.5px] font-bold px-4 py-2 rounded-[10px] cursor-pointer border", view === k ? "border-primary text-primary bg-primary-soft" : "border-border text-ink-soft")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {view === "navatel" ? (
+        <div className="mt-5">
+          <NavatelReports />
+        </div>
+      ) : null}
+
+      <div className={clsx("flex items-center gap-2 mt-5 mb-4", view === "navatel" && "hidden")}>
         {(["همه", "INBOUND", "OUTBOUND"] as DirectionFilter[]).map((f) => (
           <button
             key={f}
@@ -86,9 +107,9 @@ export default function CallHistoryPage() {
         ))}
       </div>
 
-      {error ? <div className="text-[12.5px] text-danger mb-3">{error}</div> : null}
+      {view === "erp" && error ? <div className="text-[12.5px] text-danger mb-3">{error}</div> : null}
 
-      <Card className="overflow-hidden">
+      <Card className={clsx("overflow-hidden", view === "navatel" && "hidden")}>
         {logs === null ? (
           <div className="py-10 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : filtered.length === 0 ? (

@@ -6,7 +6,6 @@ import { PhoneIcon, SearchIcon, CloseIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getVoipSocket } from "@/lib/voip-socket";
-import { voipEngine } from "@/lib/voip-engine";
 import { originateCall, fetchCallLogs, fetchCrmContacts, ApiError, type CallLog, type CrmContact } from "@/lib/api";
 
 type Tab = "dialpad" | "contacts" | "history";
@@ -64,20 +63,13 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  async function handleCall(toNumber: string, contactId?: string, contactName?: string) {
+  async function handleCall(toNumber: string, contactId?: string) {
     if (!toNumber.trim()) return;
     setCalling(true);
     setError(null);
     try {
-      if (voipEngine.isAvailable) {
-        // سافت‌فون مرورگری (SIP/WebRTC مستقیم) — همان چیزی که Odoo انجام می‌دهد؛
-        // تماس واقعاً همین‌جا در مرورگر برقرار می‌شود، نه از طریق originate سمت سرور.
-        await voipEngine.call(toNumber.trim(), contactId, contactName);
-        onClose();
-      } else {
-        await originateCall(toNumber.trim(), contactId);
-        setTimeout(reloadHistory, 1500);
-      }
+      await originateCall(toNumber.trim(), contactId);
+      setTimeout(reloadHistory, 1500);
       setNumber("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "برقراری تماس ناموفق بود");
@@ -160,9 +152,9 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
 
-        {tab === "contacts" ? <ContactsTab onCall={(num, id, name) => handleCall(num, id, name)} calling={calling} /> : null}
+        {tab === "contacts" ? <ContactsTab onCall={(num, id) => handleCall(num, id)} calling={calling} /> : null}
 
-        {tab === "history" ? <HistoryTab logs={history} onCall={(num, id, name) => handleCall(num, id, name)} calling={calling} /> : null}
+        {tab === "history" ? <HistoryTab logs={history} onCall={(num, id) => handleCall(num, id)} calling={calling} /> : null}
       </div>
     </div>
   );

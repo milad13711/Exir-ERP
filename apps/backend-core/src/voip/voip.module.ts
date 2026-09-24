@@ -8,11 +8,13 @@ import { VoipWebhookController } from './voip-webhook.controller.js';
 import { GenericWebhookVoipProvider } from './providers/generic-webhook.provider.js';
 import { NovatelVoipProvider } from './providers/novatel.provider.js';
 import { VoipAutomationTriggers } from './voip-automation.triggers.js';
+import { NavatelApiService } from './navatel-api.service.js';
+import { NavatelReportsController } from './navatel-reports.controller.js';
 import { CallLogService } from './call-log.service.js';
 
 @Module({
   imports: [ModuleGuardModule, AutomationModule],
-  controllers: [VoipController, VoipWebhookController],
+  controllers: [VoipController, VoipWebhookController, NavatelReportsController],
   providers: [
     VoipProviderRegistryService,
     VoipGateway,
@@ -20,6 +22,7 @@ import { CallLogService } from './call-log.service.js';
     NovatelVoipProvider,
     VoipAutomationTriggers,
     CallLogService,
+    NavatelApiService,
   ],
 })
 export class VoipModule {}

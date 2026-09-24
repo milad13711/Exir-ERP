@@ -8,7 +8,6 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { SupportChat } from "./SupportChat";
 import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
-import { VoipCallOverlay } from "@/components/voip/VoipCallOverlay";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { PushPrompt } from "./PushPrompt";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
@@ -93,7 +92,6 @@ function AppShellInner({ children }: { children: ReactNode }) {
         onUnreadChange={setSupportUnread}
       />
       <IncomingCallPopup />
-      <VoipCallOverlay />
       <AiActionApprovalPopup />
       <OnboardingGuide />
     </div>
