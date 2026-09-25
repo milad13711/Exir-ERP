@@ -10,7 +10,7 @@
 // through the offline write queue in src/lib/offline (IndexedDB-backed),
 // since a queued write needs app-level retry/merge logic a cache can't do.
 
-const SHELL_CACHE = "exir-shell-v1";
+const SHELL_CACHE = "exir-shell-v2";
 const API_CACHE = "exir-api-v1";
 const OFFLINE_URL = "/offline.html";
 

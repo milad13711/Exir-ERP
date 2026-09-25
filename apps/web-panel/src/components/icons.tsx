@@ -51,7 +51,7 @@ export function ShieldIcon(props: IconProps) {
 /** The real exir ERP brand mark — a raster image (not a line-art icon) since its gradient/beveled look can't be a currentColor stroke path. `className` still controls its size the same way every other icon here does. */
 export function LogoMark({ className }: IconProps) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/brand/exir-glyph.png" alt="" className={className} />;
+  return <img src="/brand/exir-logo.png" alt="اکسیر ERP" className={`${className ?? ""} rounded-[22%] object-cover shrink-0`} />;
 }
 
 export function DashboardIcon(props: IconProps) {

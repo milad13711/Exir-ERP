@@ -144,9 +144,7 @@ export default function LoginPage() {
     <div dir="rtl" className="min-h-dvh flex bg-white">
       <div className="hidden lg:flex flex-col justify-between flex-[0_0_46%] relative overflow-hidden p-14 bg-gradient-to-br from-indigo-800 via-indigo-700 to-teal-600">
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/18 flex items-center justify-center">
-            <LogoMark className="w-5.5 h-5.5 text-white" />
-          </div>
+          <LogoMark className="w-10 h-10" />
           <span className="text-white text-xl font-extrabold">اکسیر ERP</span>
         </div>
 
@@ -200,6 +198,10 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-sm">
+          <div className="lg:hidden flex items-center gap-3 mb-8">
+            <LogoMark className="w-12 h-12 shadow-md" />
+            <span className="text-xl font-extrabold">اکسیر ERP</span>
+          </div>
           {step === "tenant" ? (
             <div>
               <div className="text-[13px] text-muted mb-2">ورود به حساب کاربری</div>

@@ -64,9 +64,7 @@ export default function PublicWarrantyPage({ params }: { params: Promise<{ slug:
     <div dir="rtl" className="min-h-dvh bg-slate-50 flex flex-col">
       <div className="border-b border-border bg-white">
         <div className="max-w-[520px] mx-auto flex items-center gap-2.5 px-6 py-4">
-          <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center">
-            <LogoMark className="w-5 h-5 text-primary" />
-          </div>
+          <LogoMark className="w-9 h-9" />
           <span className="font-extrabold">گارانتی</span>
         </div>
       </div>

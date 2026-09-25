@@ -38,9 +38,7 @@ export default function PublicInvoicePayPage({ params }: { params: Promise<{ inv
     <div dir="rtl" className="min-h-dvh flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-sm bg-surface border border-border rounded-3xl p-7 shadow-sm">
         <div className="flex items-center gap-2.5 justify-center mb-6">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <LogoMark className="w-4 h-4 text-white" />
-          </div>
+          <LogoMark className="w-8 h-8" />
           <span className="text-[15px] font-extrabold">اکسیر ERP</span>
         </div>
 

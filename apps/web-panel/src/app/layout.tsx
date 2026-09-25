@@ -7,13 +7,18 @@ export const metadata: Metadata = {
   description: "سامانه مدیریت یکپارچه کسب‌وکار اکسیر",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/icon-192.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/favicon-64.png", sizes: "64x64", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
   },
+  appleWebApp: { capable: true, title: "اکسیر ERP", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4338ca",
+  themeColor: "#011840",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

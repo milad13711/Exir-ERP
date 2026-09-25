@@ -281,9 +281,7 @@ function SignupPageInner() {
       <div className="border-b border-border bg-white">
         <div className="max-w-[880px] mx-auto flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center">
-              <LogoMark className="w-5 h-5 text-primary" />
-            </div>
+            <LogoMark className="w-9 h-9" />
             <span className="font-extrabold">اکسیر ERP</span>
           </div>
           <a href="/login" className="text-[12.5px] font-semibold text-primary">

@@ -65,9 +65,7 @@ export default function PublicQuotationPage({ params }: { params: Promise<{ slug
     <div className="min-h-full bg-background py-8 px-4">
       <div className="max-w-[560px] mx-auto">
         <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <LogoMark className="w-[18px] h-[18px] text-white" />
-          </div>
+          <LogoMark className="w-9 h-9" />
           <div className="text-[15px] font-extrabold">{quotation.orgName}</div>
         </div>
 

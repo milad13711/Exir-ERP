@@ -136,9 +136,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex flex-col h-full p-3.5">
       <div className="flex items-center justify-between gap-2 px-2 pb-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8.5 h-8.5 rounded-[10px] bg-primary flex items-center justify-center">
-            <LogoMark className="w-[18px] h-[18px] text-white" />
-          </div>
+          <LogoMark className="w-8.5 h-8.5" />
           <span className="text-[17px] font-extrabold">اکسیر ERP</span>
         </div>
         {editing ? (
