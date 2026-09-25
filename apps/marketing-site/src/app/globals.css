@@ -3,29 +3,29 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f7f8f5;
-  --foreground: #0d1b14;
+  --background: #f6f8f6;
+  --foreground: #0a1a17;
 
-  --color-ink: #0d1b14;
-  --color-ink-soft: #3f4f46;
-  --color-muted: #66756c; /* ≥4.5:1 روی سفید و پس‌زمینه‌ی روشن */
+  --color-ink: #0a1a17;
+  --color-ink-soft: #3b4e49;
+  --color-muted: #5f726d; /* ≥4.5:1 روی سفید و پس‌زمینه‌ی روشن */
   --color-surface: #ffffff;
-  --color-border: #e1e6df;
+  --color-border: #dde6e2;
 
   /* هویت بصری اکسیرتجارت امین: سبز سلطنتی + طلایی — برگرفته از لوگوی برند
      (سبز جنگلی عمیق و طلای مات). accent = طلای قابل‌خواندن برای متن روی سفید (≥4.5:1)،
      gold = طلای روشن برای عناصر تزئینی و دکمه‌های روی زمینه‌ی سبز. */
-  --color-primary: #0b5a3c;
-  --color-primary-dark: #063a27;
-  --color-primary-deep: #04261a;
-  --color-primary-light: #137a52;
-  --color-primary-soft: #e6f2ec;
+  --color-primary: #04524a;
+  --color-primary-dark: #003c3a;
+  --color-primary-deep: #002420;
+  --color-primary-light: #0a7867;
+  --color-primary-soft: #e4f2ee;
 
-  --color-accent: #946609;
-  --color-accent-soft: #fbf2d9;
-  --color-gold: #d7ad4a;
-  --color-gold-light: #ecd28f;
-  --color-gold-dark: #b8892b;
+  --color-accent: #8c6a10;
+  --color-accent-soft: #f8f0d6;
+  --color-gold: #cfa84d;
+  --color-gold-light: #efdc9c;
+  --color-gold-dark: #a58230;
 
   --color-warning: #b45309;
   --color-warning-soft: #fef3e2;
@@ -126,8 +126,8 @@ h1, h2, h3 { text-wrap: balance; }
 /* الگوی ظریف هندسی طلایی برای زمینه‌ی تیره — مثلث‌ها برگرفته از نشان برند */
 .pattern-gold {
   background-image:
-    linear-gradient(135deg, rgba(215, 173, 74, 0.035) 25%, transparent 25%),
-    linear-gradient(225deg, rgba(215, 173, 74, 0.035) 25%, transparent 25%);
+    linear-gradient(135deg, rgba(207, 168, 77, 0.04) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(207, 168, 77, 0.04) 25%, transparent 25%);
   background-size: 30px 30px;
 }
 
@@ -136,12 +136,36 @@ h1, h2, h3 { text-wrap: balance; }
 }
 .card-lift:hover {
   transform: translateY(-3px);
-  border-color: rgba(184, 137, 43, 0.55);
-  box-shadow: 0 24px 48px -28px rgba(6, 58, 39, 0.45);
+  border-color: rgba(165, 130, 48, 0.55);
+  box-shadow: 0 24px 48px -28px rgba(0, 36, 32, 0.45);
 }
 
 .reveal { animation: reveal-up 0.6s ease-out both; }
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* گرادیان طلایی برند — برگرفته از مندالای مرجع (طلای لبه‌دار) */
+.text-gold-gradient {
+  background: linear-gradient(180deg, #f6e7ac 0%, #cfa84d 55%, #a58230 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-band {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 380px at 80% -10%, rgba(10, 120, 103, 0.55), transparent 65%),
+    linear-gradient(135deg, var(--color-primary-deep) 0%, var(--color-primary-dark) 55%, #00524a 100%);
+  color: #fff;
+}
+.hero-band::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-gold-dark), var(--color-gold-light), var(--color-gold-dark), transparent);
 }

@@ -19,6 +19,7 @@ import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
 import type { ConfirmDeliveryDto } from './dto/confirm-delivery.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const DELIVERY_CODE_TTL_MS = 30 * 60 * 1000;
 const SALES_SETTINGS_MODULE = 'sales';
@@ -589,7 +590,7 @@ export class InvoicesService {
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (!invoice.contact.phone) throw new BadRequestException('این مشتری شماره موبایل ثبت‌شده ندارد');
 
-    const url = `${publicWebUrl}/invoice/${ctx.tenantSlug}/${invoice.publicToken}`;
+    const url = `${publicWebUrl}/invoice/${publicRef(ctx.tenantSlug)}/${invoice.publicToken}`;
     const remaining = invoice.total - invoice.paidAmount;
     const message =
       remaining > 0

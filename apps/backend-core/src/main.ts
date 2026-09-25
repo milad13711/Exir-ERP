@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { TenantPublicKeyService } from './common/tenant-public-key.js';
 
 // A few monetary columns (CrmDeal.value, JournalLine.debit/credit) are
 // BigInt in Postgres/Prisma so a single deal or entry can exceed 2.1B
@@ -36,6 +37,9 @@ async function bootstrap() {
     origin: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
     credentials: true,
   });
+
+  // لینک‌های عمومی با شناسه‌ی هش‌شده‌ی تننت (publicKey) ساخته می‌شوند؛ این میدلور آن را قبل از مسیریابی به slug برمی‌گرداند
+  app.use(app.get(TenantPublicKeyService).middleware);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(

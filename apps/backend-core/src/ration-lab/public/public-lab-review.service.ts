@@ -8,6 +8,7 @@ import { TenantSmsService } from '../../sms/tenant-sms.service.js';
 import { NotificationsService } from '../../notifications/notifications.service.js';
 import type { LabReviewTicketPayload } from '../../auth/jwt-payload.type.js';
 import type { SubmitLabReportDto } from '../dto/public-lab-review.dto.js';
+import { publicRef } from '../../common/tenant-public-key.js';
 
 const LAB_REVIEW_TOKEN_TTL_SECONDS = 60 * 60;
 const PENDING_STATUSES = ['COLLECTED', 'IN_TRANSIT'] as const;
@@ -278,7 +279,7 @@ export class PublicLabReviewService {
 
     if (sample.contact.phone) {
       const webPanelUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-      const link = webPanelUrl ? `${webPanelUrl}/ration-result/${slug}` : `/ration-result/${slug}`;
+      const link = webPanelUrl ? `${webPanelUrl}/ration-result/${publicRef(slug)}` : `/ration-result/${publicRef(slug)}`;
       await this.sms.sendSms(
         { tenantId: tenant.id, tenantDb },
         sample.contact.phone,

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroBand } from "@/components/Mandala";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman } from "@/lib/pricing";
@@ -22,7 +23,7 @@ export default async function IndustriesPage() {
 
   return (
     <main className="flex-1">
-      <section className="bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
+      <HeroBand>
         <div className="max-w-[1100px] mx-auto px-6 py-16 text-center">
           <h1 className="text-[28px] sm:text-[34px] font-extrabold leading-[1.5]">اکسیر ERP برای هر صنف</h1>
           <p className="mt-4 text-[14.5px] text-white/85 max-w-[640px] mx-auto leading-loose">
@@ -30,7 +31,7 @@ export default async function IndustriesPage() {
             آماده دارد — و کاملاً براساس DNA و فرایندهای واقعی سازمان شما شخصی‌سازی می‌شود.
           </p>
         </div>
-      </section>
+      </HeroBand>
 
       <section className="max-w-[1100px] mx-auto px-6 py-14">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">

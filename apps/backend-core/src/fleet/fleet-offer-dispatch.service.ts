@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const OFFER_GAP_MS = 5 * 60 * 1000;
 
@@ -61,7 +62,7 @@ export class FleetOfferDispatchService {
       const shouldSend = lastSentAt === undefined || Date.now() - lastSentAt >= OFFER_GAP_MS;
       if (!shouldSend) continue;
 
-      const offerUrl = `${publicWebUrl}/fleet/offer/${slug}/${nextScheduled.publicToken}`;
+      const offerUrl = `${publicWebUrl}/fleet/offer/${publicRef(slug)}/${nextScheduled.publicToken}`;
       const pickup = shipment.pickupAt.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
       const message = `پیشنهاد بار جدید:\nنوع: ${shipment.cargoType}\nمقدار: ${shipment.quantity}${shipment.unit ? ' ' + shipment.unit : ''}\nآدرس تحویل: ${shipment.deliveryAddress}\nزمان بارگیری: ${pickup}\nمشاهده و پذیرش: ${offerUrl}`;
 

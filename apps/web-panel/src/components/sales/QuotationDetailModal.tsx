@@ -54,7 +54,7 @@ export function QuotationDetailModal({
 
   async function handleCopyLink() {
     if (!quotation || !me) return;
-    const url = `${window.location.origin}/q/${me.tenant.slug}/${quotation.publicToken}`;
+    const url = `${window.location.origin}/q/${me.tenant.publicKey ?? me.tenant.slug}/${quotation.publicToken}`;
     try {
       await navigator.clipboard.writeText(url);
       setLinkCopied(true);

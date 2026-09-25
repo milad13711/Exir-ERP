@@ -221,7 +221,7 @@ function SettingsTab() {
     setOrigin(window.location.origin);
   }, []);
 
-  const publicLink = `${origin}/after-sales/${me?.tenant.slug ?? ""}`;
+  const publicLink = `${origin}/after-sales/${me?.tenant.publicKey ?? me?.tenant.slug ?? ""}`;
 
   async function handleCopyLink() {
     const ok = await copyToClipboard(publicLink);

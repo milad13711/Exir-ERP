@@ -76,6 +76,8 @@ enum DeploymentType {
 model Tenant {
   id             String         @id @default(uuid())
   slug           String         @unique
+  /// شناسه‌ی عمومی و غیرقابل‌حدس برای لینک‌های عمومی (رزرو، فاکتور، قرارداد و...) — به‌جای slug خوانا
+  publicKey      String         @unique @default(dbgenerated("('t' || substr(md5(random()::text || clock_timestamp()::text), 1, 11))"))
   name           String
   status         TenantStatus   @default(PENDING_PROVISION)
   deploymentType DeploymentType @default(SHARED_CLOUD)

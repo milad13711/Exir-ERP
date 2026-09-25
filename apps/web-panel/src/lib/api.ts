@@ -273,7 +273,7 @@ export type Me = {
     roleTitle: string | null;
     membershipRole: string;
   };
-  tenant: { name: string; slug: string; themeColor: string | null };
+  tenant: { name: string; slug: string; publicKey?: string; themeColor: string | null };
   navOrder: string[];
   permissions?: { manager: boolean; modules: Record<string, { canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }> };
 };

@@ -177,7 +177,7 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
     );
   }
 
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/events/${me?.tenant.slug ?? "exir-demo"}/${event.slug}` : "";
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/events/${me?.tenant.publicKey ?? me?.tenant.slug ?? "exir-demo"}/${event.slug}` : "";
   const soldTotal = event.ticketTypes.reduce((sum, t) => sum + (t.sold ?? 0), 0);
   const checkedInCount = (tickets ?? []).filter((t) => t.status === "CHECKED_IN").length;
 

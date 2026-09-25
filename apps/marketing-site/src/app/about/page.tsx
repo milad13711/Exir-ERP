@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { HeroBand } from "@/components/Mandala";
 import { COMPANY_INFO, CEO_INFO, GROUP_BRAND } from "@/lib/content";
 import { MapPinIcon, PhoneIcon, MessageIcon, InstagramIcon, BookIcon, AwardIcon } from "@/components/icons";
 
@@ -41,7 +42,7 @@ export default function AboutPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }} />
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="bg-primary text-white">
+      <HeroBand>
         <div className="max-w-[820px] mx-auto px-6 py-16 sm:py-20 text-center">
           <Image
             src="/logo-icon-transparent.png"
@@ -60,7 +61,7 @@ export default function AboutPage() {
             محصولات این مجموعه ایستاده است.
           </p>
         </div>
-      </section>
+      </HeroBand>
 
       {/* ── Company ──────────────────────────────────────────────────── */}
       <section className="max-w-[820px] mx-auto px-6 py-16">

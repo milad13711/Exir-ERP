@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
 import { BRAND, GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, HOME_FAQ, type ExirProduct } from "@/lib/content";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
+import { Mandala, OrnamentDivider } from "@/components/Mandala";
 import {
   FactoryIcon,
   HomeIcon,
@@ -99,19 +100,10 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-deep via-primary-dark to-primary text-white">
+      <section className="hero-band">
         <div className="absolute inset-0 pattern-gold" aria-hidden />
-        <div
-          className="absolute -top-32 -left-20 w-[420px] h-[420px] rounded-full opacity-25 blur-3xl"
-          style={{ background: "radial-gradient(circle, #d7ad4a, transparent 70%)" }}
-          aria-hidden
-        />
-        <div
-          className="absolute -bottom-40 right-0 w-[480px] h-[480px] rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(circle, #137a52, transparent 70%)" }}
-          aria-hidden
-        />
-
+        <Mandala className="absolute -top-28 -start-28 w-[340px] h-[340px] opacity-25 rotate-12 pointer-events-none" />
+        <Mandala className="absolute -bottom-32 -end-24 w-[380px] h-[380px] opacity-20 -rotate-6 pointer-events-none" petals={16} />
         <div className="relative max-w-[1100px] mx-auto px-6 pt-14 sm:pt-20 lg:pt-16">
           <div className="grid lg:grid-cols-[1fr_1.05fr] items-center gap-2 lg:gap-6">
             <div className="text-center lg:text-right">
@@ -142,21 +134,21 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* کاراکتر برند و ماژول‌ها — لبه‌ها با ماسک در پس‌زمینه‌ی سرمه‌ای هدر حل می‌شوند */}
+            {/* زئوس و ماژول‌ها — روی نیم‌مندالای طلایی (الهام از تصویر مرجع برند) */}
             <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
               <div
-                className="absolute inset-0 -z-0 opacity-30 blur-3xl"
-                style={{ background: "radial-gradient(circle at 50% 50%, #d7ad4a, transparent 65%)" }}
+                className="absolute left-1/2 top-[6%] -translate-x-1/2 w-[86%] aspect-square rounded-full bg-gradient-to-b from-primary-light/50 to-primary-deep/0 ring-1 ring-gold/30"
                 aria-hidden
               />
+              <Mandala className="absolute left-1/2 top-[2%] -translate-x-1/2 w-[78%] opacity-30 pointer-events-none" petals={14} />
               <Image
-                src="/brand/exir-mascot-modules.webp"
-                alt="کاراکتر برند اکسیر، مجسمه‌ی مرمرین با عینک آفتابی، که ماژول‌های فروش، انبار، پشتیبانی، CRM، منابع انسانی و مالی را به‌هم وصل می‌کند"
-                width={1536}
-                height={1024}
+                src="/brand/exir-zeus.webp"
+                alt="زئوس، نماد اکسیر، که ماژول‌های فروش، انبار، پشتیبانی، CRM، منابع انسانی و مالی را به‌هم وصل می‌کند"
+                width={1230}
+                height={800}
                 priority
                 sizes="(min-width: 1024px) 560px, 100vw"
-                className="relative w-full h-auto [mask-image:radial-gradient(ellipse_at_center,black_42%,transparent_72%)]"
+                className="relative w-full h-auto drop-shadow-[0_30px_40px_rgba(0,0,0,0.45)] [mask-image:linear-gradient(to_bottom,black_82%,transparent_100%)]"
               />
             </div>
           </div>
@@ -178,6 +170,7 @@ export default async function HomePage() {
         <div className="text-center mb-10">
           <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-gold-dark after:content-[''] after:w-6 after:h-px after:bg-gold-dark">محصولات اکسیر</span>
           <h2 className="font-display text-[24px] sm:text-[28px] font-extrabold mt-2">کدام اکسیر برای شماست؟</h2>
+          <OrnamentDivider className="mt-3" />
           <p className="text-[13.5px] text-muted mt-2.5 max-w-[560px] mx-auto leading-relaxed">
             صنف کسب‌وکار خودتان را انتخاب کنید — مستقیم به محصول تخصصی همان صنف می‌روید.
           </p>
@@ -197,6 +190,7 @@ export default async function HomePage() {
             شروع در سه قدم
           </span>
           <h2 className="font-display text-[24px] sm:text-[28px] font-extrabold mt-2">از انتخاب صنف تا کار با سیستم</h2>
+          <OrnamentDivider className="mt-3" />
         </div>
         <ol className="grid md:grid-cols-3 gap-5 relative">
           {[
@@ -366,13 +360,9 @@ export default async function HomePage() {
       </section>
 
       {/* ── Closing CTA ─────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-deep via-primary-dark to-primary text-white">
+      <section className="hero-band">
         <div className="absolute inset-0 pattern-gold" aria-hidden />
-        <div
-          className="absolute -top-24 right-1/3 w-[420px] h-[420px] rounded-full opacity-25 blur-3xl"
-          style={{ background: "radial-gradient(circle, #d7ad4a, transparent 70%)" }}
-          aria-hidden
-        />
+        <Mandala className="absolute -top-24 -end-24 w-[360px] h-[360px] opacity-25 pointer-events-none" petals={16} />
         <div className="relative max-w-[1100px] mx-auto px-6 py-14 sm:py-16 grid md:grid-cols-2 items-center gap-8 md:gap-12">
           <div className="text-center md:text-right">
             <h2 className="font-display text-[22px] sm:text-[28px] font-extrabold leading-[1.5] text-balance">
@@ -390,14 +380,14 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="rounded-2xl overflow-hidden border border-white/10 shadow-[0_24px_50px_-20px_rgba(0,0,0,0.6)]">
+          <div className="relative">
             <Image
-              src="/brand/exir-mascot-modules.webp"
+              src="/brand/exir-zeus.webp"
               alt=""
-              width={1536}
-              height={1024}
+              width={1230}
+              height={800}
               sizes="(min-width: 768px) 520px, 100vw"
-              className="w-full h-auto"
+              className="relative w-full h-auto drop-shadow-[0_24px_36px_rgba(0,0,0,0.5)] [mask-image:linear-gradient(to_bottom,black_82%,transparent_100%)]"
             />
           </div>
         </div>

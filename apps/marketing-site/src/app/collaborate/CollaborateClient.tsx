@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { CheckIcon } from "@/components/icons";
+import { HeroBand } from "@/components/Mandala";
 import { submitResellerApplication, fetchResellerMap, ApiError, type ProductCode, type ResellerMapPin } from "@/lib/api";
 import { IRAN_MAP_PATH, IRAN_MAP_VIEWBOX, IRAN_CITIES, PRODUCT_LABELS, PRODUCT_THEME } from "@/lib/iran-map";
 
@@ -16,13 +17,16 @@ const ALL_FILTER = "ALL" as const;
 export function CollaborateClient() {
   return (
     <div dir="rtl" className="min-h-dvh bg-slate-50">
-      <section className="max-w-[900px] mx-auto px-6 pt-16 pb-10 text-center">
-        <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-primary">همکاری با ما</h1>
-        <p className="text-[15px] text-muted mt-3 leading-relaxed max-w-[560px] mx-auto">
-          به شبکه‌ی نمایندگان فروش محصولات اکسیر بپیوندید — هر مشتری جدیدی که معرفی کنید، از پرداخت اول و تمدیدهایش
-          کمیسیون می‌گیرید. پس از بررسی درخواست شما، دسترسی به پنل نمایندگی فعال می‌شود.
-        </p>
-      </section>
+      <HeroBand>
+        <div className="max-w-[900px] mx-auto px-6 pt-14 pb-14 text-center">
+          <h1 className="font-display text-3xl sm:text-4xl font-extrabold">همکاری با ما</h1>
+          <p className="text-[15px] text-white/80 mt-3 leading-loose max-w-[560px] mx-auto">
+            به شبکه‌ی نمایندگان فروش محصولات اکسیر بپیوندید — هر مشتری جدیدی که معرفی کنید، از پرداخت اول و تمدیدهایش
+            کمیسیون می‌گیرید. پس از بررسی درخواست شما، دسترسی به پنل نمایندگی فعال می‌شود.
+          </p>
+        </div>
+      </HeroBand>
+      <div className="h-10" />
 
       <ResellerMap />
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { HeroBand } from "@/components/Mandala";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -200,12 +201,17 @@ export function ConfigureClient() {
   const canProceedFromPlan = billingCycle === "license" ? true : Boolean(planCode);
 
   return (
-    <main className="flex-1 max-w-[1100px] mx-auto px-6 py-12 w-full">
-      <h1 className="text-[22px] font-extrabold text-center">پیکربندی پلن و قیمت نرم‌افزار ERP فارسی اکسیر</h1>
-      <p className="text-[13.5px] text-muted text-center mt-2">
-        {activeTemplate ? `شروع با قالب «${activeTemplate.name}» — ` : ""}
-        پلن، ماژول‌ها و دوره‌ی صورت‌حساب را انتخاب کنید تا قیمت لحظه‌ای محاسبه شود
-      </p>
+    <main className="flex-1 w-full">
+      <HeroBand>
+        <div className="max-w-[1100px] mx-auto px-6 py-12 text-center">
+          <h1 className="text-[24px] sm:text-[28px] font-extrabold leading-[1.5]">پیکربندی پلن و قیمت نرم‌افزار ERP فارسی اکسیر</h1>
+          <p className="text-[13.5px] text-white/80 mt-3 leading-loose">
+            {activeTemplate ? `شروع با قالب «${activeTemplate.name}» — ` : ""}
+            پلن، ماژول‌ها و دوره‌ی صورت‌حساب را انتخاب کنید تا قیمت لحظه‌ای محاسبه شود
+          </p>
+        </div>
+      </HeroBand>
+      <div className="max-w-[1100px] mx-auto px-6 py-10 w-full">
 
       {/* نوار پیشرفت — همان ساختار ویزارد ثبت‌نام */}
       <div className="max-w-[560px] mx-auto mt-7">
@@ -517,6 +523,7 @@ export function ConfigureClient() {
             )}
           </div>
         </aside>
+      </div>
       </div>
     </main>
   );

@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { TriggerRegistryService } from '../automation/trigger-registry.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import type { TriggerPayload } from '../automation/types.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 /** Registers this module's triggers into the shared automation catalog at boot — see automation/trigger-registry.service.ts for the contract. */
 @Injectable()
@@ -73,6 +74,6 @@ export function quotationCreatedPayload(
     customerName: quotation.contact.name,
     customerPhone: quotation.contact.phone,
     total: quotation.total,
-    publicLink: `${base}/q/${tenantSlug}/${quotation.publicToken}`,
+    publicLink: `${base}/q/${publicRef(tenantSlug)}/${quotation.publicToken}`,
   };
 }

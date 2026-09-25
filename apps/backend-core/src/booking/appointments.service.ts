@@ -11,6 +11,7 @@ import { BookingSlotsService } from './booking-slots.service.js';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import type { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 function formatWhen(date: Date): string {
   const d = faDate(date);
@@ -71,7 +72,7 @@ export class AppointmentsService {
 
   private publicLink(ctx: TenantRequestContext, token: string): string {
     const base = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-    return `${base}/book/${ctx.tenantSlug}/a/${token}`;
+    return `${base}/book/${publicRef(ctx.tenantSlug)}/a/${token}`;
   }
 
   /** مبلغ قابل پرداخت هنگام رزرو: کل مبلغ خدمت یا بیعانه؛ صفر یعنی پرداختی لازم نیست. */
@@ -99,7 +100,7 @@ export class AppointmentsService {
 
   private providerLink(ctx: TenantRequestContext, token: string): string {
     const base = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-    return `${base}/book/${ctx.tenantSlug}/s/${token}`;
+    return `${base}/book/${publicRef(ctx.tenantSlug)}/s/${token}`;
   }
 
   /** پیام متخصص: مشخصات متقاضی + لینک خصوصی برای دیدن شماره، تماس، تأیید، رد با دلیل یا جابه‌جایی. */

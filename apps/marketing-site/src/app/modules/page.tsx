@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroBand } from "@/components/Mandala";
 import type { Metadata } from "next";
 import { fetchPublicModules, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { moduleContentOf } from "@/lib/content";
@@ -29,7 +30,7 @@ export default async function ModulesPage() {
 
   return (
     <main className="flex-1">
-      <section className="bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
+      <HeroBand>
         <div className="max-w-[1100px] mx-auto px-6 py-16 text-center">
           <h1 className="text-[28px] sm:text-[34px] font-extrabold leading-[1.5]">ماژول‌های اکسیر ERP</h1>
           <p className="mt-4 text-[14.5px] text-white/85 max-w-[620px] mx-auto leading-loose">
@@ -43,7 +44,7 @@ export default async function ModulesPage() {
             <div className="text-[15px] font-extrabold">{formatToman(roundTomanToNiceNumber(FULL_LICENSE_USD * rate.usdToToman))}</div>
           </div>
         </div>
-      </section>
+      </HeroBand>
 
       <section className="max-w-[1100px] mx-auto px-6 py-14">
         {[...byCategory.entries()].map(([category, list]) => (

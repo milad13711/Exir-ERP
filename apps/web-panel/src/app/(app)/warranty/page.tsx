@@ -342,7 +342,7 @@ function SettingsTab() {
     setOrigin(window.location.origin);
   }, []);
 
-  const publicLink = `${origin}/warranty/${me?.tenant.slug ?? ""}`;
+  const publicLink = `${origin}/warranty/${me?.tenant.publicKey ?? me?.tenant.slug ?? ""}`;
 
   async function handleCopyLink() {
     const ok = await copyToClipboard(publicLink);

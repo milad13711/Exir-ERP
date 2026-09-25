@@ -9,6 +9,7 @@ import type { CreateEventDto } from './dto/create-event.dto.js';
 import type { UpdateEventDto } from './dto/update-event.dto.js';
 import type { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
 import type { UpdateTicketTypeDto } from './dto/update-ticket-type.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const EVENT_INCLUDE = {
   ticketTypes: { orderBy: { sortOrder: 'asc' as const } },
@@ -304,7 +305,7 @@ export class EventsService {
       for (const booking of bookings) {
         for (const ticket of booking.tickets) {
           const phone = ticket.attendeePhone || booking.buyerPhone;
-          const url = `${publicWebUrl}/events/${ctx.tenantSlug}/ticket/${ticket.qrToken}`;
+          const url = `${publicWebUrl}/events/${publicRef(ctx.tenantSlug)}/ticket/${ticket.qrToken}`;
           await this.sms.sendSms(ctx, 
             phone,
             `بلیط شما برای «${booking.event.title}» صادر شد. کد بلیط: ${ticket.ticketCode}\nمشاهده بلیط: ${url}`,

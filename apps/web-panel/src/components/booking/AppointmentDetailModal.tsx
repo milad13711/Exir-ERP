@@ -112,9 +112,9 @@ export function AppointmentDetailModal({
           {a.customerPhone && a.status !== "CANCELLED" && (
             <button disabled={busy} onClick={() => run(() => sendAppointmentDetails(a.id), "پیام جزئیات ارسال شد ✓")} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50">ارسال جزئیات به مشتری</button>
           )}
-          <button onClick={() => copy(`/book/${me?.tenant.slug}/a/${a.publicToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک مشتری</button>
+          <button onClick={() => copy(`/book/${me?.tenant.publicKey ?? me?.tenant.slug}/a/${a.publicToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک مشتری</button>
           {a.providerToken && (
-            <button onClick={() => copy(`/book/${me?.tenant.slug}/s/${a.providerToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک متخصص</button>
+            <button onClick={() => copy(`/book/${me?.tenant.publicKey ?? me?.tenant.slug}/s/${a.providerToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک متخصص</button>
           )}
           <button
             disabled={busy}

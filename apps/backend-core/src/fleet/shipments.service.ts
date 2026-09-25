@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { DriversService } from './drivers.service.js';
 import type { CreateShipmentDto } from './dto/create-shipment.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const SHIPMENT_INCLUDE = {
   contact: { select: { id: true, name: true, company: true, phone: true } },
@@ -230,7 +231,7 @@ export class ShipmentsService {
 
     const survey = await ctx.tenantDb.deliverySurvey.create({ data: { shipmentId: id } });
     if (shipment.contact?.phone) {
-      const url = `${publicWebUrl}/survey/${tenantSlug}/${survey.publicToken}`;
+      const url = `${publicWebUrl}/survey/${publicRef(tenantSlug)}/${survey.publicToken}`;
       const message = `بار شماره ${shipment.shipmentNo} با موفقیت تحویل داده شد. نظر شما به ما کمک می‌کند: ${url}`;
       const result = await this.sms.sendSms(ctx, shipment.contact.phone, message);
       if (result.success) {

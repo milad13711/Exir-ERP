@@ -18,6 +18,7 @@ import type { RecordInterviewReportDto } from './dto/record-interview-report.dto
 import type { CreateOfferDto } from './dto/create-offer.dto.js';
 import type { HireApplicantDto } from './dto/hire-applicant.dto.js';
 import type { UpdateRecruitmentGeneralSettingsDto, UpdateRecruitmentSmsSettingsDto } from './dto/update-settings.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 export const RECRUITMENT_MODULE_CODE = 'recruitment';
 const GENERAL_KEY = { moduleCode: RECRUITMENT_MODULE_CODE, key: 'general' } as const;
@@ -418,7 +419,7 @@ export class RecruitmentService implements OnModuleInit {
 
   private offerLink(ctx: TenantRequestContext, token: string): string {
     const base = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-    return `${base}/offer/${ctx.tenantSlug}/${token}`;
+    return `${base}/offer/${publicRef(ctx.tenantSlug)}/${token}`;
   }
 
   private async sendOfferSms(ctx: TenantRequestContext, applicantName: string, phone: string, token: string): Promise<void> {

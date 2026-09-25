@@ -5,6 +5,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
 import { InvoicesService } from './invoices.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const BRAND_PAGE_HEAD = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -104,7 +105,7 @@ export class PublicSalesInvoiceController {
   ) {
     const ctx = await this.resolveCtx(slug);
     const webUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
-    const backLink = webUrl ? `<a class="btn" href="${webUrl}/invoice/${slug}/${token}">بازگشت به فاکتور</a>` : '';
+    const backLink = webUrl ? `<a class="btn" href="${webUrl}/invoice/${publicRef(slug)}/${token}">بازگشت به فاکتور</a>` : '';
 
     const invoice = await ctx.tenantDb.salesInvoice.findFirst({ where: { publicToken: token } });
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');

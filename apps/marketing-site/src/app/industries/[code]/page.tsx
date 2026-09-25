@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroBand } from "@/components/Mandala";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates, fetchPublicModules, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
@@ -79,7 +80,7 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       ) : null}
 
-      <section className="bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
+      <HeroBand>
         <div className="max-w-[1000px] mx-auto px-6 py-14 grid md:grid-cols-[1fr_260px] gap-8 items-center">
           <div>
             <h1 className="text-[26px] sm:text-[32px] font-extrabold leading-[1.5]">اکسیر ERP برای {industry.name}</h1>
@@ -91,7 +92,7 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
             <IndustryIllustration code={industry.code} color="#ffffff" />
           </div>
         </div>
-      </section>
+      </HeroBand>
 
       <section className="max-w-[900px] mx-auto px-6 py-14 flex flex-col gap-11">
         <div>

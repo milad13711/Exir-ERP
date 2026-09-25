@@ -108,7 +108,7 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
     );
   }
 
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${me?.tenant.slug ?? "exir-demo"}/${form.slug}` : "";
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${me?.tenant.publicKey ?? me?.tenant.slug ?? "exir-demo"}/${form.slug}` : "";
   const embedCode = `<iframe src="${publicUrl}" style="width:100%;height:720px;border:0;border-radius:16px" loading="lazy"></iframe>`;
 
   return (

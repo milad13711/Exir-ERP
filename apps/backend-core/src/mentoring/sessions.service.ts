@@ -8,6 +8,7 @@ import { InvoicesService } from '../sales/invoices.service.js';
 import type { CreateSessionDto } from './dto/create-session.dto.js';
 import type { UpdateSessionDto } from './dto/update-session.dto.js';
 import type { CreateSessionInvoiceDto } from './dto/create-session-invoice.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 export function formatWhenFa(date: Date): string {
   const d = faDate(date);
@@ -154,7 +155,7 @@ export class SessionsService {
 
     const survey = await ctx.tenantDb.mentoringSessionSurvey.create({ data: { sessionId: id } });
     if (session.engagement.contact.phone && publicWebUrl) {
-      const url = `${publicWebUrl}/mentoring-survey/${tenantSlug}/${survey.publicToken}`;
+      const url = `${publicWebUrl}/mentoring-survey/${publicRef(tenantSlug)}/${survey.publicToken}`;
       const result = await this.sms.sendSms(ctx, 
         session.engagement.contact.phone,
         `جلسه‌ی «${session.engagement.title}» به پایان رسید. نظر شما به بهبود کیفیت جلسات کمک می‌کند: ${url}`,

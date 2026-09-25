@@ -183,7 +183,7 @@ export default function BookingPage() {
 
   async function copyBookingLink() {
     if (!me) return;
-    const url = `${window.location.origin}/book/${me.tenant.slug}`;
+    const url = `${window.location.origin}/book/${me.tenant.publicKey ?? me.tenant.slug}`;
     await navigator.clipboard.writeText(url);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);

@@ -56,7 +56,7 @@ export default function OnlineStorePage() {
 
   async function copyStoreLink() {
     if (!me) return;
-    const url = `${window.location.origin}/shop/${me.tenant.slug}`;
+    const url = `${window.location.origin}/shop/${me.tenant.publicKey ?? me.tenant.slug}`;
     await navigator.clipboard.writeText(url);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);

@@ -537,7 +537,7 @@ function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onCha
 
   async function handleCopyLink() {
     if (!offer) return;
-    const link = offer.link || `${window.location.origin}/offer/${me?.tenant.slug ?? ""}/${offer.publicToken}`;
+    const link = offer.link || `${window.location.origin}/offer/${me?.tenant.publicKey ?? me?.tenant.slug ?? ""}/${offer.publicToken}`;
     const ok = await copyToClipboard(link);
     if (ok) {
       setLinkCopied(true);

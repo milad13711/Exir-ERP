@@ -5,6 +5,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
 import { EventsService } from '../events/events.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const BRAND_PAGE_HEAD = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -58,7 +59,7 @@ export class PublicEventsPaymentController {
     const result = await this.zarinpal.requestPayment({
       amountToman: totalAmount,
       description: `بلیط رویداد «${bookings[0].event.title}»`,
-      callbackUrl: `${apiUrl}/public/events/${slug}/bookings/${orderGroupId}/callback`,
+      callbackUrl: `${apiUrl}/public/events/${publicRef(slug)}/bookings/${orderGroupId}/callback`,
       mobile: bookings[0].buyerPhone,
     });
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
@@ -88,7 +89,7 @@ export class PublicEventsPaymentController {
     if (bookings[0].status === 'PAID') {
       return res.send(
         `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>بلیط شما پیامک شد.</p>${
-          webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
+          webUrl ? `<a class="btn" href="${webUrl}/events/${publicRef(slug)}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
         }${BRAND_PAGE_TAIL}`,
       );
     }
@@ -105,7 +106,7 @@ export class PublicEventsPaymentController {
 
     return res.send(
       `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>بلیط شما صادر و پیامک شد.</p>${
-        webUrl ? `<a class="btn" href="${webUrl}/events/${slug}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
+        webUrl ? `<a class="btn" href="${webUrl}/events/${publicRef(slug)}/bookings/${orderGroupId}">مشاهده بلیط</a>` : ''
       }${BRAND_PAGE_TAIL}`,
     );
   }

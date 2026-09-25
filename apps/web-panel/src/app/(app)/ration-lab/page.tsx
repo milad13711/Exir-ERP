@@ -44,7 +44,7 @@ export default function RationLabPage() {
   async function copyLink(kind: "lab" | "result") {
     if (!me) return;
     const path = kind === "lab" ? "lab-review" : "ration-result";
-    const url = `${window.location.origin}/${path}/${me.tenant.slug}`;
+    const url = `${window.location.origin}/${path}/${me.tenant.publicKey ?? me.tenant.slug}`;
     await navigator.clipboard.writeText(url);
     setCopied(kind);
     setTimeout(() => setCopied(null), 2000);

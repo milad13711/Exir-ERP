@@ -7,6 +7,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreateStoreOrderDto } from './dto/create-store-order.dto.js';
 import type { TrackStoreEventDto } from './dto/track-store-event.dto.js';
 import type { SubmitStoreReviewDto } from './dto/submit-store-review.dto.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 type RatingInfo = { avgRating: number | null; reviewCount: number };
 
@@ -195,7 +196,7 @@ export class PublicStoreService {
     const header = 'id,title,description,link,image_link,price,availability,condition\n';
     const rows = products.map((p) => {
       const available = Math.max(0, currentStock(p.movements) - p.reservedQty);
-      const link = `${baseUrl}/shop/${slug}/p/${p.publicSlug}`;
+      const link = `${baseUrl}/shop/${publicRef(slug)}/p/${p.publicSlug}`;
       const image = p.publicImages.length > 0 ? `${baseUrl}/api/public/store/${slug}/products/${p.publicSlug}/image/0` : '';
       const csvEscape = (v: string) => `"${v.replace(/"/g, '""')}"`;
       return [

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroBand } from "@/components/Mandala";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
@@ -72,7 +73,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <section className="bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
+      <HeroBand>
         <div className="max-w-[900px] mx-auto px-6 py-16">
           <div className="flex items-center gap-4 mb-4">
             <CategoryVisual category={mod.category} size={60} />
@@ -82,7 +83,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
           {content ? <p className="mt-3 text-[15px] text-white/90 font-semibold">{content.tagline}</p> : null}
           <p className="mt-4 text-[13.5px] text-white/80 leading-loose max-w-[640px]">{mod.description}</p>
         </div>
-      </section>
+      </HeroBand>
 
       <section className="max-w-[900px] mx-auto px-6 py-14 flex flex-col gap-10">
         {content ? (

@@ -93,7 +93,7 @@ export function ContractDetailModal({
 
   async function copyPublicLink() {
     if (!me) return;
-    const url = `${window.location.origin}/sign/${me.tenant.slug}/${contract.publicToken}`;
+    const url = `${window.location.origin}/sign/${me.tenant.publicKey ?? me.tenant.slug}/${contract.publicToken}`;
     await navigator.clipboard.writeText(url);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);

@@ -45,7 +45,7 @@ export class WorkspaceController {
         roleTitle: tenantUser?.roles[0]?.role.name ?? null,
         membershipRole: ctx.auth.role,
       },
-      tenant: { name: tenant.name, slug: tenant.slug, themeColor: tenant.themeColor },
+      tenant: { name: tenant.name, slug: tenant.slug, publicKey: tenant.publicKey, themeColor: tenant.themeColor },
       navOrder: tenantUser?.navOrder ?? [],
       permissions: await this.permissions.effectiveMatrix(ctx),
     };

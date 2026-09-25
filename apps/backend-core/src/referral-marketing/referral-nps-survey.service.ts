@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const FIRST_SURVEY_AFTER_DAYS = 7;
 const REPEAT_EVERY_DAYS = 30;
@@ -68,7 +69,7 @@ export class ReferralNpsSurveyService {
       if (lastSurvey && lastSurvey.createdAt > repeatCutoff) continue; // هنوز زمان نظرسنجی بعدی نرسیده
 
       const survey = await tenantDb.referralNpsSurvey.create({ data: { referralConversionId: conversion.id } });
-      const url = `${publicWebUrl}/referral-survey/${tenant.slug}/${survey.publicToken}`;
+      const url = `${publicWebUrl}/referral-survey/${publicRef(tenant.slug)}/${survey.publicToken}`;
       const resellerName = conversion.resellerProfile.contact.name;
       const result = await this.sms.sendSms(
         conversion.contact.phone!,

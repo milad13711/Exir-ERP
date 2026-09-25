@@ -5,6 +5,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AppointmentsService } from '../booking/appointments.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const BRAND_PAGE_HEAD = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -97,7 +98,7 @@ export class PublicBookingPaymentController {
     if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
     // رسید و تأیید رزرو روی صفحه‌ی عمومی جزئیات جلسه نمایش داده می‌شود
-    if (bookingUrl) return res.redirect(`${bookingUrl}/book/${slug}/a/${result.appointment.publicToken}?paid=1`);
+    if (bookingUrl) return res.redirect(`${bookingUrl}/book/${publicRef(slug)}/a/${result.appointment.publicToken}?paid=1`);
     return res.send(`${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>رزرو شما نهایی شد. رسید برای شما پیامک شد.</p>${BRAND_PAGE_TAIL}`);
   }
 }
