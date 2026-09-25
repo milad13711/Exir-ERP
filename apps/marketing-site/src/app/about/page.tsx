@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { HeroBand } from "@/components/Mandala";
+import { HeroBand } from "@/components/Ornaments";
 import { COMPANY_INFO, CEO_INFO, GROUP_BRAND } from "@/lib/content";
 import { MapPinIcon, PhoneIcon, MessageIcon, InstagramIcon, BookIcon, AwardIcon } from "@/components/icons";
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HeroBand } from "@/components/Mandala";
+import { HeroBand } from "@/components/Ornaments";
 import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";
 import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing, toToman } from "@/lib/pricing";

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HeroBand } from "@/components/Mandala";
+import { HeroBand } from "@/components/Ornaments";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPublicModules, fetchPublicIndustryTemplates, fetchExchangeRate, FALLBACK_USD_TOMAN_RATE } from "@/lib/api";

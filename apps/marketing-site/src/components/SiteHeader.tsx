@@ -11,7 +11,7 @@ const NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/80 bg-white/85 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-border/80 bg-surface/90 backdrop-blur-md">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         <Link href="/" className="flex items-center gap-2.5 shrink-0" aria-label="اکسیرتجارت امین — صفحه‌ی اصلی">
           <Image src="/logo-icon.png" alt="" width={38} height={38} className="rounded-full" priority />
@@ -29,7 +29,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           <Link
             href="/configure"
-            className="inline-flex max-[379px]:hidden items-center justify-center whitespace-nowrap min-h-11 px-3.5 sm:px-5 rounded-xl bg-gradient-to-b from-gold to-gold-dark text-primary-deep text-[13px] font-extrabold shadow-[0_6px_16px_-8px_rgba(184,137,43,0.9)] hover:brightness-105 transition"
+            className="inline-flex max-[379px]:hidden items-center justify-center whitespace-nowrap min-h-11 px-3.5 sm:px-5 rounded-xl bg-gold text-primary-deep text-[13px] font-extrabold shadow-[0_6px_16px_-8px_rgba(0,45,42,0.5)] hover:brightness-105 transition"
           >
             شروع رایگان
           </Link>

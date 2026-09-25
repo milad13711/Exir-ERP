@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { fetchPublicIndustryTemplates } from "@/lib/api";
 import { BRAND, GROUP_BRAND, EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, HOME_FAQ, type ExirProduct } from "@/lib/content";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
-import { Mandala, OrnamentDivider } from "@/components/Mandala";
+import { OrnamentDivider } from "@/components/Ornaments";
 import {
   FactoryIcon,
   HomeIcon,
@@ -49,7 +49,7 @@ function ProductCard({ p }: { p: ExirProduct }) {
     <div
       className="group relative overflow-hidden bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3 card-lift"
     >
-      <span className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-l from-gold-dark via-gold to-gold-dark" aria-hidden />
+      <span className="absolute inset-x-0 top-0 h-[3px] bg-primary" aria-hidden />
       {p.status === "soon" ? (
         <span className="absolute top-5 left-6 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-warning-soft text-warning">
           به‌زودی
@@ -100,10 +100,7 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="hero-band">
-        <div className="absolute inset-0 pattern-gold" aria-hidden />
-        <Mandala className="absolute -top-28 -start-28 w-[340px] h-[340px] opacity-25 rotate-12 pointer-events-none" />
-        <Mandala className="absolute -bottom-32 -end-24 w-[380px] h-[380px] opacity-20 -rotate-6 pointer-events-none" petals={16} />
+      <section className="hero-band" style={{ background: "#0f4f49" }}>
         <div className="relative max-w-[1100px] mx-auto px-6 pt-14 sm:pt-20 lg:pt-16">
           <div className="grid lg:grid-cols-[1fr_1.05fr] items-center gap-2 lg:gap-6">
             <div className="text-center lg:text-right">
@@ -120,7 +117,7 @@ export default async function HomePage() {
               <div className="mt-9 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
                 <Link
                   href="#products"
-                  className="inline-flex items-center justify-center gap-2 px-5 sm:px-7 py-3 min-h-12 rounded-2xl text-center bg-gradient-to-b from-gold-light to-gold text-primary-deep text-[14.5px] font-extrabold shadow-[0_12px_28px_-12px_rgba(215,173,74,0.9)] cursor-pointer transition hover:-translate-y-0.5 hover:brightness-105"
+                  className="inline-flex items-center justify-center gap-2 px-5 sm:px-7 py-3 min-h-12 rounded-2xl text-center bg-gold text-primary-deep text-[14.5px] font-extrabold shadow-[0_12px_28px_-12px_rgba(215,173,74,0.9)] cursor-pointer transition hover:-translate-y-0.5 hover:brightness-105"
                 >
                   محصول مناسب کسب‌وکار من کدام است؟
                   <ChevronDownIcon className="w-4 h-4" />
@@ -136,19 +133,14 @@ export default async function HomePage() {
 
             {/* زئوس و ماژول‌ها — روی نیم‌مندالای طلایی (الهام از تصویر مرجع برند) */}
             <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
-              <div
-                className="absolute left-1/2 top-[6%] -translate-x-1/2 w-[86%] aspect-square rounded-full bg-gradient-to-b from-primary-light/50 to-primary-deep/0 ring-1 ring-gold/30"
-                aria-hidden
-              />
-              <Mandala className="absolute left-1/2 top-[2%] -translate-x-1/2 w-[78%] opacity-30 pointer-events-none" petals={14} />
               <Image
                 src="/brand/exir-zeus.webp"
                 alt="زئوس، نماد اکسیر، که ماژول‌های فروش، انبار، پشتیبانی، CRM، منابع انسانی و مالی را به‌هم وصل می‌کند"
-                width={1230}
-                height={800}
+                width={1264}
+                height={842}
                 priority
                 sizes="(min-width: 1024px) 560px, 100vw"
-                className="relative w-full h-auto drop-shadow-[0_30px_40px_rgba(0,0,0,0.45)] [mask-image:linear-gradient(to_bottom,black_82%,transparent_100%)]"
+                className="relative w-full h-auto"
               />
             </div>
           </div>
@@ -168,7 +160,7 @@ export default async function HomePage() {
       {/* ── Product segmentation ────────────────────────────────────── */}
       <section id="products" className="max-w-[1100px] mx-auto px-6 py-20">
         <div className="text-center mb-10">
-          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-gold-dark after:content-[''] after:w-6 after:h-px after:bg-gold-dark">محصولات اکسیر</span>
+          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-primary after:content-[''] after:w-6 after:h-px after:bg-primary">محصولات اکسیر</span>
           <h2 className="font-display text-[24px] sm:text-[28px] font-extrabold mt-2">کدام اکسیر برای شماست؟</h2>
           <OrnamentDivider className="mt-3" />
           <p className="text-[13.5px] text-muted mt-2.5 max-w-[560px] mx-auto leading-relaxed">
@@ -186,7 +178,7 @@ export default async function HomePage() {
       {/* ── How it works ────────────────────────────────────────────── */}
       <section className="max-w-[1100px] mx-auto px-6 pb-20">
         <div className="text-center mb-10">
-          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-gold-dark after:content-[''] after:w-6 after:h-px after:bg-gold-dark">
+          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-primary after:content-[''] after:w-6 after:h-px after:bg-primary">
             شروع در سه قدم
           </span>
           <h2 className="font-display text-[24px] sm:text-[28px] font-extrabold mt-2">از انتخاب صنف تا کار با سیستم</h2>
@@ -199,7 +191,7 @@ export default async function HomePage() {
             { n: "۳", title: "هر وقت خواستید گسترش دهید", text: "ماژول‌ها را جداگانه اضافه یا حذف کنید و با اشتراک ماهانه، سالانه یا لایسنس ادامه دهید." },
           ].map((step) => (
             <li key={step.n} className="bg-surface border border-border rounded-2xl p-6 flex flex-col gap-3 card-lift">
-              <span className="w-10 h-10 rounded-full bg-gradient-to-b from-gold-light to-gold text-primary-deep font-display font-extrabold flex items-center justify-center shadow-md">
+              <span className="w-10 h-10 rounded-full bg-gold text-primary-deep font-display font-extrabold flex items-center justify-center shadow-md">
                 {step.n}
               </span>
               <div className="text-[14.5px] font-extrabold">{step.title}</div>
@@ -238,7 +230,7 @@ export default async function HomePage() {
       {/* ── Why Exir (trust/differentiation) ────────────────────────── */}
       <section className="max-w-[1100px] mx-auto px-6 py-20">
         <div className="text-center mb-10">
-          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-gold-dark after:content-[''] after:w-6 after:h-px after:bg-gold-dark">چرا اکسیر</span>
+          <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-primary after:content-[''] after:w-6 after:h-px after:bg-primary">چرا اکسیر</span>
           <h2 className="font-display text-[24px] sm:text-[28px] font-extrabold mt-2">
             ساخته‌شده برای اعتماد کسب‌وکار، نه فقط یک دموی زیبا
           </h2>
@@ -311,7 +303,7 @@ export default async function HomePage() {
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/industries/${t.code}`}
-                      className="flex-1 text-center inline-flex items-center justify-center min-h-11 rounded-xl border border-border text-ink-soft text-[12.5px] font-bold hover:border-gold-dark hover:text-primary transition-colors"
+                      className="flex-1 text-center inline-flex items-center justify-center min-h-11 rounded-xl border border-border text-ink-soft text-[12.5px] font-bold hover:border-primary hover:text-primary transition-colors"
                     >
                       جزئیات صنف
                     </Link>
@@ -339,7 +331,7 @@ export default async function HomePage() {
       <section className="border-t border-border bg-primary-soft/60">
         <div className="max-w-[760px] mx-auto px-6 py-20">
           <div className="text-center mb-10">
-            <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-gold-dark after:content-[''] after:w-6 after:h-px after:bg-gold-dark">پرسش‌های پرتکرار</span>
+            <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent tracking-wide before:content-[''] before:w-6 before:h-px before:bg-primary after:content-[''] after:w-6 after:h-px after:bg-primary">پرسش‌های پرتکرار</span>
             <h2 className="font-display text-[22px] font-extrabold mt-2">هر آنچه قبل از شروع لازم است بدانید</h2>
           </div>
           <div className="flex flex-col gap-3">
@@ -360,9 +352,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── Closing CTA ─────────────────────────────────────────────── */}
-      <section className="hero-band">
-        <div className="absolute inset-0 pattern-gold" aria-hidden />
-        <Mandala className="absolute -top-24 -end-24 w-[360px] h-[360px] opacity-25 pointer-events-none" petals={16} />
+      <section className="hero-band" style={{ background: "#0f4f49" }}>
         <div className="relative max-w-[1100px] mx-auto px-6 py-14 sm:py-16 grid md:grid-cols-2 items-center gap-8 md:gap-12">
           <div className="text-center md:text-right">
             <h2 className="font-display text-[22px] sm:text-[28px] font-extrabold leading-[1.5] text-balance">
@@ -372,7 +362,7 @@ export default async function HomePage() {
               صنف کسب‌وکارتان را انتخاب کنید تا مستقیم به محصول تخصصی همان صنف بروید، یا برای مشاوره با ما تماس بگیرید.
             </p>
             <div className="mt-6 flex items-center justify-center md:justify-start gap-3 flex-wrap">
-              <Link href="#products" className="inline-flex items-center px-6 min-h-12 rounded-2xl bg-gradient-to-b from-gold-light to-gold text-primary-deep text-[14px] font-extrabold shadow-lg hover:brightness-105 transition">
+              <Link href="#products" className="inline-flex items-center px-6 min-h-12 rounded-2xl bg-gold text-primary-deep text-[14px] font-extrabold shadow-lg hover:brightness-105 transition">
                 انتخاب محصول
               </Link>
               <Link href="/collaborate" className="inline-flex items-center px-6 min-h-12 rounded-2xl border border-gold/40 text-gold-light text-[14px] font-extrabold hover:bg-gold/10 transition-colors">
@@ -384,10 +374,10 @@ export default async function HomePage() {
             <Image
               src="/brand/exir-zeus.webp"
               alt=""
-              width={1230}
-              height={800}
+              width={1264}
+              height={842}
               sizes="(min-width: 768px) 520px, 100vw"
-              className="relative w-full h-auto drop-shadow-[0_24px_36px_rgba(0,0,0,0.5)] [mask-image:linear-gradient(to_bottom,black_82%,transparent_100%)]"
+              className="relative w-full h-auto"
             />
           </div>
         </div>

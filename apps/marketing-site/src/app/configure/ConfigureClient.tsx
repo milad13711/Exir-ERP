@@ -1,6 +1,6 @@
 "use client";
 
-import { HeroBand } from "@/components/Mandala";
+import { HeroBand } from "@/components/Ornaments";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";

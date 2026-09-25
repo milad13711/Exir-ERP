@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Mandala } from "@/components/Mandala";
 import { EXIR_PRODUCTS, EXIR_INFRASTRUCTURE, COMPANY_INFO } from "@/lib/content";
 
 export function SiteFooter() {
@@ -7,9 +6,7 @@ export function SiteFooter() {
 
   return (
     <footer className="relative overflow-hidden bg-primary-deep text-white/75">
-      <div className="h-1 bg-gradient-to-l from-gold-dark via-gold to-gold-dark" aria-hidden />
-      <div className="absolute inset-0 pattern-gold opacity-60" aria-hidden />
-      <Mandala className="absolute -bottom-32 -start-24 w-[360px] h-[360px] opacity-15 pointer-events-none" petals={16} />
+      <div className="h-1 bg-gold" aria-hidden />
       <div className="relative max-w-[1100px] mx-auto px-6 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
         <div className="sm:col-span-1">
           <div className="font-display text-[17px] font-extrabold text-gold mb-2">اکسیرتجارت امین</div>

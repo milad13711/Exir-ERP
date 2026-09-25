@@ -3,38 +3,36 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f6f8f6;
-  --foreground: #0a1a17;
+  /* پالت برند: فقط چهار رنگ — 002D2A سبز عمیق، 006B65 سبز فیروزه‌ای، EDF0D9 کِرِم، EEF08B زرد لیمویی */
+  --background: #edf0d9;
+  --foreground: #002d2a;
 
-  --color-ink: #0a1a17;
-  --color-ink-soft: #3b4e49;
-  --color-muted: #5f726d; /* ≥4.5:1 روی سفید و پس‌زمینه‌ی روشن */
-  --color-surface: #ffffff;
-  --color-border: #dde6e2;
+  --color-ink: #002d2a;
+  --color-ink-soft: #2f5652;
+  --color-muted: #4a6b67;
+  --color-surface: #f7f9ec;
+  --color-border: #d2d8b9;
 
-  /* هویت بصری اکسیرتجارت امین: سبز سلطنتی + طلایی — برگرفته از لوگوی برند
-     (سبز جنگلی عمیق و طلای مات). accent = طلای قابل‌خواندن برای متن روی سفید (≥4.5:1)،
-     gold = طلای روشن برای عناصر تزئینی و دکمه‌های روی زمینه‌ی سبز. */
-  --color-primary: #04524a;
-  --color-primary-dark: #003c3a;
-  --color-primary-deep: #002420;
-  --color-primary-light: #0a7867;
-  --color-primary-soft: #e4f2ee;
+  --color-primary: #006b65;
+  --color-primary-dark: #002d2a;
+  --color-primary-deep: #002d2a;
+  --color-primary-light: #0a807a;
+  --color-primary-soft: #d9e6cb;
 
-  --color-accent: #8c6a10;
-  --color-accent-soft: #f8f0d6;
-  --color-gold: #cfa84d;
-  --color-gold-light: #efdc9c;
-  --color-gold-dark: #a58230;
+  --color-accent: #006b65;
+  --color-accent-soft: #f4f6c2;
+  --color-gold: #eef08b;
+  --color-gold-light: #f6f8b9;
+  --color-gold-dark: #eef08b;
 
-  --color-warning: #b45309;
-  --color-warning-soft: #fef3e2;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #f6efc4;
 
-  --color-danger: #b91c1c;
-  --color-danger-soft: #fef2f2;
+  --color-danger: #a12525;
+  --color-danger-soft: #f7e3dc;
 
-  --color-success: #15803d;
-  --color-success-soft: #ecfdf3;
+  --color-success: #0a6b3a;
+  --color-success-soft: #dcecd0;
 }
 
 @theme inline {
@@ -89,7 +87,7 @@ body {
 h1, h2, h3 { text-wrap: balance; }
 
 :focus-visible {
-  outline: 2.5px solid var(--color-gold-dark);
+  outline: 2.5px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -123,20 +121,12 @@ h1, h2, h3 { text-wrap: balance; }
 /* اعداد هم‌عرض برای قیمت و آمار */
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* الگوی ظریف هندسی طلایی برای زمینه‌ی تیره — مثلث‌ها برگرفته از نشان برند */
-.pattern-gold {
-  background-image:
-    linear-gradient(135deg, rgba(207, 168, 77, 0.04) 25%, transparent 25%),
-    linear-gradient(225deg, rgba(207, 168, 77, 0.04) 25%, transparent 25%);
-  background-size: 30px 30px;
-}
-
 .card-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .card-lift:hover {
   transform: translateY(-3px);
-  border-color: rgba(165, 130, 48, 0.55);
+  border-color: rgba(0, 107, 101, 0.55);
   box-shadow: 0 24px 48px -28px rgba(0, 36, 32, 0.45);
 }
 
@@ -148,7 +138,7 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* گرادیان طلایی برند — برگرفته از مندالای مرجع (طلای لبه‌دار) */
 .text-gold-gradient {
-  background: linear-gradient(180deg, #f6e7ac 0%, #cfa84d 55%, #a58230 100%);
+  background: var(--color-gold);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -156,9 +146,7 @@ h1, h2, h3 { text-wrap: balance; }
 .hero-band {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(900px 380px at 80% -10%, rgba(10, 120, 103, 0.55), transparent 65%),
-    linear-gradient(135deg, var(--color-primary-deep) 0%, var(--color-primary-dark) 55%, #00524a 100%);
+  background: linear-gradient(135deg, #002d2a 0%, #004a46 55%, #006b65 100%);
   color: #fff;
 }
 .hero-band::after {
@@ -167,5 +155,5 @@ h1, h2, h3 { text-wrap: balance; }
   inset-inline: 0;
   bottom: 0;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--color-gold-dark), var(--color-gold-light), var(--color-gold-dark), transparent);
+  background: var(--color-gold);
 }
