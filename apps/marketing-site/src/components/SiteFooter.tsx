@@ -5,22 +5,24 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border bg-primary text-white/70">
-      <div className="max-w-[1100px] mx-auto px-6 py-14 grid sm:grid-cols-4 gap-10">
+    <footer className="relative overflow-hidden bg-primary-deep text-white/75">
+      <div className="h-1 bg-gradient-to-l from-gold-dark via-gold to-gold-dark" aria-hidden />
+      <div className="absolute inset-0 pattern-gold opacity-60" aria-hidden />
+      <div className="relative max-w-[1100px] mx-auto px-6 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
         <div className="sm:col-span-1">
-          <div className="font-display text-[16px] font-extrabold text-white mb-2">اکسیر</div>
+          <div className="font-display text-[17px] font-extrabold text-gold mb-2">اکسیرتجارت امین</div>
           <p className="text-[12.5px] leading-relaxed">
             شرکت مادر نرم‌افزارهای تخصصی صنفی — یک محصول اختصاصی برای هر کسب‌وکار، نه یک قالب عمومی برای همه.
           </p>
         </div>
 
         <div>
-          <div className="text-[12px] font-bold text-white mb-3">محصولات ما</div>
+          <div className="text-[12.5px] font-bold text-gold-light mb-3.5">محصولات ما</div>
           <ul className="flex flex-col gap-2 text-[12.5px]">
             {EXIR_PRODUCTS.map((p) => (
               <li key={p.code}>
                 {p.status === "live" ? (
-                  <a href={`https://${p.domain}`} className="hover:text-white transition-colors">
+                  <a href={`https://${p.domain}`} className="inline-block py-1 hover:text-gold-light transition-colors">
                     {p.name}
                   </a>
                 ) : (
@@ -29,7 +31,7 @@ export function SiteFooter() {
               </li>
             ))}
             <li>
-              <a href={`https://${EXIR_INFRASTRUCTURE.domain}`} className="hover:text-white transition-colors">
+              <a href={`https://${EXIR_INFRASTRUCTURE.domain}`} className="inline-block py-1 hover:text-gold-light transition-colors">
                 {EXIR_INFRASTRUCTURE.name}
               </a>
             </li>
@@ -37,20 +39,20 @@ export function SiteFooter() {
         </div>
 
         <div>
-          <div className="text-[12px] font-bold text-white mb-3">اکسیر ERP</div>
+          <div className="text-[12.5px] font-bold text-gold-light mb-3.5">اکسیر ERP</div>
           <ul className="flex flex-col gap-2 text-[12.5px]">
             <li>
-              <Link href="/industries" className="hover:text-white transition-colors">
+              <Link href="/industries" className="inline-block py-1 hover:text-gold-light transition-colors">
                 صنف‌های پشتیبانی‌شده
               </Link>
             </li>
             <li>
-              <Link href="/modules" className="hover:text-white transition-colors">
+              <Link href="/modules" className="inline-block py-1 hover:text-gold-light transition-colors">
                 ماژول‌ها و قیمت‌گذاری
               </Link>
             </li>
             <li>
-              <Link href="/configure" className="hover:text-white transition-colors">
+              <Link href="/configure" className="inline-block py-1 hover:text-gold-light transition-colors">
                 پیکربندی پلن
               </Link>
             </li>
@@ -58,15 +60,15 @@ export function SiteFooter() {
         </div>
 
         <div>
-          <div className="text-[12px] font-bold text-white mb-3">ارتباط با ما</div>
+          <div className="text-[12.5px] font-bold text-gold-light mb-3.5">ارتباط با ما</div>
           <ul className="flex flex-col gap-2 text-[12.5px]">
             <li>
-              <Link href="/about" className="hover:text-white transition-colors">
+              <Link href="/about" className="inline-block py-1 hover:text-gold-light transition-colors">
                 درباره‌ی ما
               </Link>
             </li>
             <li>
-              <Link href="/configure" className="hover:text-white transition-colors">
+              <Link href="/configure" className="inline-block py-1 hover:text-gold-light transition-colors">
                 درخواست مشاوره و تماس با ما
               </Link>
             </li>
@@ -78,7 +80,7 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="border-t border-white/10">
+      <div className="relative border-t border-white/10">
         <div className="max-w-[1100px] mx-auto px-6 py-5 text-[11.5px] flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>
             © {year} {COMPANY_INFO.legalName}

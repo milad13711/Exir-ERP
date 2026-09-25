@@ -3,24 +3,29 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f3f6fb;
-  --foreground: #0b1120;
+  --background: #f7f8f5;
+  --foreground: #0d1b14;
 
-  --color-ink: #0b1120;
-  --color-ink-soft: #47546b;
-  --color-muted: #8a94a6;
+  --color-ink: #0d1b14;
+  --color-ink-soft: #3f4f46;
+  --color-muted: #66756c; /* ≥4.5:1 روی سفید و پس‌زمینه‌ی روشن */
   --color-surface: #ffffff;
-  --color-border: #e3e7ef;
+  --color-border: #e1e6df;
 
-  /* هویت بصری «اعتماد سازمانی» — سرمه‌ای آبی عمیق + آبی روشن پرانرژی،
-     برگرفته از زبان بصری لندینگ اکسیر ERP (هدر/فوتر سرمه‌ای، دکمه‌های CTA
-     آبی زنده) به‌عنوان جهت رنگی مشترک کل خانواده‌ی محصولات اکسیر. */
-  --color-primary: #0b1e3d;
-  --color-primary-dark: #050d1f;
-  --color-primary-soft: #e8eefc;
+  /* هویت بصری اکسیرتجارت امین: سبز سلطنتی + طلایی — برگرفته از لوگوی برند
+     (سبز جنگلی عمیق و طلای مات). accent = طلای قابل‌خواندن برای متن روی سفید (≥4.5:1)،
+     gold = طلای روشن برای عناصر تزئینی و دکمه‌های روی زمینه‌ی سبز. */
+  --color-primary: #0b5a3c;
+  --color-primary-dark: #063a27;
+  --color-primary-deep: #04261a;
+  --color-primary-light: #137a52;
+  --color-primary-soft: #e6f2ec;
 
-  --color-accent: #2f6fed;
-  --color-accent-soft: #e3ecff;
+  --color-accent: #946609;
+  --color-accent-soft: #fbf2d9;
+  --color-gold: #d7ad4a;
+  --color-gold-light: #ecd28f;
+  --color-gold-dark: #b8892b;
 
   --color-warning: #b45309;
   --color-warning-soft: #fef3e2;
@@ -28,8 +33,8 @@
   --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
 
-  --color-success: #0f766e;
-  --color-success-soft: #ecfdf5;
+  --color-success: #15803d;
+  --color-success-soft: #ecfdf3;
 }
 
 @theme inline {
@@ -42,6 +47,11 @@
   --color-border: var(--color-border);
   --color-primary: var(--color-primary);
   --color-primary-dark: var(--color-primary-dark);
+  --color-primary-deep: var(--color-primary-deep);
+  --color-primary-light: var(--color-primary-light);
+  --color-gold: var(--color-gold);
+  --color-gold-light: var(--color-gold-light);
+  --color-gold-dark: var(--color-gold-dark);
   --color-primary-soft: var(--color-primary-soft);
   --color-accent: var(--color-accent);
   --color-accent-soft: var(--color-accent-soft);
@@ -53,6 +63,11 @@
   --color-success-soft: var(--color-success-soft);
   --font-sans: "Vazirmatn Variable", Tahoma, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", "Vazirmatn Variable", Tahoma, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
 }
 
 html,
@@ -71,8 +86,10 @@ body {
   font-family: var(--font-display);
 }
 
+h1, h2, h3 { text-wrap: balance; }
+
 :focus-visible {
-  outline: 2.5px solid var(--color-accent);
+  outline: 2.5px solid var(--color-gold-dark);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -86,4 +103,45 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* پیوند «رفتن به محتوا» برای کاربران کیبورد */
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -4rem;
+  z-index: 100;
+  background: var(--color-gold);
+  color: var(--color-primary-deep);
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  transition: top 0.15s ease;
+}
+.skip-link:focus { top: 0.75rem; }
+
+/* اعداد هم‌عرض برای قیمت و آمار */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* الگوی ظریف هندسی طلایی برای زمینه‌ی تیره — مثلث‌ها برگرفته از نشان برند */
+.pattern-gold {
+  background-image:
+    linear-gradient(135deg, rgba(215, 173, 74, 0.035) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(215, 173, 74, 0.035) 25%, transparent 25%);
+  background-size: 30px 30px;
+}
+
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  border-color: rgba(184, 137, 43, 0.55);
+  box-shadow: 0 24px 48px -28px rgba(6, 58, 39, 0.45);
+}
+
+.reveal { animation: reveal-up 0.6s ease-out both; }
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }

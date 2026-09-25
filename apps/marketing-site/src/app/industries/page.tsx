@@ -22,7 +22,7 @@ export default async function IndustriesPage() {
 
   return (
     <main className="flex-1">
-      <section className="bg-gradient-to-br from-primary-dark via-primary to-[#3d6b5b] text-white">
+      <section className="bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
         <div className="max-w-[1100px] mx-auto px-6 py-16 text-center">
           <h1 className="text-[28px] sm:text-[34px] font-extrabold leading-[1.5]">اکسیر ERP برای هر صنف</h1>
           <p className="mt-4 text-[14.5px] text-white/85 max-w-[640px] mx-auto leading-loose">
@@ -44,7 +44,7 @@ export default async function IndustriesPage() {
                 className="bg-surface border border-border rounded-2xl overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all group"
               >
                 <div className="h-[130px] overflow-hidden">
-                  <IndustryIllustration code={t.code} color={t.suggestedThemeColor ?? "#4338ca"} />
+                  <IndustryIllustration code={t.code} color={t.suggestedThemeColor ?? "#0b5a3c"} />
                 </div>
                 <div className="p-6 flex flex-col gap-3 flex-1">
                   <div className="text-[15.5px] font-extrabold">{t.name}</div>

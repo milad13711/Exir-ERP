@@ -39,7 +39,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#063a27",
+  width: "device-width",
+  initialScale: 1,
 };
 
 /** سازمان مادر + هر محصول زنده (بدون محصولات «به‌زودی» تا نه لینک مرده در ایندکس گوگل ثبت شود، نه سازمانی که هنوز موجود نیست). */
@@ -65,8 +67,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="fa" dir="rtl" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-background text-ink">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+        <a href="#main" className="skip-link">
+          رفتن به محتوای اصلی
+        </a>
         <SiteHeader />
-        {children}
+        <div id="main" className="flex-1 flex flex-col">
+          {children}
+        </div>
         <SiteFooter />
       </body>
     </html>

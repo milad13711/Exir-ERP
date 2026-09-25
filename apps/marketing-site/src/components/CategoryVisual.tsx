@@ -57,7 +57,7 @@ const CATEGORIES: Record<string, CategoryStyle> = {
     ),
   },
   "خرید و تأمین": {
-    color: "#4338ca",
+    color: "#0b5a3c",
     soft: "#e0e7ff",
     icon: (
       <svg {...ICON_PROPS}>
@@ -111,7 +111,7 @@ const CATEGORIES: Record<string, CategoryStyle> = {
 };
 
 const DEFAULT_STYLE: CategoryStyle = {
-  color: "#4338ca",
+  color: "#0b5a3c",
   soft: "#e0e7ff",
   icon: (
     <svg {...ICON_PROPS}>
