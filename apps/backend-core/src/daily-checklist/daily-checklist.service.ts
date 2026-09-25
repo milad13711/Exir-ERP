@@ -5,6 +5,7 @@ import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { faDate } from '../common/persian.js';
 import { assertEditableDay, buildDailyReportBody } from './checklist-day.util.js';
+import { rollPendingToNextDay } from './checklist-rollover.js';
 import type { CreateChecklistItemDto } from './dto/create-checklist-item.dto.js';
 import type { UpdateChecklistItemDto } from './dto/update-checklist-item.dto.js';
 import type { CreateChecklistTaskDto } from './dto/create-checklist-task.dto.js';
@@ -179,11 +180,14 @@ export class DailyChecklistService {
       body,
       executionAt: date.toISOString(),
     });
-    // ثبت دستی گزارش روز را «گزارش‌داده‌شده» می‌کند تا پایان‌روزِ خودکار گزارش تکراری نسازد
+    // ثبت دستی گزارش، روز را می‌بندد: کارهای انجام‌نشده همان لحظه به فردا می‌روند (فقط یک‌بار) و پایان‌روزِ خودکار
+    // نه گزارش تکراری می‌سازد و نه دوباره منتقل می‌کند.
+    const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date } } });
+    if (!marker?.rolledOver) await rollPendingToNextDay(ctx.tenantDb, targetUserId, date);
     await ctx.tenantDb.dailyChecklistDayClose.upsert({
       where: { userId_date: { userId: targetUserId, date } },
-      create: { userId: targetUserId, date, reportId: report.id },
-      update: { reportId: report.id },
+      create: { userId: targetUserId, date, reportId: report.id, rolledOver: true },
+      update: { reportId: report.id, rolledOver: true },
     });
     return report;
   }

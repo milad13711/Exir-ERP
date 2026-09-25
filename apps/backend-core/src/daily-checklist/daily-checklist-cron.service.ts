@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -6,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { faDate } from '../common/persian.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { addDays, buildDailyReportBody, todayTehran } from './checklist-day.util.js';
+import { rollPendingToNextDay } from './checklist-rollover.js';
 
 /**
  * پایان‌روزِ خودکارِ چک‌لیست: اگر کاربر تا آخر وقت دکمه‌ی «ثبت گزارش روزانه» را نزده باشد، گزارش همان روز
@@ -14,7 +16,7 @@ import { addDays, buildDailyReportBody, todayTehran } from './checklist-day.util
  * دو اجرا: ۲۳:۵۵ به وقت تهران برای «امروز»، و ۰۰:۳۰ به‌عنوان جبران اگر سرور آن لحظه بالا نبوده برای «دیروز».
  */
 @Injectable()
-export class DailyChecklistCronService {
+export class DailyChecklistCronService implements OnApplicationBootstrap {
   private readonly logger = new Logger('DailyChecklistCronService');
 
   constructor(
@@ -22,6 +24,11 @@ export class DailyChecklistCronService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /** بعد از هر بالا آمدن سرور، روزِ گذشته‌ای که هنوز بسته نشده (مثلاً گزارش دستی بدون انتقال) جبران می‌شود. */
+  onApplicationBootstrap(): void {
+    setTimeout(() => void this.sweepAllTenants(false).catch(() => undefined), 30_000).unref();
+  }
 
   @Cron('55 23 * * *', { timeZone: 'Asia/Tehran' })
   async closeToday(): Promise<void> {
@@ -91,23 +98,7 @@ export class DailyChecklistCronService {
       reportId = report.id;
     }
 
-    const pending = items.filter((i) => !i.done);
-    if (pending.length > 0) {
-      const tomorrow = addDays(date, 1);
-      const last = await tenantDb.dailyChecklistItem.findFirst({ where: { userId, date: tomorrow }, orderBy: { order: 'desc' }, select: { order: true } });
-      let order = (last?.order ?? -1) + 1;
-      await tenantDb.dailyChecklistItem.createMany({
-        data: pending.map((i) => ({
-          userId,
-          date: tomorrow,
-          title: i.title,
-          description: i.description,
-          carriedOver: true,
-          createdByUserId: i.createdByUserId,
-          order: order++,
-        })),
-      });
-    }
+    const pendingCount = await rollPendingToNextDay(tenantDb, userId, date);
 
     await tenantDb.dailyChecklistDayClose.upsert({
       where: { userId_date: { userId, date } },
@@ -120,7 +111,7 @@ export class DailyChecklistCronService {
         userId,
         type: 'daily-checklist.closed',
         title: existingReportId ? 'کارهای مانده‌ی امروز به فردا منتقل شد' : 'گزارش روزانه‌ی شما خودکار ثبت شد',
-        body: pending.length > 0 ? `${pending.length} کار انجام‌نشده با برچسب «مانده از قبل» به لیست فردا اضافه شد` : 'همه‌ی کارهای امروز انجام شده بود',
+        body: pendingCount > 0 ? `${pendingCount} کار انجام‌نشده با برچسب «مانده از قبل» به لیست فردا اضافه شد` : 'همه‌ی کارهای امروز انجام شده بود',
         link: '/dashboard',
       })
       .catch(() => undefined);

@@ -85,20 +85,27 @@ describe('DailyChecklistService.generateReport', () => {
 
   it('compiles done/pending items into a report body and delegates to ReportsService', async () => {
     const { service, ctx, tenantDb, reports } = setup();
-    tenantDb.dailyChecklistItem.findMany = vi.fn().mockResolvedValue([
+    const all = [
       { id: '1', title: 'تماس با مشتری', description: null, done: true },
-      { id: '2', title: 'ارسال فاکتور', description: 'برای شرکت الف', done: false },
-    ]);
+      { id: '2', title: 'ارسال فاکتور', description: 'برای شرکت الف', done: false, createdByUserId: 'me' },
+    ];
+    tenantDb.dailyChecklistItem.findMany = vi.fn(async (args?: { where?: { done?: boolean } }) => (args?.where?.done === false ? all.filter((i) => !i.done) : all)) as never;
+    (tenantDb.dailyChecklistItem as unknown as Record<string, unknown>).findFirst = vi.fn().mockResolvedValue(null);
+    (tenantDb.dailyChecklistItem as unknown as Record<string, unknown>).createMany = vi.fn().mockResolvedValue({ count: 1 });
     // اولین صدا resolveTenantUserId (بر اساس globalUserId) است؛ دومی نام کاربر برای متن گزارش.
     tenantDb.user.findUnique = vi
       .fn()
       .mockResolvedValueOnce({ id: 'me', globalUserId: 'g-me' })
       .mockResolvedValueOnce({ name: 'علی رضایی' });
-    const dayClose = { upsert: vi.fn().mockResolvedValue({}) };
+    const dayClose = { upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null) };
     (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
     await service.generateReport(ctx, { date: TODAY } as never);
     expect(reports.create).toHaveBeenCalledTimes(1);
     expect(dayClose.upsert).toHaveBeenCalledTimes(1);
+    // کار انجام‌نشده همان لحظه به فردا منتقل می‌شود
+    const createMany = (tenantDb.dailyChecklistItem as unknown as { createMany: ReturnType<typeof vi.fn> }).createMany;
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(createMany.mock.calls[0][0].data[0]).toMatchObject({ carriedOver: true, title: 'ارسال فاکتور' });
     const body = reports.create.mock.calls[0][1].body as string;
     expect(body).toContain('تماس با مشتری');
     expect(body).toContain('ارسال فاکتور — برای شرکت الف');

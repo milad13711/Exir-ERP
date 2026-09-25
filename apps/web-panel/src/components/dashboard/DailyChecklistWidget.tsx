@@ -123,7 +123,7 @@ export function DailyChecklistWidget() {
               className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
               aria-label="روز قبل"
             >
-              ›
+              ‹
             </button>
             <div className="text-[14.5px] font-extrabold text-[#5c4a10] min-w-[118px] text-center">لیست کارهای {dayLabel}</div>
             <button
@@ -133,7 +133,7 @@ export function DailyChecklistWidget() {
               className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
               aria-label="روز بعد"
             >
-              ‹
+              ›
             </button>
           </div>
           <div className="text-[11.5px] text-[#8a7530] mt-1 flex items-center gap-2">

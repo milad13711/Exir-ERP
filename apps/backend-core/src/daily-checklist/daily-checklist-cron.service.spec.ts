@@ -9,7 +9,7 @@ function makeDb(opts: { marker?: unknown; items: Array<Record<string, unknown>> 
   return {
     dailyChecklistItem: {
       groupBy: vi.fn().mockResolvedValue([{ userId: 'u1', date: TODAY }]),
-      findMany: vi.fn().mockResolvedValue(opts.items),
+      findMany: vi.fn(async (args?: { where?: { done?: boolean } }) => (args?.where?.done === false ? opts.items.filter((i) => !i.done) : opts.items)),
       findFirst: vi.fn().mockResolvedValue(null),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
