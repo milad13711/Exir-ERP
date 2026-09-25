@@ -24,6 +24,7 @@ export function PushPrompt() {
       /iphone|ipad|ipod/i.test(navigator.userAgent) &&
       !window.matchMedia("(display-mode: standalone)").matches,
   );
+  const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try {
       return Date.now() - Number(localStorage.getItem(DISMISS_KEY) ?? 0) < DISMISS_DAYS * 86400_000;
@@ -33,7 +34,7 @@ export function PushPrompt() {
   });
 
   useEffect(() => {
-
+    queueMicrotask(() => setMounted(true));
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setInstallEvent(e as InstallEvent);
@@ -84,7 +85,7 @@ export function PushPrompt() {
     setInstallEvent(null);
   }
 
-  if (dismissed || (!canPush && !installEvent && !isIos)) return null;
+  if (!mounted || dismissed || (!canPush && !installEvent && !isIos)) return null;
 
   return (
     <div

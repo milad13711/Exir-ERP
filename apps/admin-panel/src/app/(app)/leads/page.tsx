@@ -3,6 +3,9 @@
 import { LeadModal } from "@/components/LeadModal";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { EmptyState, ListSkeleton } from "@/components/ui/EmptyState";
+import { SELECT, BTN_SOFT, BTN_PRIMARY } from "@/components/ui/styles";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { TargetIcon, PlusIcon } from "@/components/icons";
 import { formatToman } from "@/lib/persian";
@@ -54,87 +57,68 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-extrabold">فرصت‌های فروش اکسیر</h1>
-          <p className="text-[13.5px] text-muted mt-1">مدیریت مشتریان بالقوه‌ی خود اکسیر — جدا از داده‌ی CRM هر تننت</p>
-        </div>
-        <button
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[1000px] mx-auto">
+      <PageHeader title="فرصت‌های فروش اکسیر" subtitle="مدیریت مشتریان بالقوه‌ی خود اکسیر — جدا از داده‌ی CRM هر تننت" action={<button
           onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
+          className={BTN_PRIMARY}
         >
           <PlusIcon className="w-4 h-4" />
           فرصت جدید
-        </button>
-      </div>
+        </button>} />
 
-      <Card className="mt-5 p-2">
+      <div className="mt-5 flex flex-col gap-3">
         {leads === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          <ListSkeleton />
         ) : leads.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm flex flex-col items-center gap-2">
-            <TargetIcon className="w-6 h-6" />
-            فرصت فروشی ثبت نشده است
-          </div>
+          <EmptyState icon={<TargetIcon className="w-6 h-6" />}>فرصت فروشی ثبت نشده است</EmptyState>
         ) : (
-          leads.map((lead, i) => (
-            <div
-              key={lead.id}
-              onClick={() => setOpenLead(lead)}
-              className={`flex items-center gap-3 px-4 py-3.5 flex-wrap cursor-pointer hover:bg-slate-50 ${
-                i < leads.length - 1 ? "border-b border-border" : ""
-              }`}
-            >
-              <div className="flex-1 min-w-[160px]">
-                <div className="text-[13px] font-bold">{lead.name}</div>
-                <div className="text-[11.5px] text-muted mt-0.5">
-                  {[lead.company, lead.phone, lead.email].filter(Boolean).join(" · ") || "—"}
+          leads.map((lead) => (
+            <Card key={lead.id} className="p-4 hover:border-primary/30 transition-colors">
+              <div className="flex items-start justify-between gap-3 cursor-pointer" onClick={() => setOpenLead(lead)}>
+                <div className="min-w-0">
+                  <div className="text-[14px] font-extrabold">{lead.name}</div>
+                  <div className="text-[11.5px] text-muted mt-1 break-words">
+                    {[lead.company, lead.phone, lead.email].filter(Boolean).join(" · ") || "—"}
+                  </div>
                 </div>
+                {lead.value ? <div className="text-[12.5px] font-extrabold text-primary shrink-0">{formatToman(lead.value)}</div> : null}
               </div>
-              {lead.value ? <div className="text-[12.5px] font-bold shrink-0">{formatToman(lead.value)}</div> : null}
-              <select
-                value={lead.stage}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => handleStageChange(lead.id, e.target.value as LeadStage)}
-                className="text-[12px] font-bold bg-slate-50 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer shrink-0"
-              >
-                {STAGES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={lead.owner?.id ?? ""}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => e.target.value && handleAssign(lead.id, e.target.value)}
-                className="text-[12px] bg-slate-50 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer shrink-0"
-              >
-                <option value="" disabled>
-                  مسئول...
-                </option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.id === admin?.id ? `${s.name} (من)` : s.name}
-                  </option>
-                ))}
-              </select>
-              {lead.stage !== "WON" ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConvertLead(lead);
-                  }}
-                  className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer shrink-0"
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 mt-3.5 pt-3.5 border-t border-border">
+                <select
+                  value={lead.stage}
+                  onChange={(e) => handleStageChange(lead.id, e.target.value as LeadStage)}
+                  className={`${SELECT} sm:min-w-[130px]`}
                 >
-                  تبدیل به تننت
-                </button>
-              ) : null}
-            </div>
+                  {STAGES.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={lead.owner?.id ?? ""}
+                  onChange={(e) => e.target.value && handleAssign(lead.id, e.target.value)}
+                  className={`${SELECT} sm:min-w-[130px]`}
+                >
+                  <option value="" disabled>
+                    مسئول...
+                  </option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.id === admin?.id ? `${s.name} (من)` : s.name}
+                    </option>
+                  ))}
+                </select>
+                {lead.stage !== "WON" ? (
+                  <button onClick={() => setConvertLead(lead)} className={`${BTN_SOFT} col-span-2 sm:col-span-1 sm:ms-auto`}>
+                    تبدیل به تننت
+                  </button>
+                ) : null}
+              </div>
+            </Card>
           ))
         )}
-      </Card>
+      </div>
 
       {openLead ? <LeadModal lead={openLead} onClose={() => setOpenLead(null)} onChanged={reload} /> : null}
       {createOpen ? <CreateLeadModal onClose={() => setCreateOpen(false)} onCreated={reload} /> : null}

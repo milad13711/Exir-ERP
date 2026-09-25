@@ -119,7 +119,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   if (!ticket) return <div className="p-8 text-center text-muted">در حال بارگذاری...</div>;
 
   return (
-    <div className="p-5 lg:p-7 max-w-[800px] mx-auto flex flex-col h-[calc(100vh-64px)]">
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[800px] mx-auto flex flex-col h-[calc(100dvh-60px-6rem)] lg:h-[calc(100dvh-60px-2rem)]">
       <Link href="/support" className="text-[12.5px] text-muted font-semibold">
         → بازگشت به تیکت‌ها
       </Link>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { formatJalaliDateTime } from "@/lib/persian";
 import { fetchAuditLogs, fetchErrorLogs, fetchSmsLogs, type AuditLogEntry, type ErrorLogEntry, type SmsLogEntry } from "@/lib/api";
@@ -44,9 +45,8 @@ export default function LogsPage() {
   useEffect(reload, [tab, tenantId, smsStatus]);
 
   return (
-    <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
-      <h1 className="text-xl font-extrabold">لاگ فعالیت‌ها و خطاها</h1>
-      <p className="text-[13.5px] text-muted mt-1">آخرین ۲۰۰ رکورد — برای فیلتر روی یک تننت خاص، شناسه‌ی آن را وارد کنید</p>
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[1100px] mx-auto">
+      <PageHeader title="لاگ فعالیت‌ها و خطاها" subtitle="آخرین ۲۰۰ رکورد — برای فیلتر روی یک تننت خاص، شناسه‌ی آن را وارد کنید" />
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export default function LogsPage() {
         ) : null}
       </div>
 
-      <Card className="p-2">
+      <Card className="overflow-hidden">
         {tab === "sms" ? (
           smsLogs === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>

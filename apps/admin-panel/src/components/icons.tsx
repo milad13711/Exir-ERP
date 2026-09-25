@@ -14,7 +14,7 @@ const base = {
 /** The real exir ERP brand mark — a raster image (not a line-art icon) since its gradient/beveled look can't be a currentColor stroke path. `className` still controls its size the same way every other icon here does. */
 export function LogoMark({ className }: IconProps) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/brand/exir-glyph.png" alt="" className={className} />;
+  return <img src="/brand/exir-logo.png" alt="اکسیر ERP" className={className} />;
 }
 
 export function PlusIcon(props: IconProps) {
@@ -171,6 +171,15 @@ export function CalendarIcon(props: IconProps) {
     <svg {...base} {...props}>
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
   );
 }

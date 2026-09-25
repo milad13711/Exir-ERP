@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/Card";
+import { BTN_PRIMARY } from "@/components/ui/styles";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon } from "@/components/icons";
 import { formatToman } from "@/lib/persian";
@@ -57,26 +58,20 @@ export default function CatalogPage() {
   }
 
   return (
-    <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-extrabold">کاتالوگ ماژول‌ها و پلن‌ها</h1>
-          <p className="text-[13.5px] text-muted mt-1">قیمت‌گذاری و امکانات هرچه اینجا تغییر کند، فوراً در پنل تننت‌ها اثر می‌گذارد</p>
-        </div>
-        <button
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[900px] mx-auto">
+      <PageHeader title="کاتالوگ ماژول‌ها و پلن‌ها" subtitle="قیمت‌گذاری و امکانات هرچه اینجا تغییر کند، فوراً در پنل تننت‌ها اثر می‌گذارد" action={<button
           onClick={() => {
             if (tab === "modules") setEditModule("new");
             else if (tab === "plans") setEditPlan("new");
             else setEditTemplate("new");
           }}
-          className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
+          className={BTN_PRIMARY}
         >
           <PlusIcon className="w-4 h-4" />
           {tab === "modules" ? "ماژول جدید" : tab === "plans" ? "پلن جدید" : "قالب صنف جدید"}
-        </button>
-      </div>
+        </button>} />
 
-      <div className="flex items-center gap-2 mt-6 border-b border-border">
+      <div className="flex items-center gap-1.5 mt-6 p-1 bg-slate-100 rounded-2xl w-fit max-w-full overflow-x-auto">
         {(
           [
             ["modules", "ماژول‌ها"],
@@ -87,8 +82,8 @@ export default function CatalogPage() {
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2.5 text-[13px] font-bold border-b-2 -mb-px cursor-pointer transition-colors ${
-              tab === key ? "border-primary text-primary" : "border-transparent text-muted"
+            className={`px-4 py-2 text-[12.5px] font-bold rounded-xl cursor-pointer transition-colors whitespace-nowrap ${
+              tab === key ? "bg-white text-primary shadow-sm" : "text-muted"
             }`}
           >
             {label}
@@ -97,17 +92,15 @@ export default function CatalogPage() {
       </div>
 
       {tab === "modules" ? (
-        <Card className="mt-5 p-2">
+        <div className="mt-5 flex flex-col gap-2.5">
           {modules === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : (
-            modules.map((m, i) => (
+            modules.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setEditModule(m)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors ${
-                  i < modules.length - 1 ? "border-b border-border" : ""
-                }`}
+                className={`w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-4 text-right cursor-pointer bg-surface border border-border rounded-2xl hover:border-primary/30 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-colors `}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -126,25 +119,23 @@ export default function CatalogPage() {
                     </div>
                   ) : null}
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0">
+                <div className="text-[13px] font-extrabold text-primary shrink-0">
                   {m.priceMonthly > 0 ? formatToman(m.priceMonthly) : "رایگان"}
                 </div>
               </button>
             ))
           )}
-        </Card>
+        </div>
       ) : tab === "plans" ? (
-        <Card className="mt-5 p-2">
+        <div className="mt-5 flex flex-col gap-2.5">
           {plans === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : (
-            plans.map((p, i) => (
+            plans.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setEditPlan(p)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors ${
-                  i < plans.length - 1 ? "border-b border-border" : ""
-                }`}
+                className={`w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-4 text-right cursor-pointer bg-surface border border-border rounded-2xl hover:border-primary/30 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-colors `}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -153,26 +144,24 @@ export default function CatalogPage() {
                   </div>
                   <div className="text-[11.5px] text-muted mt-1">سقف {toPersianDigits(p.userLimit)} کاربر</div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0">{formatToman(p.priceMonthly)}</div>
+                <div className="text-[13px] font-extrabold text-primary shrink-0">{formatToman(p.priceMonthly)}</div>
               </button>
             ))
           )}
-        </Card>
+        </div>
       ) : (
-        <Card className="mt-5 p-2">
+        <div className="mt-5 flex flex-col gap-2.5">
           {templates === null ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : templates.length === 0 ? (
             <div className="p-8 text-center text-muted text-sm">هنوز قالب صنفی ساخته نشده است</div>
           ) : (
-            templates.map((t, i) => (
+            templates.map((t) => (
               <button
                 key={t.id}
                 onClick={() => openTemplate(t.code)}
                 disabled={templateLoading}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors disabled:opacity-50 ${
-                  i < templates.length - 1 ? "border-b border-border" : ""
-                }`}
+                className={`w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-4 text-right cursor-pointer bg-surface border border-border rounded-2xl hover:border-primary/30 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-colors disabled:opacity-50 `}
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-bold">{t.name}</div>
@@ -184,7 +173,7 @@ export default function CatalogPage() {
               </button>
             ))
           )}
-        </Card>
+        </div>
       )}
 
       {editModule ? (

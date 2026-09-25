@@ -18,6 +18,7 @@ export function PushNotificationsButton() {
   const [state, setState] = useState<State>("loading");
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");
       return;
@@ -36,6 +37,8 @@ export function PushNotificationsButton() {
       const sub = await reg.pushManager.getSubscription();
       setState(sub ? "on" : "off");
     })();
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function enable() {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { ResellerApplicationModal } from "@/components/ResellerApplicationModal";
 import {
@@ -69,9 +70,8 @@ export default function ResellerApplicationsPage() {
   }
 
   return (
-    <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
-      <h1 className="text-xl font-extrabold">درخواست‌های همکاری در فروش</h1>
-      <p className="text-[13.5px] text-muted mt-1">درخواست‌های نمایندگی از فرم «همکاری با ما» در eta.co.ir</p>
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[900px] mx-auto">
+      <PageHeader title="درخواست‌های همکاری در فروش" subtitle="درخواست‌های نمایندگی از فرم «همکاری با ما» در eta.co.ir" />
 
       <div className="flex items-center gap-2 mt-5 mb-4">
         {(["PENDING", "APPROVED", "REJECTED", "همه"] as Filter[]).map((f) => (
@@ -88,7 +88,7 @@ export default function ResellerApplicationsPage() {
         ))}
       </div>
 
-      <Card className="p-2">
+      <Card className="overflow-hidden">
         {apps === null ? (
           <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : filtered.length === 0 ? (

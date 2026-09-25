@@ -159,7 +159,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const subscription = tenant.subscriptions[0];
 
   return (
-    <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[900px] mx-auto">
       <Link href="/tenants" className="text-[12.5px] text-muted font-semibold">
         → بازگشت به لیست تننت‌ها
       </Link>
@@ -174,8 +174,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             <BuildingIcon className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold">{tenant.name}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-[20px] font-extrabold tracking-tight">{tenant.name}</h1>
               <Badge tone={STATUS_TONES[tenant.status]}>{STATUS_LABELS[tenant.status]}</Badge>
             </div>
             <div className="text-[12px] text-muted mt-1 font-mono" dir="ltr">
@@ -183,7 +183,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap max-sm:w-full">
           <button
             onClick={() => setRenewOpen(true)}
             className="text-[12.5px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-xl cursor-pointer"

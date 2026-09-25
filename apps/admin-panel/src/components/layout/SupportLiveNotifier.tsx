@@ -70,11 +70,11 @@ export function SupportLiveNotifier() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 left-5 z-[100] flex flex-col gap-2.5 w-[320px]" dir="rtl">
+    <div className="fixed bottom-20 lg:bottom-5 inset-x-3 lg:inset-x-auto lg:left-5 z-[100] flex flex-col gap-2.5 lg:w-[320px]" dir="rtl">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 cursor-pointer animate-in"
+          className="bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 cursor-pointer animate-sheet"
           onClick={() => {
             router.push(`/support/${t.ticketId}`);
             setToasts((prev) => prev.filter((x) => x.id !== t.id));

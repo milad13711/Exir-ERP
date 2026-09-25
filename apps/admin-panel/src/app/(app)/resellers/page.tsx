@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { EmptyState, ListSkeleton } from "@/components/ui/EmptyState";
+import { UsersIcon } from "@/components/icons";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { formatToman } from "@/lib/persian";
@@ -27,30 +30,36 @@ export default function ResellersPage() {
   useEffect(reload, []);
 
   return (
-    <div className="p-5 lg:p-7 max-w-[960px] mx-auto">
-      <h1 className="text-xl font-extrabold">همکاران و نمایندگان</h1>
-      <p className="text-[13.5px] text-muted mt-1">مدیریت نمایش روی نقشه، پایان همکاری و تسویه‌ی مانده‌ی کمیسیون</p>
-      <Card className="mt-5 p-2">
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[960px] mx-auto">
+      <PageHeader title="همکاران و نمایندگان" subtitle="مدیریت نمایش روی نقشه، پایان همکاری و تسویه‌ی مانده‌ی کمیسیون" />
+      <div className="mt-5 flex flex-col gap-3">
         {items === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          <ListSkeleton />
         ) : items.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">هنوز نماینده‌ای تأیید نشده است</div>
+          <EmptyState icon={<UsersIcon className="w-6 h-6" />}>هنوز نماینده‌ای تأیید نشده است</EmptyState>
         ) : (
-          items.map((r, i) => (
-            <div key={r.id} onClick={() => setOpen(r)} className={`flex items-center gap-3 px-4 py-3.5 flex-wrap cursor-pointer hover:bg-slate-50 ${i < items.length - 1 ? "border-b border-border" : ""}`}>
-              <div className="flex-1 min-w-[180px]">
-                <div className="text-[13px] font-bold">{r.name}</div>
-                <div className="text-[11.5px] text-muted mt-0.5">{[r.phone, r.city].filter(Boolean).join(" · ") || "—"}</div>
+          items.map((r) => (
+            <Card key={r.id} className="p-4 cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpen(r)}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[14px] font-extrabold">{r.name}</div>
+                  <div className="text-[11.5px] text-muted mt-1">{[r.phone, r.city].filter(Boolean).join(" · ") || "—"}</div>
+                </div>
+                <Badge tone={r.cooperationStatus === "ACTIVE" ? "success" : r.cooperationStatus === "END_REQUESTED" ? "warning" : "danger"}>
+                  {r.cooperationStatus === "ACTIVE" ? "فعال" : r.cooperationStatus === "END_REQUESTED" ? "درخواست پایان" : "پایان‌یافته"}
+                </Badge>
               </div>
-              <Badge tone={r.cooperationStatus === "ACTIVE" ? "success" : r.cooperationStatus === "END_REQUESTED" ? "warning" : "danger"}>
-                {r.cooperationStatus === "ACTIVE" ? "فعال" : r.cooperationStatus === "END_REQUESTED" ? "درخواست پایان" : "پایان‌یافته"}
-              </Badge>
-              {r.hiddenFromMap && <Badge tone="neutral">پنهان از نقشه</Badge>}
-              <div className="text-[12px] font-bold shrink-0">مانده: {formatToman(r.amountDue)}</div>
-            </div>
+              <div className="flex items-center justify-between gap-2 flex-wrap mt-3 pt-3 border-t border-border">
+                <div className="text-[12.5px]">
+                  <span className="text-muted">مانده: </span>
+                  <span className="font-extrabold">{formatToman(r.amountDue)}</span>
+                </div>
+                {r.hiddenFromMap && <Badge tone="neutral">پنهان از نقشه</Badge>}
+              </div>
+            </Card>
           ))
         )}
-      </Card>
+      </div>
       {open && <ResellerModal reseller={open} onClose={() => setOpen(null)} onChanged={() => { reload(); setOpen(null); }} />}
     </div>
   );
@@ -99,7 +108,7 @@ function ResellerModal({ reseller, onClose, onChanged }: { reseller: AdminResell
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap [&>button]:max-sm:w-full">
           <button disabled={busy} onClick={() => run(() => setAdminResellerMapVisibility(reseller.id, !reseller.hiddenFromMap), true)} className="font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50">
             {reseller.hiddenFromMap ? "نمایش دوباره روی نقشه" : "توقف نمایش روی نقشه"}
           </button>

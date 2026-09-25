@@ -24,6 +24,7 @@ export function PushPrompt() {
       /iphone|ipad|ipod/i.test(navigator.userAgent) &&
       !window.matchMedia("(display-mode: standalone)").matches,
   );
+  const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try {
       return Date.now() - Number(localStorage.getItem(DISMISS_KEY) ?? 0) < DISMISS_DAYS * 86400_000;
@@ -33,7 +34,7 @@ export function PushPrompt() {
   });
 
   useEffect(() => {
-
+    queueMicrotask(() => setMounted(true));
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setInstallEvent(e as InstallEvent);
@@ -84,11 +85,11 @@ export function PushPrompt() {
     setInstallEvent(null);
   }
 
-  if (dismissed || (!canPush && !installEvent && !isIos)) return null;
+  if (!mounted || dismissed || (!canPush && !installEvent && !isIos)) return null;
 
   return (
     <div
-      className="fixed inset-x-3 bottom-4 lg:bottom-5 lg:end-5 lg:start-auto lg:w-[360px] z-40 bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex flex-col gap-2.5"
+      className="fixed inset-x-3 bottom-20 lg:bottom-5 lg:end-5 lg:start-auto lg:w-[360px] z-40 bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex flex-col gap-2.5"
       dir="rtl"
     >
       <div className="text-[13px] font-bold">اعلان‌ها را روی این دستگاه فعال کنید</div>

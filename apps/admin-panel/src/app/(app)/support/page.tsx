@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { ChatIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
@@ -28,6 +29,8 @@ const PRIORITY_TONES: Record<SupportTicket["priority"], "danger" | "warning" | "
   MEDIUM: "warning",
   LOW: "neutral",
 };
+
+const PRIORITY_LABELS: Record<SupportTicket["priority"], string> = { URGENT: "فوری", MEDIUM: "متوسط", LOW: "کم" };
 
 const FILTERS: Array<{ key: string; label: string }> = [
   { key: "", label: "همه" },
@@ -63,11 +66,10 @@ export default function SupportPage() {
   }, [filter]);
 
   return (
-    <div className="p-5 lg:p-7 max-w-[900px] mx-auto">
-      <h1 className="text-xl font-extrabold">پشتیبانی — چت با تننت‌ها</h1>
-      <p className="text-[13.5px] text-muted mt-1">تیکت‌های ثبت‌شده از پنل تننت‌ها، برای پیگیری و پاسخ</p>
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[900px] mx-auto">
+      <PageHeader title="پشتیبانی — چت با تننت‌ها" subtitle="تیکت‌های ثبت‌شده از پنل تننت‌ها، برای پیگیری و پاسخ" />
 
-      <div className="flex items-center gap-2 mt-5">
+      <div className="flex items-center gap-2 mt-5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 [&>button]:shrink-0">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -81,38 +83,34 @@ export default function SupportPage() {
         ))}
       </div>
 
-      <Card className="mt-4 p-2">
+      <div className="mt-4 flex flex-col gap-2.5">
         {tickets === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-20 rounded-2xl bg-slate-200/60 animate-pulse" />)
         ) : tickets.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm flex flex-col items-center gap-2">
+          <Card className="p-10 text-center text-muted text-sm flex flex-col items-center gap-2">
             <ChatIcon className="w-6 h-6" />
             تیکتی یافت نشد
-          </div>
+          </Card>
         ) : (
-          tickets.map((t, i) => (
-            <Link
-              key={t.id}
-              href={`/support/${t.id}`}
-              className={`flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors ${
-                i < tickets.length - 1 ? "border-b border-border" : ""
-              }`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold">{t.subject}</span>
-                  <Badge tone={PRIORITY_TONES[t.priority]}>{t.priority}</Badge>
+          tickets.map((t) => (
+            <Link key={t.id} href={`/support/${t.id}`} className="block">
+              <Card className="p-4 hover:border-primary/30 transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-[13.5px] font-extrabold leading-6 min-w-0">{t.subject}</div>
+                  <Badge tone={STATUS_TONES[t.status]}>{STATUS_LABELS[t.status]}</Badge>
                 </div>
-                <div className="text-[11.5px] text-muted mt-1">
-                  {t.tenant.name} · {formatJalaliDate(t.createdAt)}
-                  {t.assignedAdmin ? ` · ارجاع به ${t.assignedAdmin.name}` : ""}
+                <div className="flex items-center gap-2 flex-wrap mt-2.5 text-[11.5px] text-muted">
+                  <span className="font-semibold text-ink-soft">{t.tenant.name}</span>
+                  <span>·</span>
+                  <span>{formatJalaliDate(t.createdAt)}</span>
+                  <Badge tone={PRIORITY_TONES[t.priority]}>{PRIORITY_LABELS[t.priority]}</Badge>
+                  {t.assignedAdmin ? <span>· ارجاع به {t.assignedAdmin.name}</span> : null}
                 </div>
-              </div>
-              <Badge tone={STATUS_TONES[t.status]}>{STATUS_LABELS[t.status]}</Badge>
+              </Card>
             </Link>
           ))
         )}
-      </Card>
+      </div>
     </div>
   );
 }

@@ -2,21 +2,21 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  --background: #f1f5f9;
-  --foreground: #0f172a;
+  --background: #f4f6fb;
+  --foreground: #0b1226;
 
-  --color-ink: #0f172a;
-  --color-ink-soft: #475569;
-  --color-muted: #94a3b8;
+  --color-ink: #0b1226;
+  --color-ink-soft: #475066;
+  --color-muted: #8390a8;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
+  --color-border: #e3e8f1;
 
-  --color-primary: #4338ca;
-  --color-primary-dark: #3730a3;
-  --color-primary-soft: #eef2ff;
+  --color-primary: #1a45c8;
+  --color-primary-dark: #10298f;
+  --color-primary-soft: #e9efff;
 
-  --color-accent: #0d9488;
-  --color-accent-soft: #f0fdfa;
+  --color-accent: #0284c7;
+  --color-accent-soft: #e6f4fd;
 
   --color-warning: #d97706;
   --color-warning-soft: #fffbeb;
@@ -54,4 +54,32 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
+
+/* بدنه‌ی برنامه: یک هاله‌ی ملایم برندی بالای صفحه، برای حس مدرن‌تر */
+.app-backdrop {
+  background:
+    radial-gradient(900px 320px at 85% -80px, rgba(26, 69, 200, 0.09), transparent 70%),
+    radial-gradient(700px 260px at 10% -60px, rgba(2, 132, 199, 0.07), transparent 70%),
+    var(--background);
+}
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+input, select, textarea { font-family: inherit; }
+
+/* اسکرول‌بار باریک */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-sheet { animation: sheet-up 0.22s ease-out; }
+.animate-fade { animation: fade-in 0.18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .animate-sheet, .animate-fade { animation: none; } }
+
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }

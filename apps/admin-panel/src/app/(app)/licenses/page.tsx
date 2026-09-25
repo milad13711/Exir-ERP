@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { EmptyState, ListSkeleton } from "@/components/ui/EmptyState";
+import { BTN_PRIMARY, BTN_DANGER } from "@/components/ui/styles";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { KeyIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
@@ -59,29 +62,23 @@ export default function LicensesPage() {
   }
 
   return (
-    <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-extrabold">لایسنس‌های استقرار اختصاصی</h1>
-          <p className="text-[13.5px] text-muted mt-1">صدور و لغو کلید لایسنس برای نسخه‌های on-premise</p>
-        </div>
-        <button
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[1100px] mx-auto">
+      <PageHeader title="لایسنس‌های استقرار اختصاصی" subtitle="صدور و لغو کلید لایسنس برای نسخه‌های on-premise" action={<button
           onClick={() => setIssueOpen(true)}
-          className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
+          className={BTN_PRIMARY}
         >
           <PlusIcon className="w-4 h-4" />
           صدور لایسنس جدید
-        </button>
-      </div>
+        </button>} />
 
       {actionError && (
         <div className="mt-4 text-[12.5px] text-danger font-semibold bg-danger-soft rounded-xl px-3.5 py-2.5">{actionError}</div>
       )}
 
       {licenses === null ? (
-        <Card className="mt-6 p-8 text-center text-muted text-sm">در حال بارگذاری...</Card>
+        <div className="mt-6 flex flex-col gap-3"><ListSkeleton /></div>
       ) : licenses.length === 0 ? (
-        <Card className="mt-6 p-8 text-center text-muted text-sm">هنوز لایسنسی صادر نشده است</Card>
+        <div className="mt-6"><EmptyState icon={<KeyIcon className="w-6 h-6" />}>هنوز لایسنسی صادر نشده است</EmptyState></div>
       ) : (
         <div className="flex flex-col gap-3 mt-6">
           {licenses.map((l) => {
@@ -92,7 +89,7 @@ export default function LicensesPage() {
                   <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
                     <KeyIcon className="w-5 h-5" />
                   </div>
-                  <div className="flex-1 min-w-[220px]">
+                  <div className="flex-1 min-w-0 basis-[220px]">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="text-[15px] font-extrabold break-words">{l.orgName}</div>
                       {l.status === "REVOKED" ? (
@@ -115,12 +112,12 @@ export default function LicensesPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap shrink-0 max-sm:w-full max-sm:justify-between max-sm:pt-3 max-sm:border-t max-sm:border-border">
                     <Badge tone={conn.tone}>{conn.label}</Badge>
                     {l.status === "ACTIVE" && !isExpired(l) && (
                       <button
                         onClick={() => handleRevoke(l)}
-                        className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
+                        className={BTN_DANGER}
                       >
                         لغو
                       </button>

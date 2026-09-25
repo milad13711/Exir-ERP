@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { ListSkeleton } from "@/components/ui/EmptyState";
+import { INPUT, LABEL, BTN_PRIMARY, BTN_DANGER } from "@/components/ui/styles";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { fetchSmsPackages, updateSmsPackage, createSmsPackage, deleteSmsPackage, type SmsPackage } from "@/lib/api";
 
 /** قیمت بسته‌های پیامکی پنل سیستمی — تننت‌ها فقط بسته‌ی فعال با قیمت بیش‌از صفر را می‌بینند و می‌خرند. */
@@ -34,67 +37,76 @@ export default function SmsPackagesPage() {
   }
 
   return (
-    <div className="p-5 lg:p-7 max-w-[820px] mx-auto">
-      <h1 className="text-xl font-extrabold mb-1">بسته‌های پیامک پنل سیستمی</h1>
-      <p className="text-[13px] text-muted mb-5 leading-relaxed">
+    <div className="p-4 sm:p-5 lg:p-7 max-w-[820px] mx-auto">
+      <PageHeader title="بسته‌های پیامک پنل سیستمی" />
+      <p className="text-[13px] text-muted mt-2 mb-5 leading-relaxed">
         تننت‌هایی که پنل پیامکی اختصاصی ندارند از پنل مشترک اکسیر استفاده می‌کنند و از همین بسته‌ها می‌خرند. قیمت به تومان است؛ بسته‌ی غیرفعال یا بدون قیمت
         برای تننت‌ها نمایش داده نمی‌شود.
       </p>
-      <Card className="p-2">
+      <div className="flex flex-col gap-3">
         {packages === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+          <ListSkeleton />
         ) : (
-          packages.map((p, i) => (
-            <div key={p.code} className={`flex items-center gap-3 px-4 py-3.5 flex-wrap ${i < packages.length - 1 ? "border-b border-border" : ""}`}>
-              <input
-                type="number"
-                min={1}
-                value={creditDrafts[p.code] ?? ""}
-                onChange={(e) => setCreditDrafts((d) => ({ ...d, [p.code]: e.target.value }))}
-                onBlur={() => Number(creditDrafts[p.code]) > 0 && Number(creditDrafts[p.code]) !== p.credits && save(p, { credits: Number(creditDrafts[p.code]) })}
-                className="w-[100px] text-[13px] font-extrabold outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-                dir="ltr"
-                title="تعداد پیامک بسته"
-              />
-              <span className="text-[12px] font-bold">پیامک</span>
-              <input
-                type="number"
-                min={0}
-                value={drafts[p.code] ?? ""}
-                onChange={(e) => setDrafts((d) => ({ ...d, [p.code]: e.target.value }))}
-                className="w-[160px] text-[13px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
-                dir="ltr"
-              />
-              <span className="text-[12px] text-muted">تومان</span>
-              <button
-                onClick={() => save(p, { priceToman: Number(drafts[p.code]) || 0 })}
-                disabled={savingCode === p.code || Number(drafts[p.code]) === p.priceToman}
-                className="text-[12px] font-bold px-3.5 py-2 rounded-lg bg-primary text-white disabled:opacity-40 cursor-pointer"
-              >
-                ذخیره قیمت
-              </button>
-              <label className="flex items-center gap-2 mr-auto cursor-pointer">
-                <input type="checkbox" checked={p.isActive} onChange={(e) => save(p, { isActive: e.target.checked })} className="w-4 h-4 cursor-pointer" />
-                <span className="text-[12.5px] font-semibold">فعال برای فروش</span>
-              </label>
-              <button
-                onClick={async () => {
-                  if (!window.confirm("این بسته حذف شود؟")) return;
-                  await deleteSmsPackage(p.code);
-                  setPackages((prev) => prev?.filter((x) => x.code !== p.code) ?? prev);
-                }}
-                className="text-[11.5px] font-bold text-danger px-2 cursor-pointer"
-              >
-                حذف
-              </button>
-            </div>
+          packages.map((p) => (
+            <Card key={p.code} className="p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL}>تعداد پیامک</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={creditDrafts[p.code] ?? ""}
+                    onChange={(e) => setCreditDrafts((d) => ({ ...d, [p.code]: e.target.value }))}
+                    onBlur={() => Number(creditDrafts[p.code]) > 0 && Number(creditDrafts[p.code]) !== p.credits && save(p, { credits: Number(creditDrafts[p.code]) })}
+                    className={`${INPUT} font-extrabold`}
+                    dir="ltr"
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>قیمت (تومان)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={drafts[p.code] ?? ""}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [p.code]: e.target.value }))}
+                    className={INPUT}
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 flex-wrap mt-3.5 pt-3.5 border-t border-border">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={p.isActive} onChange={(e) => save(p, { isActive: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                  <span className="text-[12.5px] font-semibold">فعال برای فروش</span>
+                </label>
+                <div className="flex items-center gap-2 max-sm:w-full [&>*]:max-sm:flex-1">
+                  <button
+                    onClick={() => save(p, { priceToman: Number(drafts[p.code]) || 0 })}
+                    disabled={savingCode === p.code || Number(drafts[p.code]) === p.priceToman}
+                    className={BTN_PRIMARY}
+                  >
+                    ذخیره قیمت
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm("این بسته حذف شود؟")) return;
+                      await deleteSmsPackage(p.code);
+                      setPackages((prev) => prev?.filter((x) => x.code !== p.code) ?? prev);
+                    }}
+                    className={BTN_DANGER}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+            </Card>
           ))
         )}
-      </Card>
-      <Card className="p-4 mt-4 flex items-center gap-2.5 flex-wrap">
-        <span className="text-[12.5px] font-bold">بسته‌ی جدید:</span>
-        <input type="number" min={1} value={newCredits} onChange={(e) => setNewCredits(e.target.value)} placeholder="تعداد پیامک" dir="ltr" className="w-[130px] text-[13px] outline-none bg-surface border border-border rounded-lg px-3 py-2" />
-        <input type="number" min={0} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="قیمت (تومان)" dir="ltr" className="w-[160px] text-[13px] outline-none bg-surface border border-border rounded-lg px-3 py-2" />
+      </div>
+      <Card className="p-4 mt-4 flex items-center gap-2.5 flex-wrap [&>input]:max-sm:w-full [&>button]:max-sm:w-full">
+        <span className="text-[13px] font-extrabold max-sm:w-full">بسته‌ی جدید</span>
+        <input type="number" min={1} value={newCredits} onChange={(e) => setNewCredits(e.target.value)} placeholder="تعداد پیامک" dir="ltr" className={`${INPUT} sm:w-[160px]`} />
+        <input type="number" min={0} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="قیمت (تومان)" dir="ltr" className={`${INPUT} sm:w-[160px]`} />
         <button
           disabled={!Number(newCredits)}
           onClick={async () => {
@@ -105,7 +117,7 @@ export default function SmsPackagesPage() {
             setNewCredits("");
             setNewPrice("");
           }}
-          className="text-[12px] font-bold text-white bg-primary px-4 py-2 rounded-lg disabled:opacity-40 cursor-pointer"
+          className={BTN_PRIMARY}
         >
           افزودن
         </button>
