@@ -3538,6 +3538,7 @@ export type DailyChecklistItem = {
   taskId: string | null;
   createdByUserId: string | null;
   order: number;
+  carriedOver?: boolean;
   createdAt: string;
   updatedAt: string;
   task: { id: string; status: "OPEN" | "DONE" } | null;

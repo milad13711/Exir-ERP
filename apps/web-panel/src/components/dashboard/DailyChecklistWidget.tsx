@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { ChevronDownIcon, TrashIcon, PlusIcon, TasksIcon, ClipboardCheckIcon, CheckIcon } from "@/components/icons";
-import { formatJalaliFull, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchDailyChecklist,
   fetchDailyChecklistSubordinates,
@@ -19,11 +19,14 @@ import {
 } from "@/lib/api";
 
 /** تاریخ محلی (نه UTC) به شکل «YYYY-MM-DD» — همان قرارداد ورودی‌های تاریخ در این پروژه. */
-function todayIso(): string {
+function isoForOffset(offset: number): string {
   const d = new Date();
+  d.setDate(d.getDate() + offset);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+const DAY_LABELS: Record<number, string> = { [-1]: "دیروز", 0: "امروز", 1: "فردا" };
 
 /**
  * ویجت داشبورد «لیست کارهای روزانه» — ظاهر یادداشت چسبان. هر پرسنل چک‌لیست امروزِ
@@ -31,7 +34,10 @@ function todayIso(): string {
  * ببیند و برایش آیتم اضافه کند. کاملاً موبایل‌محور — کارت تمام‌عرض، دکمه‌های بزرگ.
  */
 export function DailyChecklistWidget() {
-  const date = useMemo(() => todayIso(), []);
+  // فقط دیروز (-۱)، امروز (۰) و فردا (+۱) قابل مشاهده و ویرایش‌اند — همان قاعده‌ی سرور
+  const [offset, setOffset] = useState(0);
+  const date = useMemo(() => isoForOffset(offset), [offset]);
+  const dayLabel = DAY_LABELS[offset];
   const [subordinates, setSubordinates] = useState<DailyChecklistSubordinate[]>([]);
   const [viewUserId, setViewUserId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<DailyChecklistItem[] | null>(null);
@@ -88,7 +94,7 @@ export function DailyChecklistWidget() {
     setError(null);
     try {
       await generateDailyChecklistReport(date, viewUserId);
-      setReportMsg("گزارش امروز با موفقیت در ماژول گزارش‌ها ثبت شد ✓");
+      setReportMsg(`گزارش ${dayLabel} با موفقیت در ماژول گزارش‌ها ثبت شد ✓`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ثبت گزارش ناموفق بود");
     } finally {
@@ -109,8 +115,35 @@ export function DailyChecklistWidget() {
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pt-2">
         <div>
-          <div className="text-[14.5px] font-extrabold text-[#5c4a10]">لیست کارهای امروز</div>
-          <div className="text-[11.5px] text-[#8a7530] mt-0.5">{formatJalaliFull()}</div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setOffset((o) => Math.max(-1, o - 1))}
+              disabled={offset <= -1}
+              className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
+              aria-label="روز قبل"
+            >
+              ›
+            </button>
+            <div className="text-[14.5px] font-extrabold text-[#5c4a10] min-w-[118px] text-center">لیست کارهای {dayLabel}</div>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => Math.min(1, o + 1))}
+              disabled={offset >= 1}
+              className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
+              aria-label="روز بعد"
+            >
+              ‹
+            </button>
+          </div>
+          <div className="text-[11.5px] text-[#8a7530] mt-1 flex items-center gap-2">
+            <span>{formatJalaliDate(date)}</span>
+            {offset !== 0 ? (
+              <button type="button" onClick={() => setOffset(0)} className="font-bold text-[#5c4a10] underline underline-offset-2 cursor-pointer">
+                برگشت به امروز
+              </button>
+            ) : null}
+          </div>
         </div>
         {subordinates.length > 0 && (
           <select
@@ -132,7 +165,7 @@ export function DailyChecklistWidget() {
         <div className="text-center text-[#8a7530] text-[12.5px] py-6">در حال بارگذاری...</div>
       ) : items.length === 0 ? (
         <div className="text-center text-[#8a7530] text-[12.5px] py-4">
-          {viewUserId ? `${currentName} امروز کاری ثبت نکرده` : "هنوز کاری برای امروز ثبت نکرده‌اید"}
+          {viewUserId ? `${currentName} برای ${dayLabel} کاری ثبت نکرده` : `هنوز کاری برای ${dayLabel} ثبت نکرده‌اید`}
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 mb-3">
@@ -158,10 +191,11 @@ export function DailyChecklistWidget() {
                     onClick={() => setExpandedId(expanded ? null : item.id)}
                     className={clsx(
                       "flex-1 min-w-0 text-right text-[13px] font-semibold cursor-pointer truncate",
-                      item.done ? "text-[#a89757] line-through" : "text-[#4a3c0d]",
+                      item.done ? "text-[#a89757]" : "text-[#4a3c0d]",
                     )}
                   >
-                    {item.title}
+                    <span className={item.done ? "line-through" : ""}>{item.title}</span>
+                    {item.carriedOver ? <span className="block text-[10px] font-medium text-[#a89757] mt-0.5">مانده از قبل</span> : null}
                   </button>
                   {item.taskId && <TasksIcon className="w-3.5 h-3.5 text-primary shrink-0" />}
                   <button
@@ -260,7 +294,7 @@ export function DailyChecklistWidget() {
           disabled={generating}
           className="w-full py-2.5 rounded-xl border-[1.5px] border-dashed border-[#c9a227] text-[12.5px] font-bold text-[#5c4a10] cursor-pointer disabled:opacity-50"
         >
-          {generating ? "در حال ثبت..." : "ثبت گزارش روزانه از روی همین چک‌لیست"}
+          {generating ? "در حال ثبت..." : `ثبت گزارش ${dayLabel} از روی همین چک‌لیست`}
         </button>
       )}
     </div>

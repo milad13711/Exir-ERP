@@ -4,6 +4,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { faDate } from '../common/persian.js';
+import { assertEditableDay, buildDailyReportBody } from './checklist-day.util.js';
 import type { CreateChecklistItemDto } from './dto/create-checklist-item.dto.js';
 import type { UpdateChecklistItemDto } from './dto/update-checklist-item.dto.js';
 import type { CreateChecklistTaskDto } from './dto/create-checklist-task.dto.js';
@@ -89,6 +90,7 @@ export class DailyChecklistService {
     const myUserId = await this.requireUserId(ctx);
     const targetUserId = dto.forUserId || myUserId;
     await this.assertCanActFor(ctx, targetUserId, myUserId);
+    assertEditableDay(dayOnly(dto.date));
     const last = await ctx.tenantDb.dailyChecklistItem.findFirst({
       where: { userId: targetUserId, date: dayOnly(dto.date) },
       orderBy: { order: 'desc' },
@@ -116,7 +118,8 @@ export class DailyChecklistService {
 
   async update(ctx: TenantRequestContext, id: string, dto: UpdateChecklistItemDto) {
     const myUserId = await this.requireUserId(ctx);
-    await this.findOwned(ctx, id, myUserId);
+    const existing = await this.findOwned(ctx, id, myUserId);
+    assertEditableDay(existing.date);
     return ctx.tenantDb.dailyChecklistItem.update({
       where: { id },
       data: {
@@ -131,7 +134,8 @@ export class DailyChecklistService {
 
   async remove(ctx: TenantRequestContext, id: string) {
     const myUserId = await this.requireUserId(ctx);
-    await this.findOwned(ctx, id, myUserId);
+    const existing = await this.findOwned(ctx, id, myUserId);
+    assertEditableDay(existing.date);
     await ctx.tenantDb.dailyChecklistItem.delete({ where: { id } });
     return { success: true };
   }
@@ -140,6 +144,7 @@ export class DailyChecklistService {
   async createTask(ctx: TenantRequestContext, id: string, dto: CreateChecklistTaskDto) {
     const myUserId = await this.requireUserId(ctx);
     const item = await this.findOwned(ctx, id, myUserId);
+    assertEditableDay(item.date);
     if (item.taskId) throw new BadRequestException('برای این مورد قبلاً وظیفه ساخته شده است');
     const task = await ctx.tenantDb.task.create({
       data: {
@@ -161,29 +166,25 @@ export class DailyChecklistService {
     await this.assertCanActFor(ctx, targetUserId, myUserId);
 
     const date = dayOnly(dto.date);
+    assertEditableDay(date);
     const items = await ctx.tenantDb.dailyChecklistItem.findMany({ where: { userId: targetUserId, date }, orderBy: { order: 'asc' } });
     if (items.length === 0) throw new BadRequestException('چک‌لیست این روز خالی است');
 
     const user = await ctx.tenantDb.user.findUnique({ where: { id: targetUserId }, select: { name: true } });
-    const done = items.filter((i) => i.done);
-    const pending = items.filter((i) => !i.done);
     const dateFa = faDate(date);
-    const renderList = (list: typeof items) =>
-      list.length === 0 ? 'موردی نیست' : list.map((i) => `- ${i.title}${i.description ? ` — ${i.description}` : ''}`).join('\n');
-    const body = [
-      `گزارش روزانه‌ی ${user?.name ?? ''} — ${dateFa}`,
-      '',
-      `انجام‌شده (${done.length} از ${items.length}):`,
-      renderList(done),
-      '',
-      'انجام‌نشده:',
-      renderList(pending),
-    ].join('\n');
+    const body = buildDailyReportBody(user?.name ?? '', dateFa, items);
 
-    return this.reports.create(ctx, {
+    const report = await this.reports.create(ctx, {
       title: `گزارش روزانه — ${dateFa}`,
       body,
       executionAt: date.toISOString(),
     });
+    // ثبت دستی گزارش روز را «گزارش‌داده‌شده» می‌کند تا پایان‌روزِ خودکار گزارش تکراری نسازد
+    await ctx.tenantDb.dailyChecklistDayClose.upsert({
+      where: { userId_date: { userId: targetUserId, date } },
+      create: { userId: targetUserId, date, reportId: report.id },
+      update: { reportId: report.id },
+    });
+    return report;
   }
 }

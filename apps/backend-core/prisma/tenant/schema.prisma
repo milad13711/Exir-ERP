@@ -38,6 +38,7 @@ model User {
   tasks                         Task[]                     @relation("TaskAssignee")
   dailyChecklistItems           DailyChecklistItem[]       @relation("DailyChecklistOwner")
   createdDailyChecklistItems     DailyChecklistItem[]       @relation("DailyChecklistCreatedBy")
+  dailyChecklistCloses           DailyChecklistDayClose[]   @relation("DailyChecklistDayCloseUser")
   activityLogs                  ActivityLog[]
   ownedContacts                 CrmContact[]               @relation("CrmContactOwner")
   ownedDeals                    CrmDeal[]                  @relation("CrmDealOwner")
@@ -242,6 +243,7 @@ model DailyChecklistItem {
   taskId          String?   @unique // اگر رویش وظیفه ساخته شده
   createdByUserId String? // خودش یا مدیرش
   order           Int       @default(0)
+  carriedOver     Boolean   @default(false) // از روز قبل مانده و خودکار به همین روز منتقل شده
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -251,6 +253,23 @@ model DailyChecklistItem {
 
   @@index([userId, date])
   @@map("daily_checklist_items")
+}
+
+/// بسته‌شدن یک روزِ چک‌لیستِ یک پرسنل: گزارش روز ثبت شده (دستی یا خودکار) و مانده‌ها به فردا منتقل شده‌اند.
+/// جلوی ثبت گزارش/انتقال تکراری را می‌گیرد.
+model DailyChecklistDayClose {
+  id         String   @id @default(uuid())
+  userId     String
+  date       DateTime
+  reportId   String?
+  rolledOver Boolean  @default(false)
+  auto       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation("DailyChecklistDayCloseUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_checklist_day_closes")
 }
 
 enum ReminderChannel {
