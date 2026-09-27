@@ -48,4 +48,12 @@ export class UpdateProductDto {
   @IsNumber()
   @IsPositive()
   salePriceFx?: number;
+
+  // ذخیره‌ی دوباره‌ی درصد سود = بازگرداندن salePriceSource به AUTO و بازمحاسبه‌ی
+  // قیمت فروش از روی بهای تمام‌شده‌ی فعلی (یا dto.costPrice اگر همزمان تغییر کرده) —
+  // این «اعمال دوباره‌ی درصد سود» راه بازگشت از MANUAL به AUTO است.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  profitMarginPercent?: number;
 }

@@ -196,7 +196,11 @@ export default function PurchasingPage() {
                     <span className="text-[13px] font-bold">سفارش #{o.orderNo}</span>
                     {o.approvalStatus === "PENDING" ? <Badge tone="warning">در انتظار تأیید</Badge> : null}
                     {o.approvalStatus === "REJECTED" ? <Badge tone="danger">رد شده</Badge> : null}
-                    <Badge tone={STATUS_TONES[o.status]}>{STATUS_LABELS[o.status]}</Badge>
+                    {o.hasReturn ? (
+                      <Badge tone="danger">مرجوع‌شده</Badge>
+                    ) : (
+                      <Badge tone={STATUS_TONES[o.status]}>{STATUS_LABELS[o.status]}</Badge>
+                    )}
                   </div>
                   <div className="text-[11.5px] text-muted mt-1">
                     {o.supplier.company || o.supplier.name} · {formatJalaliDate(o.issuedAt)}

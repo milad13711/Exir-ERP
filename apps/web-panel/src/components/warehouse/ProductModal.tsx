@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatNumber, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatToman, formatNumber, formatJalaliDate, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import {
   fetchProduct,
   createStockMovement,
@@ -44,6 +44,7 @@ export function ProductModal({
   const [editCategory, setEditCategory] = useState("");
   const [editCostPrice, setEditCostPrice] = useState("");
   const [editSalePrice, setEditSalePrice] = useState("");
+  const [editProfitMarginPercent, setEditProfitMarginPercent] = useState("");
   const [editReorderPoint, setEditReorderPoint] = useState("");
   const [editCurrencyId, setEditCurrencyId] = useState("");
   const [currencies, setCurrencies] = useState<Currency[]>([]);
@@ -72,6 +73,7 @@ export function ProductModal({
     setEditCurrencyId(product.currencyId ?? "");
     setEditCostPrice(product.currencyId ? (product.costPriceFx ?? "0") : String(product.costPrice));
     setEditSalePrice(product.currencyId ? (product.salePriceFx ?? "0") : String(product.salePrice));
+    setEditProfitMarginPercent(product.profitMarginPercent ?? "");
     setEditReorderPoint(String(product.reorderPoint));
     setEditing(true);
   }
@@ -89,6 +91,7 @@ export function ProductModal({
         currencyId: editCurrencyId || "",
         costPriceFx: editCurrencyId ? Number(editCostPrice) || 0 : undefined,
         salePriceFx: editCurrencyId ? Number(editSalePrice) || 0 : undefined,
+        profitMarginPercent: !editCurrencyId && editProfitMarginPercent ? Number(editProfitMarginPercent) : undefined,
       });
       setEditing(false);
       load();
@@ -228,6 +231,22 @@ export function ProductModal({
                   inputMode="numeric"
                 />
               </div>
+              {!editCurrencyId ? (
+                <div>
+                  <input
+                    value={editProfitMarginPercent}
+                    onChange={(e) => setEditProfitMarginPercent(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="درصد سود (اختیاری — مثلاً ۳۰)"
+                    className={`${inputClass} w-full`}
+                    dir="ltr"
+                    inputMode="decimal"
+                  />
+                  <div className="text-[10.5px] text-muted mt-1">
+                    با ذخیره‌ی این فیلد، قیمت فروش از «بهای تمام‌شده × (۱ + درصد سود ÷ ۱۰۰)» بازمحاسبه می‌شود و کالا به
+                    حالت خودکار (AUTO) برمی‌گردد — حتی اگر قبلاً قیمت فروش را دستی ویرایش کرده باشید.
+                  </div>
+                </div>
+              ) : null}
               {editCurrencyId && editSelectedCurrency && Number(editSalePrice) > 0 ? (
                 <div className="text-[11px] text-muted">
                   معادل تومانی فعلی قیمت فروش:{" "}
@@ -274,11 +293,21 @@ export function ProductModal({
                 ) : null}
               </div>
               <div>
-                <div className="text-[11px] text-muted">قیمت فروش</div>
+                <div className="text-[11px] text-muted flex items-center gap-1.5">
+                  قیمت فروش
+                  <Badge tone={product.salePriceSource === "MANUAL" ? "warning" : "neutral"} className="text-[9.5px] px-1.5 py-0">
+                    {product.salePriceSource === "MANUAL" ? "دستی" : "خودکار"}
+                  </Badge>
+                </div>
                 <div className="text-[13px] font-bold mt-0.5">{formatToman(product.salePrice)}</div>
                 {product.currency && product.salePriceFx != null ? (
                   <div className="text-[10.5px] text-muted mt-0.5" dir="ltr">
                     {product.salePriceFx} {product.currency.code}
+                  </div>
+                ) : null}
+                {product.salePriceUpdatedAt ? (
+                  <div className="text-[10.5px] text-muted mt-0.5">
+                    آخرین به‌روزرسانی: {formatJalaliDateTime(product.salePriceUpdatedAt)}
                   </div>
                 ) : null}
               </div>

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
-import { ChevronDownIcon, TrashIcon, PlusIcon, TasksIcon, ClipboardCheckIcon, CheckIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/Badge";
+import { ChevronDownIcon, TrashIcon, PlusIcon, TasksIcon, ClipboardCheckIcon, CheckIcon, FlagIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchDailyChecklist,
@@ -15,8 +16,16 @@ import {
   generateDailyChecklistReport,
   ApiError,
   type DailyChecklistItem,
+  type DailyChecklistPriority,
   type DailyChecklistSubordinate,
 } from "@/lib/api";
+
+const PRIORITY_LABEL: Record<DailyChecklistPriority, string> = { URGENT: "فوری", MEDIUM: "متوسط", NORMAL: "عادی" };
+const PRIORITY_TONE: Record<DailyChecklistPriority, "danger" | "warning" | "neutral"> = {
+  URGENT: "danger",
+  MEDIUM: "warning",
+  NORMAL: "neutral",
+};
 
 /** تاریخ محلی (نه UTC) به شکل «YYYY-MM-DD» — همان قرارداد ورودی‌های تاریخ در این پروژه. */
 function isoForOffset(offset: number): string {
@@ -43,6 +52,7 @@ export function DailyChecklistWidget() {
   const [items, setItems] = useState<DailyChecklistItem[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
+  const [newPriority, setNewPriority] = useState<DailyChecklistPriority>("NORMAL");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportMsg, setReportMsg] = useState<string | null>(null);
@@ -63,8 +73,9 @@ export function DailyChecklistWidget() {
     setAdding(true);
     setError(null);
     try {
-      await createDailyChecklistItem({ title: newTitle.trim(), date, forUserId: viewUserId });
+      await createDailyChecklistItem({ title: newTitle.trim(), date, forUserId: viewUserId, priority: newPriority });
       setNewTitle("");
+      setNewPriority("NORMAL");
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "افزودن ناموفق بود");
@@ -197,6 +208,10 @@ export function DailyChecklistWidget() {
                     <span className={item.done ? "line-through" : ""}>{item.title}</span>
                     {item.carriedOver ? <span className="block text-[10px] font-medium text-[#a89757] mt-0.5">مانده از قبل</span> : null}
                   </button>
+                  <Badge tone={PRIORITY_TONE[item.priority]} className="gap-1 shrink-0">
+                    <FlagIcon className="w-3 h-3" strokeWidth={2.5} />
+                    {PRIORITY_LABEL[item.priority]}
+                  </Badge>
                   {item.taskId && <TasksIcon className="w-3.5 h-3.5 text-primary shrink-0" />}
                   <button
                     onClick={() => setExpandedId(expanded ? null : item.id)}
@@ -237,6 +252,19 @@ export function DailyChecklistWidget() {
                       }}
                       className="text-[12.5px] outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2 resize-none"
                     />
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11.5px] font-bold text-[#5c4a10]">اولویت:</span>
+                      <select
+                        value={item.priority}
+                        aria-label="اولویت"
+                        onChange={(e) => updateDailyChecklistItem(item.id, { priority: e.target.value as DailyChecklistPriority }).then(reload)}
+                        className="text-[12px] font-bold outline-none bg-white border border-[#e6d18a] rounded-lg px-2 py-1.5 cursor-pointer"
+                      >
+                        <option value="URGENT">فوری</option>
+                        <option value="MEDIUM">متوسط</option>
+                        <option value="NORMAL">عادی</option>
+                      </select>
+                    </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {!item.taskId ? (
                         <button
@@ -275,6 +303,16 @@ export function DailyChecklistWidget() {
           placeholder={viewUserId ? `افزودن کار برای ${currentName}...` : "افزودن کار جدید..."}
           className="flex-1 text-[12.5px] outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-3.5 py-2.5"
         />
+        <select
+          value={newPriority}
+          onChange={(e) => setNewPriority(e.target.value as DailyChecklistPriority)}
+          aria-label="اولویت کار جدید"
+          className="text-[12px] font-bold outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-2 py-2.5 cursor-pointer shrink-0"
+        >
+          <option value="URGENT">فوری</option>
+          <option value="MEDIUM">متوسط</option>
+          <option value="NORMAL">عادی</option>
+        </select>
         <button
           type="submit"
           disabled={adding || !newTitle.trim()}

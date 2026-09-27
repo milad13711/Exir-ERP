@@ -358,10 +358,15 @@ export default function SalesPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-bold">فاکتور #{inv.invoiceNo}</span>
-                  <Badge tone={STATUS_TONES[inv.status]}>{STATUS_LABELS[inv.status]}</Badge>
+                  {inv.hasReturn ? (
+                    <Badge tone="danger">مرجوع‌شده</Badge>
+                  ) : (
+                    <Badge tone={STATUS_TONES[inv.status]}>{STATUS_LABELS[inv.status]}</Badge>
+                  )}
                 </div>
                 <div className="text-[11.5px] text-muted mt-1">
                   {inv.contact.company || inv.contact.name} · {formatJalaliDate(inv.issuedAt)}
+                  {inv.dueAt ? ` · سررسید: ${formatJalaliDate(inv.dueAt)}` : ""}
                 </div>
               </div>
               <div className="text-[13px] font-extrabold shrink-0">{formatToman(inv.total)}</div>

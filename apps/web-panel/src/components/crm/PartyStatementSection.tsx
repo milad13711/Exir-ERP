@@ -7,6 +7,7 @@ import {
   createPartyTransfer,
   updateCrmContact,
   fetchCrmContacts,
+  sendPartyStatementSms,
   ApiError,
   type PartyStatement,
   type CrmContactDetail,
@@ -52,6 +53,9 @@ export function PartyStatementSection({
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
 
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsResult, setSmsResult] = useState<string | null>(null);
+
   useEffect(() => {
     if (transferOpen) fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
   }, [transferOpen]);
@@ -86,6 +90,23 @@ export function PartyStatementSection({
     fetchPartyStatement(contact.id).then(setStatement).catch(() => {});
   }
   useEffect(reload, [contact.id]);
+
+  // مانده‌ی خالص = طلب ما - بدهی ما؛ مثبت یعنی در مجموع او به ما بدهکار است
+  // (سبز، به نفع ما)، منفی یعنی ما در مجموع به او بدهکاریم (قرمز).
+  const netBalance = statement ? statement.arBalance - statement.apBalance : 0;
+
+  async function handleSendStatementSms() {
+    setSmsSending(true);
+    setSmsResult(null);
+    try {
+      const res = await sendPartyStatementSms(contact.id);
+      setSmsResult(res.success ? "پیامک ارسال شد" : res.error || "ارسال ناموفق بود");
+    } catch (err) {
+      setSmsResult(err instanceof ApiError ? err.message : "ارسال ناموفق بود");
+    } finally {
+      setSmsSending(false);
+    }
+  }
 
   async function handleToggleSupplier() {
     setTogglingSupplier(true);
@@ -136,21 +157,47 @@ export function PartyStatementSection({
       </div>
 
       {statement ? (
-        <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-border rounded-xl p-3.5 mb-3">
-          <div>
-            <div className="text-[11px] text-muted">طلب ما از این مخاطب (فروش)</div>
-            <div className={`text-[14px] font-extrabold mt-0.5 ${statement.arBalance > 0 ? "text-danger" : "text-ink"}`}>
-              {formatToman(statement.arBalance)}
-            </div>
+        <div className="bg-slate-50 border border-border rounded-xl p-3.5 mb-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-[11px] text-muted">مانده‌ی کلی</span>
+            <Badge tone={netBalance > 0 ? "success" : netBalance < 0 ? "danger" : "neutral"}>
+              <span dir="ltr">{formatToman(Math.abs(netBalance))}</span>
+              {netBalance > 0 ? " بدهکار به ما" : netBalance < 0 ? " بستانکار از ما" : " تسویه"}
+            </Badge>
           </div>
-          <div>
-            <div className="text-[11px] text-muted">بدهی ما به این مخاطب (خرید)</div>
-            <div className={`text-[14px] font-extrabold mt-0.5 ${statement.apBalance > 0 ? "text-warning" : "text-ink"}`}>
-              {formatToman(statement.apBalance)}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[11px] text-muted">طلب ما از این مخاطب (فروش)</div>
+              <div
+                dir="ltr"
+                className={`text-[14px] font-extrabold mt-0.5 ${statement.arBalance > 0 ? "text-danger" : "text-ink"}`}
+              >
+                {formatToman(statement.arBalance)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-muted">بدهی ما به این مخاطب (خرید)</div>
+              <div
+                dir="ltr"
+                className={`text-[14px] font-extrabold mt-0.5 ${statement.apBalance > 0 ? "text-warning" : "text-ink"}`}
+              >
+                {formatToman(statement.apBalance)}
+              </div>
             </div>
           </div>
         </div>
       ) : null}
+
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          onClick={handleSendStatementSms}
+          disabled={smsSending}
+          className="w-full py-2 rounded-lg bg-accent-soft text-accent text-[12px] font-bold cursor-pointer disabled:opacity-50"
+        >
+          {smsSending ? "در حال ارسال..." : "ارسال مانده حساب پیامکی"}
+        </button>
+      </div>
+      {smsResult ? <div className="text-[11.5px] text-muted mb-3 -mt-2">{smsResult}</div> : null}
 
       <div className="flex items-center gap-2 mb-3">
         <button

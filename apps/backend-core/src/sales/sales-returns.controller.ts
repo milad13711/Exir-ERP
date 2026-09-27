@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -23,6 +23,13 @@ export class SalesReturnsController {
     return this.returns.list(ctx);
   }
 
+  /** برای نمایش/عدم‌نمایش دکمه‌ی «ثبت مرجوعی» در کلاینت — قبل از ':id' تعریف شده تا با آن تداخل نکند. */
+  @Get('invoice/:invoiceId/returnable')
+  async returnable(@Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertViewAll(ctx, 'sales');
+    return this.returns.returnable(ctx, invoiceId);
+  }
+
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertViewAll(ctx, 'sales');
@@ -33,5 +40,11 @@ export class SalesReturnsController {
   async create(@Body() dto: CreateSalesReturnDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'sales');
     return this.returns.create(ctx, dto);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'sales');
+    return this.returns.remove(ctx, id);
   }
 }

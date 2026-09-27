@@ -158,7 +158,11 @@ export function PurchaseOrderDetailModal({
             <div className="flex items-center gap-1.5">
               {order.approvalStatus === "PENDING" ? <Badge tone="warning">در انتظار تأیید</Badge> : null}
               {order.approvalStatus === "REJECTED" ? <Badge tone="danger">رد شده</Badge> : null}
-              <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+              {order.hasReturn ? (
+                <Badge tone="danger">مرجوع‌شده</Badge>
+              ) : (
+                <Badge tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+              )}
             </div>
           </div>
 

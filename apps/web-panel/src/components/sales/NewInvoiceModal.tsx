@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
 import {
   fetchCrmContacts,
@@ -50,6 +51,7 @@ export function NewInvoiceModal({
   const [products, setProducts] = useState<Product[]>([]);
   const [contactId, setContactId] = useState(editing?.contact.id ?? prefill?.contactId ?? "");
   const [discount, setDiscount] = useState(editing?.discount ? String(editing.discount) : "");
+  const [dueAt, setDueAt] = useState(editing?.dueAt ? editing.dueAt.slice(0, 10) : "");
   const [isOfficial, setIsOfficial] = useState(editing?.isOfficial ?? false);
   const [taxRate, setTaxRate] = useState(editing?.taxRate ? String(editing.taxRate) : "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
@@ -99,6 +101,7 @@ export function NewInvoiceModal({
         contactId,
         dealId: prefill?.dealId,
         projectId: prefill?.projectId,
+        dueAt: dueAt || undefined,
         discount: discountNum || undefined,
         isOfficial,
         taxRate: isOfficial && taxRateNum > 0 ? taxRateNum : undefined,
@@ -226,6 +229,10 @@ export function NewInvoiceModal({
               className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
               placeholder="۰"
             />
+          </div>
+          <div className="flex-1">
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">تاریخ سررسید (اختیاری)</label>
+            <JalaliDateInput value={dueAt} onChange={setDueAt} placeholder="بدون سررسید" />
           </div>
           {isOfficial ? (
             <div className="flex-1">

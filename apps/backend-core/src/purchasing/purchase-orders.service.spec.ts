@@ -40,6 +40,9 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
       }),
     },
     product: {
+      // بدون profitMarginPercent → nextSalePriceOnReceipt همیشه null برمی‌گرداند،
+      // پس این mock رفتار موجود تست‌ها (فقط costPrice تغییر می‌کند) را حفظ می‌کند.
+      findUnique: vi.fn().mockResolvedValue({ id: 'p1', profitMarginPercent: null, salePriceSource: 'AUTO' }),
       update: vi.fn((args: { data: Record<string, unknown> }) => {
         productUpdateCalls.push(args.data);
         return Promise.resolve({ id: 'p1', ...args.data });

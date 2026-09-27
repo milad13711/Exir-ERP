@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateChecklistItemDto {
   @IsOptional()
@@ -13,4 +13,9 @@ export class UpdateChecklistItemDto {
   @IsOptional()
   @IsBoolean()
   done?: boolean;
+
+  /** تغییر اولویت هم لیست را بلافاصله دوباره مرتب می‌کند (فوری بالای همه). */
+  @IsOptional()
+  @IsIn(['URGENT', 'MEDIUM', 'NORMAL'])
+  priority?: 'URGENT' | 'MEDIUM' | 'NORMAL';
 }

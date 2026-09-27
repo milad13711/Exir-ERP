@@ -83,7 +83,9 @@ export class DailyChecklistService {
     return ctx.tenantDb.dailyChecklistItem.findMany({
       where: { userId: targetUserId, date: dayOnly(dateIso) },
       include: ITEM_INCLUDE,
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      // اولویت همیشه اول مرتب می‌شود (فوری، بعد متوسط، بعد عادی — همان ترتیب تعریف enum)؛
+      // در هر سطح اولویت، ترتیب دستی/زمان ایجاد حفظ می‌شود.
+      orderBy: [{ priority: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
   }
 
@@ -105,6 +107,7 @@ export class DailyChecklistService {
         description: dto.description?.trim() || undefined,
         createdByUserId: myUserId,
         order: (last?.order ?? -1) + 1,
+        priority: dto.priority,
       },
       include: ITEM_INCLUDE,
     });
@@ -128,6 +131,7 @@ export class DailyChecklistService {
         description: dto.description !== undefined ? dto.description.trim() || null : undefined,
         done: dto.done,
         doneAt: dto.done === undefined ? undefined : dto.done ? new Date() : null,
+        priority: dto.priority,
       },
       include: ITEM_INCLUDE,
     });
@@ -174,15 +178,17 @@ export class DailyChecklistService {
     const user = await ctx.tenantDb.user.findUnique({ where: { id: targetUserId }, select: { name: true } });
     const dateFa = faDate(date);
     const body = buildDailyReportBody(user?.name ?? '', dateFa, items);
+    const title = `گزارش روزانه — ${dateFa}`;
 
-    const report = await this.reports.create(ctx, {
-      title: `گزارش روزانه — ${dateFa}`,
-      body,
-      executionAt: date.toISOString(),
-    });
+    // یک روز فقط یک گزارش دارد — کلید یکتای (userId, date) روی DailyChecklistDayClose همین را تضمین می‌کند.
+    // اگر قبلاً (دستی یا خودکار) برای همین روز گزارشی ثبت شده، به‌جای ساختن رکورد تکراری همان رکورد
+    // به‌روزرسانی می‌شود؛ در غیر این صورت یک گزارش تازه ساخته می‌شود.
+    const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date } } });
+    const report = marker?.reportId
+      ? await this.reports.update(ctx, marker.reportId, { title, body, executionAt: date.toISOString() })
+      : await this.reports.create(ctx, { title, body, executionAt: date.toISOString() });
     // ثبت دستی گزارش، روز را می‌بندد: کارهای انجام‌نشده همان لحظه به فردا می‌روند (فقط یک‌بار) و پایان‌روزِ خودکار
     // نه گزارش تکراری می‌سازد و نه دوباره منتقل می‌کند.
-    const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date } } });
     if (!marker?.rolledOver) await rollPendingToNextDay(ctx.tenantDb, targetUserId, date);
     await ctx.tenantDb.dailyChecklistDayClose.upsert({
       where: { userId_date: { userId: targetUserId, date } },

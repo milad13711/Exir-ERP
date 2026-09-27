@@ -88,6 +88,10 @@ export class MovementsController {
       dto.type === 'RECEIPT' && dto.unitCost != null
         ? await this.costing.nextCostPriceOnReceipt(ctx, dto.productId, dto.quantity, dto.unitCost)
         : null;
+    // این کالا درصد سود دارد و MANUAL نشده و تنظیم سراسری فعال است → قیمت
+    // فروش هم همراه بهای تمام‌شده‌ی تازه بازمحاسبه می‌شود (ر.ک. CostingService.nextSalePriceOnReceipt).
+    const nextSalePrice =
+      nextCostPrice != null ? await this.costing.nextSalePriceOnReceipt(ctx, dto.productId, nextCostPrice) : null;
     const [movement] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.stockMovement.create({
         data: {
@@ -102,7 +106,15 @@ export class MovementsController {
         },
       }),
       ...(nextCostPrice != null
-        ? [ctx.tenantDb.product.update({ where: { id: dto.productId }, data: { costPrice: nextCostPrice } })]
+        ? [
+            ctx.tenantDb.product.update({
+              where: { id: dto.productId },
+              data: {
+                costPrice: nextCostPrice,
+                ...(nextSalePrice != null ? { salePrice: nextSalePrice, salePriceUpdatedAt: new Date() } : {}),
+              },
+            }),
+          ]
         : []),
     ]);
 

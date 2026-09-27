@@ -153,19 +153,29 @@ export class InvoicesService {
     });
   }
 
-  list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
-    return ctx.tenantDb.salesInvoice.findMany({
+  async list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
+    const invoices = await ctx.tenantDb.salesInvoice.findMany({
       where: scope,
-      include: { contact: { select: { id: true, name: true, company: true } } },
+      include: {
+        contact: { select: { id: true, name: true, company: true } },
+        _count: { select: { returns: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
+    // hasReturn: فقط برای نمایش درست‌تر وضعیت در فهرست — فاکتوری که مرجوعی دارد
+    // نباید همچنان «پرداخت‌شده» نشان داده شود (وضعیت واقعی status دست‌نخورده می‌ماند).
+    return invoices.map(({ _count, ...inv }) => ({ ...inv, hasReturn: _count.returns > 0 }));
   }
 
   async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown>) {
-    const invoice = await ctx.tenantDb.salesInvoice.findFirst({ where: { id, ...scope }, include: INVOICE_INCLUDE });
+    const invoice = await ctx.tenantDb.salesInvoice.findFirst({
+      where: { id, ...scope },
+      include: { ...INVOICE_INCLUDE, _count: { select: { returns: true } } },
+    });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    const { _count, ...rest } = invoice;
     const creditWarning = await this.getCreditWarning(ctx, invoice.contactId, invoice.id);
-    return { ...invoice, creditWarning };
+    return { ...rest, hasReturn: _count.returns > 0, creditWarning };
   }
 
   async create(ctx: TenantRequestContext, dto: CreateInvoiceDto) {

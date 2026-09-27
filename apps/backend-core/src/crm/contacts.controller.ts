@@ -161,6 +161,14 @@ export class ContactsController {
     return this.partyStatement.statement(ctx, id);
   }
 
+  @Post(':id/statement/send-sms')
+  async sendStatementSms(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const contact = await ctx.tenantDb.crmContact.findFirst({ where: { id, ...scope } });
+    if (!contact) throw new NotFoundException('مخاطب یافت نشد');
+    return this.partyStatement.sendStatementSms(ctx, id);
+  }
+
   @Post(':id/transactions')
   async createTransaction(
     @Param('id') id: string,

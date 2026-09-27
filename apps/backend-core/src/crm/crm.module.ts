@@ -4,6 +4,7 @@ import { PermissionsModule } from '../permissions/permissions.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
+import { SmsModule } from '../sms/sms.module.js';
 import { ContactsController } from './contacts.controller.js';
 import { DealsController } from './deals.controller.js';
 import { FunnelController } from './funnel.controller.js';
@@ -17,7 +18,7 @@ import { FunnelChurnCronService } from './funnel-churn-cron.service.js';
 import { CrmAutomationTriggers } from './crm-automation.triggers.js';
 
 @Module({
-  imports: [WebhooksModule, PermissionsModule, NotificationsModule, ModuleGuardModule, AutomationModule],
+  imports: [WebhooksModule, PermissionsModule, NotificationsModule, ModuleGuardModule, AutomationModule, SmsModule],
   controllers: [ContactsController, DealsController, FunnelController],
   providers: [
     CreditScoreService,

@@ -40,13 +40,29 @@ export class DailyChecklistCronService implements OnApplicationBootstrap {
     await this.sweepAllTenants(false);
   }
 
-  private async sweepAllTenants(includeToday: boolean): Promise<void> {
-    const tenants = await this.controlDb.tenant.findMany({
+  /**
+   * چک‌لیست روزانه یک ماژول هسته‌ای (isCore) است — طبق همان قاعده‌ی ModuleGuard، یعنی
+   * برای اکثر تننت‌ها هیچ ردیف TenantModule صریحی برایش وجود ندارد و همین‌طوری هم فعال
+   * است؛ فقط با یک ردیف DISABLED صریح واقعاً خاموش می‌شود. فیلتر قبلی این فایل برعکس
+   * فرض می‌کرد (فقط تننت‌هایی با ردیف INSTALLED/TRIAL صریح)، پس عملاً هیچ‌وقت هیچ
+   * تننتی را برنمی‌گرداند و کرون سکوت می‌کرد — همین باعث می‌شد پایان‌روزِ خودکار در
+   * عمل هرگز اجرا نشود.
+   */
+  private async eligibleTenants() {
+    const module = await this.controlDb.moduleDefinition.findUnique({ where: { code: 'daily-checklist' } });
+    if (!module) return [];
+    return this.controlDb.tenant.findMany({
       where: {
         status: 'ACTIVE',
-        tenantModules: { some: { status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'daily-checklist' } } },
+        ...(module.isCore
+          ? { tenantModules: { none: { moduleId: module.id, status: 'DISABLED' } } }
+          : { tenantModules: { some: { moduleId: module.id, status: { in: ['INSTALLED', 'TRIAL'] } } } }),
       },
     });
+  }
+
+  private async sweepAllTenants(includeToday: boolean): Promise<void> {
+    const tenants = await this.eligibleTenants();
     for (const tenant of tenants) {
       try {
         const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });

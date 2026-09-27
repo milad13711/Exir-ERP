@@ -1068,6 +1068,10 @@ export function fetchPartyStatement(id: string) {
   return apiFetch<PartyStatement>(`/crm/contacts/${id}/statement`);
 }
 
+export function sendPartyStatementSms(id: string) {
+  return apiFetch<{ success: boolean; error?: string }>(`/crm/contacts/${id}/statement/send-sms`, { method: "POST" });
+}
+
 export function createPartyTransaction(
   id: string,
   data: { type: "RECEIPT" | "PAYMENT"; amount: number; accountCode?: string; note?: string },
@@ -1529,6 +1533,8 @@ export function deleteCurrency(id: string) {
 
 export type StockMovementType = "RECEIPT" | "ISSUE" | "ADJUSTMENT";
 
+export type SalePriceSource = "AUTO" | "MANUAL";
+
 export type Product = {
   id: string;
   sku: string;
@@ -1546,6 +1552,9 @@ export type Product = {
   costPriceFx: string | null;
   salePriceFx: string | null;
   currency?: Currency | null;
+  profitMarginPercent: string | null;
+  salePriceSource: SalePriceSource;
+  salePriceUpdatedAt: string | null;
 };
 
 export type StockMovement = {
@@ -1605,6 +1614,7 @@ export function createProduct(data: {
   currencyId?: string;
   costPriceFx?: number;
   salePriceFx?: number;
+  profitMarginPercent?: number;
 }) {
   return apiFetch<Product>("/warehouse/products", { method: "POST", body: JSON.stringify(data) });
 }
@@ -1622,6 +1632,7 @@ export function updateProduct(
     currencyId: string; // "" یعنی حذف ارز
     costPriceFx: number;
     salePriceFx: number;
+    profitMarginPercent: number; // ذخیره‌ی دوباره‌ی این فیلد = بازگشت salePriceSource به AUTO و بازمحاسبه‌ی قیمت فروش
   }>,
 ) {
   return apiFetch<Product>(`/warehouse/products/${id}`, { method: "PATCH", body: JSON.stringify(data) });
@@ -1705,6 +1716,18 @@ export function updateCostingMethod(method: CostingMethod) {
   return apiFetch<{ method: CostingMethod }>("/warehouse/settings/costing-method", {
     method: "PUT",
     body: JSON.stringify({ method }),
+  });
+}
+
+// تنظیمات فروش → محاسبه خودکار قیمت فروش از درصد سود
+export function fetchAutoSalePriceEnabled() {
+  return apiFetch<{ enabled: boolean }>("/warehouse/settings/auto-sale-price");
+}
+
+export function updateAutoSalePriceEnabled(enabled: boolean) {
+  return apiFetch<{ enabled: boolean }>("/warehouse/settings/auto-sale-price", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
   });
 }
 
@@ -2646,6 +2669,8 @@ export type SalesInvoice = {
   deliverySignatureDataUrl: string | null;
   deliveryCodeSentAt: string | null;
   contact: { id: string; name: string; company: string | null };
+  /** آیا این فاکتور مرجوعی فروش دارد — برای نمایش برچسب «مرجوع‌شده» به‌جای «پرداخت‌شده»ی گمراه‌کننده. */
+  hasReturn: boolean;
 };
 
 export type SalesInvoiceDetail = SalesInvoice & {
@@ -3213,6 +3238,15 @@ export function createSalesReturn(data: {
   return apiFetch<SalesReturnDetail>("/sales/returns", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function deleteSalesReturn(id: string) {
+  return apiFetch<{ success: boolean }>(`/sales/returns/${id}`, { method: "DELETE" });
+}
+
+/** آیا برای این فاکتور هنوز چیزی برای مرجوع‌کردن باقی مانده — برای نمایش/عدم‌نمایش دکمه‌ی «ثبت مرجوعی». */
+export function fetchInvoiceReturnable(invoiceId: string) {
+  return apiFetch<{ hasReturnable: boolean }>(`/sales/returns/invoice/${invoiceId}/returnable`);
+}
+
 // ── Purchasing: تأمین‌کننده → سفارش خرید → رسید انبار → سند بدهی ────────
 
 export type Supplier = {
@@ -3289,6 +3323,8 @@ export type PurchaseOrder = {
   approvedAt: string | null;
   rejectionReason: string | null;
   supplier: { id: string; name: string; company: string | null };
+  /** آیا این سفارش مرجوعی خرید دارد — برای نمایش برچسب «مرجوع‌شده» به‌جای «پرداخت‌شده»ی گمراه‌کننده. */
+  hasReturn: boolean;
 };
 
 export type PurchaseOrderDetail = PurchaseOrder & {
@@ -3527,6 +3563,8 @@ export function deleteAttachment(id: string) {
 
 // ── لیست کارهای روزانه (Daily Checklist) ────────────────────────────────
 
+export type DailyChecklistPriority = "URGENT" | "MEDIUM" | "NORMAL";
+
 export type DailyChecklistItem = {
   id: string;
   userId: string;
@@ -3538,6 +3576,7 @@ export type DailyChecklistItem = {
   taskId: string | null;
   createdByUserId: string | null;
   order: number;
+  priority: DailyChecklistPriority;
   carriedOver?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -3555,11 +3594,11 @@ export function fetchDailyChecklistSubordinates() {
   return apiFetch<DailyChecklistSubordinate[]>("/daily-checklist/subordinates");
 }
 
-export function createDailyChecklistItem(data: { title: string; description?: string; date: string; forUserId?: string }) {
+export function createDailyChecklistItem(data: { title: string; description?: string; date: string; forUserId?: string; priority?: DailyChecklistPriority }) {
   return apiFetch<DailyChecklistItem>("/daily-checklist", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateDailyChecklistItem(id: string, data: { title?: string; description?: string; done?: boolean }) {
+export function updateDailyChecklistItem(id: string, data: { title?: string; description?: string; done?: boolean; priority?: DailyChecklistPriority }) {
   return apiFetch<DailyChecklistItem>(`/daily-checklist/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 

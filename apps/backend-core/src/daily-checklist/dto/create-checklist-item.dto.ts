@@ -1,4 +1,4 @@
-import { IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateChecklistItemDto {
   @IsString()
@@ -16,4 +16,9 @@ export class CreateChecklistItemDto {
   @IsOptional()
   @IsString()
   forUserId?: string;
+
+  /** خالی یعنی عادی؛ لیست همیشه بر اساس این فیلد مرتب می‌شود (فوری بالای همه). */
+  @IsOptional()
+  @IsIn(['URGENT', 'MEDIUM', 'NORMAL'])
+  priority?: 'URGENT' | 'MEDIUM' | 'NORMAL';
 }

@@ -233,19 +233,20 @@ model TaskChecklistItem {
 /// چک‌لیست کارهای روزانه‌ی هر پرسنل — ویجت داشبورد، شبیه یادداشت چسبان. مدیر می‌تواند
 /// چک‌لیست زیردستان را هم ببیند و آیتم اضافه کند (createdByUserId با userId فرق می‌کند).
 model DailyChecklistItem {
-  id              String    @id @default(uuid())
+  id              String                 @id @default(uuid())
   userId          String // صاحب چک‌لیست — این آیتم برای کیست
   date            DateTime // فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود
   title           String
   description     String?
-  done            Boolean   @default(false)
+  done            Boolean                @default(false)
   doneAt          DateTime?
-  taskId          String?   @unique // اگر رویش وظیفه ساخته شده
+  taskId          String?                @unique // اگر رویش وظیفه ساخته شده
   createdByUserId String? // خودش یا مدیرش
-  order           Int       @default(0)
-  carriedOver     Boolean   @default(false) // از روز قبل مانده و خودکار به همین روز منتقل شده
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  order           Int                    @default(0)
+  priority        ChecklistItemPriority  @default(NORMAL) // فوری/متوسط/عادی — لیست همیشه بر اساس این فیلد مرتب می‌شود
+  carriedOver     Boolean                @default(false) // از روز قبل مانده و خودکار به همین روز منتقل شده
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   user      User  @relation("DailyChecklistOwner", fields: [userId], references: [id], onDelete: Cascade)
   createdBy User? @relation("DailyChecklistCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -253,6 +254,14 @@ model DailyChecklistItem {
 
   @@index([userId, date])
   @@map("daily_checklist_items")
+}
+
+/// ترتیب اعلامِ enum عمداً «فوری، متوسط، عادی» است: مرتب‌سازی بر اساس این فیلد (ASC)
+/// در پستگرس طبق همین ترتیب تعریف انجام می‌شود، پس فوری‌ها همیشه بالای لیست می‌مانند.
+enum ChecklistItemPriority {
+  URGENT
+  MEDIUM
+  NORMAL
 }
 
 /// بسته‌شدن یک روزِ چک‌لیستِ یک پرسنل: گزارش روز ثبت شده (دستی یا خودکار) و مانده‌ها به فردا منتقل شده‌اند.
@@ -1430,6 +1439,18 @@ model Product {
   costPriceFx Decimal? @db.Decimal(18, 4)
   salePriceFx Decimal? @db.Decimal(18, 4)
 
+  // درصد سود خودکار — وقتی ست شده باشد و salePriceSource=AUTO باشد، با هر
+  // تغییر بهای تمام‌شده از یک رسید واقعی (نه ویرایش دستی)، قیمت فروش با فرمول
+  // salePrice = costPrice * (1 + profitMarginPercent/100) بازمحاسبه می‌شود
+  // (به شرطی که تنظیم سراسری «محاسبه خودکار قیمت فروش از درصد سود» فعال باشد؛
+  // ر.ک. CostingService.getAutoSalePriceEnabled). اگر فروشنده قیمت فروش را
+  // مستقیماً ویرایش کند، salePriceSource روی MANUAL می‌رود و این بازمحاسبه‌ی
+  // خودکار برای آن کالا متوقف می‌شود تا وقتی دوباره درصد سود را (حتی با همان
+  // مقدار) ذخیره کند — که source را به AUTO برمی‌گرداند.
+  profitMarginPercent Decimal?        @db.Decimal(6, 2)
+  salePriceSource     SalePriceSource @default(AUTO)
+  salePriceUpdatedAt  DateTime?
+
   currency              Currency?              @relation(fields: [currencyId], references: [id])
   movements             StockMovement[]
   invoiceLines          SalesInvoiceLine[]
@@ -1455,6 +1476,15 @@ enum StockMovementType {
   TRANSFER_IN // انتقال بین انبارها — افزایش موجودی انبار مقصد
   PRODUCTION_CONSUME // کسر ماده اولیه بابت یک دستور تولید
   PRODUCTION_YIELD // افزایش موجودی محصول نهایی از یک دستور تولید
+}
+
+/// منشأ آخرین قیمت فروش ثبت‌شده روی یک کالا — AUTO یعنی از costPrice و
+/// profitMarginPercent محاسبه شده، MANUAL یعنی فروشنده مستقیماً آن را ویرایش
+/// کرده (نوسان بازار/تورم) و تا وقتی درصد سود را دوباره ذخیره نکند، بازمحاسبه‌ی
+/// خودکار روی رسید برای این کالا انجام نمی‌شود.
+enum SalePriceSource {
+  AUTO
+  MANUAL
 }
 
 /// انبار فیزیکی — هر StockMovement به یک انبار مشخص تعلق دارد؛ موجودی کل هر

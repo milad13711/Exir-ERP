@@ -14,6 +14,7 @@ export async function rollPendingToNextDay(tenantDb: TenantPrismaClient, userId:
       date: tomorrow,
       title: i.title,
       description: i.description,
+      priority: i.priority,
       carriedOver: true,
       createdByUserId: i.createdByUserId,
       order: order++,

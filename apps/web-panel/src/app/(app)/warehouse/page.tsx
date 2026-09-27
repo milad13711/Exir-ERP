@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { WarehouseIcon, PlusIcon, SearchIcon, WarningIcon, OrdersIcon, AccountingIcon } from "@/components/icons";
+import { WarehouseIcon, PlusIcon, SearchIcon, WarningIcon, OrdersIcon, AccountingIcon, SettingsIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
 import { fetchProducts, fetchWarehouseSummary, type Product, type WarehouseSummary } from "@/lib/api";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
@@ -14,6 +14,7 @@ import { ProductModal } from "@/components/warehouse/ProductModal";
 import { WarehousesModal } from "@/components/warehouse/WarehousesModal";
 import { TransferStockModal } from "@/components/warehouse/TransferStockModal";
 import { CostingMethodModal } from "@/components/warehouse/CostingMethodModal";
+import { SalesPricingSettingsModal } from "@/components/warehouse/SalesPricingSettingsModal";
 import { MovementsList } from "@/components/warehouse/MovementsList";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
@@ -28,6 +29,7 @@ export default function WarehousePage() {
   const [warehousesModalOpen, setWarehousesModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [costingModalOpen, setCostingModalOpen] = useState(false);
+  const [salesPricingModalOpen, setSalesPricingModalOpen] = useState(false);
   const [view, setView] = useState<"products" | "movements">("products");
 
   function reload() {
@@ -81,6 +83,13 @@ export default function WarehousePage() {
           >
             <AccountingIcon className="w-4 h-4" />
             روش بهای تمام‌شده
+          </button>
+          <button
+            onClick={() => setSalesPricingModalOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <SettingsIcon className="w-4 h-4" />
+            تنظیمات فروش
           </button>
           <button
             onClick={() => setNewProductOpen(true)}
@@ -228,6 +237,8 @@ export default function WarehousePage() {
       ) : null}
 
       {costingModalOpen ? <CostingMethodModal onClose={() => setCostingModalOpen(false)} /> : null}
+
+      {salesPricingModalOpen ? <SalesPricingSettingsModal onClose={() => setSalesPricingModalOpen(false)} /> : null}
     </div>
   );
 }

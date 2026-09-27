@@ -165,7 +165,7 @@ export function Header({
           ) : null}
         </button>
 
-        <div className="hidden sm:block"><SmsCreditChip /></div>
+        <SmsCreditChip />
         <PhoneWidget />
         <NotificationBell />
 

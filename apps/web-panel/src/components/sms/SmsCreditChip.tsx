@@ -33,7 +33,10 @@ export function SmsCreditChip() {
 
   if (!isManager || !status) return null;
 
-  const label =
+  // روی هدر موبایل جا برای متن کامل نیست — فقط عدد/آیکن نشان داده می‌شود؛ روی دسکتاپ برچسب کامل «پیامک: ...»
+  const shortLabel =
+    status.mode === "NONE" ? "!" : status.mode === "LEGACY" ? "پیامک" : status.smsCount === null ? "پیامک" : toPersianDigits(status.smsCount.toLocaleString("en-US"));
+  const fullLabel =
     status.mode === "NONE"
       ? "پیامک: متصل نشده"
       : status.mode === "LEGACY"
@@ -44,16 +47,17 @@ export function SmsCreditChip() {
   const low = status.mode !== "NONE" && status.smsCount !== null && status.smsCount < 50;
 
   return (
-    <div ref={ref} className="relative hidden sm:block">
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`h-10 px-3 rounded-xl border text-[12px] font-bold cursor-pointer ${
+        className={`h-10 px-2.5 sm:px-3 rounded-xl border text-[12px] font-bold cursor-pointer ${
           status.mode === "NONE" || low ? "border-warning text-warning bg-warning-soft" : "border-border text-ink-soft bg-white"
         }`}
         aria-label="اعتبار پیامک"
       >
-        {label}
+        <span className="sm:hidden">{shortLabel}</span>
+        <span className="hidden sm:inline">{fullLabel}</span>
       </button>
       {open && (
         <div className="absolute end-0 top-12 z-50 w-[300px] bg-white border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3" dir="rtl">

@@ -524,3 +524,12 @@ export function DragHandleIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function FlagIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 3v18" />
+      <path d="M5 4.5c1.5-1 3.5-1 5 0s3.5 1 5 0v9c-1.5 1-3.5 1-5 0s-3.5-1-5 0v-9z" />
+    </svg>
+  );
+}

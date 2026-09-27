@@ -19,6 +19,7 @@ export function NewProductModal({
   const [category, setCategory] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
+  const [profitMarginPercent, setProfitMarginPercent] = useState("");
   const [reorderPoint, setReorderPoint] = useState("");
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [currencyId, setCurrencyId] = useState("");
@@ -48,6 +49,7 @@ export function NewProductModal({
         currencyId: currencyId || undefined,
         costPriceFx: currencyId && costPrice ? Number(costPrice) : undefined,
         salePriceFx: currencyId && salePrice ? Number(salePrice) : undefined,
+        profitMarginPercent: !currencyId && profitMarginPercent ? Number(profitMarginPercent) : undefined,
       });
       onCreated(product);
       onClose();
@@ -122,27 +124,47 @@ export function NewProductModal({
             />
           </div>
           <div>
-            <label className={labelClass}>قیمت فروش{currencyId ? ` (${selectedCurrency?.code})` : ""}</label>
+            <label className={labelClass}>درصد سود{currencyId ? " (غیرفعال برای ارزی)" : ""}</label>
             <input
-              value={salePrice}
+              value={profitMarginPercent}
+              onChange={(e) => setProfitMarginPercent(e.target.value.replace(/[^0-9.]/g, ""))}
+              disabled={!!currencyId}
+              className={`${inputClass} disabled:opacity-50`}
+              dir="ltr"
+              inputMode="decimal"
+              placeholder="مثلاً ۳۰"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>
+              قیمت فروش{currencyId ? ` (${selectedCurrency?.code})` : ""}
+              {!currencyId && profitMarginPercent ? " (خودکار)" : ""}
+            </label>
+            <input
+              value={
+                !currencyId && profitMarginPercent && costPrice
+                  ? String(Math.round(Number(costPrice) * (1 + Number(profitMarginPercent) / 100)))
+                  : salePrice
+              }
               onChange={(e) => setSalePrice(e.target.value.replace(currencyId ? /[^0-9.]/g : /[^0-9]/g, ""))}
-              className={inputClass}
+              disabled={!currencyId && !!profitMarginPercent}
+              className={`${inputClass} disabled:opacity-60`}
               dir="ltr"
               inputMode="decimal"
               placeholder="۰"
             />
           </div>
-          <div>
-            <label className={labelClass}>نقطه سفارش</label>
-            <input
-              value={reorderPoint}
-              onChange={(e) => setReorderPoint(e.target.value.replace(/[^0-9]/g, ""))}
-              className={inputClass}
-              dir="ltr"
-              inputMode="numeric"
-              placeholder="۰"
-            />
-          </div>
+        </div>
+        <div>
+          <label className={labelClass}>نقطه سفارش</label>
+          <input
+            value={reorderPoint}
+            onChange={(e) => setReorderPoint(e.target.value.replace(/[^0-9]/g, ""))}
+            className={`${inputClass} max-w-[160px]`}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder="۰"
+          />
         </div>
         {currencyId && selectedCurrency && Number(salePrice) > 0 ? (
           <div className="text-[11.5px] text-muted">

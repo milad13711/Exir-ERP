@@ -7,11 +7,19 @@ import { MovementsController } from './movements.controller.js';
 import { WarehouseSummaryController } from './summary.controller.js';
 import { WarehousesController } from './warehouses.controller.js';
 import { CostingSettingsController } from './costing-settings.controller.js';
+import { SalesPricingSettingsController } from './sales-pricing-settings.controller.js';
 import { CostingService } from './costing.service.js';
 
 @Module({
   imports: [WebhooksModule, PermissionsModule, ModuleGuardModule],
-  controllers: [ProductsController, MovementsController, WarehouseSummaryController, WarehousesController, CostingSettingsController],
+  controllers: [
+    ProductsController,
+    MovementsController,
+    WarehouseSummaryController,
+    WarehousesController,
+    CostingSettingsController,
+    SalesPricingSettingsController,
+  ],
   providers: [CostingService],
   exports: [CostingService],
 })

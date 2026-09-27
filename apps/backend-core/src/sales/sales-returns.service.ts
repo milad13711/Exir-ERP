@@ -37,6 +37,53 @@ export class SalesReturnsService {
     return ret;
   }
 
+  private static keyOf(l: { productId?: string | null; description: string }) {
+    return l.productId ?? `desc:${l.description}`;
+  }
+
+  /**
+   * سقف مرجوعی هر ردیف: مقدار آن در فاکتور، منهای مقدار قبلاً مرجوع‌شده‌اش —
+   * مجموع مرجوعی‌های یک ردیف هرگز نباید از مقدار خریداری‌شده‌اش بیشتر شود.
+   * کالاهای دارای productId با شناسه‌شان کلید می‌شوند؛ ردیف‌های آزاد بدون
+   * کالا (مثلاً خدمات) با شرح‌شان — تنها کلید پایدار موجود برای آن‌ها.
+   * هم در create() برای اعتبارسنجی سرور و هم در returnable() برای تعیین
+   * اینکه دکمه‌ی «ثبت مرجوعی» در کلاینت باید نمایش داده شود یا نه، استفاده می‌شود.
+   */
+  private async remainingByLine(
+    ctx: TenantRequestContext,
+    invoiceId: string,
+    invoiceLines: Array<{ productId: string | null; description: string; quantity: number }>,
+  ): Promise<Map<string, number>> {
+    const priorReturns = await ctx.tenantDb.salesReturnLine.findMany({
+      where: { return: { invoiceId } },
+    });
+    const alreadyReturned = new Map<string, number>();
+    for (const l of priorReturns) {
+      const key = SalesReturnsService.keyOf(l);
+      alreadyReturned.set(key, (alreadyReturned.get(key) ?? 0) + l.quantity);
+    }
+    const invoicedQty = new Map<string, number>();
+    for (const l of invoiceLines) {
+      const key = SalesReturnsService.keyOf(l);
+      invoicedQty.set(key, (invoicedQty.get(key) ?? 0) + l.quantity);
+    }
+    const remaining = new Map<string, number>();
+    for (const [key, max] of invoicedQty) {
+      remaining.set(key, Math.max(0, max - (alreadyReturned.get(key) ?? 0)));
+    }
+    return remaining;
+  }
+
+  /** برای کلاینت: آیا چیزی برای این فاکتور باقی مانده که بتوان مرجوع کرد — تعیین می‌کند دکمه‌ی «ثبت مرجوعی» نمایش داده شود یا نه. */
+  async returnable(ctx: TenantRequestContext, invoiceId: string): Promise<{ hasReturnable: boolean }> {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id: invoiceId }, include: { lines: true } });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (invoice.status === 'DRAFT' || invoice.status === 'CANCELLED') return { hasReturnable: false };
+    const remaining = await this.remainingByLine(ctx, invoiceId, invoice.lines);
+    const hasReturnable = [...remaining.values()].some((qty) => qty > 0);
+    return { hasReturnable };
+  }
+
   private async getAccount(ctx: TenantRequestContext, code: string) {
     const account = await ctx.tenantDb.account.findUnique({ where: { code } });
     if (!account) throw new BadRequestException(`کدینگ حسابداری ${code} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
@@ -54,31 +101,13 @@ export class SalesReturnsService {
       throw new BadRequestException('فقط از فاکتورهای تأییدشده می‌توان مرجوعی ثبت کرد');
     }
 
-    // سقف مرجوعی هر ردیف: مقدار آن در فاکتور، منهای مقدار قبلاً مرجوع‌شده‌اش —
-    // مجموع مرجوعی‌های یک ردیف هرگز نباید از مقدار خریداری‌شده‌اش بیشتر شود.
-    // کالاهای دارای productId با شناسه‌شان کلید می‌شوند؛ ردیف‌های آزاد بدون
-    // کالا (مثلاً خدمات) با شرح‌شان — تنها کلید پایدار موجود برای آن‌ها.
-    const priorReturns = await ctx.tenantDb.salesReturnLine.findMany({
-      where: { return: { invoiceId: dto.invoiceId } },
-    });
-    const keyOf = (l: { productId?: string | null; description: string }) => l.productId ?? `desc:${l.description}`;
-    const alreadyReturned = new Map<string, number>();
-    for (const l of priorReturns) {
-      const key = keyOf(l);
-      alreadyReturned.set(key, (alreadyReturned.get(key) ?? 0) + l.quantity);
-    }
-    const invoicedQty = new Map<string, number>();
-    for (const l of invoice.lines) {
-      const key = keyOf(l);
-      invoicedQty.set(key, (invoicedQty.get(key) ?? 0) + l.quantity);
-    }
+    const remaining = await this.remainingByLine(ctx, dto.invoiceId, invoice.lines);
     for (const l of dto.lines) {
-      const key = keyOf(l);
-      const max = invoicedQty.get(key) ?? 0;
-      const already = alreadyReturned.get(key) ?? 0;
-      if (already + l.quantity > max) {
+      const key = SalesReturnsService.keyOf(l);
+      const max = remaining.get(key) ?? 0;
+      if (l.quantity > max) {
         throw new BadRequestException(
-          `مقدار مرجوعی برای «${l.description}» از مقدار خریداری‌شده در فاکتور بیشتر است (حداکثر قابل مرجوع: ${Math.max(0, max - already)})`,
+          `مقدار مرجوعی برای «${l.description}» از مقدار خریداری‌شده در فاکتور بیشتر است (حداکثر قابل مرجوع: ${max})`,
         );
       }
     }
@@ -153,5 +182,61 @@ export class SalesReturnsService {
 
     await ctx.tenantDb.salesReturn.update({ where: { id: ret.id }, data: { journalEntryId: entry.id } });
     return ret;
+  }
+
+  /**
+   * حذف یک مرجوعی فروش. مرجوعی برخلاف فاکتور، وضعیت DRAFT ندارد — همان لحظه‌ی ثبت
+   * سند حسابداری و حواله‌ی انبار واقعی پست شده، پس حذف ساده‌ی ردیف نادرست است. به‌جای
+   * آن، دقیقاً از همان الگوی معکوس‌سازی که InvoicesService.cancelConfirmed برای ابطال
+   * فاکتور تأییدشده استفاده می‌کند بهره می‌بریم: یک سند حسابداری معکوس برای سند اصلی
+   * مرجوعی پست می‌شود (و سند اصلی voided می‌شود)، یک حواله‌ی انبار معکوس (ISSUE) برای
+   * برگرداندن موجودی‌ای که مرجوعی اضافه کرده بود ثبت می‌شود، و در نهایت ردیف مرجوعی
+   * (و خطوطش با onDelete: Cascade) حذف می‌شود — تا سقف قابل‌مرجوع فاکتور هم دوباره باز شود.
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const ret = await ctx.tenantDb.salesReturn.findUnique({ where: { id }, include: { lines: true, invoice: true } });
+    if (!ret) throw new NotFoundException('مرجوعی فروش یافت نشد');
+
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
+    const original = ret.journalEntryId
+      ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: ret.journalEntryId }, include: { lines: true } })
+      : null;
+
+    await ctx.tenantDb.$transaction([
+      ...(original
+        ? [
+            ctx.tenantDb.journalEntry.create({
+              data: {
+                date: new Date(),
+                description: `حذف مرجوعی فروش شماره ${ret.returnNo} برای فاکتور ${ret.invoice.invoiceNo}`,
+                status: 'POSTED',
+                postedAt: new Date(),
+                reversalOfId: original.id,
+                createdByUserId: userId ?? undefined,
+                lines: { create: original.lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, description: l.description })) },
+              },
+            }),
+            ctx.tenantDb.journalEntry.update({ where: { id: original.id }, data: { voidedAt: new Date(), voidReason: 'حذف مرجوعی فروش' } }),
+          ]
+        : []),
+      ...ret.lines
+        .filter((l) => l.productId)
+        .map((l) =>
+          ctx.tenantDb.stockMovement.create({
+            data: {
+              productId: l.productId!,
+              warehouseId: warehouse.id,
+              type: 'ISSUE',
+              quantityDelta: -l.quantity,
+              reference: `حذف مرجوعی فروش #${ret.returnNo}`,
+              createdByUserId: userId ?? undefined,
+            },
+          }),
+        ),
+      ctx.tenantDb.salesReturn.delete({ where: { id } }),
+    ]);
+    return { success: true };
   }
 }

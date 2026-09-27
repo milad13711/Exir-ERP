@@ -8,6 +8,7 @@ import {
   type NotificationPreferences,
 } from "@/lib/api";
 import { PushNotificationRow } from "@/components/settings/PushNotificationRow";
+import { InstallAppRow } from "@/components/settings/InstallAppRow";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -79,6 +80,7 @@ export default function NotificationsSettingsPage() {
               <Toggle checked={prefs.smsEnabled} onChange={(v) => handleChange({ smsEnabled: v })} />
             </div>
             <PushNotificationRow />
+            <InstallAppRow />
           </>
         )}
       </Card>

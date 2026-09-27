@@ -27,7 +27,7 @@ function setup(opts: { role?: 'OWNER' | 'ADMIN' | 'MEMBER'; myEmployee?: { id: s
       delete: vi.fn().mockResolvedValue({}),
     },
   };
-  const reports = { create: vi.fn().mockResolvedValue({ id: 'report-1' }) };
+  const reports = { create: vi.fn().mockResolvedValue({ id: 'report-1' }), update: vi.fn().mockResolvedValue({ id: 'report-1' }) };
   const service = new DailyChecklistService(reports as never);
   const ctx = { tenantId: 't', tenantDb, auth: { role: opts.role ?? 'MEMBER', sub: 'g-me' } } as never;
   return { service, ctx, tenantDb, reports };
@@ -110,5 +110,26 @@ describe('DailyChecklistService.generateReport', () => {
     expect(body).toContain('تماس با مشتری');
     expect(body).toContain('ارسال فاکتور — برای شرکت الف');
     expect(body).toContain('انجام‌شده (1 از 2)');
+  });
+
+  it('updates the existing report instead of creating a duplicate when the day was already reported', async () => {
+    const { service, ctx, tenantDb, reports } = setup();
+    const all = [{ id: '1', title: 'تماس با مشتری', description: null, done: true }];
+    tenantDb.dailyChecklistItem.findMany = vi.fn().mockResolvedValue(all) as never;
+    tenantDb.user.findUnique = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'me', globalUserId: 'g-me' })
+      .mockResolvedValueOnce({ name: 'علی رضایی' });
+    const dayClose = {
+      upsert: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue({ reportId: 'report-1', rolledOver: true }),
+    };
+    (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
+    const report = await service.generateReport(ctx, { date: TODAY } as never);
+    expect(reports.create).not.toHaveBeenCalled();
+    expect(reports.update).toHaveBeenCalledTimes(1);
+    expect(reports.update.mock.calls[0][1]).toBe('report-1');
+    expect(report).toEqual({ id: 'report-1' });
+    expect(dayClose.upsert.mock.calls[0][0].update).toMatchObject({ reportId: 'report-1', rolledOver: true });
   });
 });

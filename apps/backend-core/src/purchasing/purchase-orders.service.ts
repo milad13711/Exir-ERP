@@ -64,18 +64,28 @@ export class PurchaseOrdersService implements OnModuleInit {
     });
   }
 
-  list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
-    return ctx.tenantDb.purchaseOrder.findMany({
+  async list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
+    const orders = await ctx.tenantDb.purchaseOrder.findMany({
       where: scope,
-      include: { supplier: { select: { id: true, name: true, company: true } } },
+      include: {
+        supplier: { select: { id: true, name: true, company: true } },
+        _count: { select: { returns: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
+    // hasReturn: مطابق همان اصلاح در sales/invoices.service.ts — سفارشی که مرجوعی
+    // خرید دارد نباید همچنان «پرداخت‌شده» نشان داده شود؛ status واقعی دست‌نخورده می‌ماند.
+    return orders.map(({ _count, ...o }) => ({ ...o, hasReturn: _count.returns > 0 }));
   }
 
   async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown>) {
-    const order = await ctx.tenantDb.purchaseOrder.findFirst({ where: { id, ...scope }, include: ORDER_INCLUDE });
+    const order = await ctx.tenantDb.purchaseOrder.findFirst({
+      where: { id, ...scope },
+      include: { ...ORDER_INCLUDE, _count: { select: { returns: true } } },
+    });
     if (!order) throw new NotFoundException('سفارش خرید یافت نشد');
-    return order;
+    const { _count, ...rest } = order;
+    return { ...rest, hasReturn: _count.returns > 0 };
   }
 
   async create(ctx: TenantRequestContext, dto: CreatePurchaseOrderDto) {
@@ -204,10 +214,14 @@ export class PurchaseOrdersService implements OnModuleInit {
     const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
     const inventory = await this.getAccount(ctx, ACCOUNT.INVENTORY);
     const payable = await this.getAccount(ctx, ACCOUNT.PAYABLE);
+    const receiptLines = order.lines.filter((l) => l.productId);
     const nextCostPrices = await Promise.all(
-      order.lines
-        .filter((l) => l.productId)
-        .map((l) => this.costing.nextCostPriceOnReceipt(ctx, l.productId!, l.quantity, l.unitCost)),
+      receiptLines.map((l) => this.costing.nextCostPriceOnReceipt(ctx, l.productId!, l.quantity, l.unitCost)),
+    );
+    // اگر کالایی درصد سود دارد و MANUAL نشده و تنظیم سراسری فعال است، قیمت
+    // فروشش هم همراه بهای تمام‌شده‌ی تازه‌ی این رسید بازمحاسبه می‌شود.
+    const nextSalePrices = await Promise.all(
+      receiptLines.map((l, i) => this.costing.nextSalePriceOnReceipt(ctx, l.productId!, nextCostPrices[i])),
     );
 
     const [entry] = await ctx.tenantDb.$transaction([
@@ -241,9 +255,15 @@ export class PurchaseOrdersService implements OnModuleInit {
             },
           }),
         ),
-      ...order.lines
-        .filter((l) => l.productId)
-        .map((l, i) => ctx.tenantDb.product.update({ where: { id: l.productId! }, data: { costPrice: nextCostPrices[i] } })),
+      ...receiptLines.map((l, i) =>
+        ctx.tenantDb.product.update({
+          where: { id: l.productId! },
+          data: {
+            costPrice: nextCostPrices[i],
+            ...(nextSalePrices[i] != null ? { salePrice: nextSalePrices[i]!, salePriceUpdatedAt: new Date() } : {}),
+          },
+        }),
+      ),
     ]);
 
     return ctx.tenantDb.purchaseOrder.update({

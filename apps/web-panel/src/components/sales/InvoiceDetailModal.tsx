@@ -15,10 +15,14 @@ import {
   confirmDelivery,
   fetchWarrantyInvoiceHasIssuable,
   issueWarrantyFromInvoiceNow,
+  fetchInvoiceReturnable,
+  fetchSalesReturns,
+  deleteSalesReturn,
   ApiError,
   type SalesInvoiceDetail,
   type SalesInvoiceStatus,
   type SalesPaymentMethod,
+  type SalesReturn,
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
 import { NewInvoiceModal } from "./NewInvoiceModal";
@@ -85,12 +89,20 @@ export function InvoiceDetailModal({
   const [hasIssuableWarranty, setHasIssuableWarranty] = useState(false);
   const [issuingWarranty, setIssuingWarranty] = useState(false);
   const [warrantyIssuedCount, setWarrantyIssuedCount] = useState<number | null>(null);
+  const [hasReturnable, setHasReturnable] = useState(false);
+  const [invoiceReturns, setInvoiceReturns] = useState<SalesReturn[]>([]);
 
   function reload() {
     fetchSalesInvoice(invoiceId).then((inv) => {
       setInvoice(inv);
       setPayAmount(String(inv.total - inv.paidAmount));
     });
+    fetchInvoiceReturnable(invoiceId)
+      .then((r) => setHasReturnable(r.hasReturnable))
+      .catch(() => setHasReturnable(false));
+    fetchSalesReturns()
+      .then((rs) => setInvoiceReturns(rs.filter((r) => r.invoice.id === invoiceId)))
+      .catch(() => setInvoiceReturns([]));
     if (installedModules.has("warranty")) {
       fetchWarrantyInvoiceHasIssuable(invoiceId)
         .then((r) => setHasIssuableWarranty(r.hasIssuable))
@@ -264,11 +276,18 @@ export function InvoiceDetailModal({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <div className="text-[14px] font-extrabold">{invoice.contact.company || invoice.contact.name}</div>
-              <div className="text-[11.5px] text-muted mt-0.5">{formatJalaliDate(invoice.issuedAt)}</div>
+              <div className="text-[11.5px] text-muted mt-0.5">
+                {formatJalaliDate(invoice.issuedAt)}
+                {invoice.dueAt ? ` · سررسید: ${formatJalaliDate(invoice.dueAt)}` : ""}
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               {invoice.isOfficial ? <Badge tone="primary">رسمی</Badge> : null}
-              <Badge tone={STATUS_TONES[invoice.status]}>{STATUS_LABELS[invoice.status]}</Badge>
+              {invoice.hasReturn ? (
+                <Badge tone="danger">مرجوع‌شده</Badge>
+              ) : (
+                <Badge tone={STATUS_TONES[invoice.status]}>{STATUS_LABELS[invoice.status]}</Badge>
+              )}
             </div>
           </div>
 
@@ -343,6 +362,31 @@ export function InvoiceDetailModal({
             <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 text-[12.5px]">
               <div className="text-[11px] text-muted mb-1">یادداشت روی فاکتور</div>
               {invoice.notes}
+            </div>
+          ) : null}
+
+          {invoiceReturns.length > 0 ? (
+            <div>
+              <div className="text-[12px] text-muted mb-2">مرجوعی‌های این فاکتور</div>
+              <div className="flex flex-col gap-2">
+                {invoiceReturns.map((r) => (
+                  <div key={r.id} className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                    <div className="text-[12px]">
+                      <div className="font-bold">مرجوعی #{r.returnNo} — {formatToman(r.total)}</div>
+                      <div className="text-muted mt-0.5">{formatJalaliDate(r.createdAt)}{r.reason ? ` · ${r.reason}` : ""}</div>
+                    </div>
+                    <DeleteRecordButton
+                      label="حذف مرجوعی"
+                      confirmText="این مرجوعی حذف شود؟ سند حسابداری و موجودی انبار با سند معکوس برگردانده می‌شود."
+                      onDelete={() => deleteSalesReturn(r.id)}
+                      onDeleted={() => {
+                        reload();
+                        onChanged();
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -538,7 +582,7 @@ export function InvoiceDetailModal({
               </form>
             ) : null}
 
-            {invoice.status === "CONFIRMED" || invoice.status === "PARTIALLY_PAID" || invoice.status === "PAID" ? (
+            {(invoice.status === "CONFIRMED" || invoice.status === "PARTIALLY_PAID" || invoice.status === "PAID") && hasReturnable ? (
               <button
                 onClick={() => setReturnModalOpen(true)}
                 className="w-full py-2.5 rounded-xl bg-danger-soft text-danger text-[13px] font-bold cursor-pointer"

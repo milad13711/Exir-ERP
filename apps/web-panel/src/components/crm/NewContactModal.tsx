@@ -102,81 +102,86 @@ export function NewContactModal({
             />
           </div>
         ) : null}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>شماره تماس</label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="09121234567"
-              className={inputClass}
-              dir="ltr"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>ایمیل</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.ir"
-              className={inputClass}
-              dir="ltr"
-            />
-          </div>
-        </div>
         <div>
-          <label className={labelClass}>منبع آشنایی (اختیاری)</label>
-          <div className="flex flex-wrap gap-1.5">
-            {SOURCE_OPTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSource(source === s ? "" : s)}
-                className={`text-[11.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer ${source === s ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <label className={labelClass}>شماره تماس</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="09121234567"
+            className={inputClass}
+            dir="ltr"
+          />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>هزینه‌ی جذب (تومان، اختیاری)</label>
-            <input
-              value={acquisitionCost}
-              onChange={(e) => setAcquisitionCost(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder="0"
-              className={inputClass}
-              dir="ltr"
-            />
-          </div>
-          <div className="relative">
-            <label className={labelClass}>معرف (اختیاری)</label>
-            <input
-              value={referrer ? referrer.name : referrerQuery}
-              onChange={(e) => searchReferrer(e.target.value)}
-              placeholder="جستجوی نام مخاطب..."
-              className={inputClass}
-            />
-            {referrerOptions.length > 0 && !referrer ? (
-              <div className="absolute z-10 top-full mt-1 w-full bg-white border border-border rounded-xl shadow-lg overflow-hidden">
-                {referrerOptions.map((c) => (
+
+        <details className="text-[12.5px]">
+          <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر</summary>
+          <div className="flex flex-col gap-3.5 mt-3">
+            <div>
+              <label className={labelClass}>ایمیل</label>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.ir"
+                className={inputClass}
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>منبع آشنایی (اختیاری)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {SOURCE_OPTIONS.map((s) => (
                   <button
-                    key={c.id}
+                    key={s}
                     type="button"
-                    onClick={() => {
-                      setReferrer(c);
-                      setReferrerOptions([]);
-                    }}
-                    className="w-full text-right px-3 py-2 text-[12.5px] hover:bg-slate-50 cursor-pointer"
+                    onClick={() => setSource(source === s ? "" : s)}
+                    className={`text-[11.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer ${source === s ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"}`}
                   >
-                    {c.name}
+                    {s}
                   </button>
                 ))}
               </div>
-            ) : null}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>هزینه‌ی جذب (تومان، اختیاری)</label>
+                <input
+                  value={acquisitionCost}
+                  onChange={(e) => setAcquisitionCost(e.target.value.replace(/[^\d]/g, ""))}
+                  placeholder="0"
+                  className={inputClass}
+                  dir="ltr"
+                />
+              </div>
+              <div className="relative">
+                <label className={labelClass}>معرف (اختیاری)</label>
+                <input
+                  value={referrer ? referrer.name : referrerQuery}
+                  onChange={(e) => searchReferrer(e.target.value)}
+                  placeholder="جستجوی نام مخاطب..."
+                  className={inputClass}
+                />
+                {referrerOptions.length > 0 && !referrer ? (
+                  <div className="absolute z-10 top-full mt-1 w-full bg-white border border-border rounded-xl shadow-lg overflow-hidden">
+                    {referrerOptions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setReferrer(c);
+                          setReferrerOptions([]);
+                        }}
+                        className="w-full text-right px-3 py-2 text-[12.5px] hover:bg-slate-50 cursor-pointer"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
+        </details>
+
         <button
           type="submit"
           disabled={submitting || !name.trim()}

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { TenantSmsService } from '../sms/tenant-sms.service.js';
 
 export type StatementLine = {
   date: Date;
@@ -29,6 +30,8 @@ export type StatementLine = {
  */
 @Injectable()
 export class PartyStatementService {
+  constructor(private readonly sms: TenantSmsService) {}
+
   async statement(ctx: TenantRequestContext, partyId: string) {
     const [invoices, payments, salesReturns, orders, purchasePayments, purchaseReturns, partyTransactions, checks] =
       await Promise.all([
@@ -180,5 +183,33 @@ export class PartyStatementService {
     }
 
     return balances;
+  }
+
+  /**
+   * پیامک خلاصه‌ی مانده‌ی حساب طرف‌حساب — برای «ارسال مانده حساب پیامکی» در
+   * گردش حساب. متن کوتاه شامل نام مخاطب، طلب/بدهی جاری و مانده‌ی خالص است؛
+   * اگر مخاطب شماره تلفن نداشته باشد یا اعتبار پیامکی کافی نباشد، پیام خطا
+   * برمی‌گردد تا در رابط کاربری نمایش داده شود.
+   */
+  async sendStatementSms(ctx: TenantRequestContext, partyId: string) {
+    const party = await ctx.tenantDb.crmContact.findUnique({ where: { id: partyId } });
+    if (!party) throw new Error('مخاطب یافت نشد');
+    if (!party.phone) return { success: false, error: 'این مخاطب شماره تلفن ثبت‌شده ندارد' };
+
+    const { arBalance, apBalance } = await this.statement(ctx, partyId);
+    const netBalance = arBalance - apBalance;
+    const formatAmount = (n: number) => `${Math.abs(Math.round(n)).toLocaleString('en-US')} تومان`;
+
+    const lines = [`${party.name} عزیز،`, `طلب ما از شما: ${formatAmount(arBalance)}`, `بدهی ما به شما: ${formatAmount(apBalance)}`];
+    lines.push(
+      netBalance > 0
+        ? `مانده‌ی کلی: ${formatAmount(netBalance)} بدهکار به ما`
+        : netBalance < 0
+          ? `مانده‌ی کلی: ${formatAmount(netBalance)} بستانکار از ما`
+          : 'مانده‌ی کلی: تسویه',
+    );
+    const message = lines.join('\n');
+
+    return this.sms.sendSms(ctx, party.phone, message);
   }
 }

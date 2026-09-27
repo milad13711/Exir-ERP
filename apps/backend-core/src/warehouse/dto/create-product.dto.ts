@@ -45,4 +45,12 @@ export class CreateProductDto {
   @IsNumber()
   @IsPositive()
   salePriceFx?: number;
+
+  // وقتی ست شود و costPrice هم موجود باشد، قیمت فروش با
+  // salePrice = costPrice * (1 + profitMarginPercent/100) محاسبه می‌شود
+  // (اگر تنظیم سراسری «محاسبه خودکار قیمت فروش از درصد سود» فعال باشد).
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  profitMarginPercent?: number;
 }
