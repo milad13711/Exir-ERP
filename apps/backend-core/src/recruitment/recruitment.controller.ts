@@ -87,6 +87,12 @@ export class RecruitmentController {
     return this.recruitment.closePosting(ctx, id);
   }
 
+  @Post('postings/:id/reopen')
+  async reopenPosting(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    return this.recruitment.requestReopenPosting(ctx, id);
+  }
+
   /* متقاضیان */
 
   @Get('applicants')

@@ -11,6 +11,7 @@ import {
   fetchJobPosting,
   fetchPostingReport,
   closeJobPosting,
+  reopenJobPosting,
   createApplicant,
   ApiError,
   type JobPosting,
@@ -111,6 +112,22 @@ export function PostingDetailModal({
     }
   }
 
+  async function handleReopen() {
+    if (!confirm("این آگهی دوباره باز شود؟")) return;
+    setBusy(true);
+    try {
+      const res = await reopenJobPosting(id);
+      if (res.pendingApproval) {
+        alert("درخواست بازگشایی این آگهی برای تأیید مدیر ارسال شد و در کارتابل او نمایش داده می‌شود.");
+      } else {
+        reload();
+        onChanged();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!posting) {
     return (
       <Modal title="جزئیات آگهی" onClose={onClose}>
@@ -127,9 +144,15 @@ export function PostingDetailModal({
             {posting.jobField} · {EMPLOYMENT_TYPE_LABELS[posting.employmentType]} · ظرفیت {toPersianDigits(posting.capacity)}
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setEditOpen(true)} className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer">
-              ویرایش آگهی
-            </button>
+            {posting.status === "OPEN" ? (
+              <button type="button" onClick={() => setEditOpen(true)} className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer">
+                ویرایش آگهی
+              </button>
+            ) : (
+              <button type="button" onClick={handleReopen} disabled={busy} className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg disabled:opacity-50 cursor-pointer">
+                بازگشایی آگهی
+              </button>
+            )}
             <Badge tone={posting.status === "OPEN" ? "success" : "neutral"}>{posting.status === "OPEN" ? "باز" : "بسته‌شده"}</Badge>
           </div>
         </div>

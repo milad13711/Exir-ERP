@@ -6521,6 +6521,10 @@ export function closeJobPosting(id: string) {
   return apiFetch<JobPosting>(`/recruitment/postings/${id}/close`, { method: "POST" });
 }
 
+export function reopenJobPosting(id: string) {
+  return apiFetch<{ executed: boolean; pendingApproval?: boolean; result?: JobPosting }>(`/recruitment/postings/${id}/reopen`, { method: "POST" });
+}
+
 export function fetchApplicants(filters: { jobPostingId?: string; stage?: string; search?: string } = {}) {
   const params = new URLSearchParams();
   if (filters.jobPostingId) params.set("jobPostingId", filters.jobPostingId);

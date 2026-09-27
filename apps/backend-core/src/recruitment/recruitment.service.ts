@@ -76,6 +76,25 @@ export class RecruitmentService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    // بازگشایی آگهی بسته‌شده از کارتابل مدیر — وقتی درخواست را کارشناسی غیر از مالک/ادمین ثبت کرده باشد.
+    this.approvals.registerHandler('JOB_POSTING_REOPEN', {
+      approve: async (ctx, id) => {
+        await this.reopenPostingDirect(ctx, id);
+      },
+      reject: async () => {
+        // رد یعنی آگهی همچنان بسته می‌ماند؛ کاری لازم نیست.
+      },
+      describe: async (ctx, id) => {
+        const posting = await ctx.tenantDb.jobPosting.findUniqueOrThrow({ where: { id } });
+        return {
+          fields: [
+            { label: 'آگهی', value: `${posting.title} (${posting.jobField})` },
+            { label: 'تاریخ بسته‌شدن', value: posting.closedAt ? faDate(posting.closedAt) : '—' },
+          ],
+        };
+      },
+    });
+
     // تأیید نهایی متقاضی از کارتابل مدیر — همان مسیر hire با پیش‌فرض‌ها (شماره‌ی پرسنلی خودکار، بدون تغییر واحد).
     this.approvals.registerHandler('JOB_APPLICANT', {
       approve: async (ctx, id, opts) => {
@@ -177,6 +196,9 @@ export class RecruitmentService implements OnModuleInit {
   async updatePosting(ctx: TenantRequestContext, id: string, dto: UpdateJobPostingDto) {
     const existing = await ctx.tenantDb.jobPosting.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('این آگهی یافت نشد');
+    if (existing.status === 'CLOSED') {
+      throw new BadRequestException('این آگهی بسته شده است؛ برای ویرایش، ابتدا آن را بازگشایی کنید');
+    }
     return ctx.tenantDb.jobPosting.update({ where: { id }, data: dto });
   }
 
@@ -184,6 +206,38 @@ export class RecruitmentService implements OnModuleInit {
     const existing = await ctx.tenantDb.jobPosting.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('این آگهی یافت نشد');
     return ctx.tenantDb.jobPosting.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
+  }
+
+  /** بازگشایی مستقیم (فقط داخلی) — از مسیر تأیید مدیر یا مستقیماً توسط مالک/ادمین صدا زده می‌شود. */
+  private async reopenPostingDirect(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.jobPosting.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('این آگهی یافت نشد');
+    if (existing.status !== 'CLOSED') throw new BadRequestException('این آگهی بسته نیست');
+    return ctx.tenantDb.jobPosting.update({ where: { id }, data: { status: 'OPEN', closedAt: null } });
+  }
+
+  /**
+   * درخواست بازگشایی آگهی: مالک/ادمین بلافاصله بازش می‌کند؛ سایر پرسنل با دسترسی
+   * فقط درخواست می‌دهند و پس از تأیید مدیر در کارتابل، آگهی باز می‌شود — تا کلیک اشتباه
+   * روی «بستن آگهی» به بازگشایی بی‌قیدوشرط منجر نشود.
+   */
+  async requestReopenPosting(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.jobPosting.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('این آگهی یافت نشد');
+    if (existing.status !== 'CLOSED') throw new BadRequestException('این آگهی بسته نیست');
+
+    return this.approvals.runOrRequest(
+      ctx,
+      {
+        moduleCode: RECRUITMENT_MODULE_CODE,
+        entityType: 'JOB_POSTING_REOPEN',
+        entityId: id,
+        title: `درخواست بازگشایی آگهی «${existing.title}»`,
+        summary: `این آگهی بسته شده بود؛ درخواست بازگشایی مجدد آن ثبت شده و منتظر تأیید مدیر است.`,
+        link: '/recruitment',
+      },
+      () => this.reopenPostingDirect(ctx, id),
+    );
   }
 
   /** گزارش پایان فرآیند جذب یک آگهی — قیف مراحل + نتیجه‌ی نهایی. */
