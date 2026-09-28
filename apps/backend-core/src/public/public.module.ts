@@ -51,6 +51,7 @@ import { RecruitmentModule } from '../recruitment/recruitment.module.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
 import { CertificatesModule } from '../certificates/certificates.module.js';
+import { SettingsModule } from '../settings/settings.module.js';
 import { PublicCertificateService } from './public-certificate.service.js';
 import { PublicCertificateController } from './public-certificate.controller.js';
 import { PublicLabReviewService } from '../ration-lab/public/public-lab-review.service.js';
@@ -77,6 +78,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     AfterSalesModule,
     QrCodeModule,
     CertificatesModule,
+    SettingsModule,
     SmsModule,
     NotificationsModule,
   ],
