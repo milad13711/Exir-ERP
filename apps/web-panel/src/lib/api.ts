@@ -2345,6 +2345,7 @@ export type Certificate = {
   crmContactId: string | null;
   recipientNameFa: string;
   recipientNameEn: string | null;
+  nationalId: string | null;
   titleFa: string;
   titleEn: string | null;
   items: CertificateItem[];
@@ -2373,6 +2374,8 @@ export function issueCertificate(data: {
   recipientType: "EMPLOYEE" | "CONTACT";
   employeeId?: string;
   crmContactId?: string;
+  recipientNameEn: string;
+  nationalId?: string;
   titleFa: string;
   titleEn?: string;
   items?: { titleFa: string; titleEn?: string }[];
@@ -2388,7 +2391,18 @@ export function deleteCertificate(id: string) {
   return apiFetch<{ ok: true }>(`/certificates/${id}`, { method: "DELETE" });
 }
 
-export type CertificateFieldKey = "recipientName" | "title" | "items" | "code" | "issueDate" | "qr" | "stamp" | "signature";
+export type CertificateFieldKey =
+  | "recipientName"
+  | "title"
+  | "body"
+  | "items"
+  | "nationalId"
+  | "companyName"
+  | "code"
+  | "issueDate"
+  | "qr"
+  | "stamp"
+  | "signature";
 
 export type CertificateFieldPosition = {
   xPct: number;
@@ -2397,6 +2411,8 @@ export type CertificateFieldPosition = {
   align?: "left" | "center" | "right";
   widthPct?: number;
   lineHeightPx?: number;
+  /** false = چاپ نمی‌شود (پیش‌فرض برای nationalId/companyName) */
+  visible?: boolean;
 };
 
 export type CertificateTemplateSettings = {
@@ -2405,6 +2421,11 @@ export type CertificateTemplateSettings = {
   signatureImage?: string | null;
   fieldsFa: Record<CertificateFieldKey, CertificateFieldPosition>;
   fieldsEn: Record<CertificateFieldKey, CertificateFieldPosition>;
+  itemsColumns: 2 | 3;
+  bodyTextFa: string;
+  bodyTextEn: string;
+  issuerCompanyNameFa: string;
+  issuerCompanyNameEn: string;
 };
 
 export function fetchCertificateTemplateSettings() {

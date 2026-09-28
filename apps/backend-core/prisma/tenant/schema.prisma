@@ -3625,6 +3625,7 @@ model Certificate {
   crmContactId    String?
   recipientNameFa String
   recipientNameEn String?
+  nationalId      String? // شماره/کد ملی گیرنده — اسنپ‌شات در لحظه‌ی صدور
   titleFa         String
   titleEn         String?
   durationHours   Int?

@@ -31,6 +31,7 @@ export default function CertificatesPage() {
   const [certificates, setCertificates] = useState<Certificate[] | null>(null);
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  const [copySource, setCopySource] = useState<Certificate | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [templateSettings, setTemplateSettings] = useState<CertificateTemplateSettings | null>(null);
 
@@ -77,7 +78,10 @@ export default function CertificatesPage() {
             </button>
           ) : null}
           <button
-            onClick={() => setNewOpen(true)}
+            onClick={() => {
+              setCopySource(null);
+              setNewOpen(true);
+            }}
             className="flex items-center gap-1.5 text-[12.5px] font-bold text-white bg-primary px-4 py-2.5 rounded-xl cursor-pointer"
           >
             <PlusIcon className="w-4 h-4" />
@@ -122,7 +126,15 @@ export default function CertificatesPage() {
                     <td className="px-4 py-2.5 font-bold" dir="ltr">
                       {c.code}
                     </td>
-                    <td className="px-4 py-2.5">{c.recipientNameFa}</td>
+                    <td className="px-4 py-2.5">
+                      {c.recipientNameFa}
+                      {c.recipientNameEn ? (
+                        <div className="text-[11px] text-muted" dir="ltr">
+                          {c.recipientNameEn}
+                        </div>
+                      ) : null}
+                      {c.nationalId ? <div className="text-[11px] text-muted">ش.ملی: {toPersianDigits(c.nationalId)}</div> : null}
+                    </td>
                     <td className="px-4 py-2.5">{c.titleFa}</td>
                     <td className="px-4 py-2.5">{formatJalaliDate(c.createdAt)}</td>
                     <td className="px-4 py-2.5 text-muted">{c.issuedByName ?? c.issuedBy?.name ?? "—"}</td>
@@ -152,6 +164,15 @@ export default function CertificatesPage() {
                         >
                           PDF EN
                         </button>
+                        <button
+                          onClick={() => {
+                            setCopySource(c);
+                            setNewOpen(true);
+                          }}
+                          className="text-[11px] font-bold text-ink-soft bg-slate-100 px-2 py-1 rounded-lg cursor-pointer"
+                        >
+                          کپی برای گواهی جدید
+                        </button>
                         <DeleteRecordButtonInline onDelete={() => deleteCertificate(c.id)} onDeleted={reload} />
                       </div>
                     </td>
@@ -165,7 +186,12 @@ export default function CertificatesPage() {
 
       {newOpen ? (
         <NewCertificateModal
-          onClose={() => setNewOpen(false)}
+          key={copySource?.id ?? "new"}
+          copyFrom={copySource ?? undefined}
+          onClose={() => {
+            setNewOpen(false);
+            setCopySource(null);
+          }}
           onCreated={() => {
             reload();
           }}

@@ -3,6 +3,7 @@ import puppeteer, { type Browser } from 'puppeteer';
 import QRCode from 'qrcode';
 import { formatJalaliDate, toPersianDigits } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { bodyTextToHtml, distributeItemsIntoColumns, substituteBodyText } from './certificate-text.util.js';
 import { getDataUrlImageDimensions } from './image-dimensions.util.js';
 import type { CertificateFieldKey, CertificateTemplateSettings, FieldPosition } from './certificate-template-settings.service.js';
 
@@ -14,6 +15,7 @@ export type CertificateForRender = {
   code: string;
   recipientNameFa: string;
   recipientNameEn: string | null;
+  nationalId?: string | null;
   titleFa: string;
   titleEn: string | null;
   durationHours: number | null;
@@ -46,20 +48,75 @@ function localizeCode(code: string, lang: CertificateLang): string {
   return lang === 'fa' ? toPersianDigits(code) : code;
 }
 
+/** صدور جدید همیشه نام انگلیسی دارد؛ فقط گواهی‌های قدیمیِ پیش از این الزام به نام فارسی برمی‌گردند. */
 function recipientName(cert: CertificateForRender, lang: CertificateLang): string {
   if (lang === 'en') return cert.recipientNameEn || cert.recipientNameFa;
-  return cert.recipientNameFa;
+  return toPersianDigits(cert.recipientNameFa);
 }
 
 function title(cert: CertificateForRender, lang: CertificateLang): string {
   if (lang === 'en') return cert.titleEn || cert.titleFa;
-  return cert.titleFa;
+  return toPersianDigits(cert.titleFa);
 }
 
-function buildItemsText(cert: CertificateForRender, lang: CertificateLang): string {
-  const sep = lang === 'en' ? ', ' : '، ';
-  const names = cert.items.map((it) => (lang === 'en' ? it.titleEn || it.titleFa : it.titleFa));
-  return names.join(sep);
+function itemNames(cert: CertificateForRender, lang: CertificateLang): string[] {
+  return cert.items.map((it) => (lang === 'en' ? it.titleEn || it.titleFa : toPersianDigits(it.titleFa))).filter((n) => n.trim());
+}
+
+/** آیتم‌ها به‌صورت بولت (•) عمودی، ستون‌به‌ستون (بالا→پایین)، حداکثر ۴ ردیف در هر ستون. ستون اول در RTL راست است (جهت صفحه). */
+export function buildItemsHtml(cert: CertificateForRender, lang: CertificateLang, columns: number): string {
+  const cols = distributeItemsIntoColumns(itemNames(cert, lang), columns);
+  if (!cols.length) return '';
+  return cols
+    .map(
+      (col) =>
+        `<div style="flex:1 1 0; min-width:0; text-align:start;">${col
+          .map((name) => `<div>• ${escapeHtml(name)}</div>`)
+          .join('')}</div>`,
+    )
+    .join('');
+}
+
+function isVisible(pos: FieldPosition): boolean {
+  return pos.visible !== false;
+}
+
+export function buildBodyValues(
+  cert: CertificateForRender,
+  lang: CertificateLang,
+  companyName: string,
+): Record<string, string> {
+  const fa = lang === 'fa';
+  const num = (v: number | null) => (v == null ? '' : localizeNumber(v, lang));
+  const date = (d: Date | null) => (d ? (fa ? formatJalaliDate(d) : enDate(d)) : '');
+  return {
+    recipientName: recipientName(cert, lang),
+    nationalId: cert.nationalId ? (fa ? toPersianDigits(cert.nationalId) : cert.nationalId) : '',
+    title: title(cert, lang),
+    companyName,
+    startDate: date(cert.startDate),
+    endDate: date(cert.endDate),
+    durationHours: num(cert.durationHours),
+    score: num(cert.score),
+    issueDate: date(cert.createdAt),
+    code: localizeCode(cert.code, lang),
+  };
+}
+
+function companyNameFor(settings: CertificateTemplateSettings, lang: CertificateLang, orgName: string): string {
+  if (lang === 'fa') return toPersianDigits(settings.issuerCompanyNameFa?.trim() || orgName);
+  return settings.issuerCompanyNameEn?.trim() || '';
+}
+
+export function buildBodyText(
+  cert: CertificateForRender,
+  lang: CertificateLang,
+  settings: CertificateTemplateSettings,
+  orgName: string,
+): string {
+  const template = lang === 'fa' ? settings.bodyTextFa : settings.bodyTextEn;
+  const text = substituteBodyText(template, buildBodyValues(cert, lang, companyNameFor(settings, lang, orgName)));
+  return lang === 'fa' ? toPersianDigits(text) : text;
 }
 
 function buildMetaText(cert: CertificateForRender, lang: CertificateLang): string {
@@ -93,9 +150,10 @@ function buildFixedLayoutHtml(
   seal: SealImages,
   widthMm: number,
   heightMm: number,
+  itemsColumns: number,
 ): string {
   const dir = lang === 'fa' ? 'rtl' : 'ltr';
-  const items = buildItemsText(cert, lang);
+  const items = buildItemsHtml(cert, lang, itemsColumns);
   const meta = buildMetaText(cert, lang);
   const issuedAt = lang === 'fa' ? formatJalaliDate(cert.createdAt) : enDate(cert.createdAt);
 
@@ -132,7 +190,7 @@ function buildFixedLayoutHtml(
   .recipient-en { font-size: 4.5mm; color: #6b7280; margin-top: 1mm; }
   .intro { font-size: 3.6mm; color: #4b5563; margin-top: 6mm; }
   .course { font-size: 5.5mm; font-weight: 700; color: #1f2937; margin-top: 2mm; }
-  .items { font-size: 3.6mm; color: #374151; margin-top: 3mm; max-width: 85%; line-height: 1.7; }
+  .items { font-size: 3.6mm; color: #374151; margin-top: 3mm; line-height: 1.7; }
   .meta { font-size: 3.3mm; color: #4b5563; margin-top: 4mm; }
   .issuedBy { font-size: 3mm; color: #6b7280; margin-top: 2mm; }
   .footer { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; margin-top: auto; }
@@ -152,7 +210,7 @@ function buildFixedLayoutHtml(
     <div class="recipient">${escapeHtml(recipientName(cert, lang))}</div>
     <div class="intro">${strings.intro}</div>
     <div class="course">${escapeHtml(title(cert, lang))}</div>
-    ${items ? `<div class="items">${escapeHtml(items)}</div>` : ''}
+    ${items ? `<div class="items" style="display:flex; gap:6mm; width:85%; text-align:start;">${items}</div>` : ''}
     ${meta ? `<div class="meta">${meta}</div>` : ''}
     <div class="footer">
       <div class="qr-box">
@@ -190,32 +248,34 @@ function buildTemplateHtml(
   seal: SealImages,
   widthMm: number,
   heightMm: number,
+  orgName: string,
 ): string {
   const dir = lang === 'fa' ? 'rtl' : 'ltr';
   const fields = lang === 'fa' ? settings.fieldsFa : settings.fieldsEn;
-  const items = buildItemsText(cert, lang);
-  const meta = buildMetaText(cert, lang);
+  const items = buildItemsHtml(cert, lang, settings.itemsColumns);
   const issuedAt = lang === 'fa' ? formatJalaliDate(cert.createdAt) : enDate(cert.createdAt);
   const get = (key: CertificateFieldKey): FieldPosition => fields[key];
 
   const nodes: string[] = [];
-  nodes.push(`<div style="${fieldStyle(get('recipientName'))} color:#1f2937; font-weight:800;">${escapeHtml(recipientName(cert, lang))}</div>`);
-  nodes.push(`<div style="${fieldStyle(get('title'))} color:#1f2937; font-weight:700;">${escapeHtml(title(cert, lang))}</div>`);
-  if (items || meta) {
-    const itemsBody = [items, meta].filter(Boolean).join(lang === 'en' ? ' — ' : ' — ');
-    nodes.push(`<div style="${fieldStyle(get('items'))} color:#374151;">${escapeHtml(itemsBody)}</div>`);
-  }
-  nodes.push(`<div style="${fieldStyle(get('code'))} color:#6b7280; direction:ltr;">${localizeCode(cert.code, lang)}</div>`);
-  nodes.push(`<div style="${fieldStyle(get('issueDate'))} color:#6b7280;">${issuedAt}</div>`);
+  const text = (key: CertificateFieldKey, style: string, html: string) => {
+    if (!html || !isVisible(get(key))) return;
+    nodes.push(`<div style="${fieldStyle(get(key))} ${style}">${html}</div>`);
+  };
+  text('recipientName', 'color:#1f2937; font-weight:800;', escapeHtml(recipientName(cert, lang)));
+  text('title', 'color:#1f2937; font-weight:700;', escapeHtml(title(cert, lang)));
+  text('body', 'color:#1f2937;', bodyTextToHtml(buildBodyText(cert, lang, settings, orgName)));
+  text('items', 'color:#374151; display:flex; gap:16px;', items);
+  text('nationalId', 'color:#374151;', escapeHtml(buildBodyValues(cert, lang, '').nationalId));
+  text('companyName', 'color:#374151; font-weight:700;', escapeHtml(companyNameFor(settings, lang, orgName)));
+  text('code', 'color:#6b7280; direction:ltr;', localizeCode(cert.code, lang));
+  text('issueDate', 'color:#6b7280;', issuedAt);
   const qrPos = get('qr');
-  nodes.push(`<img src="${qrDataUrl}" style="${fieldStyle(qrPos, 'height:auto;')}" />`);
-  if (seal.stampImage) {
-    const stampPos = get('stamp');
-    nodes.push(`<img src="${seal.stampImage}" style="${fieldStyle(stampPos, 'height:auto;')}" />`);
+  if (isVisible(qrPos)) nodes.push(`<img src="${qrDataUrl}" style="${fieldStyle(qrPos, 'height:auto;')}" />`);
+  if (seal.stampImage && isVisible(get('stamp'))) {
+    nodes.push(`<img src="${seal.stampImage}" style="${fieldStyle(get('stamp'), 'height:auto;')}" />`);
   }
-  if (seal.signatureImage) {
-    const sigPos = get('signature');
-    nodes.push(`<img src="${seal.signatureImage}" style="${fieldStyle(sigPos, 'height:auto;')}" />`);
+  if (seal.signatureImage && isVisible(get('signature'))) {
+    nodes.push(`<img src="${seal.signatureImage}" style="${fieldStyle(get('signature'), 'height:auto;')}" />`);
   }
 
   return `<!doctype html>
@@ -228,7 +288,8 @@ function buildTemplateHtml(
   html, body { width: ${widthMm}mm; height: ${heightMm}mm; }
   .canvas { position: relative; width: ${widthMm}mm; height: ${heightMm}mm; overflow: hidden; background: #fff; }
   .canvas > img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .canvas div, .canvas img:not(.bg) { font-size: 14px; }
+  /* فقط فرزندان مستقیم — تا فونت فیلدهای تو در تو (ستون‌های آیتم) از والد ارث ببرند و fontSizePx واقعاً اعمال شود */
+  .canvas > div, .canvas > img:not(.bg) { font-size: 14px; }
 </style>
 </head>
 <body>
@@ -286,8 +347,8 @@ export class CertificateRenderService implements OnModuleDestroy {
     };
 
     const html = settings.backgroundImage
-      ? buildTemplateHtml(cert, lang, settings, qrDataUrl, effectiveSeal, widthMm, heightMm)
-      : buildFixedLayoutHtml(cert, lang, orgName, qrDataUrl, effectiveSeal, widthMm, heightMm);
+      ? buildTemplateHtml(cert, lang, settings, qrDataUrl, effectiveSeal, widthMm, heightMm, orgName)
+      : buildFixedLayoutHtml(cert, lang, orgName, qrDataUrl, effectiveSeal, widthMm, heightMm, settings.itemsColumns);
 
     return { html, widthMm, heightMm };
   }

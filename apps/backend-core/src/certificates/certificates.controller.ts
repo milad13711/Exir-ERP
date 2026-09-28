@@ -13,6 +13,7 @@ import { CertificateRenderService, type CertificateForRender } from './certifica
 import { CertificateTemplateSettingsService, type CertificateTemplateSettings } from './certificate-template-settings.service.js';
 import { CreateCertificateDto } from './dto/create-certificate.dto.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
+import { maxItemsFor, toAsciiDigits } from './certificate-text.util.js';
 import { certificateVerifyUrl } from './certificate-verify-url.js';
 
 const INCLUDE = {
@@ -26,6 +27,7 @@ function toRenderModel(cert: {
   code: string;
   recipientNameFa: string;
   recipientNameEn: string | null;
+  nationalId: string | null;
   titleFa: string;
   titleEn: string | null;
   durationHours: number | null;
@@ -40,6 +42,7 @@ function toRenderModel(cert: {
     code: cert.code,
     recipientNameFa: cert.recipientNameFa,
     recipientNameEn: cert.recipientNameEn,
+    nationalId: cert.nationalId,
     titleFa: cert.titleFa,
     titleEn: cert.titleEn,
     durationHours: cert.durationHours,
@@ -97,7 +100,13 @@ export class CertificatesController {
   @Get('template-settings')
   async getTemplateSettings(@Ctx() ctx: TenantRequestContext): Promise<CertificateTemplateSettings> {
     await this.permissions.assertViewAll(ctx, 'certificates');
-    return this.templateSettings.get(ctx);
+    const settings = await this.templateSettings.get(ctx);
+    if (!settings.issuerCompanyNameFa) {
+      // پیش‌فرض نام شرکت فارسی = نام سازمان در تنظیمات → عمومی
+      const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } });
+      settings.issuerCompanyNameFa = tenant?.name ?? '';
+    }
+    return settings;
   }
 
   @Put('template-settings')
@@ -124,7 +133,19 @@ export class CertificatesController {
       throw new BadRequestException('برای گیرنده‌ی نوع «مخاطب» انتخاب مخاطب الزامی است');
     }
 
+    const recipientNameEn = dto.recipientNameEn.trim();
+    if (recipientNameEn.length < 2) {
+      throw new BadRequestException('نام انگلیسی گیرنده الزامی است (برای نسخه‌ی انگلیسی گواهی)');
+    }
+    const settings = await this.templateSettings.get(ctx);
+    const itemCount = dto.items?.filter((it) => it.titleFa.trim()).length ?? 0;
+    const maxItems = maxItemsFor(settings.itemsColumns);
+    if (itemCount > maxItems) {
+      throw new BadRequestException(`حداکثر ${maxItems} آیتم مجاز است (${settings.itemsColumns} ستون × ۴ ردیف)`);
+    }
+
     let recipientNameFa: string;
+    let recipientNationalId: string | null | undefined;
     let employeeId: string | undefined;
     let crmContactId: string | undefined;
 
@@ -132,11 +153,13 @@ export class CertificatesController {
       const employee = await ctx.tenantDb.employee.findUnique({ where: { id: dto.employeeId! } });
       if (!employee) throw new NotFoundException('این کارمند یافت نشد');
       recipientNameFa = employee.fullName;
+      recipientNationalId = employee.nationalId;
       employeeId = employee.id;
     } else {
       const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: dto.crmContactId! } });
       if (!contact) throw new NotFoundException('این مخاطب یافت نشد');
       recipientNameFa = contact.name;
+      recipientNationalId = contact.nationalId;
       crmContactId = contact.id;
     }
 
@@ -154,6 +177,8 @@ export class CertificatesController {
         employeeId,
         crmContactId,
         recipientNameFa,
+        recipientNameEn,
+        nationalId: toAsciiDigits((dto.nationalId?.trim() || recipientNationalId || '').trim()) || undefined,
         titleFa: dto.titleFa,
         titleEn: dto.titleEn,
         durationHours: dto.durationHours,

@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { useWorkspace } from "@/lib/workspace-context";
+import { toPersianDigits } from "@/lib/persian";
 import {
   issueCertificate,
   fetchEmployees,
   fetchCrmContacts,
+  fetchCertificateTemplateSettings,
   type Employee,
   type CrmContact,
   type Certificate,
@@ -19,14 +21,26 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export type PresetRecipient = { type: "EMPLOYEE"; employee: Employee } | { type: "CONTACT"; contact: CrmContact };
 
+const ITEMS_MAX_ROWS = 4;
+
+function toLocalIsoDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function NewCertificateModal({
   onClose,
   onCreated,
   presetRecipient,
+  copyFrom,
 }: {
   onClose: () => void;
   onCreated: (cert: Certificate) => void;
   presetRecipient?: PresetRecipient;
+  /** کپی برای گواهی جدید: عنوان/آیتم‌ها/مدت/تاریخ/امتیاز از گواهی مبدأ پر می‌شود، گیرنده خالی می‌ماند. */
+  copyFrom?: Certificate;
 }) {
   const { installedModules } = useWorkspace();
   const hrInstalled = installedModules.has("hr");
@@ -44,18 +58,38 @@ export function NewCertificateModal({
   const [contactOptions, setContactOptions] = useState<CrmContact[]>([]);
   const [contact, setContact] = useState<CrmContact | null>(presetRecipient?.type === "CONTACT" ? presetRecipient.contact : null);
 
-  const [titleFa, setTitleFa] = useState("");
-  const [titleEn, setTitleEn] = useState("");
-  const [items, setItems] = useState<{ titleFa: string; titleEn: string }[]>([]);
-  const [durationHours, setDurationHours] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [score, setScore] = useState("");
+  const [recipientNameEn, setRecipientNameEn] = useState("");
+  const [nationalId, setNationalId] = useState(
+    presetRecipient?.type === "EMPLOYEE"
+      ? (presetRecipient.employee.nationalId ?? "")
+      : presetRecipient?.type === "CONTACT"
+        ? (presetRecipient.contact.nationalId ?? "")
+        : "",
+  );
+  const [titleFa, setTitleFa] = useState(copyFrom?.titleFa ?? "");
+  const [titleEn, setTitleEn] = useState(copyFrom?.titleEn ?? "");
+  const [items, setItems] = useState<{ titleFa: string; titleEn: string }[]>(
+    copyFrom?.items.map((it) => ({ titleFa: it.titleFa, titleEn: it.titleEn ?? "" })) ?? [],
+  );
+  const [durationHours, setDurationHours] = useState(copyFrom?.durationHours ? String(copyFrom.durationHours) : "");
+  const [startDate, setStartDate] = useState(toLocalIsoDate(copyFrom?.startDate));
+  const [endDate, setEndDate] = useState(toLocalIsoDate(copyFrom?.endDate));
+  const [score, setScore] = useState(copyFrom?.score != null ? String(copyFrom.score) : "");
+  const [itemsColumns, setItemsColumns] = useState<2 | 3>(2);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetchCertificateTemplateSettings()
+      .then((s) => setItemsColumns(s.itemsColumns === 3 ? 3 : 2))
+      .catch(() => undefined);
+  }, []);
+
+  const maxItems = itemsColumns * ITEMS_MAX_ROWS;
+  const filledItems = items.filter((it) => it.titleFa.trim()).length;
+  const itemsOverCap = filledItems > maxItems;
   const recipientPicked = recipientType === "EMPLOYEE" ? !!employee : !!contact;
-  const canSubmit = recipientPicked && titleFa.trim().length > 1;
+  const canSubmit = recipientPicked && titleFa.trim().length > 1 && recipientNameEn.trim().length > 1 && !itemsOverCap;
 
   async function searchEmployee(q: string) {
     setEmployeeQuery(q);
@@ -80,6 +114,7 @@ export function NewCertificateModal({
   }
 
   function addItem() {
+    if (items.length >= maxItems) return;
     setItems((prev) => [...prev, { titleFa: "", titleEn: "" }]);
   }
   function updateItem(index: number, patch: Partial<{ titleFa: string; titleEn: string }>) {
@@ -99,6 +134,8 @@ export function NewCertificateModal({
         recipientType,
         employeeId: recipientType === "EMPLOYEE" ? employee?.id : undefined,
         crmContactId: recipientType === "CONTACT" ? contact?.id : undefined,
+        recipientNameEn: recipientNameEn.trim(),
+        nationalId: nationalId.trim() || undefined,
         titleFa: titleFa.trim(),
         titleEn: titleEn.trim() || undefined,
         items: items.filter((it) => it.titleFa.trim()).map((it) => ({ titleFa: it.titleFa.trim(), titleEn: it.titleEn.trim() || undefined })),
@@ -117,7 +154,7 @@ export function NewCertificateModal({
   }
 
   return (
-    <Modal title="صدور گواهی جدید" onClose={onClose} width="max-w-[560px]">
+    <Modal title={copyFrom ? "کپی برای گواهی جدید" : "صدور گواهی جدید"} onClose={onClose} width="max-w-[560px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         {!presetRecipient && hrInstalled && crmInstalled ? (
           <div className="flex gap-2">
@@ -162,6 +199,7 @@ export function NewCertificateModal({
                     type="button"
                     onClick={() => {
                       setEmployee(e);
+                      if (e.nationalId) setNationalId(e.nationalId);
                       setEmployeeOptions([]);
                     }}
                     className="w-full text-right px-3 py-2 text-[12.5px] hover:bg-slate-50 cursor-pointer"
@@ -189,6 +227,7 @@ export function NewCertificateModal({
                     type="button"
                     onClick={() => {
                       setContact(c);
+                      if (c.nationalId) setNationalId(c.nationalId);
                       setContactOptions([]);
                     }}
                     className="w-full text-right px-3 py-2 text-[12.5px] hover:bg-slate-50 cursor-pointer"
@@ -200,6 +239,30 @@ export function NewCertificateModal({
             ) : null}
           </div>
         )}
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className={labelClass}>نام گیرنده (انگلیسی) *</label>
+            <input
+              value={recipientNameEn}
+              onChange={(e) => setRecipientNameEn(e.target.value)}
+              placeholder="Ali Rezaei"
+              className={inputClass}
+              dir="ltr"
+            />
+            <p className="text-[11px] text-muted mt-1">روی نسخه‌ی انگلیسی گواهی چاپ می‌شود؛ فارسی گیرنده از پروفایل او خوانده می‌شود.</p>
+          </div>
+          <div className="flex-1">
+            <label className={labelClass}>شماره ملی (اختیاری)</label>
+            <input
+              value={nationalId}
+              onChange={(e) => setNationalId(e.target.value.replace(/[^0-9۰-۹٠-٩]/g, ""))}
+              placeholder="مثلاً ۰۰۱۲۳۴۵۶۷۸"
+              inputMode="numeric"
+              className={inputClass}
+            />
+          </div>
+        </div>
 
         <div className="flex gap-2">
           <div className="flex-1">
@@ -215,10 +278,18 @@ export function NewCertificateModal({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className={labelClass.replace("mb-1.5", "")}>آیتم‌های آموزش‌دیده (اختیاری)</label>
-            <button type="button" onClick={addItem} className="text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer">
+            <button
+              type="button"
+              onClick={addItem}
+              disabled={items.length >= maxItems}
+              className="text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer disabled:opacity-50"
+            >
               + افزودن آیتم
             </button>
           </div>
+          <p className={`text-[11px] mb-1.5 ${itemsOverCap ? "text-danger" : "text-muted"}`}>
+            حداکثر {toPersianDigits(maxItems)} آیتم ({toPersianDigits(itemsColumns)} ستون × {toPersianDigits(ITEMS_MAX_ROWS)} ردیف، طبق تنظیمات قالب) — تعداد فعلی: {toPersianDigits(filledItems)}
+          </p>
           <div className="flex flex-col gap-2">
             {items.map((it, i) => (
               <div key={i} className="flex gap-2 items-center">

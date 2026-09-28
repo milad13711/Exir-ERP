@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateIf,
@@ -35,6 +36,15 @@ export class CreateCertificateDto {
   @ValidateIf((o) => o.recipientType === 'CONTACT')
   @IsString()
   crmContactId?: string;
+
+  @IsString()
+  @MinLength(2)
+  recipientNameEn!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  nationalId?: string;
 
   @IsString()
   @MinLength(2)
