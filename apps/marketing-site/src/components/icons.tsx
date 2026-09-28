@@ -184,3 +184,102 @@ export function GridIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ChartUpIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 19h16" />
+      <path d="M6 15l4-4 3 3 5-6" />
+      <path d="M15 8h3v3" />
+    </svg>
+  );
+}
+
+export function BoxesIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 9l9-5 9 5-9 5-9-5z" />
+      <path d="M3 9v6l9 5 9-5V9" />
+      <path d="M12 14v6" />
+    </svg>
+  );
+}
+
+export function CalculatorIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="3" width="14" height="18" rx="2.5" />
+      <path d="M8.5 7h7" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01M8.5 15h.01M12 15h.01M15.5 15h.01M8.5 18h.01M12 18h.01" />
+    </svg>
+  );
+}
+
+export function PeopleIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M16 5.2a3 3 0 0 1 0 5.6" />
+      <path d="M17.5 14a5 5 0 0 1 3 5" />
+    </svg>
+  );
+}
+
+export function FunnelIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" />
+    </svg>
+  );
+}
+
+export function ClipboardCheckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="4.5" width="14" height="16.5" rx="2.5" />
+      <path d="M9 4.5h6v3H9z" />
+      <path d="M9 13.5l2 2 4-4" />
+    </svg>
+  );
+}
+
+export function FileSignIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M8.5 16.5c1.5-2 2.5-2 3 0s1.5 1.5 3-.5" />
+    </svg>
+  );
+}
+
+export function CalendarCheckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M8 3v4M16 3v4M3.5 10h17" />
+      <path d="M9 15l2 2 4-4" />
+    </svg>
+  );
+}
+
+export function BuildingIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V21" />
+      <path d="M15 10h3.5A1.5 1.5 0 0 1 20 11.5V21" />
+      <path d="M3 21h18" />
+      <path d="M8 8h3M8 12h3M8 16h3" />
+    </svg>
+  );
+}
+
+export function SealCheckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3l2.2 1.6 2.7-.2.9 2.6 2.3 1.4-.8 2.6.8 2.6-2.3 1.4-.9 2.6-2.7-.2L12 21l-2.2-1.6-2.7.2-.9-2.6-2.3-1.4.8-2.6-.8-2.6 2.3-1.4.9-2.6 2.7.2z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}

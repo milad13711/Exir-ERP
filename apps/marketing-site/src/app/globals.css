@@ -3,27 +3,27 @@
 @import "@fontsource-variable/vazirmatn/wght.css";
 
 :root {
-  /* پالت برند: فقط چهار رنگ — 002D2A سبز عمیق، 006B65 سبز فیروزه‌ای، EDF0D9 کِرِم، EEF08B زرد لیمویی */
-  --background: #edf0d9;
-  --foreground: #002d2a;
+  /* زمینه‌ی اصلی سفید؛ پالت برند: سبز اصلی 254C41 و طلایی B49B6D */
+  --background: #ffffff;
+  --foreground: #1a362e;
 
-  --color-ink: #002d2a;
-  --color-ink-soft: #2f5652;
-  --color-muted: #4a6b67;
-  --color-surface: #f7f9ec;
-  --color-border: #d2d8b9;
+  --color-ink: #1a362e;
+  --color-ink-soft: #3f564e;
+  --color-muted: #62766f;
+  --color-surface: #ffffff;
+  --color-border: #e4e9e6;
 
-  --color-primary: #006b65;
-  --color-primary-dark: #002d2a;
-  --color-primary-deep: #002d2a;
-  --color-primary-light: #0a807a;
-  --color-primary-soft: #d9e6cb;
+  --color-primary: #254c41;
+  --color-primary-dark: #1a362e;
+  --color-primary-deep: #17302a;
+  --color-primary-light: #3d6b5c;
+  --color-primary-soft: #eaf0ed;
 
-  --color-accent: #006b65;
-  --color-accent-soft: #f4f6c2;
-  --color-gold: #eef08b;
-  --color-gold-light: #f6f8b9;
-  --color-gold-dark: #eef08b;
+  --color-accent: #254c41;
+  --color-accent-soft: #f6f2e9;
+  --color-gold: #b49b6d;
+  --color-gold-light: #c9b48c;
+  --color-gold-dark: #96805a;
 
   --color-warning: #8a5a00;
   --color-warning-soft: #f6efc4;
@@ -126,8 +126,18 @@ h1, h2, h3 { text-wrap: balance; }
 }
 .card-lift:hover {
   transform: translateY(-3px);
-  border-color: rgba(0, 107, 101, 0.55);
-  box-shadow: 0 24px 48px -28px rgba(0, 36, 32, 0.45);
+  border-color: rgba(37, 76, 65, 0.35);
+  box-shadow: 0 24px 48px -28px rgba(26, 54, 46, 0.35);
+}
+
+/* سایه‌ی لایه‌ای یکدست برای کارت‌ها */
+.elev-1 { box-shadow: 0 1px 2px rgba(26, 54, 46, 0.05), 0 8px 24px -16px rgba(26, 54, 46, 0.18); }
+.elev-2 { box-shadow: 0 2px 4px rgba(26, 54, 46, 0.05), 0 24px 56px -28px rgba(26, 54, 46, 0.35); }
+
+/* شبکه‌ی نقطه‌ای بسیار کم‌رنگ برای بخش‌های سفید */
+.bg-dots {
+  background-image: radial-gradient(rgba(37, 76, 65, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 .reveal { animation: reveal-up 0.6s ease-out both; }
@@ -146,7 +156,7 @@ h1, h2, h3 { text-wrap: balance; }
 .hero-band {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #002d2a 0%, #004a46 55%, #006b65 100%);
+  background: linear-gradient(135deg, #17302a 0%, #1e3f36 55%, #254c41 100%);
   color: #fff;
 }
 .hero-band::after {

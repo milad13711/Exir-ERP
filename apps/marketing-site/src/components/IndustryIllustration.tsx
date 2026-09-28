@@ -14,7 +14,7 @@ const PHOTO_CODES = new Set([
 ]);
 
 /** برای صنف‌هایی که عکس واقعی دارند یک `<img>` تمام‌قد، وگرنه یک تصویر برداری ساده و متناسب با هر صنف — نه یک آیکون تکی، یک صحنه‌ی کوچک. */
-export function IndustryIllustration({ code, color = "#0b5a3c" }: { code: string; color?: string }) {
+export function IndustryIllustration({ code, color = "#254c41" }: { code: string; color?: string }) {
   if (PHOTO_CODES.has(code)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
