@@ -508,6 +508,33 @@ export function setModuleApprover(moduleCode: string, userId: string | null) {
   });
 }
 
+// ── Automated send scheduling (Settings → زمان‌بندی ارسال خودکار) ──────
+
+export type ScheduleOffsetUnit = "DAYS_BEFORE" | "SAME_DAY" | "DAYS_AFTER";
+
+export type JobScheduleConfig = { offsetDays: number; unit: ScheduleOffsetUnit; hour: number; minute: number };
+
+export type SchedulableJob = {
+  code: string;
+  label: string;
+  moduleCode: string;
+  defaultConfig: JobScheduleConfig;
+  allowedOffsets: JobScheduleConfig[];
+  behaviorWired: boolean;
+  config: JobScheduleConfig;
+};
+
+export function fetchSchedulableJobs() {
+  return apiFetch<SchedulableJob[]>("/scheduling/jobs");
+}
+
+export function updateSchedulableJob(code: string, config: JobScheduleConfig) {
+  return apiFetch<JobScheduleConfig>(`/scheduling/jobs/${code}`, {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+}
+
 // ── Access matrix (per role, per module) ───────────────────────────────
 
 /**
@@ -730,10 +757,43 @@ export type DashboardSummary = {
     daysSinceLastPurchase: number;
     daysOverdue: number;
   }>;
+  /** فاکتورهای نزدیک به سررسید (۷ روز آینده) و معوق — daysDiff منفی یعنی معوق، مثبت یعنی روز مانده تا سررسید. */
+  dueOrOverdueInvoices: Array<{
+    id: string;
+    invoiceNo: number;
+    total: number;
+    paidAmount: number;
+    dueAt: string;
+    daysDiff: number;
+    contact: { id: string; name: string; company: string | null; phone: string | null };
+  }>;
 };
 
 export function fetchDashboardSummary() {
   return apiFetch<DashboardSummary>("/dashboard/summary");
+}
+
+// ── ویجت داشبورد: فاکتورهای نزدیک به سررسید و معوق ──────────────────────
+
+export function sendOverdueInvoiceReminderSms(invoiceId: string) {
+  return apiFetch<{ success: boolean; error?: string }>(`/dashboard/overdue-invoices/${invoiceId}/remind-sms`, { method: "POST" });
+}
+
+export type InvoiceFollowUp = {
+  id: string;
+  invoiceId: string;
+  note: string;
+  outcome: string | null;
+  createdAt: string;
+  followedUpBy: { name: string } | null;
+};
+
+export function createInvoiceFollowUp(invoiceId: string, data: { note: string; outcome?: string }) {
+  return apiFetch<InvoiceFollowUp>(`/dashboard/overdue-invoices/${invoiceId}/follow-up`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchInvoiceFollowUps(invoiceId: string) {
+  return apiFetch<InvoiceFollowUp[]>(`/dashboard/overdue-invoices/${invoiceId}/follow-ups`);
 }
 
 // ── Logs (Settings → لاگ فعالیت‌ها و خطاها) ─────────────────────────────
@@ -848,7 +908,7 @@ export function markAllNotificationsRead() {
   return apiFetch<unknown>("/notifications/read-all", { method: "POST" });
 }
 
-export type NotificationPreferences = { emailEnabled: boolean; smsEnabled: boolean };
+export type NotificationPreferences = { emailEnabled: boolean; smsEnabled: boolean; soundEnabled: boolean };
 
 export function fetchNotificationPreferences() {
   return apiFetch<NotificationPreferences>("/notifications/preferences");
@@ -2150,6 +2210,7 @@ export type Employee = {
   employeeCode: string;
   fullName: string;
   nationalId: string | null;
+  birthDate: string | null;
   position: string;
   department: { id: string; name: string } | null;
   phone: string | null;
@@ -2281,6 +2342,7 @@ export function createEmployee(data: {
   position: string;
   departmentId?: string;
   nationalId?: string;
+  birthDate?: string;
   phone?: string;
   email?: string;
   hireDate: string;
@@ -2307,6 +2369,7 @@ export function updateEmployee(
     position: string;
     departmentId: string;
     nationalId: string;
+    birthDate: string;
     phone: string;
     email: string;
     hireDate: string;
@@ -6784,10 +6847,17 @@ export function fetchPublicJobOffer(tenantSlug: string, token: string) {
   return apiFetch<PublicJobOfferView>(`/public/recruitment/${tenantSlug}/offer/${token}`);
 }
 
-export function respondToPublicJobOffer(tenantSlug: string, token: string, accepted: boolean, signature?: string) {
+export function respondToPublicJobOffer(
+  tenantSlug: string,
+  token: string,
+  accepted: boolean,
+  signature?: string,
+  nationalId?: string,
+  idCardImage?: string,
+) {
   return apiFetch<{ success: true; accepted: boolean }>(`/public/recruitment/${tenantSlug}/offer/${token}/respond`, {
     method: "POST",
-    body: JSON.stringify({ accepted, signature }),
+    body: JSON.stringify({ accepted, signature, nationalId, idCardImage }),
   });
 }
 

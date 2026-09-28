@@ -32,6 +32,8 @@ MODULES = {
     "contracts": (["contracts"], "contracts", "contracts"),
     "crm": (["crm"], "crm", "crm"),
     "daily-checklist": (["daily-checklist"], "dashboard", "dashboard"),
+    "dashboard": (["dashboard"], "dashboard", "dashboard"),
+    "scheduling": (["scheduling"], "settings/scheduling", None),
     "events": (["events"], "events", "events"),
     "fleet": (["fleet"], "fleet", "fleet"),
     "forms": (["forms"], "forms", "forms"),

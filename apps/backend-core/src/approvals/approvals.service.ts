@@ -86,7 +86,7 @@ export class ApprovalsService {
           type: 'APPROVAL_REQUEST',
           title: `در انتظار تأیید شما: ${input.title}`,
           body: input.summary,
-          link: '/approvals',
+          link: `/approvals?open=${created.id}`,
         })
         .catch(() => undefined);
     }

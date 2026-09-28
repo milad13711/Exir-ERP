@@ -14,6 +14,8 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
   const [signing, setSigning] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+  const [nationalId, setNationalId] = useState("");
+  const [idCardImage, setIdCardImage] = useState<string | null>(null);
   const [termsOpen, setTermsOpen] = useState(false);
   const [termsSeen, setTermsSeen] = useState(false);
 
@@ -25,20 +27,35 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
   useEffect(reload, [slug, token]);
 
   async function respond(accepted: boolean) {
-    if (accepted && (!agreed || !signature)) {
-      setError("ابتدا شرایط را تأیید کرده و امضا کنید");
+    if (accepted && (!agreed || !signature || !nationalId.trim() || !idCardImage)) {
+      setError("ابتدا کد ملی، تصویر کارت ملی و امضا را ثبت کنید");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await respondToPublicJobOffer(slug, token, accepted, signature ?? undefined);
+      await respondToPublicJobOffer(slug, token, accepted, signature ?? undefined, nationalId.trim() || undefined, idCardImage ?? undefined);
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ثبت پاسخ ناموفق بود");
     } finally {
       setBusy(false);
     }
+  }
+
+  function readAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleIdCardFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIdCardImage(await readAsDataUrl(file));
   }
 
   return (
@@ -125,6 +142,38 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
                       )}
                     </span>
                   </label>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[12px] font-bold text-ink-soft">کد ملی</div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={nationalId}
+                      onChange={(e) => setNationalId(e.target.value)}
+                      placeholder="کد ملی خود را وارد کنید"
+                      className="w-full text-[13px] outline-none placeholder:text-muted bg-white border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[12px] font-bold text-ink-soft">تصویر کارت ملی</div>
+                    {idCardImage ? (
+                      <div className="flex flex-col gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={idCardImage}
+                          alt="تصویر کارت ملی"
+                          className="w-full max-h-[160px] object-contain bg-slate-50 border border-border rounded-xl"
+                        />
+                        <button onClick={() => setIdCardImage(null)} className="text-[12px] font-bold text-ink-soft self-start cursor-pointer">
+                          آپلود مجدد
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center py-3 rounded-xl border border-dashed border-border text-[12.5px] font-bold text-ink-soft cursor-pointer bg-white">
+                        انتخاب تصویر کارت ملی
+                        <input type="file" accept="image/*" className="hidden" onChange={handleIdCardFile} />
+                      </label>
+                    )}
+                  </div>
                   <div className="text-[12px] font-bold text-ink-soft">امضای الکترونیک شما</div>
                   {signature ? (
                     <div className="flex flex-col gap-2">
@@ -139,7 +188,7 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
                   )}
                   <button
                     onClick={() => respond(true)}
-                    disabled={busy || !agreed || !signature}
+                    disabled={busy || !agreed || !signature || !nationalId.trim() || !idCardImage}
                     className="w-full py-3 rounded-xl bg-success text-white text-[13.5px] font-bold disabled:opacity-50 cursor-pointer"
                   >
                     تأیید

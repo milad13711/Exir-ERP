@@ -110,6 +110,7 @@ model User {
   reportReferralsSent           ReportReferral[]           @relation("ReportReferralFrom")
   reportReferralsReceived       ReportReferral[]           @relation("ReportReferralTo")
   resellerProfile                ResellerProfile?
+  invoiceFollowUps               InvoiceFollowUp[]
 
   @@map("users")
 }
@@ -385,6 +386,8 @@ model NotificationPreference {
   userId       String  @id
   emailEnabled Boolean @default(true)
   smsEnabled   Boolean @default(false)
+  /// پخش صدای کوتاه در مرورگر هنگام رسیدن اعلان جدید درون‌برنامه‌ای (زنگوله)
+  soundEnabled Boolean @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -663,11 +666,28 @@ model SalesInvoice {
   mentoringSessions MentoringSession[]
   eventBookings     EventBooking[]
   warrantyCodes     WarrantyCode[]
+  followUps         InvoiceFollowUp[]
 
   @@index([contactId])
   @@index([status])
   @@index([projectId])
   @@map("sales_invoices")
+}
+
+/** لاگ پیگیری تلفنی فاکتورهای نزدیک به سررسید/معوق — فقط تاریخچه‌ی تماس‌ها، بدون ماشین‌حالت گردش‌کار. */
+model InvoiceFollowUp {
+  id                 String   @id @default(uuid())
+  invoiceId          String
+  note               String // آنچه در تماس گفته/قول داده شد
+  outcome            String? // واکنش مشتری — متن آزاد کوتاه
+  followedUpByUserId String?
+  createdAt          DateTime @default(now())
+
+  invoice      SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  followedUpBy User?        @relation(fields: [followedUpByUserId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("invoice_follow_ups")
 }
 
 model SalesInvoiceLine {
@@ -1541,6 +1561,7 @@ model Employee {
   employeeCode      String           @unique
   fullName          String
   nationalId        String?
+  birthDate         DateTime? // تاریخ تولد — فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود (مثل AttendanceRecord.date)
   position          String // سمت شغلی
   departmentId      String?
   phone             String?
@@ -3600,6 +3621,8 @@ model JobOffer {
   candidateSignature  String? // امضای الکترونیک متقاضی (data URL)
   candidateRejectedAt DateTime?
   stampApplied        Boolean        @default(false) // مدیر «تأیید و اجازه‌ی درج مهر و امضا» را زده
+  nationalId          String? // کد ملی متقاضی — هنگام پذیرش شرایط همکاری ثبت می‌شود
+  idCardImage         String? // تصویر کارت ملی — data URL (همان الگوی CompanyStampService، بدون فضای ذخیره‌سازی فایل جداگانه)
   createdAt           DateTime       @default(now())
 
   applicant JobApplicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)

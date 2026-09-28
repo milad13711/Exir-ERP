@@ -36,6 +36,8 @@ export function NewEmployeeModal({
   const [newDepartmentName, setNewDepartmentName] = useState("");
   const [addingDepartment, setAddingDepartment] = useState(false);
   const [phone, setPhone] = useState("");
+  const [nationalId, setNationalId] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [hireDate, setHireDate] = useState(new Date().toISOString().slice(0, 10));
   const [baseSalary, setBaseSalary] = useState("");
   const [managerId, setManagerId] = useState("");
@@ -92,6 +94,8 @@ export function NewEmployeeModal({
         position: position.trim(),
         departmentId: departmentId || undefined,
         phone: phone.trim() || undefined,
+        nationalId: nationalId.trim() || undefined,
+        birthDate: birthDate || undefined,
         hireDate,
         baseSalary: baseSalary ? Number(baseSalary) : undefined,
         managerId: managerId || undefined,
@@ -217,6 +221,24 @@ export function NewEmployeeModal({
               inputMode="numeric"
               placeholder="۰"
             />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>کد ملی</label>
+            <input
+              value={nationalId}
+              onChange={(e) => setNationalId(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="۱۰ رقم"
+              className={inputClass}
+              dir="ltr"
+              inputMode="numeric"
+              maxLength={10}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>تاریخ تولد</label>
+            <JalaliDateInput value={birthDate} onChange={setBirthDate} placeholder="انتخاب تاریخ تولد" />
           </div>
         </div>
 

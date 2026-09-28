@@ -9,4 +9,15 @@ export class AcceptOfferDto {
   @IsString()
   @MaxLength(400_000)
   signature?: string;
+
+  /** کد ملی متقاضی */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  nationalId?: string;
+
+  /** تصویر کارت ملی متقاضی — data URL (base64)، همان الگوی CompanyStampService */
+  @IsOptional()
+  @IsString()
+  idCardImage?: string;
 }

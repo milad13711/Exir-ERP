@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { SchedulableJobRegistryService, standardOffsetPresets } from '../scheduling/schedulable-job-registry.service.js';
 
 /**
  * پیگیری زمان‌محور نمونه‌های آزمایشگاه جیره — سه ردیف RationFollowUpCheckin
@@ -13,14 +15,27 @@ import { NotificationsService } from '../notifications/notifications.service.js'
  * از FunnelChurnCronService.
  */
 @Injectable()
-export class RationFollowUpCronService {
+export class RationFollowUpCronService implements OnModuleInit {
   private readonly logger = new Logger('RationFollowUpCronService');
 
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — سررسید هر پیگیری از پیش روی خودِ RationFollowUpCheckin ساخته شده، نه از این تنظیم. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'ration-lab-followup-reminder',
+      label: 'پیگیری آزمایشگاه جیره',
+      moduleCode: 'ration-lab',
+      defaultConfig: standardOffsetPresets(9)[4],
+      allowedOffsets: standardOffsetPresets(9),
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sweep(): Promise<void> {

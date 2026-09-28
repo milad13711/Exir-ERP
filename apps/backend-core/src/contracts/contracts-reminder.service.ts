@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -6,6 +7,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { contractPartyName } from './contracts.service.js';
+import { SchedulableJobRegistryService, standardOffsetPresets } from '../scheduling/schedulable-job-registry.service.js';
 
 /**
  * Runs once a day across every active tenant with the contracts module
@@ -20,7 +22,7 @@ import { contractPartyName } from './contracts.service.js';
  *      Each contract is only ever reminded once (reminderSentAt stamped).
  */
 @Injectable()
-export class ContractsReminderService {
+export class ContractsReminderService implements OnModuleInit {
   private readonly logger = new Logger('ContractsReminderService');
 
   constructor(
@@ -28,7 +30,20 @@ export class ContractsReminderService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — بازه‌ی واقعی از renewalReminderDays خودِ قرارداد می‌آید. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'contract-renewal-reminder',
+      label: 'یادآوری تمدید قرارداد',
+      moduleCode: 'contracts',
+      defaultConfig: standardOffsetPresets(9)[1],
+      allowedOffsets: standardOffsetPresets(9),
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sweep(): Promise<void> {

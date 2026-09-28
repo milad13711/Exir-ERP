@@ -67,6 +67,13 @@ export default function NotificationsSettingsPage() {
             </div>
             <div className="flex items-center justify-between px-4 py-4 border-b border-border">
               <div>
+                <div className="text-[13px] font-bold">پخش صدا هنگام اعلان جدید</div>
+                <div className="text-[11.5px] text-muted mt-0.5">با رسیدن اعلان جدید در زنگوله، یک صدای کوتاه پخش شود</div>
+              </div>
+              <Toggle checked={prefs.soundEnabled} onChange={(v) => handleChange({ soundEnabled: v })} />
+            </div>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border">
+              <div>
                 <div className="text-[13px] font-bold">ایمیل</div>
                 <div className="text-[11.5px] text-muted mt-0.5">ارسال به ایمیل ثبت‌شده در پروفایل کاربری</div>
               </div>

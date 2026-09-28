@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { formatWhenFa } from './sessions.service.js';
+import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 
 const REMINDER_HOURS_BEFORE = 3;
 
@@ -13,14 +15,31 @@ const REMINDER_HOURS_BEFORE = 3;
  * یک‌بار — reminderSentAt) به مشتری و مشاور پیامک یادآوری ارسال می‌کند.
  */
 @Injectable()
-export class MentoringReminderService {
+export class MentoringReminderService implements OnModuleInit {
   private readonly logger = new Logger('MentoringReminderService');
 
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly sms: TenantSmsService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /**
+   * فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — این یادآوری بر اساس «چند
+   * ساعت» مانده به جلسه است (REMINDER_HOURS_BEFORE)، نه افستِ روزانه، پس
+   * فعلاً در قالب SAME_DAY نمایشی ثبت می‌شود و رفتار واقعی‌اش هنوز ثابت است.
+   */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'mentoring-session-reminder',
+      label: 'یادآوری جلسه‌ی منتورینگ',
+      moduleCode: 'mentoring',
+      defaultConfig: offsetPreset(0, 'SAME_DAY', 9, 0),
+      allowedOffsets: [offsetPreset(0, 'SAME_DAY', 9, 0)],
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_HOUR)
   async sweep(): Promise<void> {

@@ -22,6 +22,10 @@ export class CreateEmployeeDto {
   nationalId?: string;
 
   @IsOptional()
+  @IsISO8601()
+  birthDate?: string;
+
+  @IsOptional()
   @IsString()
   phone?: string;
 

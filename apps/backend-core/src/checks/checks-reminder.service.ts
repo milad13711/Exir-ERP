@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -6,6 +7,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { ChecksService } from './checks.service.js';
+import { SchedulableJobRegistryService, standardOffsetPresets } from '../scheduling/schedulable-job-registry.service.js';
 
 /**
  * Runs once a day across every active tenant's own database (checks live
@@ -23,7 +25,7 @@ import { ChecksService } from './checks.service.js';
  * Each check is only ever reminded once (reminderSentAt is stamped).
  */
 @Injectable()
-export class ChecksReminderService {
+export class ChecksReminderService implements OnModuleInit {
   private readonly logger = new Logger('ChecksReminderService');
 
   constructor(
@@ -32,7 +34,20 @@ export class ChecksReminderService {
     private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
     private readonly checks: ChecksService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — بازه‌ی واقعیِ هر چک از reminderDaysBefore خودش (روی سند) می‌آید، نه از این تنظیم. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'check-bounce-reminder',
+      label: 'یادآوری سررسید چک',
+      moduleCode: 'checks',
+      defaultConfig: standardOffsetPresets(9)[1],
+      allowedOffsets: standardOffsetPresets(9),
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sendDueReminders(): Promise<void> {

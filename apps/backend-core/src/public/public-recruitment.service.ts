@@ -108,7 +108,13 @@ export class PublicRecruitmentService {
     if (!dto.signature) throw new BadRequestException('برای تأیید شرایط همکاری، امضای الکترونیک لازم است');
     await ctx.tenantDb.jobOffer.update({
       where: { id: offer.id },
-      data: { status: 'ACCEPTED', candidateAcceptedAt: new Date(), candidateSignature: dto.signature },
+      data: {
+        status: 'ACCEPTED',
+        candidateAcceptedAt: new Date(),
+        candidateSignature: dto.signature,
+        nationalId: dto.nationalId,
+        idCardImage: dto.idCardImage,
+      },
     });
     await this.recruitment.onOfferAccepted(ctx, offer.applicantId);
     return { success: true, accepted: true };

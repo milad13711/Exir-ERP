@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { publicRef } from '../common/tenant-public-key.js';
+import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 
 const FIRST_SURVEY_AFTER_DAYS = 7;
 const REPEAT_EVERY_DAYS = 30;
@@ -17,14 +19,30 @@ const REPEAT_EVERY_DAYS = 30;
  * تننت‌های معرفی‌شده، چون هر دو یک CrmContact با شماره تماس دارند.
  */
 @Injectable()
-export class ReferralNpsSurveyService {
+export class ReferralNpsSurveyService implements OnModuleInit {
   private readonly logger = new Logger('ReferralNpsSurveyService');
 
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly sms: ExirSmsService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — بازه‌ی واقعی از FIRST_SURVEY_AFTER_DAYS/REPEAT_EVERY_DAYS ثابت این فایل می‌آید. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'referral-nps-survey',
+      label: 'نظرسنجی رضایت پس از معرفی (NPS)',
+      moduleCode: 'referral-marketing',
+      defaultConfig: offsetPreset(FIRST_SURVEY_AFTER_DAYS, 'DAYS_AFTER', 9, 0),
+      allowedOffsets: [
+        offsetPreset(FIRST_SURVEY_AFTER_DAYS, 'DAYS_AFTER', 9, 0),
+        offsetPreset(REPEAT_EVERY_DAYS, 'DAYS_AFTER', 9, 0),
+      ],
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sweep(): Promise<void> {

@@ -24,7 +24,7 @@ function makeDb(opts: { marker?: unknown; items: Array<Record<string, unknown>> 
 
 function makeService() {
   const notifications = { notify: vi.fn().mockResolvedValue(undefined) };
-  return { service: new DailyChecklistCronService({} as never, {} as never, notifications as never), notifications };
+  return { service: new DailyChecklistCronService({} as never, {} as never, notifications as never, {} as never, {} as never), notifications };
 }
 
 describe('DailyChecklistCronService — end of day', () => {

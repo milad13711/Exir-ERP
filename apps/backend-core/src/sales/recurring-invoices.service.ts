@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { InvoicesService } from './invoices.service.js';
+import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 import type { CreateRecurringInvoiceDto } from './dto/create-recurring-invoice.dto.js';
 import type { UpdateRecurringInvoiceDto } from './dto/update-recurring-invoice.dto.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
@@ -36,14 +38,27 @@ export function advanceNextRunAt(from: Date, frequency: string, intervalCount: n
 }
 
 @Injectable()
-export class RecurringInvoicesService {
+export class RecurringInvoicesService implements OnModuleInit {
   private readonly logger = new Logger('RecurringInvoicesService');
 
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly invoices: InvoicesService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — سررسید هر قالب از nextRunAt خودش (دوره‌ی هفتگی/ماهانه/...) می‌آید، نه از افستِ روز. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'recurring-invoice-generation',
+      label: 'صدور خودکار فاکتور تکرارشونده',
+      moduleCode: 'sales',
+      defaultConfig: offsetPreset(0, 'SAME_DAY', 8, 0),
+      allowedOffsets: [offsetPreset(0, 'SAME_DAY', 8, 0)],
+      behaviorWired: false,
+    });
+  }
 
   list(ctx: TenantRequestContext) {
     return ctx.tenantDb.recurringInvoiceTemplate.findMany({

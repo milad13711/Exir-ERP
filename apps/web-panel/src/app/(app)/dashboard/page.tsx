@@ -32,6 +32,7 @@ import { formatActivityAction } from "@/lib/activity-labels";
 
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
 import { DailyChecklistWidget } from "@/components/dashboard/DailyChecklistWidget";
+import { DueOrOverdueInvoicesWidget } from "@/components/dashboard/DueOrOverdueInvoicesWidget";
 import Link from "next/link";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
@@ -229,33 +230,15 @@ export default function DashboardPage() {
       <div className="grid lg:grid-cols-2 gap-4 mb-4">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3.5">
-            <span className="text-[14.5px] font-bold">فاکتورهای معوق</span>
+            <span className="text-[14.5px] font-bold">فاکتورهای نزدیک به سررسید و معوق</span>
             <a href="/sales" className="text-xs font-bold text-primary">همه</a>
           </div>
           {!summary ? (
             <div className="text-center text-muted text-sm py-4">در حال بارگذاری...</div>
-          ) : summary.overdueReceivables.items.length === 0 ? (
-            <div className="text-center text-muted text-sm py-4">فاکتور معوقی وجود ندارد</div>
+          ) : summary.dueOrOverdueInvoices.length === 0 ? (
+            <div className="text-center text-muted text-sm py-4">فاکتور نزدیک به سررسید یا معوقی وجود ندارد</div>
           ) : (
-            <div className="flex flex-col">
-              {summary.overdueReceivables.items.map((inv, i) => (
-                <div
-                  key={inv.id}
-                  className={clsx(
-                    "flex items-center justify-between py-2.5",
-                    i < summary.overdueReceivables.items.length - 1 && "border-b border-border",
-                  )}
-                >
-                  <div>
-                    <div className="text-[12.5px] font-bold">
-                      فاکتور #{inv.invoiceNo} — {inv.contact.company || inv.contact.name}
-                    </div>
-                    <div className="text-[11px] text-danger mt-0.5">سررسید: {formatJalaliDate(inv.dueAt)}</div>
-                  </div>
-                  <div className="text-[12.5px] font-extrabold">{formatToman(inv.total - inv.paidAmount)}</div>
-                </div>
-              ))}
-            </div>
+            <DueOrOverdueInvoicesWidget items={summary.dueOrOverdueInvoices} />
           )}
         </Card>
 

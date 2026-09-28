@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { WarrantyService } from './warranty.service.js';
+import { SchedulableJobRegistryService, standardOffsetPresets } from '../scheduling/schedulable-job-registry.service.js';
 
 const REMINDER_WINDOW_TOLERANCE_DAYS = 1; // برای اینکه اجرای روزانه‌ی کرون هیچ روزی را جا نیندازد
 
@@ -17,7 +19,7 @@ const REMINDER_WINDOW_TOLERANCE_DAYS = 1; // برای اینکه اجرای رو
  * فقط دقیقاً همان گارانتی‌هایی که امروز وارد بازه‌شان شده‌اند انتخاب می‌شوند).
  */
 @Injectable()
-export class WarrantyReminderService {
+export class WarrantyReminderService implements OnModuleInit {
   private readonly logger = new Logger('WarrantyReminderService');
 
   constructor(
@@ -25,7 +27,20 @@ export class WarrantyReminderService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly sms: TenantSmsService,
     private readonly warranty: WarrantyService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
   ) {}
+
+  /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» (تنظیمات) — رفتار واقعیِ این کرون هنوز طبق reminderDaysBeforeExpiry ثابت خودش اجرا می‌شود، نه این تنظیم. */
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: 'warranty-expiry-reminder',
+      label: 'یادآوری انقضای گارانتی',
+      moduleCode: 'warranty',
+      defaultConfig: standardOffsetPresets(9)[1], // ۳ روز قبل، ۰۹:۰۰
+      allowedOffsets: standardOffsetPresets(9),
+      behaviorWired: false,
+    });
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sweep(): Promise<void> {

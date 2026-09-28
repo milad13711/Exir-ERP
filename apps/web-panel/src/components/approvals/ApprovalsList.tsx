@@ -9,8 +9,22 @@ import { Modal } from "@/components/ui/Modal";
 
 const MODULE_LABELS: Record<string, string> = { recruitment: "جذب و استخدام", purchasing: "خرید", hr: "منابع انسانی", sales: "فروش", contracts: "قراردادها", projects: "پروژه‌ها" };
 
-/** لیست اسناد در انتظار تأیید کاربر — هم در صفحه‌ی کارتابل و هم در داشبورد استفاده می‌شود. */
-export function ApprovalsList({ limit, status = "PENDING" }: { limit?: number; status?: "PENDING" | "APPROVED" | "REJECTED" }) {
+/**
+ * لیست اسناد در انتظار تأیید کاربر — هم در صفحه‌ی کارتابل و هم در داشبورد استفاده می‌شود.
+ * `autoOpenId`: وقتی از روی اعلان با `?open=<id>` وارد صفحه شده باشیم، جزئیات همان سند
+ * را مستقل از تب/وضعیت فعلی باز می‌کند.
+ */
+export function ApprovalsList({
+  limit,
+  status = "PENDING",
+  autoOpenId,
+  onAutoOpened,
+}: {
+  limit?: number;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  autoOpenId?: string | null;
+  onAutoOpened?: () => void;
+}) {
   const [items, setItems] = useState<ApprovalRequest[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ApprovalDetail | null>(null);
@@ -22,6 +36,15 @@ export function ApprovalsList({ limit, status = "PENDING" }: { limit?: number; s
       .catch(() => setItems([]));
   }, [status]);
   useEffect(load, [load]);
+
+  useEffect(() => {
+    if (!autoOpenId) return;
+    fetchApprovalDetail(autoOpenId)
+      .then(setDetail)
+      .catch(() => {})
+      .finally(() => onAutoOpened?.());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenId]);
 
   async function decide(item: ApprovalRequest, approved: boolean, withStamp = false) {
     let note: string | undefined;

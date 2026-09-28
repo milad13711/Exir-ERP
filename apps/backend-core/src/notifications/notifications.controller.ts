@@ -49,19 +49,28 @@ export class NotificationsController {
   @Get('preferences')
   async getPreferences(@Ctx() ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx);
-    if (!userId) return { emailEnabled: true, smsEnabled: false };
+    if (!userId) return { emailEnabled: true, smsEnabled: false, soundEnabled: true };
     const pref = await ctx.tenantDb.notificationPreference.findUnique({ where: { userId } });
-    return { emailEnabled: pref?.emailEnabled ?? true, smsEnabled: pref?.smsEnabled ?? false };
+    return {
+      emailEnabled: pref?.emailEnabled ?? true,
+      smsEnabled: pref?.smsEnabled ?? false,
+      soundEnabled: pref?.soundEnabled ?? true,
+    };
   }
 
   @Put('preferences')
   async updatePreferences(@Body() dto: UpdateNotificationPreferenceDto, @Ctx() ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx);
-    if (!userId) return { emailEnabled: true, smsEnabled: false };
+    if (!userId) return { emailEnabled: true, smsEnabled: false, soundEnabled: true };
     return ctx.tenantDb.notificationPreference.upsert({
       where: { userId },
-      create: { userId, emailEnabled: dto.emailEnabled ?? true, smsEnabled: dto.smsEnabled ?? false },
-      update: { emailEnabled: dto.emailEnabled, smsEnabled: dto.smsEnabled },
+      create: {
+        userId,
+        emailEnabled: dto.emailEnabled ?? true,
+        smsEnabled: dto.smsEnabled ?? false,
+        soundEnabled: dto.soundEnabled ?? true,
+      },
+      update: { emailEnabled: dto.emailEnabled, smsEnabled: dto.smsEnabled, soundEnabled: dto.soundEnabled },
     });
   }
 

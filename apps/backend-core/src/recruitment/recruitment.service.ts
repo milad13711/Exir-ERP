@@ -615,6 +615,7 @@ export class RecruitmentService implements OnModuleInit {
         hireDate: applicant.offer.startDate ?? new Date(),
         baseSalary: applicant.offer.salary,
         status: 'ACTIVE',
+        nationalId: applicant.offer.nationalId ?? undefined,
       },
     });
 
@@ -632,6 +633,18 @@ export class RecruitmentService implements OnModuleInit {
         fileUrl: `/recruitment/offers/${applicant.offer.id}/pdf`,
       },
     });
+
+    // تصویر کارت ملی متقاضی (در فرم پذیرش شرایط همکاری آپلود شده) — به‌عنوان سند پرسنلی آرشیو می‌شود.
+    if (applicant.offer.idCardImage) {
+      await ctx.tenantDb.employeeDocument.create({
+        data: {
+          employeeId: employee.id,
+          type: 'NATIONAL_ID',
+          title: `کارت ملی — ${applicant.name}`,
+          fileUrl: applicant.offer.idCardImage,
+        },
+      });
+    }
 
     let finalEmployee = employee;
     if (dto.createLogin && dto.roleId) {

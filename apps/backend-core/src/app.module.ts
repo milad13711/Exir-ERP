@@ -59,6 +59,7 @@ import { ApprovalsModule } from './approvals/approvals.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
+import { SchedulingModule } from './scheduling/scheduling.module.js';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ReferralMarketingModule } from './referral-marketing/referral-marketing
     AfterSalesModule,
     QrCodeModule,
     ApprovalsModule,
+    SchedulingModule,
     RecruitmentModule,
     ReportsModule,
     ReferralMarketingModule,

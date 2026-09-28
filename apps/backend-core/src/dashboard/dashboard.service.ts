@@ -14,11 +14,13 @@ export class DashboardService {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getTime() - 183 * 86_400_000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 86_400_000);
 
     const [
       cashAccounts,
       revenueLines,
       overdueInvoices,
+      dueOrOverdueInvoicesRaw,
       checksDueSoon,
       products,
       monthConfirmedInvoiceCount,
@@ -36,6 +38,20 @@ export class DashboardService {
         select: { id: true, invoiceNo: true, total: true, paidAmount: true, dueAt: true, contact: { select: { name: true, company: true } } },
         orderBy: { dueAt: 'asc' },
         take: 5,
+      }),
+      // برای ویجت «فاکتورهای نزدیک به سررسید و معوق» — هم معوق (سررسید گذشته) و
+      // هم نزدیک به سررسید (تا ۷ روز آینده) در یک کوئری، چون بازه‌ی هر دو زیرمجموعه‌ی
+      // «تا ۷ روز دیگر» است؛ فیلتر مرجوعی‌شده‌ها بعداً روی همین نتیجه انجام می‌شود
+      // (همان منطق hasReturn که فهرست فاکتورهای فروش استفاده می‌کند).
+      ctx.tenantDb.salesInvoice.findMany({
+        where: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID'] }, dueAt: { not: null, lte: sevenDaysFromNow } },
+        select: {
+          id: true, invoiceNo: true, total: true, paidAmount: true, dueAt: true,
+          contact: { select: { id: true, name: true, company: true, phone: true } },
+          _count: { select: { returns: true } },
+        },
+        orderBy: { dueAt: 'asc' },
+        take: 15,
       }),
       ctx.tenantDb.check.findMany({
         where: { status: { in: ['PENDING', 'DEPOSITED'] }, dueDate: { lte: new Date(now.getTime() + 7 * 86_400_000) } },
@@ -85,6 +101,16 @@ export class DashboardService {
     const overdueCountAll = await ctx.tenantDb.salesInvoice.count({
       where: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID'] }, dueAt: { lt: now } },
     });
+
+    // hasReturn: فاکتور مرجوعی‌شده در این ویجت نمایش داده نمی‌شود — همان قاعده‌ای
+    // که فهرست فاکتورهای فروش برای وضعیت درست‌تر استفاده می‌کند (invoices.service.ts:list).
+    const dueOrOverdueInvoices = dueOrOverdueInvoicesRaw
+      .filter((inv) => inv._count.returns === 0)
+      .map(({ _count, dueAt, ...inv }) => ({
+        ...inv,
+        dueAt: dueAt!,
+        daysDiff: Math.ceil((dueAt!.getTime() - now.getTime()) / 86_400_000),
+      }));
 
     const checksDueSoonTotal = checksDueSoon.reduce((sum, c) => sum + c.amount, 0);
     const checksDueSoonCountAll = await ctx.tenantDb.check.count({
@@ -188,6 +214,7 @@ export class DashboardService {
       cashBalance,
       monthInvoiceCount: monthConfirmedInvoiceCount,
       overdueReceivables: { total: overdueTotal, count: overdueCountAll, items: overdueInvoices },
+      dueOrOverdueInvoices,
       checksDueSoon: { total: checksDueSoonTotal, count: checksDueSoonCountAll, items: checksDueSoon },
       lowStockCount,
       producibleCapacity,

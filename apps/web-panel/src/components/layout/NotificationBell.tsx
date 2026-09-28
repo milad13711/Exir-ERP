@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BellIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
@@ -8,18 +8,35 @@ import {
   fetchNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  fetchNotificationPreferences,
   type AppNotification,
 } from "@/lib/api";
+import { playNotificationSound } from "@/lib/notification-sound";
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const router = useRouter();
+  // این اعلان‌ها فقط با poll (هر ۱۵ ثانیه + روی focus/visibility) دریافت می‌شوند، نه سوکت زنده؛
+  // پس «صدا هنگام رسیدن» یعنی صدا وقتی یک poll نسبت به poll قبلی تعداد نخوانده‌ی بیشتری برگرداند.
+  const prevUnreadRef = useRef<number | null>(null);
+  const soundEnabledRef = useRef(true);
 
   function reload() {
+    // pref هم اینجا (با همان تناوب) تازه می‌شود تا تغییر کلید در صفحه‌ی تنظیمات — بدون رفرش کامل —
+    // ظرف چند ثانیه روی همین نمونه‌ی نصب‌شده در layout هم اثر بگذارد.
+    fetchNotificationPreferences()
+      .then((prefs) => {
+        soundEnabledRef.current = prefs.soundEnabled;
+      })
+      .catch(() => {});
     fetchNotifications()
       .then((data) => {
+        if (prevUnreadRef.current !== null && data.unreadCount > prevUnreadRef.current && soundEnabledRef.current) {
+          playNotificationSound();
+        }
+        prevUnreadRef.current = data.unreadCount;
         setUnreadCount(data.unreadCount);
         setItems(data.items);
       })

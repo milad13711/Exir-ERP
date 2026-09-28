@@ -43,6 +43,6 @@ import { SalesAutomationTriggers } from './sales-automation.triggers.js';
     RecurringInvoicesService,
     SalesAutomationTriggers,
   ],
-  exports: [InvoicesService],
+  exports: [InvoicesService, PaymentReminderService],
 })
 export class SalesModule {}

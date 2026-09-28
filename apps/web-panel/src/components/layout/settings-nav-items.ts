@@ -12,6 +12,7 @@ import {
   BotIcon,
   BoltIcon,
   UserCircleIcon,
+  ClockIcon,
 } from "@/components/icons";
 
 export type SettingsNavItem = {
@@ -35,5 +36,6 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/ai-assistant", label: "دستیار هوشمند (MCP)", icon: BotIcon, moduleCode: "mcp" },
   { href: "/settings/offline-sync", label: "همگام‌سازی آفلاین", icon: BoltIcon, moduleCode: "offline-sync" },
   { href: "/settings/notifications", label: "اعلان‌ها", icon: BellIcon },
+  { href: "/settings/scheduling", label: "زمان‌بندی ارسال خودکار", icon: ClockIcon },
   { href: "/settings/logs", label: "لاگ فعالیت‌ها و خطاها", icon: LogIcon },
 ];

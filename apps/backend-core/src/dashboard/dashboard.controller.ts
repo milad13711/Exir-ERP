@@ -1,9 +1,11 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { DashboardService } from './dashboard.service.js';
+import { InvoiceDueRemindersService } from './invoice-due-reminders.service.js';
+import { CreateInvoiceFollowUpDto } from './dto/create-invoice-follow-up.dto.js';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +13,7 @@ export class DashboardController {
   constructor(
     private readonly dashboard: DashboardService,
     private readonly permissions: PermissionsService,
+    private readonly dueReminders: InvoiceDueRemindersService,
   ) {}
 
   /** خلاصه‌ی داشبورد — هر بخش فقط اگر کاربر مجوز مشاهده‌ی ماژول مربوطه را دارد پر می‌شود (بقیه خالی/صفر). */
@@ -25,11 +28,37 @@ export class DashboardController {
       checksDueSoon: can('accounting') ? data.checksDueSoon : { total: 0, count: 0, items: [] },
       monthInvoiceCount: can('sales') ? data.monthInvoiceCount : 0,
       overdueReceivables: can('sales') ? data.overdueReceivables : { total: 0, count: 0, items: [] },
+      dueOrOverdueInvoices: can('sales') ? data.dueOrOverdueInvoices : [],
       salesTrend: can('sales') ? data.salesTrend : data.salesTrend.map((p) => ({ ...p, value: 0 })),
       customerFollowUps: can('sales') || can('crm') ? data.customerFollowUps : [],
       lowStockCount: can('warehouse') ? data.lowStockCount : 0,
       producibleCapacity: can('production') || can('warehouse') ? data.producibleCapacity : [],
       productionTrend: can('production') ? data.productionTrend : data.productionTrend.map((p) => ({ ...p, value: 0, valueLastYear: 0 })),
     };
+  }
+
+  /** یادآوری پیامکی دستی برای یک فاکتور مشخص — از ردیف ویجت فاکتورهای نزدیک به سررسید/معوق داشبورد. */
+  @Post('overdue-invoices/:invoiceId/remind-sms')
+  async remindSms(@Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'sales');
+    return this.dueReminders.remindSms(ctx, invoiceId);
+  }
+
+  /** ثبت پیگیری تلفنی برای یک فاکتور — چه گفته/قول داده شد و واکنش مشتری. */
+  @Post('overdue-invoices/:invoiceId/follow-up')
+  async createFollowUp(
+    @Param('invoiceId') invoiceId: string,
+    @Body() dto: CreateInvoiceFollowUpDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    return this.dueReminders.createFollowUp(ctx, invoiceId, dto);
+  }
+
+  /** تاریخچه‌ی پیگیری‌های تلفنی یک فاکتور مشخص. */
+  @Get('overdue-invoices/:invoiceId/follow-ups')
+  async listFollowUps(@Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'sales');
+    return this.dueReminders.listFollowUps(ctx, invoiceId);
   }
 }

@@ -72,6 +72,8 @@ export function EmployeeModal({
   const [departments, setDepartments] = useState<Department[]>([]);
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editNationalId, setEditNationalId] = useState("");
+  const [editBirthDate, setEditBirthDate] = useState("");
   const [editBaseSalary, setEditBaseSalary] = useState("");
   const [editHireDate, setEditHireDate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -122,6 +124,8 @@ export function EmployeeModal({
     setEditDepartmentId(employee.department?.id ?? "");
     setEditPhone(employee.phone ?? "");
     setEditEmail(employee.email ?? "");
+    setEditNationalId(employee.nationalId ?? "");
+    setEditBirthDate(employee.birthDate ? employee.birthDate.slice(0, 10) : "");
     setEditBaseSalary(String(employee.baseSalary));
     setEditHireDate(employee.hireDate.slice(0, 10));
     setEditing(true);
@@ -137,6 +141,8 @@ export function EmployeeModal({
         departmentId: editDepartmentId || undefined,
         phone: editPhone.trim() || undefined,
         email: editEmail.trim() || undefined,
+        nationalId: editNationalId.trim() || undefined,
+        birthDate: editBirthDate || undefined,
         baseSalary: Number(editBaseSalary) || 0,
         hireDate: editHireDate,
       });
@@ -282,6 +288,25 @@ export function EmployeeModal({
                   className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
                 />
               </div>
+              <div className="flex gap-2.5">
+                <input
+                  value={editNationalId}
+                  onChange={(e) => setEditNationalId(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="کد ملی"
+                  dir="ltr"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
+                />
+                <div className="flex-1">
+                  <JalaliDateInput
+                    value={editBirthDate}
+                    onChange={setEditBirthDate}
+                    placeholder="تاریخ تولد"
+                    className="text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2 w-full"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="text-[11px] text-muted block mb-1">تاریخ استخدام</label>
                 <JalaliDateInput
@@ -383,6 +408,18 @@ export function EmployeeModal({
               <div>
                 <div className="text-[11px] text-muted">شماره تماس</div>
                 <div className="text-[13px] font-bold mt-0.5" dir="ltr">{employee.phone}</div>
+              </div>
+            ) : null}
+            {employee.nationalId ? (
+              <div>
+                <div className="text-[11px] text-muted">کد ملی</div>
+                <div className="text-[13px] font-bold mt-0.5" dir="ltr">{employee.nationalId}</div>
+              </div>
+            ) : null}
+            {employee.birthDate ? (
+              <div>
+                <div className="text-[11px] text-muted">تاریخ تولد</div>
+                <div className="text-[13px] font-bold mt-0.5">{formatJalaliDate(employee.birthDate)}</div>
               </div>
             ) : null}
           </div>

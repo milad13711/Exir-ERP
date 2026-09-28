@@ -1,27 +1,49 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
+import type { SendSmsResult } from '../sms/exir-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import { InvoicesService } from './invoices.service.js';
+import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
+import { SchedulingService } from '../scheduling/scheduling.service.js';
+import { matchesSchedule } from '../scheduling/schedule-match.util.js';
 
-const REMINDER_COOLDOWN_MS = 20 * 60 * 60 * 1000; // حداکثر یک‌بار در روز
+const REMINDER_COOLDOWN_MS = 20 * 60 * 60 * 1000; // شبکه‌ی ایمنی؛ شرط اصلیِ ارسال الان تطبیق دقیقِ روز+ساعت تنظیم‌شده است، نه این کول‌داون
+
+export const INVOICE_DUE_REMINDER_JOB_CODE = 'invoice-due-reminder';
+
+/** همان متن یادآور تکمیل وجه که یادآور روزانه استفاده می‌کند — یک‌بار اینجا نوشته شده تا با ارسال دستی هم یکی باشد. */
+function buildDueReminderMessage(invoice: { invoiceNo: number; total: number; paidAmount: number; dueAt: Date }): string {
+  const remaining = invoice.total - invoice.paidAmount;
+  const daysLeft = Math.ceil((invoice.dueAt.getTime() - Date.now()) / 86_400_000);
+  const dueDateFa = faDate(invoice.dueAt);
+  const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
+  return `اکسیر ERP: فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} تومان ${overdueFa}. لطفاً نسبت به تسویه اقدام فرمایید.`;
+}
 
 /**
- * Runs once a day across every active tenant's own database and reminds
- * about any invoice still owed (CONFIRMED/PARTIALLY_PAID with a remaining
- * balance) once its due date is within the tenant's configured window —
- * covers both "coming due soon" (positive days) and "already overdue"
- * (negative days), since the same threshold check handles both. Reminds
- * both sides: the customer by SMS (a nudge to pay), and every owner/admin
- * by in-app+email notification (so someone follows up). Each invoice is
- * reminded at most once every ~20 hours via lastPaymentReminderAt.
+ * Runs every hour across every active tenant's own database. Per tenant, it
+ * reads that tenant's "زمان‌بندی ارسال خودکار" (Settings → Scheduling)
+ * config for this job — an offset like "۳ روز قبل" and an hour-of-day — and
+ * only actually reminds when the current Tehran hour matches AND an
+ * invoice's due date falls exactly on that offset from today (see
+ * matchesSchedule in scheduling/schedule-match.util.ts). Previously this ran
+ * on a fixed EVERY_DAY_AT_10AM with an inequality condition (any invoice
+ * within N days, re-checked and re-sent roughly daily); that's now a single
+ * configurable firing point instead of a recurring nag. Reminds both sides:
+ * the customer by SMS (a nudge to pay), and every owner/admin by
+ * in-app+email notification (so someone follows up). Each invoice is
+ * reminded at most once every ~20 hours via lastPaymentReminderAt (now
+ * mostly a safety net, since the day-match is already exact).
  */
 @Injectable()
-export class PaymentReminderService {
+export class PaymentReminderService implements OnModuleInit {
   private readonly logger = new Logger('PaymentReminderService');
 
   constructor(
@@ -30,9 +52,31 @@ export class PaymentReminderService {
     private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
     private readonly invoices: InvoicesService,
+    private readonly jobRegistry: SchedulableJobRegistryService,
+    private readonly scheduling: SchedulingService,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_10AM)
+  onModuleInit(): void {
+    this.jobRegistry.registerJob({
+      code: INVOICE_DUE_REMINDER_JOB_CODE,
+      label: 'یادآوری سررسید فاکتور فروش',
+      moduleCode: 'sales',
+      defaultConfig: offsetPreset(3, 'DAYS_BEFORE', 10, 0),
+      allowedOffsets: [
+        offsetPreset(5, 'DAYS_BEFORE', 10, 0),
+        offsetPreset(3, 'DAYS_BEFORE', 10, 0),
+        offsetPreset(2, 'DAYS_BEFORE', 10, 0),
+        offsetPreset(1, 'DAYS_BEFORE', 10, 0),
+        offsetPreset(0, 'SAME_DAY', 10, 0),
+        offsetPreset(1, 'DAYS_AFTER', 10, 0),
+        offsetPreset(3, 'DAYS_AFTER', 10, 0),
+        offsetPreset(7, 'DAYS_AFTER', 10, 0),
+      ],
+      behaviorWired: true,
+    });
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
   async sendDueReminders(): Promise<void> {
     const tenants = await this.controlDb.tenant.findMany({ where: { status: 'ACTIVE' } });
     for (const tenant of tenants) {
@@ -46,7 +90,8 @@ export class PaymentReminderService {
 
   private async remindForTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
-    const reminderDays = await this.invoices.getPaymentReminderDays(tenantDb);
+    const schedule = await this.scheduling.getConfig(tenantDb, INVOICE_DUE_REMINDER_JOB_CODE);
+    const now = new Date();
 
     const candidates = await tenantDb.salesInvoice.findMany({
       where: {
@@ -57,10 +102,7 @@ export class PaymentReminderService {
       include: { contact: { select: { name: true, phone: true } } },
     });
 
-    const due = candidates.filter((inv) => {
-      const daysLeft = Math.ceil((inv.dueAt!.getTime() - Date.now()) / 86_400_000);
-      return daysLeft <= reminderDays;
-    });
+    const due = candidates.filter((inv) => matchesSchedule(now, inv.dueAt!, schedule));
     if (due.length === 0) return;
 
     const managers = await getManagerUsers(this.controlDb, tenantDb, tenantId);
@@ -72,7 +114,7 @@ export class PaymentReminderService {
       const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
 
       if (invoice.contact.phone) {
-        const message = `اکسیر ERP: فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} تومان ${overdueFa}. لطفاً نسبت به تسویه اقدام فرمایید.`;
+        const message = buildDueReminderMessage(invoice as { invoiceNo: number; total: number; paidAmount: number; dueAt: Date });
         const result = await this.sms.sendSms({ tenantId, tenantDb }, invoice.contact.phone, message);
         if (!result.success) {
           this.logger.warn(`Payment reminder SMS failed (tenant ${tenantId}, invoice ${invoice.id}): ${result.error}`);
@@ -91,5 +133,29 @@ export class PaymentReminderService {
 
       await tenantDb.salesInvoice.update({ where: { id: invoice.id }, data: { lastPaymentReminderAt: new Date() } });
     }
+  }
+
+  /**
+   * Manual, one-off version of the same "please pay" SMS for a single
+   * invoice — used by the dashboard's due/overdue-invoices widget so a user
+   * can nudge a specific customer right away instead of waiting for the
+   * daily sweep. Bumps the same lastPaymentReminderAt the cron reads, so the
+   * daily sweep doesn't immediately re-remind right after a manual send.
+   */
+  async sendManualReminder(ctx: TenantRequestContext, invoiceId: string): Promise<SendSmsResult> {
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({
+      where: { id: invoiceId },
+      include: { contact: { select: { name: true, phone: true } } },
+    });
+    if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    if (!invoice.dueAt) return { success: false, error: 'این فاکتور سررسید ندارد' };
+    if (!invoice.contact.phone) return { success: false, error: 'مشتری این فاکتور شماره تماس ثبت‌شده ندارد' };
+
+    const message = buildDueReminderMessage(invoice as { invoiceNo: number; total: number; paidAmount: number; dueAt: Date });
+    const result = await this.sms.sendSms({ tenantId: ctx.tenantId, tenantDb: ctx.tenantDb }, invoice.contact.phone, message);
+    if (result.success) {
+      await ctx.tenantDb.salesInvoice.update({ where: { id: invoiceId }, data: { lastPaymentReminderAt: new Date() } });
+    }
+    return result;
   }
 }

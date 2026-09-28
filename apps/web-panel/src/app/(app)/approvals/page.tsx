@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
 
@@ -12,6 +13,9 @@ const TABS = [
 
 export default function ApprovalsPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("PENDING");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const openId = searchParams.get("open");
   return (
     <div className="p-5 lg:p-7 max-w-[820px] mx-auto">
       <h1 className="text-xl font-extrabold mb-1">کارتابل تأیید</h1>
@@ -27,7 +31,7 @@ export default function ApprovalsPage() {
           </button>
         ))}
       </div>
-      <ApprovalsList status={tab} />
+      <ApprovalsList status={tab} autoOpenId={openId} onAutoOpened={() => router.replace("/approvals")} />
     </div>
   );
 }
