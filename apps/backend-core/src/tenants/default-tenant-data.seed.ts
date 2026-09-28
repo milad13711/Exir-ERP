@@ -6,6 +6,7 @@ const MODULE_PERMISSIONS: Array<{ code: string; moduleCode: string; description:
   { code: 'warehouse.manage', moduleCode: 'warehouse', description: 'مدیریت انبار و موجودی' },
   { code: 'accounting.manage', moduleCode: 'accounting', description: 'مدیریت اسناد حسابداری' },
   { code: 'hr.manage', moduleCode: 'hr', description: 'مدیریت منابع انسانی' },
+  { code: 'certificates.manage', moduleCode: 'certificates', description: 'مدیریت گواهی‌ها' },
   { code: 'tasks.manage', moduleCode: 'tasks', description: 'مدیریت وظایف و یادآوری‌ها' },
   { code: 'settings.users.manage', moduleCode: 'settings', description: 'مدیریت کاربران و نقش‌ها' },
   { code: 'settings.billing.manage', moduleCode: 'settings', description: 'مدیریت اشتراک و صورتحساب' },

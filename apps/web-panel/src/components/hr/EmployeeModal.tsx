@@ -13,9 +13,8 @@ import {
   terminateEmployee,
   reactivateEmployee,
   fetchCertificates,
-  issueCertificate,
-  deleteCertificate,
   fetchCertificateImageObjectUrl,
+  fetchCertificatePdfObjectUrl,
   fetchRewards,
   createReward,
   deleteReward,
@@ -31,6 +30,7 @@ import {
   type Department,
 } from "@/lib/api";
 import { EmployeeKpiModal } from "./EmployeeKpiModal";
+import { NewCertificateModal } from "@/components/certificates/NewCertificateModal";
 import {
   LEAVE_TYPE_LABELS,
   LEAVE_STATUS_LABELS,
@@ -79,13 +79,7 @@ export function EmployeeModal({
   const [kpiOpen, setKpiOpen] = useState(false);
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [certCourseTitle, setCertCourseTitle] = useState("");
-  const [certCourseTitleEn, setCertCourseTitleEn] = useState("");
-  const [certDuration, setCertDuration] = useState("");
-  const [certStartDate, setCertStartDate] = useState("");
-  const [certEndDate, setCertEndDate] = useState("");
-  const [certScore, setCertScore] = useState("");
-  const [savingCert, setSavingCert] = useState(false);
+  const [issueCertOpen, setIssueCertOpen] = useState(false);
 
   const [rewards, setRewards] = useState<PersonnelActionEntry[]>([]);
   const [penalties, setPenalties] = useState<PersonnelActionEntry[]>([]);
@@ -102,7 +96,7 @@ export function EmployeeModal({
     });
   }
   function reloadCertificates() {
-    fetchCertificates(employeeId).then(setCertificates);
+    fetchCertificates({ employeeId }).then(setCertificates);
   }
   function reloadActions() {
     fetchRewards(employeeId).then(setRewards);
@@ -188,43 +182,11 @@ export function EmployeeModal({
     }
   }
 
-  async function handleIssueCertificate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!certCourseTitle.trim()) return;
-    setSavingCert(true);
-    try {
-      await issueCertificate({
-        employeeId,
-        courseTitleFa: certCourseTitle.trim(),
-        courseTitleEn: certCourseTitleEn.trim() || undefined,
-        durationHours: certDuration ? Number(certDuration) : undefined,
-        startDate: certStartDate || undefined,
-        endDate: certEndDate || undefined,
-        score: certScore ? Number(certScore) : undefined,
-      });
-      setCertCourseTitle("");
-      setCertCourseTitleEn("");
-      setCertDuration("");
-      setCertStartDate("");
-      setCertEndDate("");
-      setCertScore("");
-      reloadCertificates();
-    } finally {
-      setSavingCert(false);
-    }
-  }
-
-  async function handleDeleteCertificate(id: string) {
-    if (!window.confirm("این گواهی حذف شود؟")) return;
-    await deleteCertificate(id);
-    reloadCertificates();
-  }
-
-  async function handleDownloadCertificate(cert: Certificate) {
-    const url = await fetchCertificateImageObjectUrl(cert.id);
+  async function handleDownloadCertificate(cert: Certificate, kind: "png" | "pdf") {
+    const url = kind === "png" ? await fetchCertificateImageObjectUrl(cert.id) : await fetchCertificatePdfObjectUrl(cert.id);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `certificate-${cert.code}.png`;
+    a.download = `certificate-${cert.code}.${kind}`;
     a.click();
   }
 
@@ -399,6 +361,14 @@ export function EmployeeModal({
           )}
 
           {kpiOpen && <EmployeeKpiModal employeeId={employeeId} onClose={() => setKpiOpen(false)} />}
+
+          {issueCertOpen && employee ? (
+            <NewCertificateModal
+              presetRecipient={{ type: "EMPLOYEE", employee }}
+              onClose={() => setIssueCertOpen(false)}
+              onCreated={() => reloadCertificates()}
+            />
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-border rounded-xl p-3.5">
             <div>
@@ -583,7 +553,18 @@ export function EmployeeModal({
           </div>
 
           <div>
-            <div className="text-[12px] text-muted mb-2">گواهی‌نامه‌ها</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[12px] text-muted">گواهی‌های صادرشده</div>
+              {employee ? (
+                <button
+                  type="button"
+                  onClick={() => setIssueCertOpen(true)}
+                  className="text-[11.5px] font-bold text-primary cursor-pointer"
+                >
+                  + صدور گواهی برای این پرسنل
+                </button>
+              ) : null}
+            </div>
             {certificates.length === 0 ? (
               <div className="text-[12.5px] text-muted text-center py-4 bg-slate-50 rounded-xl border border-border mb-3">
                 گواهی‌ای صادر نشده است
@@ -596,7 +577,7 @@ export function EmployeeModal({
                     className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
                     <div className="min-w-0">
-                      <div className="text-[12.5px] font-bold break-words">{c.courseTitleFa}</div>
+                      <div className="text-[12.5px] font-bold break-words">{c.titleFa}</div>
                       <div className="text-[11px] text-muted mt-0.5" dir="ltr">
                         {c.code} · {formatJalaliDate(c.createdAt)}
                         {c.score != null ? ` · ${toPersianDigits(c.score)}/۱۰۰` : ""}
@@ -605,67 +586,23 @@ export function EmployeeModal({
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleDownloadCertificate(c)}
+                        onClick={() => handleDownloadCertificate(c, "png")}
                         className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer"
                       >
                         دانلود تصویر
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteCertificate(c.id)}
-                        className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer"
+                        onClick={() => handleDownloadCertificate(c, "pdf")}
+                        className="text-[11px] font-bold text-accent bg-accent-soft px-2.5 py-1 rounded-lg cursor-pointer"
                       >
-                        حذف
+                        دانلود PDF
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <form onSubmit={handleIssueCertificate} className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={certCourseTitle}
-                  onChange={(e) => setCertCourseTitle(e.target.value)}
-                  placeholder="عنوان دوره (فارسی)"
-                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
-                <input
-                  value={certCourseTitleEn}
-                  onChange={(e) => setCertCourseTitleEn(e.target.value)}
-                  placeholder="عنوان دوره (انگلیسی، اختیاری)"
-                  dir="ltr"
-                  className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={certDuration}
-                  onChange={(e) => setCertDuration(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="مدت (ساعت)"
-                  dir="ltr"
-                  inputMode="numeric"
-                  className="flex-1 min-w-[90px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
-                <JalaliDateInput value={certStartDate} onChange={setCertStartDate} placeholder="تاریخ شروع دوره" className="flex-1 min-w-[130px]" />
-                <JalaliDateInput value={certEndDate} onChange={setCertEndDate} placeholder="تاریخ پایان دوره" className="flex-1 min-w-[130px]" />
-                <input
-                  value={certScore}
-                  onChange={(e) => setCertScore(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="امتیاز (از ۱۰۰)"
-                  dir="ltr"
-                  inputMode="numeric"
-                  className="flex-1 min-w-[110px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={savingCert || !certCourseTitle.trim()}
-                className="self-stretch sm:self-end text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
-              >
-                {savingCert ? "در حال صدور..." : "صدور گواهی"}
-              </button>
-            </form>
           </div>
 
           <div>

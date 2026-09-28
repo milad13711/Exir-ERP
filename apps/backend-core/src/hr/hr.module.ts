@@ -10,8 +10,6 @@ import { PermissionsModule } from '../permissions/permissions.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { HrAutomationTriggers } from './hr-automation.triggers.js';
-import { CertificatesController } from './certificates.controller.js';
-import { CertificateImageService } from './certificate-image.service.js';
 import { PersonnelRewardsController, PersonnelPenaltiesController } from './personnel-actions.controller.js';
 import { KpiController } from './kpi.controller.js';
 import { KpiService } from './kpi.service.js';
@@ -27,13 +25,11 @@ import { SettingsModule } from '../settings/settings.module.js';
     LeaveController,
     PayrollController,
     HrSummaryController,
-    CertificatesController,
     PersonnelRewardsController,
     PersonnelPenaltiesController,
     KpiController,
     DepartmentsController,
   ],
-  providers: [PayrollPdfService, HrAutomationTriggers, CertificateImageService, KpiService],
-  exports: [CertificateImageService],
+  providers: [PayrollPdfService, HrAutomationTriggers, KpiService],
 })
 export class HrModule {}

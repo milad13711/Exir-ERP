@@ -502,6 +502,7 @@ model CrmContact {
   resellerProfile           ResellerProfile?
   referralConversion        ReferralConversion?
   callLogs                  CallLog[]
+  certificates              Certificate[]
 
   @@index([createdAt])
   @@index([isSupplier])
@@ -3607,31 +3608,53 @@ model JobOffer {
   @@map("recruitment_offers")
 }
 
-// ── گواهی‌ها و پاداش/جریمه‌ی پرسنل (بخشی از منابع انسانی) ──────────────────
+// ── گواهی‌ها (ماژول مستقل certificates) ────────────────────────────────────
 // هر گواهی یک کد ۱۰ کاراکتری یکتا دارد (همان الفبای warranty-code.util.ts) که
 // هم لینک استعلام عمومی و هم متن داخل QR است — بدون هیچ publicToken جدا، تا
 // لینک هیچ‌وقت expire نشود؛ حذف رکورد یعنی خودِ کد هم از دسترس خارج می‌شود.
+// گواهی یک سند آرشیوی دائمی است — با حذف پرسنل/مخاطب گیرنده باید باقی بماند
+// (SetNull، نه Cascade) و issuedByName در لحظه‌ی صدور اسنپ‌شات می‌شود تا حتی
+// اگر کاربر صادرکننده بعداً حذف شود، آرشیو نام او را نشان دهد.
+// دقیقاً یکی از employeeId/crmContactId باید مقدار داشته باشد — این قاعده در
+// لایه‌ی سرویس اعمال می‌شود، نه با محدودیت دیتابیس (مطابق سبک این پروژه).
 
 model Certificate {
   id              String    @id @default(uuid())
   code            String    @unique // ۱۰ کاراکتر — عدد+حروف بزرگ انگلیسی
-  employeeId      String
+  employeeId      String?
+  crmContactId    String?
   recipientNameFa String
   recipientNameEn String?
-  courseTitleFa   String
-  courseTitleEn   String?
+  titleFa         String
+  titleEn         String?
   durationHours   Int?
   startDate       DateTime?
   endDate         DateTime?
   score           Int? // از ۱۰۰
   issuedByUserId  String?
+  issuedByName    String? // اسنپ‌شات نام صادرکننده در لحظه‌ی صدور — مستقل از بقای کاربر
   createdAt       DateTime  @default(now())
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  issuedBy User?    @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  employee   Employee?         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  crmContact CrmContact?       @relation(fields: [crmContactId], references: [id], onDelete: SetNull)
+  issuedBy   User?             @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  items      CertificateItem[]
 
   @@index([employeeId])
+  @@index([crmContactId])
   @@map("hr_certificates")
+}
+
+model CertificateItem {
+  id            String      @id @default(uuid())
+  certificateId String
+  titleFa       String
+  titleEn       String?
+  order         Int         @default(0)
+  certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+
+  @@index([certificateId])
+  @@map("certificate_items")
 }
 
 model PersonnelReward {

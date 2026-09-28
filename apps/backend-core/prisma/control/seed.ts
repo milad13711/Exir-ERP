@@ -305,6 +305,22 @@ async function main() {
       features: ['QR اختصاصی برای هر لینک', 'تغییر مقصد بدون چاپ دوباره', 'شمارش تعداد اسکن', 'دانلود تصویر برای چاپ'],
     },
     {
+      code: 'certificates',
+      name: 'گواهی‌نامه‌ها',
+      description: 'صدور گواهی‌نامه‌ی رسمی برای پرسنل یا مخاطبان CRM — قالب قابل‌تنظیم با تصویر پس‌زمینه‌ی اختصاصی، کد یکتای رهگیری، QR و لینک استعلام عمومی دائمی، خروجی تصویر و PDF.',
+      category: 'منابع انسانی',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: [],
+      features: [
+        'صدور گواهی برای پرسنل یا مخاطب CRM',
+        'قالب با تصویر پس‌زمینه و مختصات متن قابل‌تنظیم',
+        'کد یکتای رهگیری + QR + لینک استعلام عمومی دائمی',
+        'خروجی تصویر PNG و PDF، فارسی/انگلیسی',
+      ],
+    },
+    {
       code: 'recruitment',
       name: 'استخدام و جذب نیرو',
       description: 'کل چرخه‌ی جذب نیرو — آگهی، رزومه‌ها، زمان‌بندی مصاحبه در تقویم، امتیازدهی، تأیید کارشناس و مدیریت با اطلاع‌رسانی پیامکی، شرایط همکاری قابل تأیید آنلاین و پرینت PDF با مهر و امضا، و اتصال مستقیم به ماژول منابع انسانی.',
@@ -525,6 +541,29 @@ async function main() {
         create: { tenantId: tenant.id, moduleId: m.id, status: 'INSTALLED' },
         update: {},
       });
+    }
+  }
+
+  // گواهی‌نامه از دل ماژول HR بیرون کشیده شد و حالا ماژولی مستقل و پولی است؛
+  // هر تننتی که همین امروز HR را نصب‌شده/آزمایشی دارد از قبل از این قابلیت
+  // (endpoint صدور گواهی زیر hr/certificates) استفاده می‌کرده، پس برایش
+  // «certificates» هم به‌صورت خودکار نصب‌شده ثبت می‌شود تا دسترسی‌ای که
+  // قبلاً داشت با این جداسازی از دست نرود.
+  const certificatesModule = await db.moduleDefinition.findUnique({ where: { code: 'certificates' } });
+  if (certificatesModule) {
+    const hrModule = await db.moduleDefinition.findUnique({ where: { code: 'hr' } });
+    if (hrModule) {
+      const hrInstalls = await db.tenantModule.findMany({
+        where: { moduleId: hrModule.id, status: { in: ['INSTALLED', 'TRIAL'] } },
+        select: { tenantId: true },
+      });
+      for (const { tenantId } of hrInstalls) {
+        await db.tenantModule.upsert({
+          where: { tenantId_moduleId: { tenantId, moduleId: certificatesModule.id } },
+          create: { tenantId, moduleId: certificatesModule.id, status: 'INSTALLED' },
+          update: {},
+        });
+      }
     }
   }
 

@@ -30,6 +30,7 @@ import {
   LogIcon,
   ShareIcon,
   PhoneIcon,
+  StarIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -84,6 +85,7 @@ export const primaryNav: NavItem[] = [
   // منابع انسانی
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr", category: "منابع انسانی" },
   { href: "/recruitment", label: "استخدام و جذب نیرو", icon: BriefcaseIcon, moduleCode: "recruitment", category: "منابع انسانی" },
+  { href: "/certificates", label: "گواهی‌ها", icon: StarIcon, moduleCode: "certificates", category: "منابع انسانی" },
 
   // بهره‌وری
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects", category: "بهره‌وری" },

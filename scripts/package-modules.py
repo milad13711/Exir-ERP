@@ -36,6 +36,7 @@ MODULES = {
     "fleet": (["fleet"], "fleet", "fleet"),
     "forms": (["forms"], "forms", "forms"),
     "hr": (["hr"], "hr", "hr"),
+    "certificates": (["certificates"], "certificates", "certificates"),
     "marketing": (["marketing"], "marketing", "marketing"),
     "mentoring": (["mentoring"], "mentoring", "mentoring"),
     "online-store": (["online-store"], "online-store", "online-store"),

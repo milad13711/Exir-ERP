@@ -2334,55 +2334,104 @@ export function addEmployeeDocument(
   });
 }
 
-// ── گواهی‌نامه‌ها، پاداش‌ها و جریمه‌های پرسنلی ──────────────────────────────
+// ── گواهی‌نامه‌ها (ماژول مستقل certificates) ────────────────────────────────
+
+export type CertificateItem = { id?: string; titleFa: string; titleEn?: string | null; order?: number };
 
 export type Certificate = {
   id: string;
   code: string;
-  employeeId: string;
+  employeeId: string | null;
+  crmContactId: string | null;
   recipientNameFa: string;
   recipientNameEn: string | null;
-  courseTitleFa: string;
-  courseTitleEn: string | null;
+  titleFa: string;
+  titleEn: string | null;
+  items: CertificateItem[];
   durationHours: number | null;
   startDate: string | null;
   endDate: string | null;
   score: number | null;
+  issuedByName: string | null;
   createdAt: string;
-  employee: { id: string; fullName: string; employeeCode: string };
+  employee: { id: string; fullName: string; employeeCode: string } | null;
+  crmContact: { id: string; name: string } | null;
   issuedBy: { id: string; name: string } | null;
   verifyUrl?: string;
 };
 
-export function fetchCertificates(employeeId?: string) {
-  return apiFetch<Certificate[]>(`/hr/certificates${employeeId ? `?employeeId=${employeeId}` : ""}`);
+export function fetchCertificates(params?: { employeeId?: string; crmContactId?: string; search?: string }) {
+  const q = new URLSearchParams();
+  if (params?.employeeId) q.set("employeeId", params.employeeId);
+  if (params?.crmContactId) q.set("crmContactId", params.crmContactId);
+  if (params?.search) q.set("search", params.search);
+  const qs = q.toString();
+  return apiFetch<Certificate[]>(`/certificates${qs ? `?${qs}` : ""}`);
 }
 
 export function issueCertificate(data: {
-  employeeId: string;
-  recipientNameFa?: string;
-  recipientNameEn?: string;
-  courseTitleFa: string;
-  courseTitleEn?: string;
+  recipientType: "EMPLOYEE" | "CONTACT";
+  employeeId?: string;
+  crmContactId?: string;
+  titleFa: string;
+  titleEn?: string;
+  items?: { titleFa: string; titleEn?: string }[];
   durationHours?: number;
   startDate?: string;
   endDate?: string;
   score?: number;
 }) {
-  return apiFetch<Certificate>("/hr/certificates", { method: "POST", body: JSON.stringify(data) });
+  return apiFetch<Certificate>("/certificates", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function deleteCertificate(id: string) {
-  return apiFetch<{ ok: true }>(`/hr/certificates/${id}`, { method: "DELETE" });
+  return apiFetch<{ ok: true }>(`/certificates/${id}`, { method: "DELETE" });
 }
 
-/** تصویر گواهی احراز‌هویت لازم دارد، پس به Object URL تبدیل می‌شود (همان الگوی fetchQrCodeImageObjectUrl). */
-export async function fetchCertificateImageObjectUrl(id: string): Promise<string> {
+export type CertificateFieldKey = "recipientName" | "title" | "items" | "code" | "issueDate" | "qr" | "stamp" | "signature";
+
+export type CertificateFieldPosition = {
+  xPct: number;
+  yPct: number;
+  fontSizePx?: number;
+  align?: "left" | "center" | "right";
+  widthPct?: number;
+  lineHeightPx?: number;
+};
+
+export type CertificateTemplateSettings = {
+  backgroundImage: string | null;
+  stampImage?: string | null;
+  signatureImage?: string | null;
+  fieldsFa: Record<CertificateFieldKey, CertificateFieldPosition>;
+  fieldsEn: Record<CertificateFieldKey, CertificateFieldPosition>;
+};
+
+export function fetchCertificateTemplateSettings() {
+  return apiFetch<CertificateTemplateSettings>("/certificates/template-settings");
+}
+
+export function updateCertificateTemplateSettings(data: Partial<CertificateTemplateSettings>) {
+  return apiFetch<CertificateTemplateSettings>("/certificates/template-settings", { method: "PUT", body: JSON.stringify(data) });
+}
+
+/** تصویر/PDF گواهی احراز‌هویت لازم دارد، پس به Object URL تبدیل می‌شود (همان الگوی fetchQrCodeImageObjectUrl). */
+export async function fetchCertificateImageObjectUrl(id: string, lang: "fa" | "en" = "fa"): Promise<string> {
   const token = getToken();
-  const res = await fetch(`${API_URL}/hr/certificates/${id}/image.png`, {
+  const res = await fetch(`${API_URL}/certificates/${id}/image.png?lang=${lang}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new ApiError("ساخت تصویر گواهی ناموفق بود", res.status);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+export async function fetchCertificatePdfObjectUrl(id: string, lang: "fa" | "en" = "fa"): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/certificates/${id}/pdf?lang=${lang}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("ساخت PDF گواهی ناموفق بود", res.status);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
@@ -2431,13 +2480,15 @@ export type PublicCertificateLookup = {
   code: string;
   recipientNameFa: string;
   recipientNameEn: string | null;
-  courseTitleFa: string;
-  courseTitleEn: string | null;
+  titleFa: string;
+  titleEn: string | null;
+  items: CertificateItem[];
   durationHours: number | null;
   startDate: string | null;
   endDate: string | null;
   score: number | null;
   issuedAt: string;
+  issuedByName: string | null;
   organizationName: string;
   verifyUrl: string;
 };
@@ -2446,8 +2497,12 @@ export function fetchPublicCertificate(slug: string, code: string) {
   return apiFetch<PublicCertificateLookup>(`/public/certificates/${slug}/${code}`);
 }
 
-export function publicCertificateImageUrl(slug: string, code: string): string {
-  return `${API_URL}/public/certificates/${slug}/${code}/image.png`;
+export function publicCertificateImageUrl(slug: string, code: string, lang: "fa" | "en" = "fa"): string {
+  return `${API_URL}/public/certificates/${slug}/${code}/image.png?lang=${lang}`;
+}
+
+export function publicCertificatePdfUrl(slug: string, code: string, lang: "fa" | "en" = "fa"): string {
+  return `${API_URL}/public/certificates/${slug}/${code}/pdf?lang=${lang}`;
 }
 
 export function fetchAttendance(date: string) {

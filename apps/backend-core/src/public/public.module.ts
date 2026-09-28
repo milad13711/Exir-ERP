@@ -50,7 +50,7 @@ import { ModulePricingSyncService } from './module-pricing-sync.service.js';
 import { RecruitmentModule } from '../recruitment/recruitment.module.js';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { PublicRecruitmentController } from './public-recruitment.controller.js';
-import { HrModule } from '../hr/hr.module.js';
+import { CertificatesModule } from '../certificates/certificates.module.js';
 import { PublicCertificateService } from './public-certificate.service.js';
 import { PublicCertificateController } from './public-certificate.controller.js';
 import { PublicLabReviewService } from '../ration-lab/public/public-lab-review.service.js';
@@ -76,7 +76,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     WarrantyModule,
     AfterSalesModule,
     QrCodeModule,
-    HrModule,
+    CertificatesModule,
     SmsModule,
     NotificationsModule,
   ],

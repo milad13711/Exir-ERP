@@ -4,7 +4,7 @@ import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PhoneIcon, MailIcon, BuildingIcon, PlusIcon } from "@/components/icons";
-import { formatToman } from "@/lib/persian";
+import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchCrmContact,
   addCrmContactActivity,
@@ -13,16 +13,21 @@ import {
   fetchSupplierRisk,
   updateContactCreditInputs,
   originateCall,
+  fetchCertificates,
+  fetchCertificateImageObjectUrl,
+  fetchCertificatePdfObjectUrl,
   ApiError,
   type CrmContactDetail,
   type CreditAssessment,
   type SupplierRiskAssessment,
+  type Certificate,
 } from "@/lib/api";
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { PartyStatementSection } from "./PartyStatementSection";
 import { PartyHistorySection } from "./PartyHistorySection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
+import { NewCertificateModal } from "@/components/certificates/NewCertificateModal";
 
 function scoreTone(score: number): "success" | "warning" | "danger" {
   if (score >= 70) return "success";
@@ -338,6 +343,8 @@ export function ContactModal({
 
           <PartyHistorySection contactId={contact.id} />
 
+          {installedModules.has("certificates") ? <ContactCertificatesSection contact={contact} /> : null}
+
           <AttachmentsSection entityType="CrmContact" entityId={contact.id} />
 
           <div>
@@ -388,5 +395,63 @@ export function ContactModal({
       )}
       <DeleteRecordButton confirmText="این مخاطب حذف شود؟ اگر فاکتور یا نوبتی به او وصل باشد حذف نمی‌شود." onDelete={() => deleteCrmContact(contactId)} onDeleted={() => { onDeleted?.(); onClose(); }} />
     </Modal>
+  );
+}
+
+/** بخش فقط‌خواندنی گواهی‌های صادرشده برای این مخاطب — صدور گواهی از خودِ ماژول گواهی‌ها انجام می‌شود، اینجا فقط آرشیو و لینک میان‌بر صدور است. */
+function ContactCertificatesSection({ contact }: { contact: CrmContactDetail }) {
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [issueOpen, setIssueOpen] = useState(false);
+
+  function reload() {
+    fetchCertificates({ crmContactId: contact.id }).then(setCertificates);
+  }
+  useEffect(reload, [contact.id]);
+
+  async function handleDownload(cert: Certificate, kind: "png" | "pdf") {
+    const url = kind === "png" ? await fetchCertificateImageObjectUrl(cert.id) : await fetchCertificatePdfObjectUrl(cert.id);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `certificate-${cert.code}.${kind}`;
+    a.click();
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[12px] text-muted">گواهی‌های صادرشده ({certificates.length})</span>
+        <button type="button" onClick={() => setIssueOpen(true)} className="text-[11.5px] font-bold text-primary cursor-pointer">
+          + صدور گواهی برای این مخاطب
+        </button>
+      </div>
+      {certificates.length === 0 ? (
+        <div className="text-[12.5px] text-muted text-center py-4 bg-slate-50 rounded-xl border border-border">گواهی‌ای صادر نشده است</div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {certificates.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12.5px] font-bold break-words">{c.titleFa}</div>
+                <div className="text-[11px] text-muted mt-0.5" dir="ltr">
+                  {c.code} · {formatJalaliDate(c.createdAt)}
+                  {c.score != null ? ` · ${toPersianDigits(c.score)}/۱۰۰` : ""}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button type="button" onClick={() => handleDownload(c, "png")} className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1 rounded-lg cursor-pointer">
+                  دانلود تصویر
+                </button>
+                <button type="button" onClick={() => handleDownload(c, "pdf")} className="text-[11px] font-bold text-accent bg-accent-soft px-2.5 py-1 rounded-lg cursor-pointer">
+                  دانلود PDF
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {issueOpen ? (
+        <NewCertificateModal presetRecipient={{ type: "CONTACT", contact }} onClose={() => setIssueOpen(false)} onCreated={() => reload()} />
+      ) : null}
+    </div>
   );
 }
