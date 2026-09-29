@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsInt, IsISO8601, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateContactDto {
   @IsOptional()
@@ -40,6 +40,10 @@ export class CreateContactDto {
   @IsOptional()
   @IsString()
   registrationNumber?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  birthDate?: string;
 
   @IsOptional()
   @IsArray()

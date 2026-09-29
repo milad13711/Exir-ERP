@@ -3,6 +3,7 @@ import { deleteCrmContact } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PhoneIcon, MailIcon, BuildingIcon, PlusIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
@@ -62,6 +63,7 @@ export function ContactModal({
     economicCode: "",
     legalId: "",
     registrationNumber: "",
+    birthDate: "",
     hasBouncedChecks: false,
     bankAvgMonthlyTurnover: "",
     creditLimitOverride: "",
@@ -76,6 +78,7 @@ export function ContactModal({
         economicCode: c.economicCode ?? "",
         legalId: c.legalId ?? "",
         registrationNumber: c.registrationNumber ?? "",
+        birthDate: c.birthDate ? c.birthDate.slice(0, 10) : "",
         hasBouncedChecks: c.hasBouncedChecks,
         bankAvgMonthlyTurnover: c.bankAvgMonthlyTurnover ? String(c.bankAvgMonthlyTurnover) : "",
         creditLimitOverride: c.creditLimitOverride ? String(c.creditLimitOverride) : "",
@@ -96,6 +99,7 @@ export function ContactModal({
         economicCode: form.economicCode || undefined,
         legalId: form.legalId || undefined,
         registrationNumber: form.registrationNumber || undefined,
+        birthDate: form.birthDate || undefined,
       });
       const newCredit = await updateContactCreditInputs(contactId, {
         hasBouncedChecks: form.hasBouncedChecks,
@@ -235,6 +239,7 @@ export function ContactModal({
                 ) : contact.nationalId ? (
                   <div>کد ملی: {contact.nationalId}</div>
                 ) : null}
+                {contact.birthDate ? <div>تاریخ تولد: {formatJalaliDate(contact.birthDate)}</div> : null}
                 {contact.hasBouncedChecks ? <div className="text-danger">دارای سابقه‌ی چک برگشتی</div> : null}
               </div>
             ) : (
@@ -278,6 +283,15 @@ export function ContactModal({
                     className="w-full text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
                   />
                 )}
+
+                <div>
+                  <label className="text-[11px] text-muted mb-1 block">تاریخ تولد</label>
+                  <JalaliDateInput
+                    value={form.birthDate}
+                    onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
+                    placeholder="انتخاب تاریخ تولد"
+                  />
+                </div>
 
                 <label className="flex items-center gap-2 text-[12px] font-bold cursor-pointer">
                   <input

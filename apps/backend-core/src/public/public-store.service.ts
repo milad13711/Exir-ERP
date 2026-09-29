@@ -1,13 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
+import { AuthService } from '../auth/auth.service.js';
 import { StoreOrdersService } from '../online-store/store-orders.service.js';
 import { currentStock } from '../warehouse/stock.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import type { StoreOrderTicketPayload } from '../auth/jwt-payload.type.js';
 import type { CreateStoreOrderDto } from './dto/create-store-order.dto.js';
 import type { TrackStoreEventDto } from './dto/track-store-event.dto.js';
 import type { SubmitStoreReviewDto } from './dto/submit-store-review.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
+
+const STORE_ORDER_TOKEN_TTL_SECONDS = 15 * 60;
 
 type RatingInfo = { avgRating: number | null; reviewCount: number };
 
@@ -24,6 +30,8 @@ export class PublicStoreService {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly storeOrders: StoreOrdersService,
+    private readonly auth: AuthService,
+    private readonly jwt: JwtService,
   ) {}
 
   private async resolveCtx(slug: string): Promise<TenantRequestContext> {
@@ -37,6 +45,40 @@ export class PublicStoreService {
     if (!storeModule) throw new NotFoundException('این فروشگاه در دسترس نیست');
     const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
     return { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
+  }
+
+  /**
+   * فقط برای مسیر «پرداخت آنلاین» لازم است — همان الگوی
+   * PublicBookStoreService.requestOtp/verifyOtp، پورت‌شده به فروشگاه آنلاین
+   * چندمحصولی. مسیر نقدی/پس‌کرایه‌ی checkout بدون این هم کار می‌کند (نک:
+   * placeOrder پایین‌تر) چون بدون پرداخت آنلاین، اصطکاک OTP توجیه ندارد —
+   * دقیقاً همان استدلالی که این سرویس از قبل داشت.
+   */
+  async requestOtp(slug: string, phone: string) {
+    await this.resolveCtx(slug);
+    return this.auth.requestOtp(phone, 'STORE_ORDER');
+  }
+
+  async verifyOtp(slug: string, phone: string, code: string): Promise<{ orderToken: string; expiresInSeconds: number }> {
+    await this.resolveCtx(slug);
+
+    const otp = await this.controlDb.otpCode.findFirst({
+      where: { phone, purpose: 'STORE_ORDER', consumedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!otp) throw new BadRequestException('کد تأیید منقضی شده است، دوباره درخواست دهید');
+    if (otp.attempts >= 5) throw new BadRequestException('تعداد تلاش‌های مجاز به پایان رسید، کد جدید درخواست دهید');
+
+    const isValid = await bcrypt.compare(code, otp.codeHash);
+    if (!isValid) {
+      await this.controlDb.otpCode.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
+      throw new UnauthorizedException('کد تأیید نادرست است');
+    }
+    await this.controlDb.otpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
+
+    const payload: StoreOrderTicketPayload = { type: 'store_order_ticket', phone, tenantSlug: slug };
+    const orderToken = await this.jwt.signAsync(payload, { expiresIn: STORE_ORDER_TOKEN_TTL_SECONDS });
+    return { orderToken, expiresInSeconds: STORE_ORDER_TOKEN_TTL_SECONDS };
   }
 
   async storeInfo(slug: string) {

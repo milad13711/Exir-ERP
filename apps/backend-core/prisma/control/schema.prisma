@@ -42,6 +42,7 @@ enum OtpPurpose {
   CONTRACT_SIGN
   LAB_REVIEW
   RATION_RESULT
+  STORE_ORDER
 }
 
 model OtpCode {
@@ -299,6 +300,12 @@ model ModuleDefinition {
   licenseUsd   Int      @default(0) // قیمت پایه‌ی دلاری (لایسنس مادام‌العمر)؛ >۰ یعنی قیمت‌های تومانی از روی آن و نرخ روز مشتق می‌شوند
   priceYearly  Int? // null = بدون تخفیف سالانه‌ی تعریف‌شده، معادل priceMonthly*12 محاسبه می‌شود
   isCore       Boolean  @default(false) // رایگان و پیش‌فرض فعال — اما همچنان قابل غیرفعال‌سازی توسط تننت
+  // پیش‌فرض true یعنی در فروشگاه ماژول به همه‌ی تننت‌ها نشان داده می‌شود؛ false
+  // یعنی از کاتالوگ عمومی مخفی است (مثلاً book-store که فقط برای یک تننت خاص
+  // ساخته شده، نه یک محصول قابل‌فروش عمومی) — نصب/دسترسی تننتی که از قبل این
+  // ماژول را دارد کاملاً دست‌نخورده می‌ماند چون ModuleGuard و install/uninstall
+  // مستقیماً از روی TenantModule کار می‌کنند، نه این پرچم (نک: ModulesCatalogController.list).
+  isListed     Boolean  @default(true)
   version      String   @default("1.0.0")
   dependsOn    String[] @default([]) // کدهای ماژول‌هایی که باید قبل از این یکی فعال باشند
   features     String[] @default([]) // bullet points shown on the module's store card

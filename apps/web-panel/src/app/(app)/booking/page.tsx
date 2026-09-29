@@ -35,6 +35,7 @@ import { ManualPaymentModal } from "@/components/booking/ManualPaymentModal";
 import { ServiceTypesModal } from "@/components/booking/ServiceTypesModal";
 import { StaffAvailabilityModal } from "@/components/booking/StaffAvailabilityModal";
 import { AppointmentsReportModal } from "@/components/booking/AppointmentsReportModal";
+import { MessageSettingsModal } from "@/components/booking/MessageSettingsModal";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -176,6 +177,7 @@ export default function BookingPage() {
   const [serviceTypesOpen, setServiceTypesOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [messageSettingsOpen, setMessageSettingsOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [weekCounts, setWeekCounts] = useState<Record<string, number>>({});
@@ -298,6 +300,12 @@ export default function BookingPage() {
           >
             <SettingsIcon className="w-4 h-4" />
             انواع خدمت
+          </button>
+          <button
+            onClick={() => setMessageSettingsOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            متن پیامک تأیید
           </button>
           <button
             onClick={() => setNewOpen(true)}
@@ -451,7 +459,7 @@ export default function BookingPage() {
                 </div>
                 <div className="text-[11.5px] text-muted hidden sm:block">{formatToman(a.serviceType.price)}</div>
                 <Badge tone={STATUS_TONES[a.status]}>{STATUS_LABELS[a.status]}</Badge>
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
                   {(a.status === "SCHEDULED" || a.status === "CONFIRMED" || a.status === "PENDING_COORDINATION") ? (
                     <button
                       disabled={isBusy}
@@ -577,6 +585,7 @@ export default function BookingPage() {
       ) : null}
       {availabilityOpen ? <StaffAvailabilityModal onClose={() => setAvailabilityOpen(false)} /> : null}
       {reportOpen ? <AppointmentsReportModal onClose={() => setReportOpen(false)} /> : null}
+      {messageSettingsOpen ? <MessageSettingsModal onClose={() => setMessageSettingsOpen(false)} /> : null}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { SmsModule } from '../sms/sms.module.js';
 import { TriggerRegistryService } from './trigger-registry.service.js';
 import { AutomationEngineService } from './automation-engine.service.js';
 import { AutomationController } from './automation.controller.js';
+import { BirthdayGreetingCronService } from './birthday-greeting-cron.service.js';
 
 /**
  * Foundational module — imported by any feature module that wants to
@@ -17,7 +18,7 @@ import { AutomationController } from './automation.controller.js';
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, NotificationsModule, SmsModule],
   controllers: [AutomationController],
-  providers: [TriggerRegistryService, AutomationEngineService],
+  providers: [TriggerRegistryService, AutomationEngineService, BirthdayGreetingCronService],
   exports: [TriggerRegistryService, AutomationEngineService],
 })
 export class AutomationModule {}

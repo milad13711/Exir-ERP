@@ -6,6 +6,7 @@ import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { NewPostingModal } from "@/components/recruitment/NewPostingModal";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { toPersianDigits, formatToman } from "@/lib/persian";
 import {
   fetchJobPosting,
@@ -61,6 +62,7 @@ export function PostingDetailModal({
   const [applicantName, setApplicantName] = useState("");
   const [applicantPhone, setApplicantPhone] = useState("");
   const [applicantEducationField, setApplicantEducationField] = useState("");
+  const [applicantBirthDate, setApplicantBirthDate] = useState("");
   const [applicantSkillTags, setApplicantSkillTags] = useState("");
   const [applicantError, setApplicantError] = useState<string | null>(null);
 
@@ -81,6 +83,7 @@ export function PostingDetailModal({
         name: applicantName.trim(),
         phone: applicantPhone.trim(),
         educationField: applicantEducationField.trim() || undefined,
+        birthDate: applicantBirthDate || undefined,
         skillTags: applicantSkillTags
           .split(",")
           .map((s) => s.trim())
@@ -90,6 +93,7 @@ export function PostingDetailModal({
       setApplicantName("");
       setApplicantPhone("");
       setApplicantEducationField("");
+      setApplicantBirthDate("");
       setApplicantSkillTags("");
       reload();
       onChanged();
@@ -215,6 +219,14 @@ export function PostingDetailModal({
                   placeholder="رشته‌ی تحصیلی (اختیاری)"
                   className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
                 />
+                <JalaliDateInput
+                  value={applicantBirthDate}
+                  onChange={setApplicantBirthDate}
+                  placeholder="تاریخ تولد (اختیاری)"
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   value={applicantSkillTags}
                   onChange={(e) => setApplicantSkillTags(e.target.value)}

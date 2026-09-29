@@ -44,12 +44,45 @@ function g2d(gy: number, gm: number, gd: number): number {
   d = d - div(div(gy + 100100 + div(gm - 8, 6), 100) * 3, 4) + 752;
   return d;
 }
-function d2g(jdn: number): { gy: number } {
+function d2g(jdn: number): { gy: number; gm: number; gd: number } {
   let j = 4 * jdn + 139361631;
   j = j + div(div(4 * jdn + 183187720, 146097) * 3, 4) * 4 - 3908;
   const i = div(mod(j, 1461), 4) * 5 + 308;
+  const gd = div(mod(i, 153), 5) + 1;
   const gm = mod(div(i, 153), 12) + 1;
-  return { gy: div(j, 1461) - 100100 + div(8 - gm, 6) };
+  const gy = div(j, 1461) - 100100 + div(8 - gm, 6);
+  return { gy, gm, gd };
+}
+function j2d(jy: number, jm: number, jd: number): number {
+  const r = jalCal(jy);
+  return g2d(r.gy, 3, r.march) + (jm - 1) * 31 - div(jm, 7) * (jm - 7) + jd - 1;
+}
+
+/** Jalali (Shamsi) -> Gregorian conversion — the exact inverse of toJalaliDate. */
+export function toGregorian(jy: number, jm: number, jd: number): Date {
+  const jdn = j2d(jy, jm, jd);
+  const { gy, gm, gd } = d2g(jdn);
+  return new Date(gy, gm - 1, gd);
+}
+
+/** Number of days in a given Jalali month (handles the leap-year 30th of Esfand). */
+export function jalaliMonthLength(jy: number, jm: number): number {
+  if (jm <= 6) return 31;
+  if (jm <= 11) return 30;
+  return jalCal(jy).leap === 0 ? 30 : 29;
+}
+
+/**
+ * Gregorian [start, end) date range spanning one Jalali month — `end` is the
+ * first instant of the following Jalali month (exclusive upper bound), so
+ * callers can filter with a plain `gte: start, lt: end` Prisma query.
+ */
+export function jalaliMonthGregorianRange(jy: number, jm: number): { start: Date; end: Date } {
+  const start = toGregorian(jy, jm, 1);
+  const nextMonth = jm === 12 ? 1 : jm + 1;
+  const nextYear = jm === 12 ? jy + 1 : jy;
+  const end = toGregorian(nextYear, nextMonth, 1);
+  return { start, end };
 }
 
 export function toJalaliYearMonth(date: Date): { year: number; month: number } {

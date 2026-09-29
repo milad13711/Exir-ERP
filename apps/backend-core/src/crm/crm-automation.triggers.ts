@@ -53,5 +53,17 @@ export class CrmAutomationTriggers implements OnModuleInit {
         { key: 'contactPhone', label: 'شماره موبایل مخاطب', type: 'PHONE' },
       ],
     });
+
+    this.registry.register({
+      code: 'crm.contact.birthday',
+      moduleCode: 'crm',
+      label: 'تولد مخاطب',
+      description: 'هر سال، یک بار در روز تولد مخاطب (بر اساس تاریخ تولد ثبت‌شده) — مثلاً برای ارسال پیامک تبریک.',
+      payloadFields: [
+        { key: 'contactId', label: 'شناسه مخاطب', type: 'STRING' },
+        { key: 'contactName', label: 'نام مخاطب', type: 'STRING' },
+        { key: 'contactPhone', label: 'شماره موبایل مخاطب', type: 'PHONE' },
+      ],
+    });
   }
 }

@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateApplicantDto {
   @IsString()
@@ -15,6 +15,10 @@ export class CreateApplicantDto {
   @IsOptional()
   @IsString()
   educationField?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  birthDate?: string;
 
   @IsOptional()
   @IsArray()

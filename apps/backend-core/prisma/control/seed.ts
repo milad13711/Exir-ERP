@@ -53,6 +53,7 @@ async function main() {
     category: string;
     priceMonthly: number;
     isCore: boolean;
+    isListed?: boolean;
     version: string;
     dependsOn: string[];
     features: string[];
@@ -416,6 +417,12 @@ async function main() {
       category: 'فروش و مشتری',
       priceMonthly: 190000,
       isCore: false,
+      // این ماژول برای یک تننت مشخص (funnelking.ir) ساخته شد، نه یک کاتالوگ
+      // عمومی قابل‌فروش — قابلیت‌های واقعاً عمومی‌اش (تأیید شماره با OTP،
+      // پرداخت آنلاین زرین‌پال) به online-store منتقل شدند. isListed=false
+      // یعنی از فروشگاه ماژول به تننت‌های دیگر پیشنهاد نمی‌شود، اما نصب/عملکرد
+      // آن برای تننتی که از قبل دارد کاملاً دست‌نخورده می‌ماند (نک: ModulesCatalogController.list).
+      isListed: false,
       version: '1.0.0',
       dependsOn: ['crm', 'warehouse'],
       features: [

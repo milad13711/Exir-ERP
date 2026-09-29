@@ -205,12 +205,12 @@ export function ProductModal({
                   ))}
                 </select>
               ) : null}
-              <div className="flex gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <input
                   value={editCostPrice}
                   onChange={(e) => setEditCostPrice(e.target.value.replace(editCurrencyId ? /[^0-9.]/g : /[^0-9]/g, ""))}
                   placeholder={editCurrencyId ? `بهای تمام‌شده (${editSelectedCurrency?.code})` : "بهای تمام‌شده"}
-                  className={`${inputClass} flex-1`}
+                  className={inputClass}
                   dir="ltr"
                   inputMode="decimal"
                 />
@@ -218,7 +218,7 @@ export function ProductModal({
                   value={editSalePrice}
                   onChange={(e) => setEditSalePrice(e.target.value.replace(editCurrencyId ? /[^0-9.]/g : /[^0-9]/g, ""))}
                   placeholder={editCurrencyId ? `قیمت فروش (${editSelectedCurrency?.code})` : "قیمت فروش"}
-                  className={`${inputClass} flex-1`}
+                  className={inputClass}
                   dir="ltr"
                   inputMode="decimal"
                 />
@@ -226,7 +226,7 @@ export function ProductModal({
                   value={editReorderPoint}
                   onChange={(e) => setEditReorderPoint(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="نقطه سفارش"
-                  className={`${inputClass} flex-1`}
+                  className={inputClass}
                   dir="ltr"
                   inputMode="numeric"
                 />

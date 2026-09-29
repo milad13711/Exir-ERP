@@ -111,6 +111,7 @@ model User {
   reportReferralsReceived       ReportReferral[]           @relation("ReportReferralTo")
   resellerProfile                ResellerProfile?
   invoiceFollowUps               InvoiceFollowUp[]
+  dashboardReminders             DashboardReminder[]
 
   @@map("users")
 }
@@ -447,6 +448,7 @@ model CrmContact {
   ownerUserId String?
   isCustomer  Boolean        @default(true)
   isSupplier  Boolean        @default(false)
+  birthDate   DateTime? // تاریخ تولد — فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود (مثل Employee.birthDate)؛ منبع رویداد تولد در تقویم داشبورد
   createdAt   DateTime       @default(now())
 
   // ── قیف سرنخ/مشتری و سلامت برند ──
@@ -2148,6 +2150,22 @@ model AutomationRunLog {
   @@map("automation_run_logs")
 }
 
+// یک بار-در-روز بودنِ تریگرهای مبتنی‌بر تاریخ (مثلاً تولد) را برای هر
+// موجودیت تضمین می‌کند — اگر کرون به هر دلیل دوباره در همان روز اجرا شود،
+// همین جدول از شلیک دوباره‌ی همان تریگر برای همان موجودیت جلوگیری می‌کند.
+// عمومی و بدون وابستگی به ماژول خاص نگه داشته شده تا هر تریگر زمان‌محور
+// آینده هم بتواند از همین مکانیزم استفاده کند (نه فقط تولد).
+model AutomationTriggerFiring {
+  id          String   @id @default(uuid())
+  triggerCode String
+  entityId    String
+  firedOn     DateTime // روز محلی (تهران) — نیمه‌شب UTC همان روز، هم‌قالب با DailyChecklistDayClose.date
+  createdAt   DateTime @default(now())
+
+  @@unique([triggerCode, entityId, firedOn])
+  @@map("automation_trigger_firings")
+}
+
 // ── ماژول VoIP (تماس ورودی/خروجی) ──────────────────────────────────────
 // یک گیت‌وی مرکزی، نه یک اتصال اختصاصی به یک سرویس خاص: providerCode یک
 // کد آزاد است که به VoipProviderRegistry (در کد) اشاره می‌کند — هر
@@ -2953,6 +2971,12 @@ model StoreOrder {
   subtotal        Int // تومان — مجموع خطوط، در لحظه‌ی ثبت
   trackingCode    String?
   sessionToken    String? // برای اتصال این سفارش به رویدادهای تحلیلی همان بازدیدکننده
+  // پرداخت آنلاین اختیاری — پیش‌فرض checkout همچنان بدون پرداخت آنلاین (نقدی/پس‌کرایه)
+  // باقی می‌ماند؛ این فیلدها فقط وقتی پر می‌شوند که خریدار مسیر «پرداخت آنلاین»
+  // را طی کند (نک: PublicStorePaymentController، الگوبرداری از BookOrder).
+  zarinpalAuthority String?
+  paymentRefId      Int?
+  paidAt            DateTime?
   createdAt       DateTime         @default(now())
   confirmedAt     DateTime?
   packedAt        DateTime?
@@ -3590,6 +3614,7 @@ model JobApplicant {
   name                     String
   phone                    String
   educationField           String?
+  birthDate                DateTime? // تاریخ تولد — می‌تواند در همان فرم ثبت متقاضی وارد شود
   skillTags                String[]       @default([])
   resumeFile               String? // data URI
   stage                    ApplicantStage @default(NEW)
@@ -3863,4 +3888,22 @@ model ModuleApprover {
   user User @relation("ModuleApproverUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("module_approvers")
+}
+
+// ── تقویم رویدادهای داشبورد ────────────────────────────────────────────────
+// یادآوری‌های دستی کاربر که روی تقویم ماهانه‌ی داشبورد سنجاق می‌شوند؛ بقیه‌ی
+// رویدادهای تقویم (تولد، سررسید وظیفه/فاکتور/چک، پایان قرارداد، مصاحبه/جلسه)
+// از روی مدل‌های موجود محاسبه می‌شوند و نیازی به جدول جدا ندارند.
+model DashboardReminder {
+  id              String   @id @default(uuid())
+  date            DateTime // فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود
+  title           String
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@map("dashboard_reminders")
 }

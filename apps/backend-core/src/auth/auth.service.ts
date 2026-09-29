@@ -70,6 +70,7 @@ export class AuthService {
         CONTRACT_SIGN: 'کد تأیید امضای قرارداد شما',
         LAB_REVIEW: 'کد ورود شما به پورتال آزمایشگاه جیره',
         RATION_RESULT: 'کد تأیید مشاهده‌ی نتیجه‌ی آزمایش جیره',
+        STORE_ORDER: 'کد تأیید سفارش فروشگاه شما',
       };
       const message = `${purposeText[purpose]} در اکسیر ERP: ${code}`;
       const result = await this.sms.sendSms(phone, message);

@@ -82,6 +82,20 @@ export type BookOrderTicketPayload = {
 
 /**
  * Short-lived proof that a phone number was OTP-verified for the public
+ * online-store checkout's online-payment path — same rationale as
+ * BookOrderTicketPayload (real money moves through this flow), ported from
+ * book-store into online-store so it applies to any multi-product order,
+ * not just a single flagship product. The cash/pay-later checkout
+ * (PublicStoreService.placeOrder) is unaffected and still doesn't require this.
+ */
+export type StoreOrderTicketPayload = {
+  type: 'store_order_ticket';
+  phone: string;
+  tenantSlug: string;
+};
+
+/**
+ * Short-lived proof that a phone number was OTP-verified for the public
  * "track my project" page — issued after OTP verify, consumed by the
  * project-listing endpoint, scoped to one tenant.
  */

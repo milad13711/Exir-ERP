@@ -533,3 +533,16 @@ export function FlagIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function CakeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 21v-7a2 2 0 012-2h12a2 2 0 012 2v7" />
+      <path d="M4 21h16" />
+      <path d="M4 17c1.2.8 2.4.8 3.5 0s2.3-.8 3.5 0 2.3.8 3.5 0 2.3-.8 3.5 0" />
+      <path d="M12 12V8" />
+      <path d="M9 8h6" />
+      <path d="M12 8c-1 0-1.5-.7-1.5-1.5S12 4 12 3c0 1 1.5 2.7 1.5 3.5S13 8 12 8z" />
+    </svg>
+  );
+}

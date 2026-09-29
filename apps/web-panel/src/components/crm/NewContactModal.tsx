@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { createCrmContact, fetchCrmContacts, type CrmContact } from "@/lib/api";
 
 const SOURCE_OPTIONS = ["اینستاگرام", "معرفی", "وب‌سایت", "تلفنی", "حضوری", "سایر"];
@@ -23,6 +24,7 @@ export function NewContactModal({
   const [phone, setPhone] = useState(initialPhone ?? "");
   const [email, setEmail] = useState("");
   const [source, setSource] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [acquisitionCost, setAcquisitionCost] = useState("");
   const [referrerQuery, setReferrerQuery] = useState("");
   const [referrerOptions, setReferrerOptions] = useState<CrmContact[]>([]);
@@ -52,6 +54,7 @@ export function NewContactModal({
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         source: source.trim() || undefined,
+        birthDate: birthDate || undefined,
         acquisitionCost: acquisitionCost.trim() ? Number(acquisitionCost) : undefined,
         referredById: referrer?.id,
       });
@@ -140,6 +143,10 @@ export function NewContactModal({
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className={labelClass}>تاریخ تولد (اختیاری)</label>
+              <JalaliDateInput value={birthDate} onChange={setBirthDate} placeholder="انتخاب تاریخ تولد" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

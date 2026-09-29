@@ -111,7 +111,7 @@ export function NewProductModal({
             </select>
           </div>
         ) : null}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className={labelClass}>بهای تمام‌شده{currencyId ? ` (${selectedCurrency?.code})` : ""}</label>
             <input

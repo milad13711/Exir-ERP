@@ -31,16 +31,23 @@ export class ModulesCatalogController {
       this.controlDb.tenantModule.findMany({ where: { tenantId: ctx.tenantId } }),
     ]);
     const installedByModuleId = new Map(installed.map((m) => [m.moduleId, m]));
-    return catalog.map((m) => {
-      const install = installedByModuleId.get(m.id);
-      return {
-        ...m,
-        installStatus: install?.status ?? null,
-        billingMode: install?.billingMode ?? null,
-        currentPeriodEnd: install?.currentPeriodEnd ?? null,
-        demoAvailable: !install?.trialRecordCreatedAt,
-      };
-    });
+    // ماژول‌های isListed=false (مثل book-store) از کاتالوگ عمومی حذف می‌شوند —
+    // مگر برای تننتی که از قبل یک ردیف TenantModule برایش دارد (هر وضعیتی)،
+    // چون آن تننت باید بتواند وضعیت/تنظیمات ماژول نصب‌شده‌اش را همچنان ببیند.
+    // نصب/دسترسی خودِ ماژول (ModuleGuard، install/uninstall) کاملاً دست‌نخورده
+    // می‌ماند — این فیلتر فقط روی همین فهرست است.
+    return catalog
+      .filter((m) => m.isListed || installedByModuleId.has(m.id))
+      .map((m) => {
+        const install = installedByModuleId.get(m.id);
+        return {
+          ...m,
+          installStatus: install?.status ?? null,
+          billingMode: install?.billingMode ?? null,
+          currentPeriodEnd: install?.currentPeriodEnd ?? null,
+          demoAvailable: !install?.trialRecordCreatedAt,
+        };
+      });
   }
 
   /** فعال بودن رایگان/بدون نیاز به خرید جدید — ماژول رایگان/هسته، لایسنس قبلاً خریداری‌شده، یا هنوز داخل دوره‌ی پرداخت‌شده. */

@@ -773,6 +773,54 @@ export function fetchDashboardSummary() {
   return apiFetch<DashboardSummary>("/dashboard/summary");
 }
 
+// ── ویجت داشبورد: تقویم ماهانه‌ی رویدادها ────────────────────────────────
+
+export type DashboardCalendarEventType =
+  | "birthday-employee"
+  | "birthday-contact"
+  | "task"
+  | "interview"
+  | "mentoring-session"
+  | "invoice-due"
+  | "check-due"
+  | "contract-end"
+  | "reminder";
+
+export type DashboardCalendarEvent = {
+  id: string;
+  type: DashboardCalendarEventType;
+  title: string;
+  link: string | null;
+};
+
+export type DashboardCalendarDay = {
+  day: number;
+  isFriday: boolean;
+  isHoliday: boolean;
+  holidayName: string | null;
+  hasBirthday: boolean;
+  events: DashboardCalendarEvent[];
+};
+
+export type DashboardCalendarMonth = {
+  year: number;
+  month: number;
+  monthLength: number;
+  days: DashboardCalendarDay[];
+};
+
+export function fetchDashboardCalendar(jalaliYear: number, jalaliMonth: number) {
+  return apiFetch<DashboardCalendarMonth>(`/dashboard/calendar?year=${jalaliYear}&month=${jalaliMonth}`);
+}
+
+export function createDashboardReminder(data: { date: string; title: string; note?: string }) {
+  return apiFetch<{ id: string }>("/dashboard/reminders", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteDashboardReminder(id: string) {
+  return apiFetch<{ ok: boolean }>(`/dashboard/reminders/${id}`, { method: "DELETE" });
+}
+
 // ── ویجت داشبورد: فاکتورهای نزدیک به سررسید و معوق ──────────────────────
 
 export function sendOverdueInvoiceReminderSms(invoiceId: string) {
@@ -999,6 +1047,7 @@ export type CrmContact = {
   hasBouncedChecks: boolean;
   bankAvgMonthlyTurnover: number | null;
   creditLimitOverride: number | null;
+  birthDate: string | null;
   tags: string[];
   isCustomer: boolean;
   isSupplier: boolean;
@@ -1070,6 +1119,7 @@ export function createCrmContact(data: {
   economicCode?: string;
   legalId?: string;
   registrationNumber?: string;
+  birthDate?: string;
   tags?: string[];
   source?: string;
   acquisitionCost?: number;
@@ -1091,6 +1141,7 @@ export function updateCrmContact(
     economicCode: string;
     legalId: string;
     registrationNumber: string;
+    birthDate: string;
     tags: string[];
     isCustomer: boolean;
     isSupplier: boolean;
@@ -4158,6 +4209,16 @@ export function rejectCoordination(id: string, reason?: string) {
   return apiFetch<Appointment>(`/booking/appointments/${id}/reject-coordination`, { method: "POST", body: JSON.stringify({ reason }) });
 }
 
+export type BookingSmsSettings = { confirmationTemplate: string };
+
+export function fetchBookingSmsSettings() {
+  return apiFetch<BookingSmsSettings>("/booking/appointments/settings/sms");
+}
+
+export function updateBookingSmsSettings(data: BookingSmsSettings) {
+  return apiFetch<BookingSmsSettings>("/booking/appointments/settings/sms", { method: "PUT", body: JSON.stringify(data) });
+}
+
 export function fetchMyAvailability() {
   return apiFetch<StaffAvailabilitySlot[]>("/booking/my-availability");
 }
@@ -6621,6 +6682,7 @@ export type JobApplicant = {
   name: string;
   phone: string;
   educationField: string | null;
+  birthDate: string | null;
   skillTags: string[];
   resumeFile: string | null;
   stage: ApplicantStage;
@@ -6721,6 +6783,7 @@ export function createApplicant(data: {
   name: string;
   phone: string;
   educationField?: string;
+  birthDate?: string;
   skillTags?: string[];
   resumeFile?: string;
 }) {

@@ -293,6 +293,7 @@ export class RecruitmentService implements OnModuleInit {
         name: dto.name,
         phone: dto.phone,
         educationField: dto.educationField,
+        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
         skillTags: dto.skillTags ?? [],
         resumeFile: dto.resumeFile,
         contactId: contact.id,
@@ -304,7 +305,11 @@ export class RecruitmentService implements OnModuleInit {
   async updateApplicant(ctx: TenantRequestContext, id: string, dto: UpdateApplicantDto) {
     const existing = await ctx.tenantDb.jobApplicant.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('این متقاضی یافت نشد');
-    return ctx.tenantDb.jobApplicant.update({ where: { id }, data: dto, include: APPLICANT_INCLUDE });
+    return ctx.tenantDb.jobApplicant.update({
+      where: { id },
+      data: { ...dto, birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined },
+      include: APPLICANT_INCLUDE,
+    });
   }
 
   async specialistDecision(ctx: TenantRequestContext, id: string, dto: DecisionDto) {
@@ -616,6 +621,7 @@ export class RecruitmentService implements OnModuleInit {
         baseSalary: applicant.offer.salary,
         status: 'ACTIVE',
         nationalId: applicant.offer.nationalId ?? undefined,
+        birthDate: applicant.birthDate ?? undefined,
       },
     });
 

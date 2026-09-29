@@ -4,6 +4,8 @@ import { PublicStoreService } from './public-store.service.js';
 import { CreateStoreOrderDto } from './dto/create-store-order.dto.js';
 import { TrackStoreEventDto } from './dto/track-store-event.dto.js';
 import { SubmitStoreReviewDto } from './dto/submit-store-review.dto.js';
+import { RequestStoreOtpDto } from './dto/request-store-otp.dto.js';
+import { VerifyStoreOtpDto } from './dto/verify-store-otp.dto.js';
 
 @Controller('public/store/:slug')
 export class PublicStoreController {
@@ -32,6 +34,17 @@ export class PublicStoreController {
   @Post('orders')
   placeOrder(@Param('slug') slug: string, @Body() dto: CreateStoreOrderDto) {
     return this.store.placeOrder(slug, dto);
+  }
+
+  /** فقط برای مسیر پرداخت آنلاین لازم است — نک: PublicStoreService.requestOtp. */
+  @Post('otp/request')
+  requestOtp(@Param('slug') slug: string, @Body() dto: RequestStoreOtpDto) {
+    return this.store.requestOtp(slug, dto.phone);
+  }
+
+  @Post('otp/verify')
+  verifyOtp(@Param('slug') slug: string, @Body() dto: VerifyStoreOtpDto) {
+    return this.store.verifyOtp(slug, dto.phone, dto.code);
   }
 
   @Post('products/:productSlug/reviews')

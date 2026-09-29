@@ -122,6 +122,37 @@ export class StoreOrdersService {
     return order;
   }
 
+  /**
+   * پرداخت آنلاین (زرین‌پال) موفق شد — Idempotent (نک: BookStoreService.finalizeOrderPayment).
+   * برخلاف book-store، اینجا سفارش پیش از پرداخت هم یک وضعیت معتبر دارد
+   * (PENDING، مسیر نقدی/پس‌کرایه‌ی پیش‌فرض) پس شکست پرداخت سفارش را لغو
+   * نمی‌کند — فقط ثبت پرداخت انجام‌نشده باقی می‌ماند و تننت مثل قبل دستی
+   * پیگیری می‌کند. موفقیت پرداخت، سفارش هنوز-تأییدنشده را هم خودکار تأیید می‌کند.
+   */
+  async finalizeOnlinePayment(ctx: TenantRequestContext, orderId: string, paymentRefId: number) {
+    const order = await ctx.tenantDb.storeOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('سفارش یافت نشد');
+    if (order.paidAt) return this.detail(ctx, orderId); // قبلاً نهایی شده — idempotent
+
+    const now = new Date();
+    await ctx.tenantDb.storeOrder.update({
+      where: { id: orderId },
+      data: {
+        paidAt: now,
+        paymentRefId,
+        ...(order.status === 'PENDING' ? { status: 'CONFIRMED', confirmedAt: now } : {}),
+      },
+    });
+
+    await this.automation.emit(ctx, 'online-store.order.paid', {
+      orderNo: order.orderNo,
+      customerName: order.customerName,
+      subtotal: order.subtotal,
+    });
+
+    return this.detail(ctx, orderId);
+  }
+
   async updateStatus(ctx: TenantRequestContext, id: string, dto: UpdateOrderStatusDto) {
     const order = await this.detail(ctx, id);
     if (TERMINAL_STATUSES.has(order.status)) {

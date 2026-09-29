@@ -32,5 +32,18 @@ export class HrAutomationTriggers implements OnModuleInit {
         { key: 'position', label: 'سمت', type: 'STRING' },
       ],
     });
+
+    this.registry.register({
+      code: 'hr.employee.birthday',
+      moduleCode: 'hr',
+      label: 'تولد کارمند',
+      description: 'هر سال، یک بار در روز تولد کارمند (بر اساس تاریخ تولد ثبت‌شده) — مثلاً برای ارسال پیامک تبریک.',
+      payloadFields: [
+        { key: 'employeeName', label: 'نام کارمند', type: 'STRING' },
+        { key: 'employeeCode', label: 'کد پرسنلی', type: 'STRING' },
+        { key: 'employeeUserId', label: 'کاربر کارمند', type: 'USER_ID' },
+        { key: 'employeePhone', label: 'شماره تماس کارمند', type: 'PHONE' },
+      ],
+    });
   }
 }

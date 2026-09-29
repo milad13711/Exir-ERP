@@ -33,6 +33,7 @@ import { formatActivityAction } from "@/lib/activity-labels";
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
 import { DailyChecklistWidget } from "@/components/dashboard/DailyChecklistWidget";
 import { DueOrOverdueInvoicesWidget } from "@/components/dashboard/DueOrOverdueInvoicesWidget";
+import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import Link from "next/link";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
@@ -82,6 +83,8 @@ export default function DashboardPage() {
       </div>
 
       {installedModules.has("daily-checklist") && <DailyChecklistWidget />}
+
+      <DashboardCalendar />
 
       <Card className="p-5 mb-5">
         <div className="flex items-center justify-between mb-3">

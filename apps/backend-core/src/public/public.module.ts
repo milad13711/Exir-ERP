@@ -22,6 +22,7 @@ import { PublicSurveyController } from './public-survey.controller.js';
 import { PublicExchangeRateService } from './public-exchange-rate.service.js';
 import { PublicStoreService } from './public-store.service.js';
 import { PublicStoreController } from './public-store.controller.js';
+import { PublicStorePaymentController } from './public-store-payment.controller.js';
 import { PublicMentoringSurveyService } from './public-mentoring-survey.service.js';
 import { PublicMentoringSurveyController } from './public-mentoring-survey.controller.js';
 import { PublicReferralSurveyService } from './public-referral-survey.service.js';
@@ -99,6 +100,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicFleetOfferController,
     PublicSurveyController,
     PublicStoreController,
+    PublicStorePaymentController,
     PublicMentoringSurveyController,
     PublicReferralSurveyController,
     PublicResellerApplicationsController,

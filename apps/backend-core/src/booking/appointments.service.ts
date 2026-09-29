@@ -11,6 +11,7 @@ import { BookingSlotsService } from './booking-slots.service.js';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import type { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
+import type { UpdateBookingSmsSettingsDto } from './dto/update-sms-settings.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
 
 function formatWhen(date: Date): string {
@@ -27,6 +28,20 @@ const APPOINTMENT_INCLUDE = {
 } as const;
 
 const ACTIVE_STATUSES = ['SCHEDULED', 'CONFIRMED'] as const;
+
+export const BOOKING_MODULE_CODE = 'booking';
+const SMS_KEY = { moduleCode: BOOKING_MODULE_CODE, key: 'sms' } as const;
+
+type BookingSmsSettings = { confirmationTemplate: string };
+// پیش‌فرض همان متن قبلیِ ثابت — با جایگزین‌شونده‌ها {name}/{date}/{time}/{service}/{phone}
+// تا مدیر بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را در متن پیامک تأیید وارد کند.
+const DEFAULT_BOOKING_SMS: BookingSmsSettings = { confirmationTemplate: 'رزرو شما تأیید شد.' };
+
+function renderTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  return out;
+}
 
 @Injectable()
 export class AppointmentsService {
@@ -68,6 +83,46 @@ export class AppointmentsService {
     const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } });
     const v = row?.value;
     return typeof v === 'string' && v.trim() ? v.trim() : null;
+  }
+
+  /** شماره تماس شرکت (Settings → General) — برای جایگزین‌شونده‌ی {phone} در قالب پیام تأیید. */
+  private async companyPhone(ctx: TenantRequestContext): Promise<string> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'phone' } } });
+    const v = row?.value;
+    return typeof v === 'string' ? v.trim() : '';
+  }
+
+  /* ───────────────────────── تنظیمات پیامک ───────────────────────── */
+
+  async getSmsSettings(ctx: TenantRequestContext): Promise<BookingSmsSettings> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SMS_KEY } });
+    return row ? { ...DEFAULT_BOOKING_SMS, ...(row.value as Partial<BookingSmsSettings>) } : DEFAULT_BOOKING_SMS;
+  }
+
+  async setSmsSettings(ctx: TenantRequestContext, dto: UpdateBookingSmsSettingsDto): Promise<BookingSmsSettings> {
+    const value = { ...dto };
+    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SMS_KEY }, update: { value }, create: { ...SMS_KEY, value } });
+    return this.getSmsSettings(ctx);
+  }
+
+  /**
+   * سرخط پیام تأیید نهایی نوبت — از قالب قابل‌ویرایش تنظیمات پیامک ساخته می‌شود تا مدیر
+   * بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را در متن درج کند.
+   * جایگزین‌شونده‌ها: {name} نام مشتری، {date} تاریخ، {time} ساعت، {service} نام خدمت، {phone} تلفن مجموعه.
+   */
+  private async confirmationHeadline(
+    ctx: TenantRequestContext,
+    appointment: { customerName: string; startAt: Date; serviceType: { name: string } },
+  ): Promise<string> {
+    const settings = await this.getSmsSettings(ctx);
+    const phone = await this.companyPhone(ctx);
+    return renderTemplate(settings.confirmationTemplate || DEFAULT_BOOKING_SMS.confirmationTemplate, {
+      name: appointment.customerName,
+      date: faDate(appointment.startAt),
+      time: faTime(appointment.startAt),
+      service: appointment.serviceType.name,
+      phone,
+    });
   }
 
   private publicLink(ctx: TenantRequestContext, token: string): string {
@@ -419,7 +474,7 @@ export class AppointmentsService {
   async confirm(ctx: TenantRequestContext, id: string) {
     const appointment = await this.transition(ctx, id, ['SCHEDULED'], { status: 'CONFIRMED' });
     if (appointment.customerPhone) {
-      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, 'رزرو شما تأیید شد.'));
+      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, await this.confirmationHeadline(ctx, appointment)));
     }
     return appointment;
   }
@@ -477,13 +532,20 @@ export class AppointmentsService {
     // اگر مشتری قبل از هماهنگی نهایی، بیعانه را پرداخت کرده (لینک پرداخت همان ابتدا در پیامک می‌رود)،
     // با هماهنگی/جابه‌جایی نباید وضعیت پرداخت بازنشانی شود و دوباره از او خواسته شود پرداخت کند.
     const alreadyPaid = existing.paymentStatus === 'PAID';
+    // اگر بیعانه لازم نیست یا از قبل پرداخت شده، دیگر مانعی برای نهایی‌شدن نوبت نیست؛
+    // نوبت مستقیم تأییدشده می‌شود، وگرنه در وضعیت «ثبت‌شده» تا پرداخت بیعانه باقی می‌ماند
+    // (که با موفقیت پرداخت در settlePayment به‌طور خودکار تأیید می‌شود).
+    // پیش‌تر همیشه 'SCHEDULED' ثبت می‌شد؛ یعنی حتی وقتی نیازی به پرداخت نبود، نوبت پس از
+    // تأیید کارشناس/هماهنگی همچنان «در انتظار تأیید» نمایش داده می‌شد و به یک تأیید دستیِ دومِ
+    // جداگانه (از جای دیگری در پنل) نیاز داشت که در تجربه‌ی کاربر گم می‌شد.
+    const status = !needsDeposit || alreadyPaid ? ('CONFIRMED' as const) : ('SCHEDULED' as const);
     const appointment = await ctx.tenantDb.appointment.update({
       where: { id },
       data: {
         startAt,
         endAt,
         providerUserId,
-        status: 'SCHEDULED',
+        status,
         coordinationRespondedAt: new Date(),
         ...(alreadyPaid
           ? {}
@@ -501,7 +563,7 @@ export class AppointmentsService {
       const headline =
         appointment.paymentStatus === 'PENDING'
           ? 'هماهنگی نوبت شما انجام شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.'
-          : 'نوبت شما نهایی و تأیید شد.';
+          : await this.confirmationHeadline(ctx, appointment);
       await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, headline));
     }
 

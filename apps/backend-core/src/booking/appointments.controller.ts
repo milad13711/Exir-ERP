@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -11,6 +11,7 @@ import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
 import { ManualPaymentDto } from './dto/manual-payment.dto.js';
 import { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
+import { UpdateBookingSmsSettingsDto } from './dto/update-sms-settings.dto.js';
 
 @Controller('booking/appointments')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -117,5 +118,19 @@ export class AppointmentsController {
   async rejectCoordination(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
     return this.appointments.rejectCoordination(ctx, id, dto.reason);
+  }
+
+  /* تنظیمات */
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'booking');
+    return this.appointments.getSmsSettings(ctx);
+  }
+
+  @Put('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateBookingSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'booking');
+    return this.appointments.setSmsSettings(ctx, dto);
   }
 }
