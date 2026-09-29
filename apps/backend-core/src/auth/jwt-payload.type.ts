@@ -70,6 +70,17 @@ export type EventBookingTicketPayload = {
 };
 
 /**
+ * Short-lived proof that a phone number was OTP-verified for a public
+ * single-product (book) purchase — same rationale as EventBookingTicketPayload,
+ * real money moves through this flow.
+ */
+export type BookOrderTicketPayload = {
+  type: 'book_order_ticket';
+  phone: string;
+  tenantSlug: string;
+};
+
+/**
  * Short-lived proof that a phone number was OTP-verified for the public
  * "track my project" page — issued after OTP verify, consumed by the
  * project-listing endpoint, scoped to one tenant.

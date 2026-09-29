@@ -25,6 +25,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/marketing-site", "run", "dev"],
       "port": 3003
+    },
+    {
+      "name": "funnelking-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../funnelking.ir", "run", "dev"],
+      "port": 3005
     }
   ]
 }

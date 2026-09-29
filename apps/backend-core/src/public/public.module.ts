@@ -29,11 +29,15 @@ import { PublicReferralSurveyController } from './public-referral-survey.control
 import { PublicResellerMapService } from './public-reseller-map.service.js';
 import { PublicResellerApplicationsController } from './public-reseller-applications.controller.js';
 import { EventsModule } from '../events/events.module.js';
+import { BookStoreModule } from '../book-store/book-store.module.js';
 import { BillingModule } from '../billing/billing.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { PublicEventsService } from './public-events.service.js';
 import { PublicEventsController } from './public-events.controller.js';
 import { PublicEventsPaymentController } from './public-events-payment.controller.js';
+import { PublicBookStoreService } from './public-book-store.service.js';
+import { PublicBookStoreController } from './public-book-store.controller.js';
+import { PublicBookStorePaymentController } from './public-book-store-payment.controller.js';
 import { PublicFormsService } from './public-forms.service.js';
 import { PublicFormsController } from './public-forms.controller.js';
 import { WarrantyModule } from '../warranty/warranty.module.js';
@@ -72,6 +76,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     FleetModule,
     OnlineStoreModule,
     EventsModule,
+    BookStoreModule,
     BillingModule,
     AutomationModule,
     WarrantyModule,
@@ -99,6 +104,8 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicResellerApplicationsController,
     PublicEventsController,
     PublicEventsPaymentController,
+    PublicBookStoreController,
+    PublicBookStorePaymentController,
     PublicFormsController,
     PublicWarrantyController,
     PublicAfterSalesController,
@@ -121,6 +128,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     PublicReferralSurveyService,
     PublicResellerMapService,
     PublicEventsService,
+    PublicBookStoreService,
     PublicFormsService,
     PublicWarrantyService,
     PublicAfterSalesService,

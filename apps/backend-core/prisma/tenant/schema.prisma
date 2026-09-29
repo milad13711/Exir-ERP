@@ -494,6 +494,7 @@ model CrmContact {
   storeOrders               StoreOrder[]
   mentoringEngagements      MentoringEngagement[]
   eventBookings             EventBooking[]
+  bookOrders                BookOrder[]
   formSubmissions           FormSubmission[]
   warrantyCodes             WarrantyCode[]
   jobApplications           JobApplicant[]
@@ -665,6 +666,7 @@ model SalesInvoice {
   returns           SalesReturn[]
   mentoringSessions MentoringSession[]
   eventBookings     EventBooking[]
+  bookOrders        BookOrder[]
   warrantyCodes     WarrantyCode[]
   followUps         InvoiceFollowUp[]
 
@@ -3232,6 +3234,48 @@ model EventTicket {
   @@index([eventId])
   @@index([status])
   @@map("event_tickets")
+}
+
+// ── فروش تک‌محصولی (کتاب/محصول پرچم‌دار) ─────────────────────────────────
+// صفحه‌ی فروش عمومی یک محصول با چند نسخه (مثلاً چاپی/الکترونیکی/صوتی)،
+// تأیید شماره خریدار با OTP و پرداخت آنلاین با زرین‌پال — الگوبرداری مستقیم
+// از فلوی پرداخت EventBooking، بدون ظرفیت/QR که برای بلیط لازم بود.
+enum BookOrderFormat {
+  PRINT
+  EBOOK
+  AUDIO
+}
+
+enum BookOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  SHIPPED
+  DELIVERED
+}
+
+model BookOrder {
+  id                String           @id @default(uuid())
+  orderNo           Int              @unique @default(autoincrement())
+  format            BookOrderFormat
+  buyerName         String
+  buyerPhone        String
+  address           String? // فقط نسخه‌ی چاپی
+  postalCode        String? // فقط نسخه‌ی چاپی
+  unitPrice         Int
+  status            BookOrderStatus  @default(PENDING_PAYMENT)
+  contactId         String? // بعد از پرداخت موفق پر می‌شود (پیدا/ساخته‌شده بر اساس شماره خریدار)
+  zarinpalAuthority String?
+  paymentRefId      Int?
+  paidAt            DateTime?
+  invoiceId         String?
+  createdAt         DateTime         @default(now())
+
+  contact CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  invoice SalesInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("book_orders")
 }
 
 // ── فرم‌ساز — نظرسنجی، آزمون آنلاین، پرسش‌نامه، ثبت‌نام ─────────────────────
