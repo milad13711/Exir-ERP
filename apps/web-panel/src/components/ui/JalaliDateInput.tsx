@@ -27,6 +27,7 @@ export function JalaliDateInput({
 
   const selectedDate = value ? new Date(`${value}T00:00:00`) : null;
   const selectedJalali = selectedDate ? toJalali(selectedDate) : null;
+  const todayJalali = toJalali(new Date());
 
   const [viewYear, setViewYear] = useState(() => (selectedJalali ?? toJalali(new Date())).year);
   const [viewMonth, setViewMonth] = useState(() => (selectedJalali ?? toJalali(new Date())).month);
@@ -136,6 +137,7 @@ export function JalaliDateInput({
             {cells.map((day, i) => {
               const isSelected =
                 selectedJalali && day != null && selectedJalali.year === viewYear && selectedJalali.month === viewMonth && selectedJalali.day === day;
+              const isToday = day != null && todayJalali.year === viewYear && todayJalali.month === viewMonth && todayJalali.day === day;
               return day == null ? (
                 <div key={i} />
               ) : (
@@ -144,7 +146,11 @@ export function JalaliDateInput({
                   type="button"
                   onClick={() => pickDay(day)}
                   className={`w-9 h-9 rounded-lg text-[12px] font-bold cursor-pointer ${
-                    isSelected ? "bg-primary text-white" : "text-ink hover:bg-slate-100"
+                    isSelected
+                      ? "bg-primary text-white"
+                      : isToday
+                        ? "text-primary ring-1 ring-inset ring-primary hover:bg-slate-100"
+                        : "text-ink hover:bg-slate-100"
                   }`}
                 >
                   {toPersianDigits(day)}

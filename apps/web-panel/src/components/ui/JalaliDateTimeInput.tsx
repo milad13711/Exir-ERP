@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toJalali, toGregorian, jalaliMonthLength, toPersianDigits, JALALI_MONTHS, WEEKDAYS_SHORT_FA } from "@/lib/persian";
-import { CalendarIcon } from "@/components/icons";
+import { CalendarIcon, ChevronDownIcon } from "@/components/icons";
 
 /** "YYYY-MM-DDTHH:mm" in local time — matches what native `<input type="datetime-local">` values look like. */
 function toIsoLocalString(d: Date): string {
@@ -30,6 +30,7 @@ export function JalaliDateTimeInput({
 
   const selectedDate = value ? new Date(value) : null;
   const selectedJalali = selectedDate ? toJalali(selectedDate) : null;
+  const todayJalali = toJalali(new Date());
 
   const [viewYear, setViewYear] = useState(() => (selectedJalali ?? toJalali(new Date())).year);
   const [viewMonth, setViewMonth] = useState(() => (selectedJalali ?? toJalali(new Date())).month);
@@ -75,6 +76,12 @@ export function JalaliDateTimeInput({
     } else {
       setViewMonth((m) => m + 1);
     }
+  }
+  function stepHour(delta: number) {
+    setHour((h) => String((((Number(h) || 0) + delta) % 24 + 24) % 24).padStart(2, "0"));
+  }
+  function stepMinute(delta: number) {
+    setMinute((m) => String((((Number(m) || 0) + delta) % 60 + 60) % 60).padStart(2, "0"));
   }
   function pickNow() {
     const now = new Date();
@@ -146,6 +153,7 @@ export function JalaliDateTimeInput({
             {cells.map((day, i) => {
               if (day == null) return <div key={i} />;
               const disabled = disabledDate?.(viewYear, viewMonth, day) ?? false;
+              const isToday = todayJalali.year === viewYear && todayJalali.month === viewMonth && todayJalali.day === day;
               return (
                 <button
                   key={i}
@@ -153,7 +161,11 @@ export function JalaliDateTimeInput({
                   disabled={disabled}
                   onClick={() => setPickedDay(day)}
                   className={`w-9 h-9 rounded-lg text-[12px] font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
-                    pickedDay === day ? "bg-primary text-white" : "text-ink hover:bg-slate-100"
+                    pickedDay === day
+                      ? "bg-primary text-white"
+                      : isToday
+                        ? "text-primary ring-1 ring-inset ring-primary hover:bg-slate-100"
+                        : "text-ink hover:bg-slate-100"
                   }`}
                 >
                   {toPersianDigits(day)}
@@ -166,19 +178,55 @@ export function JalaliDateTimeInput({
             <span className="text-[11.5px] text-muted">ساعت</span>
             {/* گروه ساعت:دقیقه به‌صورت یک بلوک LTR — وگرنه در والد RTL، ترتیب DOM (ساعت سپس دقیقه) در جایگاه بصری معکوس می‌شود و دو فیلد جابه‌جا به‌نظر می‌رسند. */}
             <div dir="ltr" className="flex items-center gap-2">
-              <input
-                value={hour}
-                onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
-                placeholder="۰۰"
-              />
+              <div className="flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={() => stepHour(1)}
+                  className="w-6 h-4 flex items-center justify-center text-ink-soft hover:bg-slate-100 rounded-t-md cursor-pointer"
+                  aria-label="افزایش ساعت"
+                >
+                  <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                </button>
+                <input
+                  value={hour}
+                  onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                  className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
+                  placeholder="۰۰"
+                />
+                <button
+                  type="button"
+                  onClick={() => stepHour(-1)}
+                  className="w-6 h-4 flex items-center justify-center text-ink-soft hover:bg-slate-100 rounded-b-md cursor-pointer"
+                  aria-label="کاهش ساعت"
+                >
+                  <ChevronDownIcon className="w-3 h-3" />
+                </button>
+              </div>
               <span className="text-muted">:</span>
-              <input
-                value={minute}
-                onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
-                placeholder="۰۰"
-              />
+              <div className="flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={() => stepMinute(1)}
+                  className="w-6 h-4 flex items-center justify-center text-ink-soft hover:bg-slate-100 rounded-t-md cursor-pointer"
+                  aria-label="افزایش دقیقه"
+                >
+                  <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                </button>
+                <input
+                  value={minute}
+                  onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                  className="w-12 text-center text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-1 py-1.5"
+                  placeholder="۰۰"
+                />
+                <button
+                  type="button"
+                  onClick={() => stepMinute(-1)}
+                  className="w-6 h-4 flex items-center justify-center text-ink-soft hover:bg-slate-100 rounded-b-md cursor-pointer"
+                  aria-label="کاهش دقیقه"
+                >
+                  <ChevronDownIcon className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           </div>
 

@@ -474,6 +474,9 @@ export class AppointmentsService {
 
     const terms = this.paymentTerms(existing.serviceType);
     const needsDeposit = terms.amount > 0;
+    // اگر مشتری قبل از هماهنگی نهایی، بیعانه را پرداخت کرده (لینک پرداخت همان ابتدا در پیامک می‌رود)،
+    // با هماهنگی/جابه‌جایی نباید وضعیت پرداخت بازنشانی شود و دوباره از او خواسته شود پرداخت کند.
+    const alreadyPaid = existing.paymentStatus === 'PAID';
     const appointment = await ctx.tenantDb.appointment.update({
       where: { id },
       data: {
@@ -482,16 +485,23 @@ export class AppointmentsService {
         providerUserId,
         status: 'SCHEDULED',
         coordinationRespondedAt: new Date(),
-        paymentStatus: needsDeposit ? 'PENDING' : 'NONE',
-        depositAmount: needsDeposit ? terms.amount : null,
-        isFullPayment: needsDeposit && terms.isFull,
+        ...(alreadyPaid
+          ? {}
+          : {
+              paymentStatus: needsDeposit ? 'PENDING' : 'NONE',
+              depositAmount: needsDeposit ? terms.amount : null,
+              isFullPayment: needsDeposit && terms.isFull,
+            }),
       },
       include: APPOINTMENT_INCLUDE,
     });
 
     await this.syncMentoringSession(ctx, appointment);
     if (appointment.customerPhone) {
-      const headline = needsDeposit ? 'هماهنگی نوبت شما انجام شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.' : 'نوبت شما نهایی و تأیید شد.';
+      const headline =
+        appointment.paymentStatus === 'PENDING'
+          ? 'هماهنگی نوبت شما انجام شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.'
+          : 'نوبت شما نهایی و تأیید شد.';
       await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, headline));
     }
 

@@ -17,6 +17,7 @@ const inputClass =
 export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
   const [items, setItems] = useState<ServiceType[] | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [duration, setDuration] = useState("30");
   const [price, setPrice] = useState("0");
@@ -35,12 +36,46 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
   }
   useEffect(reload, []);
 
+  function resetForm() {
+    setName("");
+    setDuration("30");
+    setPrice("0");
+    setRequiresDeposit(false);
+    setDepositAmount("0");
+    setRequiresCoordination(false);
+    setRequiresFullPayment(false);
+    setDescription("");
+    setLocation("");
+    setLinkToMentoring(false);
+  }
+
+  function startEdit(s: ServiceType) {
+    setEditingId(s.id);
+    setName(s.name);
+    setDuration(String(s.durationMinutes));
+    setPrice(String(s.price));
+    setRequiresDeposit(s.requiresDeposit);
+    setDepositAmount(String(s.depositAmount ?? 0));
+    setRequiresCoordination(s.requiresCoordination);
+    setRequiresFullPayment(!!s.requiresFullPayment);
+    setDescription(s.description ?? "");
+    setLocation(s.location ?? "");
+    setLinkToMentoring(!!s.linkToMentoring);
+    setAddOpen(true);
+  }
+
+  function cancelForm() {
+    setEditingId(null);
+    resetForm();
+    setAddOpen(false);
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !duration) return;
     setSaving(true);
     try {
-      await createServiceType({
+      const payload = {
         name: name.trim(),
         durationMinutes: Number(duration),
         price: Number(price) || 0,
@@ -51,17 +86,14 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
         description: description.trim() || undefined,
         location: location.trim() || undefined,
         linkToMentoring,
-      });
-      setName("");
-      setDuration("30");
-      setPrice("0");
-      setRequiresDeposit(false);
-      setDepositAmount("0");
-      setRequiresCoordination(false);
-      setRequiresFullPayment(false);
-      setDescription("");
-      setLocation("");
-      setLinkToMentoring(false);
+      };
+      if (editingId) {
+        await updateServiceType(editingId, payload);
+      } else {
+        await createServiceType(payload);
+      }
+      setEditingId(null);
+      resetForm();
       setAddOpen(false);
       reload();
       onChanged();
@@ -92,7 +124,14 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
       <div className="flex flex-col gap-4">
         <button
           type="button"
-          onClick={() => setAddOpen((v) => !v)}
+          onClick={() => {
+            if (addOpen) {
+              cancelForm();
+            } else {
+              resetForm();
+              setAddOpen(true);
+            }
+          }}
           className="self-start flex items-center gap-1.5 text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer"
         >
           <PlusIcon className="w-3.5 h-3.5" />
@@ -160,13 +199,24 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
               <input type="checkbox" checked={linkToMentoring} onChange={(e) => setLinkToMentoring(e.target.checked)} />
               اتصال به ماژول مشاوره و منتورینگ (هر نوبت یک جلسه‌ی مشاوره می‌سازد؛ صورتجلسه و اقدامات بعدی آنجا ثبت می‌شود)
             </label>
-            <button
-              type="submit"
-              disabled={saving || !name.trim()}
-              className="self-end text-[12px] font-bold text-white bg-primary px-3.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
-            >
-              {saving ? "در حال ثبت..." : "ثبت"}
-            </button>
+            <div className="flex items-center gap-2 self-end">
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={cancelForm}
+                  className="text-[12px] font-bold text-ink-soft bg-white border border-border px-3.5 py-1.5 rounded-lg cursor-pointer"
+                >
+                  انصراف
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                disabled={saving || !name.trim()}
+                className="text-[12px] font-bold text-white bg-primary px-3.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                {saving ? "در حال ثبت..." : editingId ? "ذخیره تغییرات" : "ثبت"}
+              </button>
+            </div>
           </form>
         ) : null}
 
@@ -200,16 +250,25 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                     {s.linkToMentoring ? " · متصل به مشاوره" : ""}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleActive(s)}
-                  disabled={busyId === s.id}
-                  className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shrink-0 disabled:opacity-50 ${
-                    s.isActive ? "text-danger bg-danger-soft" : "text-success bg-success-soft"
-                  }`}
-                >
-                  {s.isActive ? "غیرفعال‌سازی" : "فعال‌سازی"}
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(s)}
+                    className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer text-primary bg-primary-soft"
+                  >
+                    ویرایش
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleActive(s)}
+                    disabled={busyId === s.id}
+                    className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50 ${
+                      s.isActive ? "text-danger bg-danger-soft" : "text-success bg-success-soft"
+                    }`}
+                  >
+                    {s.isActive ? "غیرفعال‌سازی" : "فعال‌سازی"}
+                  </button>
+                </div>
               </div>
             ))
           )}
