@@ -4,7 +4,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { faDate } from '../common/persian.js';
-import { assertEditableDay, buildDailyReportBody } from './checklist-day.util.js';
+import { assertEditableDay, buildDailyReportBody, todayTehran } from './checklist-day.util.js';
 import { rollPendingToNextDay } from './checklist-rollover.js';
 import type { CreateChecklistItemDto } from './dto/create-checklist-item.dto.js';
 import type { UpdateChecklistItemDto } from './dto/update-checklist-item.dto.js';
@@ -219,13 +219,21 @@ export class DailyChecklistService {
     const report = marker?.reportId
       ? await this.reports.update(ctx, marker.reportId, { title, body, executionAt: date.toISOString() })
       : await this.reports.create(ctx, { title, body, executionAt: date.toISOString() });
-    // ثبت دستی گزارش، روز را می‌بندد: کارهای انجام‌نشده همان لحظه به فردا می‌روند (فقط یک‌بار) و پایان‌روزِ خودکار
-    // نه گزارش تکراری می‌سازد و نه دوباره منتقل می‌کند.
-    if (!marker?.rolledOver) await rollPendingToNextDay(ctx.tenantDb, targetUserId, date);
+
+    // این روز هنوز تمام نشده (امروز یا فردا) — ثبت دستی فقط یک پیش‌نمایشِ زنده از گزارش است،
+    // نه بستن نهایی روز. اگر همین‌جا rolledOver را true کنیم، جاروبِ خودکارِ آخر شب دیگر این
+    // روز را نمی‌بیند و کارهایی که کاربر بعد از این کلیک اضافه می‌کند تا ابد روی done:false
+    // می‌مانند (این دقیقاً همان باگ گزارش‌شده بود). بستنِ واقعی و انتقالِ کارهای مانده فقط
+    // توسط DailyChecklistCronService و برای روزی که واقعاً تمام شده انجام می‌شود — همیشه یک
+    // گزارش نهایی برای هر روز، همان آخر شب.
+    const isDayOver = date.getTime() < todayTehran().getTime();
+    if (isDayOver) {
+      if (!marker?.rolledOver) await rollPendingToNextDay(ctx.tenantDb, targetUserId, date);
+    }
     await ctx.tenantDb.dailyChecklistDayClose.upsert({
       where: { userId_date: { userId: targetUserId, date } },
-      create: { userId: targetUserId, date, reportId: report.id, rolledOver: true },
-      update: { reportId: report.id, rolledOver: true },
+      create: { userId: targetUserId, date, reportId: report.id, rolledOver: isDayOver },
+      update: { reportId: report.id, rolledOver: isDayOver || marker?.rolledOver === true },
     });
     return report;
   }

@@ -130,18 +130,20 @@ export class DailyChecklistCronService implements OnApplicationBootstrap, OnModu
     const items = await tenantDb.dailyChecklistItem.findMany({ where: { userId, date }, orderBy: { order: 'asc' } });
     if (items.length === 0) return;
 
+    // گزارش نهایی هر روز همین‌جاست (پایان‌روزِ واقعی) — پس محتوایش باید همیشه از روی
+    // وضعیت لحظه‌ی همین بستن دوباره ساخته شود، نه گزارش نیمه‌کاره‌ای که کاربر شاید
+    // وسط روز دستی ثبت کرده بود؛ وگرنه کارهای اضافه‌شده‌ی بعدِ آن ثبت دستی هیچ‌وقت در
+    // گزارش نهایی دیده نمی‌شدند حتی وقتی درست به فردا منتقل می‌شوند.
+    const user = await tenantDb.user.findUnique({ where: { id: userId }, select: { name: true } });
+    const dateFa = faDate(date);
+    const title = `گزارش روزانه — ${dateFa}`;
+    const body = buildDailyReportBody(user?.name ?? '', dateFa, items);
+
     let reportId = existingReportId;
-    if (!reportId) {
-      const user = await tenantDb.user.findUnique({ where: { id: userId }, select: { name: true } });
-      const dateFa = faDate(date);
-      const report = await tenantDb.report.create({
-        data: {
-          title: `گزارش روزانه — ${dateFa}`,
-          body: buildDailyReportBody(user?.name ?? '', dateFa, items),
-          executionAt: date,
-          createdByUserId: userId,
-        },
-      });
+    if (reportId) {
+      await tenantDb.report.update({ where: { id: reportId }, data: { title, body, executionAt: date } });
+    } else {
+      const report = await tenantDb.report.create({ data: { title, body, executionAt: date, createdByUserId: userId } });
       reportId = report.id;
     }
 

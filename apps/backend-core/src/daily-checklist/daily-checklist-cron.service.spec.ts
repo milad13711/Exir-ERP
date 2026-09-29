@@ -18,7 +18,7 @@ function makeDb(opts: { marker?: unknown; items: Array<Record<string, unknown>> 
       upsert: vi.fn().mockResolvedValue({}),
     },
     user: { findUnique: vi.fn().mockResolvedValue({ name: 'علی' }) },
-    report: { create: vi.fn().mockResolvedValue({ id: 'r1' }) },
+    report: { create: vi.fn().mockResolvedValue({ id: 'r1' }), update: vi.fn().mockResolvedValue({ id: 'manual' }) },
   };
 }
 
@@ -47,11 +47,17 @@ describe('DailyChecklistCronService — end of day', () => {
     expect(notifications.notify).toHaveBeenCalled();
   });
 
-  it('does not file a second report when the user already submitted one manually, but still rolls pending items over', async () => {
+  it('refreshes (not duplicates) a report the user already submitted manually mid-day, and still rolls pending items over', async () => {
     const db = makeDb({ items, marker: { reportId: 'manual', rolledOver: false } });
     const { service } = makeService();
     await service.closeDays(db as never, true, NOW);
     expect(db.report.create).not.toHaveBeenCalled();
+    // این دقیقاً همان چیزی است که کاربر خواسته بود: حتی اگر گزارش دستیِ میان‌روزی از قبل
+    // ثبت شده باشد، بستنِ واقعیِ آخر شب باید محتوای آن را با وضعیت نهایی به‌روز کند، نه
+    // این‌که همان نسخه‌ی نیمه‌کاره را دست‌نخورده رها کند.
+    expect(db.report.update).toHaveBeenCalledTimes(1);
+    expect(db.report.update.mock.calls[0][0]).toMatchObject({ where: { id: 'manual' } });
+    expect(db.report.update.mock.calls[0][0].data.body).toContain('انجام‌شده');
     expect(db.dailyChecklistItem.createMany).toHaveBeenCalledTimes(1);
     expect(db.dailyChecklistDayClose.upsert.mock.calls[0][0].create).toMatchObject({ reportId: 'manual', auto: false });
   });

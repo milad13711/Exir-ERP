@@ -4,6 +4,7 @@ import { todayTehran } from './checklist-day.util.js';
 
 // تاریخ‌ها باید در بازه‌ی «دیروز تا فردا» باشند؛ پس نسبت به امروز محاسبه می‌شوند.
 const TODAY = todayTehran().toISOString().slice(0, 10);
+const YESTERDAY = new Date(todayTehran().getTime() - 86_400_000).toISOString().slice(0, 10);
 
 function setup(opts: { role?: 'OWNER' | 'ADMIN' | 'MEMBER'; myEmployee?: { id: string } | null; visibleIds?: string[] } = {}) {
   const items = new Map<string, Record<string, unknown>>();
@@ -113,7 +114,7 @@ describe('DailyChecklistService.generateReport', () => {
     await expect(service.generateReport(ctx, { date: TODAY } as never)).rejects.toThrow('خالی است');
   });
 
-  it('compiles done/pending items into a report body and delegates to ReportsService', async () => {
+  it('compiles done/pending items into a report body and rolls pending work forward, for a day that is actually over', async () => {
     const { service, ctx, tenantDb, reports } = setup();
     const all = [
       { id: '1', title: 'تماس با مشتری', description: null, done: true },
@@ -129,10 +130,11 @@ describe('DailyChecklistService.generateReport', () => {
       .mockResolvedValueOnce({ name: 'علی رضایی' });
     const dayClose = { upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null) };
     (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
-    await service.generateReport(ctx, { date: TODAY } as never);
+    await service.generateReport(ctx, { date: YESTERDAY } as never);
     expect(reports.create).toHaveBeenCalledTimes(1);
     expect(dayClose.upsert).toHaveBeenCalledTimes(1);
-    // کار انجام‌نشده همان لحظه به فردا منتقل می‌شود
+    expect(dayClose.upsert.mock.calls[0][0].create).toMatchObject({ rolledOver: true });
+    // کار انجام‌نشده همان لحظه به فردا منتقل می‌شود — چون این روز واقعاً تمام شده
     const createMany = (tenantDb.dailyChecklistItem as unknown as { createMany: ReturnType<typeof vi.fn> }).createMany;
     expect(createMany).toHaveBeenCalledTimes(1);
     expect(createMany.mock.calls[0][0].data[0]).toMatchObject({ carriedOver: true, title: 'ارسال فاکتور' });
@@ -155,11 +157,63 @@ describe('DailyChecklistService.generateReport', () => {
       findUnique: vi.fn().mockResolvedValue({ reportId: 'report-1', rolledOver: true }),
     };
     (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
-    const report = await service.generateReport(ctx, { date: TODAY } as never);
+    const report = await service.generateReport(ctx, { date: YESTERDAY } as never);
     expect(reports.create).not.toHaveBeenCalled();
     expect(reports.update).toHaveBeenCalledTimes(1);
     expect(reports.update.mock.calls[0][1]).toBe('report-1');
     expect(report).toEqual({ id: 'report-1' });
     expect(dayClose.upsert.mock.calls[0][0].update).toMatchObject({ reportId: 'report-1', rolledOver: true });
+  });
+
+  // باگ گزارش‌شده: کاربر چند بار در طول روز دکمه‌ی «ثبت گزارش» را زد، و بعد از آخرین
+  // کلیک هم کار تازه اضافه کرد؛ سیستم باید حتماً آخر شب (توسط خودِ کرون، نه این کلیک‌های
+  // دستی) دوباره گزارش را با وضعیت واقعیِ نهایی به‌روز کند. پس ثبتِ دستی برای «امروز»
+  // نباید روز را قفل کند یا الان چیزی را به فردا منتقل کند — فقط یک پیش‌نمایش زنده است.
+  it('a manual report for TODAY only previews the report — does not close the day or roll anything forward yet', async () => {
+    const { service, ctx, tenantDb, reports } = setup();
+    const all = [
+      { id: '1', title: 'تماس با مشتری', description: null, done: true },
+      { id: '2', title: 'کار فوری باقی‌مانده', description: null, done: false, priority: 'URGENT' },
+    ];
+    tenantDb.dailyChecklistItem.findMany = vi.fn().mockResolvedValue(all) as never;
+    tenantDb.user.findUnique = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'me', globalUserId: 'g-me' })
+      .mockResolvedValueOnce({ name: 'علی رضایی' });
+    const dayClose = { upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null) };
+    (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
+    const createMany = vi.fn().mockResolvedValue({ count: 0 });
+    (tenantDb.dailyChecklistItem as unknown as Record<string, unknown>).createMany = createMany;
+
+    await service.generateReport(ctx, { date: TODAY } as never);
+
+    expect(reports.create).toHaveBeenCalledTimes(1); // گزارش ساخته/به‌روز می‌شود...
+    expect(createMany).not.toHaveBeenCalled(); // ...ولی چیزی به فردا منتقل نمی‌شود...
+    expect(dayClose.upsert.mock.calls[0][0].create).toMatchObject({ rolledOver: false }); // ...و روز «باز» می‌ماند تا کرون آخر شب واقعاً ببندش.
+  });
+
+  it('a second manual click the same day for TODAY still just updates the same report, still without closing the day', async () => {
+    const { service, ctx, tenantDb, reports } = setup();
+    const all = [{ id: '1', title: 'کار جدید', description: null, done: false }];
+    tenantDb.dailyChecklistItem.findMany = vi.fn().mockResolvedValue(all) as never;
+    tenantDb.user.findUnique = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'me', globalUserId: 'g-me' })
+      .mockResolvedValueOnce({ name: 'علی رضایی' });
+    // یک ثبتِ دستیِ قبلیِ همین «امروز» — گزارش دارد ولی rolledOver هنوز false است.
+    const dayClose = {
+      upsert: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue({ reportId: 'report-1', rolledOver: false }),
+    };
+    (tenantDb as unknown as { dailyChecklistDayClose: typeof dayClose }).dailyChecklistDayClose = dayClose;
+    const createMany = vi.fn().mockResolvedValue({ count: 0 });
+    (tenantDb.dailyChecklistItem as unknown as Record<string, unknown>).createMany = createMany;
+
+    await service.generateReport(ctx, { date: TODAY } as never);
+
+    expect(reports.update).toHaveBeenCalledTimes(1);
+    expect(reports.update.mock.calls[0][1]).toBe('report-1');
+    expect(createMany).not.toHaveBeenCalled();
+    expect(dayClose.upsert.mock.calls[0][0].update).toMatchObject({ rolledOver: false });
   });
 });
