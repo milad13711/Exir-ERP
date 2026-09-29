@@ -80,6 +80,10 @@ export function JalaliDateInput({
     setOpen(false);
   }
 
+  // بازه‌ی سال‌ها برای انتخاب سریع — تا صد سال قبل (کافی برای تاریخ تولد) تا ده سال بعد از امروز.
+  const yearOptions: number[] = [];
+  for (let y = todayJalali.year + 10; y >= todayJalali.year - 100; y--) yearOptions.push(y);
+
   const monthLength = jalaliMonthLength(viewYear, viewMonth);
   const firstOfMonthGregorian = toGregorian(viewYear, viewMonth, 1);
   const firstWeekdayIndex = WEEKDAY_ORDER.indexOf(firstOfMonthGregorian.getDay());
@@ -112,8 +116,30 @@ export function JalaliDateInput({
             >
               ‹
             </button>
-            <div className="text-[13px] font-bold">
-              {JALALI_MONTHS[viewMonth - 1]} {toPersianDigits(viewYear)}
+            <div className="flex items-center gap-1">
+              <select
+                value={viewMonth}
+                onChange={(e) => setViewMonth(Number(e.target.value))}
+                className="text-[12px] font-bold bg-transparent outline-none cursor-pointer rounded-md hover:bg-slate-100 px-1 py-0.5"
+              >
+                {JALALI_MONTHS.map((m, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={viewYear}
+                onChange={(e) => setViewYear(Number(e.target.value))}
+                className="text-[12px] font-bold bg-transparent outline-none cursor-pointer rounded-md hover:bg-slate-100 px-1 py-0.5"
+                dir="ltr"
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {toPersianDigits(y)}
+                  </option>
+                ))}
+              </select>
             </div>
             <button
               type="button"

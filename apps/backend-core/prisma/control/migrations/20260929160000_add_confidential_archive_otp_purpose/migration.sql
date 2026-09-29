@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "OtpPurpose" ADD VALUE 'CONFIDENTIAL_ARCHIVE';

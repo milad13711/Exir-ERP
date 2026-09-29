@@ -24,6 +24,7 @@ import { AccountingModule } from './accounting/accounting.module.js';
 import { WarehouseModule } from './warehouse/warehouse.module.js';
 import { HrModule } from './hr/hr.module.js';
 import { CertificatesModule } from './certificates/certificates.module.js';
+import { ConfidentialArchiveModule } from './confidential-archive/confidential-archive.module.js';
 import { LicensingModule } from './licensing/licensing.module.js';
 import { LicenseGuard } from './licensing/license.guard.js';
 import { SettingsModule } from './settings/settings.module.js';
@@ -113,6 +114,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     WarehouseModule,
     HrModule,
     CertificatesModule,
+    ConfidentialArchiveModule,
     LicensingModule,
     SettingsModule,
     ApiKeysModule,

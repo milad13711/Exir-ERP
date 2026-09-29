@@ -7398,3 +7398,124 @@ export function fetchBookStoreSettings() {
 export function updateBookStoreSettings(data: Partial<BookStoreSettings>) {
   return apiFetch<BookStoreSettings>("/book-store/settings", { method: "PUT", body: JSON.stringify(data) });
 }
+
+// ── بایگانی اسناد محرمانه (ماژول مستقل confidential-archive) ───────────────
+// ثبت سند بدون OTP برای هر کاربر با ماژول نصب‌شده آزاد است؛ مشاهده/ویرایش
+// آرشیو پشت یک «بلیط طاق» (vault ticket) کوتاه‌مدت است که فقط پس از تأیید
+// پلکانی کد پیامکی + داشتن مجوز صادر می‌شود — نک: توابع request/verifyVaultOtp
+// و پارامتر vaultTicket روی توابع زیر که آن را در هدر X-Vault-Ticket می‌فرستند.
+
+export type ConfidentialDocumentCategory =
+  | "PASSWORD"
+  | "TECHNICAL_KNOWLEDGE"
+  | "FORMULATION"
+  | "CONFIDENTIAL_CONTRACT"
+  | "SYSTEM_LOG"
+  | "OTHER";
+
+export const CONFIDENTIAL_DOCUMENT_CATEGORY_LABELS: Record<ConfidentialDocumentCategory, string> = {
+  PASSWORD: "رمز عبور",
+  TECHNICAL_KNOWLEDGE: "دانش فنی",
+  FORMULATION: "فرمولاسیون",
+  CONFIDENTIAL_CONTRACT: "قرارداد محرمانه",
+  SYSTEM_LOG: "ریز لاگ سیستم",
+  OTHER: "سایر",
+};
+
+export type ConfidentialDocument = {
+  id: string;
+  title: string;
+  category: ConfidentialDocumentCategory;
+  content: string | null;
+  fileName: string | null;
+  fileData: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedByUserId: string | null;
+  updatedAt: string;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
+};
+
+export type ConfidentialArchiveAccessRow = {
+  id: string;
+  userId: string;
+  canEdit: boolean;
+  grantedAt: string;
+  user: { id: string; name: string };
+  grantedBy: { id: string; name: string } | null;
+};
+
+/** ثبت سند جدید — بدون OTP، هیچ vaultTicket ای لازم نیست. */
+export function createConfidentialDocument(data: {
+  title: string;
+  category: ConfidentialDocumentCategory;
+  content?: string;
+  fileName?: string;
+  fileData?: string;
+}) {
+  return apiFetch<ConfidentialDocument>("/confidential-archive/documents", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/** آیا دکمه‌ی «ورود به آرشیو» برای کاربر جاری معنا دارد — مالک/مدیر همیشه، وگرنه فقط با مجوز صریح. بدون OTP. */
+export function fetchMyArchiveAccess() {
+  return apiFetch<{ isManager: boolean; hasAccess: boolean; canEdit: boolean }>("/confidential-archive/my-access");
+}
+
+export function requestArchiveOtp() {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>("/confidential-archive/otp/request", { method: "POST" });
+}
+
+export function verifyArchiveOtp(code: string) {
+  return apiFetch<{ vaultTicket: string; expiresInSeconds: number; canEdit: boolean }>("/confidential-archive/otp/verify", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+function vaultHeaders(vaultTicket: string): HeadersInit {
+  return { "X-Vault-Ticket": vaultTicket };
+}
+
+export function fetchConfidentialDocuments(vaultTicket: string) {
+  return apiFetch<ConfidentialDocument[]>("/confidential-archive/documents", { headers: vaultHeaders(vaultTicket) });
+}
+
+export function fetchConfidentialDocument(id: string, vaultTicket: string) {
+  return apiFetch<ConfidentialDocument>(`/confidential-archive/documents/${id}`, { headers: vaultHeaders(vaultTicket) });
+}
+
+export function updateConfidentialDocument(
+  id: string,
+  data: Partial<{ title: string; category: ConfidentialDocumentCategory; content: string; fileName: string; fileData: string }>,
+  vaultTicket: string,
+) {
+  return apiFetch<ConfidentialDocument>(`/confidential-archive/documents/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: vaultHeaders(vaultTicket),
+  });
+}
+
+export function deleteConfidentialDocument(id: string, vaultTicket: string) {
+  return apiFetch<{ ok: true }>(`/confidential-archive/documents/${id}`, { method: "DELETE", headers: vaultHeaders(vaultTicket) });
+}
+
+/** فقط مالک/مدیر — بدون نیاز به OTP (اقدام تنظیماتی، نه مشاهده‌ی محتوای محرمانه). */
+export function fetchArchiveAccessList() {
+  return apiFetch<ConfidentialArchiveAccessRow[]>("/confidential-archive/access");
+}
+
+export function setArchiveAccess(userId: string, canEdit: boolean) {
+  return apiFetch<ConfidentialArchiveAccessRow>("/confidential-archive/access", {
+    method: "PUT",
+    body: JSON.stringify({ userId, canEdit }),
+  });
+}
+
+export function revokeArchiveAccess(userId: string) {
+  return apiFetch<{ ok: true }>(`/confidential-archive/access/${userId}`, { method: "DELETE" });
+}

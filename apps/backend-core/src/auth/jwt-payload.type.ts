@@ -160,3 +160,26 @@ export type ContractSignTicketPayload = {
   /** فقط وقتی side==='WITNESS' — کدام رکورد ContractWitness. */
   witnessId?: string;
 };
+
+/**
+ * Short-lived "vault ticket" — issued after an ALREADY-AUTHENTICATED staff
+ * member (a normal tenant_user/api_key session already exists) re-verifies
+ * their own on-file phone with a step-up OTP to enter the confidential
+ * document archive. Unlike the other tickets above, this never carries a
+ * phone — it's not proof of who the phone belongs to, it's proof that the
+ * currently logged-in user (identified by `sub`, the same GlobalUser.id as
+ * their normal session) just passed the step-up check. Sent back on every
+ * subsequent archive list/detail/edit/delete call via the X-Vault-Ticket
+ * header (see VaultTicketGuard) and re-checked against the caller's own
+ * session (`sub`/`tenantId` must match) so it can't be replayed by a
+ * different user or a different tenant. `canEdit` is resolved once, at
+ * issuance time, from the caller's ConfidentialArchiveAccess grant (or
+ * `true` outright for OWNER/ADMIN) — not re-read on every request, exactly
+ * like BookOrderTicketPayload snapshots its own authorization at issuance.
+ */
+export type VaultTicketPayload = {
+  type: 'vault_ticket';
+  sub: string; // GlobalUser.id — must match the caller's normal session ctx.auth.sub
+  tenantId: string;
+  canEdit: boolean;
+};

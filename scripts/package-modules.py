@@ -30,6 +30,7 @@ MODULES = {
     "book-store": (["book-store"], "book-store", "book-store"),
     "booking": (["booking"], "booking", "booking"),
     "checks": (["checks"], "checks", "checks"),
+    "confidential-archive": (["confidential-archive"], "confidential-archive", "confidential-archive"),
     "contracts": (["contracts"], "contracts", "contracts"),
     "crm": (["crm"], "crm", "crm"),
     "daily-checklist": (["daily-checklist"], "dashboard", "dashboard"),

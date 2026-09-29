@@ -43,6 +43,7 @@ enum OtpPurpose {
   LAB_REVIEW
   RATION_RESULT
   STORE_ORDER
+  CONFIDENTIAL_ARCHIVE
 }
 
 model OtpCode {

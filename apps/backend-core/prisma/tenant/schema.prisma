@@ -112,6 +112,10 @@ model User {
   resellerProfile                ResellerProfile?
   invoiceFollowUps               InvoiceFollowUp[]
   dashboardReminders             DashboardReminder[]
+  createdConfidentialDocuments   ConfidentialDocument[]     @relation("ConfidentialDocCreatedBy")
+  updatedConfidentialDocuments   ConfidentialDocument[]     @relation("ConfidentialDocUpdatedBy")
+  confidentialArchiveAccess      ConfidentialArchiveAccess?
+  confidentialArchiveGrantsGiven ConfidentialArchiveAccess[] @relation("ConfidentialAccessGrantedBy")
 
   @@map("users")
 }
@@ -3906,4 +3910,56 @@ model DashboardReminder {
 
   @@index([date])
   @@map("dashboard_reminders")
+}
+
+// ── بایگانی اسناد محرمانه (confidential-archive) ───────────────────────────
+// رمز عبور، دانش فنی، فرمولاسیون، قرارداد محرمانه، ریز لاگ سیستم و مشابه.
+// ثبت سند برای هر کاربری که ماژول نصب دارد آزاد است (بدون احراز اضافه)؛
+// اما مشاهده/ویرایش آرشیو دو گیت مستقل دارد: (۱) تأیید پلکانی OTP روی شماره‌ی
+// خودِ کاربر لاگین‌شده، هر بار که وارد بخش آرشیو می‌شود (نشست‌محور و کوتاه‌مدت
+// — نک: VaultTicketPayload)، و (۲) دسترسی صریحی که فقط مالک/مدیر تننت با
+// ConfidentialArchiveAccess به یک کاربر مشخص می‌دهد. کد صحیح OTP به‌تنهایی
+// کافی نیست — اگر ردیف دسترسی (یا نقش OWNER/ADMIN) نباشد، حتی با OTP درست
+// هم چیزی نمایش داده نمی‌شود.
+enum ConfidentialDocumentCategory {
+  PASSWORD // رمز عبور
+  TECHNICAL_KNOWLEDGE // دانش فنی
+  FORMULATION // فرمولاسیون
+  CONFIDENTIAL_CONTRACT // قرارداد محرمانه
+  SYSTEM_LOG // ریز لاگ سیستم — فقط دسته‌بندی برای ثبت دستی/چسباندن متن، بدون خط لوله‌ی خروجی زنده از لاگ‌های واقعی سیستم
+  OTHER
+}
+
+model ConfidentialDocument {
+  id              String                        @id @default(uuid())
+  title           String
+  category        ConfidentialDocumentCategory
+  content         String? // متن آزاد
+  fileName        String?
+  fileData        String? // data URL به‌صورت base64 — همان قرارداد CompanyStampService، بدون فضای ذخیره‌سازی فایل جداگانه
+  createdByUserId String?
+  createdAt       DateTime                      @default(now())
+  updatedByUserId String?
+  updatedAt       DateTime                      @updatedAt
+
+  createdBy User? @relation("ConfidentialDocCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("ConfidentialDocUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([createdAt])
+  @@map("confidential_documents")
+}
+
+/// وجود یک ردیف یعنی دسترسی مشاهده دارد؛ canEdit=true یعنی ویرایش هم دارد. فقط مالک/مدیر می‌تواند این را بدهد/بگیرد.
+model ConfidentialArchiveAccess {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  canEdit         Boolean  @default(false)
+  grantedByUserId String?
+  grantedAt       DateTime @default(now())
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("ConfidentialAccessGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("confidential_archive_access")
 }
