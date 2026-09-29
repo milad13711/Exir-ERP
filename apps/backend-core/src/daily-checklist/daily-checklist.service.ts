@@ -93,16 +93,17 @@ export class DailyChecklistService {
     const myUserId = await this.requireUserId(ctx);
     const targetUserId = dto.forUserId || myUserId;
     await this.assertCanActFor(ctx, targetUserId, myUserId);
-    assertEditableDay(dayOnly(dto.date));
+    const date = dayOnly(dto.date);
+    assertEditableDay(date);
     const last = await ctx.tenantDb.dailyChecklistItem.findFirst({
-      where: { userId: targetUserId, date: dayOnly(dto.date) },
+      where: { userId: targetUserId, date },
       orderBy: { order: 'desc' },
       select: { order: true },
     });
-    return ctx.tenantDb.dailyChecklistItem.create({
+    const created = await ctx.tenantDb.dailyChecklistItem.create({
       data: {
         userId: targetUserId,
-        date: dayOnly(dto.date),
+        date,
         title: dto.title.trim(),
         description: dto.description?.trim() || undefined,
         createdByUserId: myUserId,
@@ -111,6 +112,37 @@ export class DailyChecklistService {
       },
       include: ITEM_INCLUDE,
     });
+    // اگر این روز قبلاً بسته شده بود (مثلاً با ثبت زودهنگام گزارش درست بعد از نیمه‌شب —
+    // دقیقاً چیزی که این باگ را لو داد: گزارش روز در دقیقه‌ی هفتمِ همان روز ثبت شد، بعد
+    // آیتم‌های واقعیِ آن روز — از جمله آیتم‌های فوری — در ساعت‌های بعد اضافه شدند)، دیگر
+    // هیچ جاروب خودکار/دستی‌ای این روز را دوباره نمی‌بیند چون closeDays روزهای
+    // rolledOver را رد می‌کند؛ نتیجه: این آیتم تا ابد روی done:false می‌ماند و هیچ‌وقت
+    // به فردا منتقل نمی‌شود. راه‌حل عمداً reset کردن کل روز نیست (چون rollPendingToNextDay
+    // نسخه‌ی اصلی را حذف نمی‌کند، پس یک بستن دوباره، آیتم‌هایی که بار اول درست منتقل شده
+    // بودند را دوباره تکراری می‌کرد) — به‌جایش همین یک آیتم تازه، دقیقاً با همان منطق
+    // rollPendingToNextDay، مستقیماً هم روی فردا کپی می‌شود.
+    const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date } } });
+    if (marker?.rolledOver) {
+      const tomorrow = new Date(date.getTime() + 86_400_000);
+      const lastTomorrow = await ctx.tenantDb.dailyChecklistItem.findFirst({
+        where: { userId: targetUserId, date: tomorrow },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      await ctx.tenantDb.dailyChecklistItem.create({
+        data: {
+          userId: targetUserId,
+          date: tomorrow,
+          title: created.title,
+          description: created.description,
+          priority: created.priority,
+          carriedOver: true,
+          createdByUserId: created.createdByUserId,
+          order: (lastTomorrow?.order ?? -1) + 1,
+        },
+      });
+    }
+    return created;
   }
 
   private async findOwned(ctx: TenantRequestContext, id: string, myUserId: string) {

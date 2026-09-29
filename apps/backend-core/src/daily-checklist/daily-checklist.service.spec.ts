@@ -26,6 +26,10 @@ function setup(opts: { role?: 'OWNER' | 'ADMIN' | 'MEMBER'; myEmployee?: { id: s
       update: vi.fn((args: { where: { id: string }; data: Record<string, unknown> }) => Promise.resolve({ ...items.get(args.where.id), ...args.data })),
       delete: vi.fn().mockResolvedValue({}),
     },
+    dailyChecklistDayClose: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+    },
   };
   const reports = { create: vi.fn().mockResolvedValue({ id: 'report-1' }), update: vi.fn().mockResolvedValue({ id: 'report-1' }) };
   const service = new DailyChecklistService(reports as never);
@@ -74,6 +78,32 @@ describe('DailyChecklistService — permission boundary', () => {
     const call = tenantDb.dailyChecklistItem.create.mock.calls[0][0];
     const stored = call.data.date as Date;
     expect(stored.toISOString()).toBe(`${TODAY}T00:00:00.000Z`);
+  });
+});
+
+describe('DailyChecklistService.create — day already closed', () => {
+  // باگ واقعی که این تست بازتولید می‌کند: گزارش روز به‌اشتباه خیلی زود (مثلاً چند دقیقه
+  // بعد از نیمه‌شب) ثبت شده و روز را «بسته» کرده؛ بعد در ادامه‌ی همان روز آیتم‌های
+  // واقعی (از جمله فوری‌ها) اضافه می‌شوند — و چون closeDays روزهای rolledOver را دیگر
+  // بررسی نمی‌کند، این آیتم‌ها بدون این رفتار هرگز به فردا منتقل نمی‌شدند.
+  it('immediately forwards a copy of the new item to tomorrow when its day was already closed', async () => {
+    const { service, ctx, tenantDb } = setup();
+    (tenantDb.dailyChecklistDayClose.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ rolledOver: true });
+    await service.create(ctx, { title: 'پیگیری قرارداد فوری', date: TODAY, priority: 'URGENT' } as never);
+
+    const calls = tenantDb.dailyChecklistItem.create.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].data).toMatchObject({ date: new Date(`${TODAY}T00:00:00.000Z`), title: 'پیگیری قرارداد فوری' });
+    const tomorrow = new Date(new Date(`${TODAY}T00:00:00.000Z`).getTime() + 86_400_000);
+    expect(calls[1][0].data).toMatchObject({ date: tomorrow, title: 'پیگیری قرارداد فوری', carriedOver: true, priority: 'URGENT' });
+    // نباید وضعیت «بسته‌بودن» روز را دست بزند — همان‌طور که هست باقی می‌ماند تا جاروب بعدی گزارش را به‌روزرسانی کند، نه دوباره‌سازی.
+    expect(tenantDb.dailyChecklistDayClose.upsert).not.toHaveBeenCalled();
+  });
+
+  it('does not forward the item when the day is still open (normal case)', async () => {
+    const { service, ctx, tenantDb } = setup();
+    await service.create(ctx, { title: 'کار عادی', date: TODAY } as never);
+    expect(tenantDb.dailyChecklistItem.create).toHaveBeenCalledTimes(1);
   });
 });
 
