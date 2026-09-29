@@ -7290,3 +7290,48 @@ export function requestMyResellerEnd(reason: string) {
 export function fetchMyResellerSettlements() {
   return apiFetch<ResellerSettlement[]>("/referral-marketing/me/settlements");
 }
+
+// ── فروش تک‌محصولی (ماژول مستقل book-store) ─────────────────────────────────
+
+export type BookOrderFormat = "PRINT" | "EBOOK" | "AUDIO";
+export type BookOrderStatus = "PENDING_PAYMENT" | "PAID" | "CANCELLED" | "SHIPPED" | "DELIVERED";
+
+export type BookOrder = {
+  id: string;
+  orderNo: number;
+  format: BookOrderFormat;
+  buyerName: string;
+  buyerPhone: string;
+  address: string | null;
+  postalCode: string | null;
+  unitPrice: number;
+  status: BookOrderStatus;
+  contactId: string | null;
+  paymentRefId: number | null;
+  paidAt: string | null;
+  invoiceId: string | null;
+  createdAt: string;
+};
+
+export function fetchBookOrders() {
+  return apiFetch<BookOrder[]>("/book-store/orders");
+}
+
+export function shipBookOrder(id: string) {
+  return apiFetch<BookOrder>(`/book-store/orders/${id}/ship`, { method: "POST" });
+}
+
+export type BookStoreSettings = {
+  printPriceToman: number;
+  ebookPriceToman: number;
+  audioPriceToman: number;
+  printProductId: string | null;
+};
+
+export function fetchBookStoreSettings() {
+  return apiFetch<BookStoreSettings>("/book-store/settings");
+}
+
+export function updateBookStoreSettings(data: Partial<BookStoreSettings>) {
+  return apiFetch<BookStoreSettings>("/book-store/settings", { method: "PUT", body: JSON.stringify(data) });
+}

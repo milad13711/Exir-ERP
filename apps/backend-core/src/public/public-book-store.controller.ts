@@ -9,8 +9,8 @@ export class PublicBookStoreController {
   constructor(private readonly bookStore: PublicBookStoreService) {}
 
   @Get('catalog')
-  catalog() {
-    return this.bookStore.getCatalog();
+  catalog(@Param('slug') slug: string) {
+    return this.bookStore.getCatalog(slug);
   }
 
   @Post('otp/request')

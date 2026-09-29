@@ -4,7 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
-import { BookStoreService, BOOK_ORDER_FORMATS, type BookOrderFormatCode } from '../book-store/book-store.service.js';
+import { BookStoreService } from '../book-store/book-store.service.js';
 import type { BookOrderTicketPayload } from '../auth/jwt-payload.type.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreatePublicBookOrderDto } from './dto/create-public-book-order.dto.js';
@@ -39,8 +39,9 @@ export class PublicBookStoreService {
     return { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
   }
 
-  getCatalog() {
-    return Object.entries(BOOK_ORDER_FORMATS).map(([format, info]) => ({ format: format as BookOrderFormatCode, ...info }));
+  async getCatalog(slug: string) {
+    const ctx = await this.resolveTenantCtx(slug);
+    return this.bookStore.getFormats(ctx);
   }
 
   async requestOtp(slug: string, phone: string) {

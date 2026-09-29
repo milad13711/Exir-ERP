@@ -27,7 +27,7 @@ MODULES = {
     "accounting": (["accounting"], "accounting", "accounting"),
     "after-sales-service": (["after-sales"], "after-sales", "after-sales"),
     "automation": (["automation"], "automation", "automation"),
-    "book-store": (["book-store"], None, None),
+    "book-store": (["book-store"], "book-store", "book-store"),
     "booking": (["booking"], "booking", "booking"),
     "checks": (["checks"], "checks", "checks"),
     "contracts": (["contracts"], "contracts", "contracts"),
