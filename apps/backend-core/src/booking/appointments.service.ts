@@ -8,10 +8,12 @@ import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
 import { StaffAvailabilityService } from './staff-availability.service.js';
 import { BookingSlotsService } from './booking-slots.service.js';
+import { CrmOpportunityService } from '../crm/crm-opportunity.service.js';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import type { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
 import type { UpdateBookingSmsSettingsDto } from './dto/update-sms-settings.dto.js';
+import type { CreateOpportunityDto } from './dto/create-opportunity.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
 
 function formatWhen(date: Date): string {
@@ -30,11 +32,14 @@ const APPOINTMENT_INCLUDE = {
 const ACTIVE_STATUSES = ['SCHEDULED', 'CONFIRMED'] as const;
 
 export const BOOKING_MODULE_CODE = 'booking';
+// نام کلید/مدل ذخیره‌سازی از زمانی که این متن قرار بود در پیامک برود باقی مانده (برای سازگاری با
+// داده‌ی موجود تغییر نکرده)؛ اما این متن دیگر در پیامک نمی‌رود — روی صفحه‌ی عمومیِ تأیید نوبت
+// (لینکی که داخل پیامک می‌رود) نمایش داده می‌شود، چون متن کامل و قابل‌ویرایش برای پیامک بیش‌ازحد طولانی می‌شد.
 const SMS_KEY = { moduleCode: BOOKING_MODULE_CODE, key: 'sms' } as const;
 
 type BookingSmsSettings = { confirmationTemplate: string };
-// پیش‌فرض همان متن قبلیِ ثابت — با جایگزین‌شونده‌ها {name}/{date}/{time}/{service}/{phone}
-// تا مدیر بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را در متن پیامک تأیید وارد کند.
+// پیش‌فرض — با جایگزین‌شونده‌ها {name}/{date}/{time}/{service}/{phone}؛ روی صفحه‌ی عمومیِ
+// تأیید نوبت نمایش داده می‌شود تا مدیر بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را درج کند.
 const DEFAULT_BOOKING_SMS: BookingSmsSettings = { confirmationTemplate: 'رزرو شما تأیید شد.' };
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
@@ -51,6 +56,7 @@ export class AppointmentsService {
     private readonly zarinpal: ZarinpalService,
     private readonly staffAvailability: StaffAvailabilityService,
     private readonly slots: BookingSlotsService,
+    private readonly crmOpportunity: CrmOpportunityService,
   ) {}
 
 
@@ -106,11 +112,12 @@ export class AppointmentsService {
   }
 
   /**
-   * سرخط پیام تأیید نهایی نوبت — از قالب قابل‌ویرایش تنظیمات پیامک ساخته می‌شود تا مدیر
-   * بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را در متن درج کند.
+   * متن نمایشیِ قابل‌ویرایشِ صفحه‌ی عمومیِ تأیید نوبت — از قالب تنظیمات ساخته می‌شود تا مدیر
+   * بتواند مثلاً شماره‌ی تماس واقعی برای هماهنگی را در آن درج کند. این متن در پیامک نمی‌رود
+   * (پیامک کوتاه و ثابت باقی می‌ماند)؛ فقط روی صفحه‌ی عمومیِ جزئیات جلسه نمایش داده می‌شود.
    * جایگزین‌شونده‌ها: {name} نام مشتری، {date} تاریخ، {time} ساعت، {service} نام خدمت، {phone} تلفن مجموعه.
    */
-  private async confirmationHeadline(
+  private async confirmationPageMessage(
     ctx: TenantRequestContext,
     appointment: { customerName: string; startAt: Date; serviceType: { name: string } },
   ): Promise<string> {
@@ -474,7 +481,8 @@ export class AppointmentsService {
   async confirm(ctx: TenantRequestContext, id: string) {
     const appointment = await this.transition(ctx, id, ['SCHEDULED'], { status: 'CONFIRMED' });
     if (appointment.customerPhone) {
-      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, await this.confirmationHeadline(ctx, appointment)));
+      // پیامک کوتاه و ثابت می‌ماند؛ متن کامل و قابل‌ویرایش در صفحه‌ی عمومیِ لینکِ همین پیامک نمایش داده می‌شود.
+      await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, 'رزرو شما تأیید شد.'));
     }
     return appointment;
   }
@@ -563,7 +571,7 @@ export class AppointmentsService {
       const headline =
         appointment.paymentStatus === 'PENDING'
           ? 'هماهنگی نوبت شما انجام شد؛ برای نهایی‌شدن، پرداخت را از لینک زیر انجام دهید.'
-          : await this.confirmationHeadline(ctx, appointment);
+          : 'نوبت شما نهایی و تأیید شد.';
       await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, headline));
     }
 
@@ -678,6 +686,7 @@ export class AppointmentsService {
       startAt: appointment.startAt,
       endAt: appointment.endAt,
       status: appointment.status,
+      confirmationMessage: await this.confirmationPageMessage(ctx, appointment),
       location: await this.resolveLocation(ctx, appointment, appointment.serviceType),
       paymentStatus: appointment.paymentStatus,
       amount: appointment.depositAmount,
@@ -702,6 +711,32 @@ export class AppointmentsService {
     const result = await this.sms.sendSms(ctx, appointment.customerPhone, await this.buildMessage(ctx, appointment, 'یادآوری جزئیات رزرو شما:'));
     if (!result.success) throw new BadRequestException(result.error);
     return { success: true };
+  }
+
+  /**
+   * ساخت فرصت فروش در CRM برای پیگیریِ بعد از نوبت — فقط برای نوبتِ انجام‌شده، تا خلاصه‌ای که
+   * پرسنل از گفتگو می‌نویسد معنا داشته باشد. مخاطب موجودِ نوبت وصل می‌شود؛ اگر نوبت مخاطبی
+   * نداشت (مثلاً نوبت بدون شماره تماس)، اینجا خطا می‌دهد چون فرصت فروش بدون مخاطب معنا ندارد.
+   */
+  async createOpportunity(ctx: TenantRequestContext, id: string, dto: CreateOpportunityDto) {
+    const appointment = await ctx.tenantDb.appointment.findUnique({ where: { id }, include: APPOINTMENT_INCLUDE });
+    if (!appointment) throw new NotFoundException('نوبت یافت نشد');
+    if (appointment.status !== 'COMPLETED') {
+      throw new ConflictException('فقط برای نوبتِ انجام‌شده می‌توان فرصت فروش ساخت');
+    }
+    const contactId = await this.resolveContactId(ctx, appointment.contactId ?? undefined, appointment.customerName, appointment.customerPhone);
+    if (!contactId) throw new BadRequestException('این نوبت به مخاطبی در CRM وصل نیست و شماره‌ی تماس هم ندارد');
+
+    const ownerUserId = await resolveTenantUserId(ctx).catch(() => null);
+    return this.crmOpportunity.create(ctx, {
+      contactId,
+      title: dto.title,
+      value: dto.value,
+      stage: dto.stage,
+      expectedCloseAt: dto.expectedCloseAt,
+      summary: dto.summary,
+      ownerUserId,
+    });
   }
 
   async remove(ctx: TenantRequestContext, id: string) {

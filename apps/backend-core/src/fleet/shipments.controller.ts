@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -8,6 +8,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { ShipmentsService } from './shipments.service.js';
 import { CreateShipmentDto } from './dto/create-shipment.dto.js';
 import { SendOffersDto } from './dto/send-offers.dto.js';
+import { UpdateFleetSmsSettingsDto } from './dto/update-fleet-sms-settings.dto.js';
 
 @Controller('fleet/shipments')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -32,6 +33,18 @@ export class ShipmentsController {
   async create(@Body() dto: CreateShipmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'fleet');
     return this.shipments.create(ctx, dto);
+  }
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'fleet');
+    return this.shipments.getSmsSettings(ctx);
+  }
+
+  @Patch('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateFleetSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'fleet');
+    return this.shipments.setSmsSettings(ctx, dto);
   }
 
   @Get(':id')

@@ -5,9 +5,11 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { InvoicesService } from '../sales/invoices.service.js';
+import { CrmOpportunityService } from '../crm/crm-opportunity.service.js';
 import type { CreateSessionDto } from './dto/create-session.dto.js';
 import type { UpdateSessionDto } from './dto/update-session.dto.js';
 import type { CreateSessionInvoiceDto } from './dto/create-session-invoice.dto.js';
+import type { CreateOpportunityDto } from './dto/create-opportunity.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
 
 export function formatWhenFa(date: Date): string {
@@ -23,13 +25,51 @@ const SESSION_INCLUDE = {
   survey: { select: { rating: true, note: true, sentAt: true, submittedAt: true } },
 } as const;
 
+const MENTORING_MODULE_CODE = 'mentoring';
+const SMS_KEY = { moduleCode: MENTORING_MODULE_CODE, key: 'sms' } as const;
+
+export type MentoringSmsSettings = {
+  enabled: boolean;
+  scheduledContactTemplate: string;
+  scheduledAdvisorTemplate: string;
+  reminderContactTemplate: string;
+  reminderAdvisorTemplate: string;
+  surveyTemplate: string;
+};
+export const DEFAULT_MENTORING_SMS: MentoringSmsSettings = {
+  enabled: true,
+  scheduledContactTemplate: 'جلسه‌ی «{title}» شما در تاریخ {when} به‌صورت {mode} ثبت شد.{addressPart}',
+  scheduledAdvisorTemplate: 'جلسه‌ی جدید با {contactName} در تاریخ {when} ({mode}) برایتان ثبت شد.',
+  reminderContactTemplate: 'یادآوری: جلسه‌ی «{title}» شما ساعتی دیگر، در {when} برگزار می‌شود.',
+  reminderAdvisorTemplate: 'یادآوری: جلسه‌ی شما با {contactName} در {when} برگزار می‌شود.',
+  surveyTemplate: 'جلسه‌ی «{title}» به پایان رسید. نظر شما به بهبود کیفیت جلسات کمک می‌کند: {link}',
+};
+
+export function renderMentoringTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  return out;
+}
+
 @Injectable()
 export class SessionsService {
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
+    private readonly crmOpportunity: CrmOpportunityService,
   ) {}
+
+  async getSmsSettings(ctx: TenantRequestContext): Promise<MentoringSmsSettings> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SMS_KEY } });
+    return row ? { ...DEFAULT_MENTORING_SMS, ...(row.value as Partial<MentoringSmsSettings>) } : DEFAULT_MENTORING_SMS;
+  }
+
+  async setSmsSettings(ctx: TenantRequestContext, dto: MentoringSmsSettings): Promise<MentoringSmsSettings> {
+    const value = { ...dto };
+    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SMS_KEY }, update: { value }, create: { ...SMS_KEY, value } });
+    return this.getSmsSettings(ctx);
+  }
 
   list(ctx: TenantRequestContext, filters: { engagementId?: string; contactId?: string; status?: string; from?: Date; to?: Date }) {
     return ctx.tenantDb.mentoringSession.findMany({
@@ -100,18 +140,23 @@ export class SessionsService {
 
     const whenFa = formatWhenFa(scheduledAt);
     const modeLabel = MODE_LABEL_FA[mode];
-    if (engagement.contact.phone) {
-      const addressPart = mode === 'IN_PERSON' && dto.location ? ` — آدرس: ${dto.location}` : '';
-      await this.sms.sendSms(ctx, 
-        engagement.contact.phone,
-        `جلسه‌ی «${engagement.title}» شما در تاریخ ${whenFa} به‌صورت ${modeLabel} ثبت شد.${addressPart}`,
-      );
-    }
-    if (engagement.advisor.phone) {
-      await this.sms.sendSms(ctx, 
-        engagement.advisor.phone,
-        `جلسه‌ی جدید با ${engagement.contact.name} در تاریخ ${whenFa} (${modeLabel}) برایتان ثبت شد.`,
-      );
+    const smsSettings = await this.getSmsSettings(ctx);
+    if (smsSettings.enabled) {
+      if (engagement.contact.phone) {
+        const addressPart = mode === 'IN_PERSON' && dto.location ? ` — آدرس: ${dto.location}` : '';
+        await this.sms.sendSms(
+          ctx,
+          engagement.contact.phone,
+          renderMentoringTemplate(smsSettings.scheduledContactTemplate, { title: engagement.title, when: whenFa, mode: modeLabel, addressPart }),
+        );
+      }
+      if (engagement.advisor.phone) {
+        await this.sms.sendSms(
+          ctx,
+          engagement.advisor.phone,
+          renderMentoringTemplate(smsSettings.scheduledAdvisorTemplate, { contactName: engagement.contact.name, when: whenFa, mode: modeLabel }),
+        );
+      }
     }
 
     return session;
@@ -154,11 +199,13 @@ export class SessionsService {
     });
 
     const survey = await ctx.tenantDb.mentoringSessionSurvey.create({ data: { sessionId: id } });
-    if (session.engagement.contact.phone && publicWebUrl) {
+    const smsSettings = await this.getSmsSettings(ctx);
+    if (smsSettings.enabled && session.engagement.contact.phone && publicWebUrl) {
       const url = `${publicWebUrl}/mentoring-survey/${publicRef(tenantSlug)}/${survey.publicToken}`;
-      const result = await this.sms.sendSms(ctx, 
+      const result = await this.sms.sendSms(
+        ctx,
         session.engagement.contact.phone,
-        `جلسه‌ی «${session.engagement.title}» به پایان رسید. نظر شما به بهبود کیفیت جلسات کمک می‌کند: ${url}`,
+        renderMentoringTemplate(smsSettings.surveyTemplate, { title: session.engagement.title, link: url }),
       );
       if (result.success) {
         await ctx.tenantDb.mentoringSessionSurvey.update({ where: { id: survey.id }, data: { sentAt: new Date() } });
@@ -225,5 +272,28 @@ export class SessionsService {
 
     await ctx.tenantDb.mentoringSession.update({ where: { id }, data: { invoiceId: invoice.id } });
     return invoice;
+  }
+
+  /**
+   * ساخت فرصت فروش در CRM برای پیگیریِ بعد از جلسه — فقط برای جلسه‌ی تکمیل‌شده، تا خلاصه‌ای که
+   * پرسنل از گفتگو می‌نویسد معنا داشته باشد. به مخاطبِ همان همکاری (engagement) وصل می‌شود.
+   */
+  async createOpportunity(ctx: TenantRequestContext, id: string, dto: CreateOpportunityDto) {
+    const session = await ctx.tenantDb.mentoringSession.findUnique({ where: { id }, include: { engagement: true } });
+    if (!session) throw new NotFoundException('این جلسه یافت نشد');
+    if (session.status !== 'COMPLETED') {
+      throw new ConflictException('فقط برای جلسه‌ی تکمیل‌شده می‌توان فرصت فروش ساخت');
+    }
+
+    const ownerUserId = await resolveTenantUserId(ctx).catch(() => null);
+    return this.crmOpportunity.create(ctx, {
+      contactId: session.engagement.contactId,
+      title: dto.title,
+      value: dto.value,
+      stage: dto.stage,
+      expectedCloseAt: dto.expectedCloseAt,
+      summary: dto.summary,
+      ownerUserId,
+    });
   }
 }

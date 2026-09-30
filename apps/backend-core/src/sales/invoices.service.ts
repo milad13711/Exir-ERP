@@ -36,6 +36,31 @@ function renderDeliverySmsTemplate(template: string, vars: { code: string; invoi
   return template.replace(/\{code\}/g, vars.code).replace(/\{invoiceNo\}/g, String(vars.invoiceNo));
 }
 
+/**
+ * جمله‌ی راهنمای پرداخت مخصوص روش انتخاب‌شده‌ی فاکتور — به‌جای پیام یک‌شکل «لینک
+ * پرداخت» روی هر فاکتور. هم پیامک «ارسال لینک فاکتور» و هم یادآور سررسید
+ * (payment-reminder.service.ts) از همین یک منبع استفاده می‌کنند تا متن ثابت بماند.
+ * برای CASH مقدار خالی برمی‌گرداند — یعنی پیام پرداختی لازم نیست فرستاده شود.
+ */
+export function buildPaymentInstructionLine(
+  invoice: { paymentMethod: string; paymentBankInfo: string | null },
+  onlinePaymentUrl: string,
+): string {
+  switch (invoice.paymentMethod) {
+    case 'BANK_TRANSFER':
+      return invoice.paymentBankInfo
+        ? `لطفاً مبلغ فاکتور را به شماره کارت/حساب ${invoice.paymentBankInfo} واریز کنید.`
+        : 'لطفاً مبلغ فاکتور را طبق هماهنگی با ما به‌صورت بانکی واریز کنید.';
+    case 'ONLINE_GATEWAY':
+      return `برای پرداخت آنلاین: ${onlinePaymentUrl}`;
+    case 'CHECK':
+      return 'لطفاً چک را به همراه شماره صیادی آن نزد ما ارسال یا تحویل دهید.';
+    case 'CASH':
+    default:
+      return '';
+  }
+}
+
 // Standard account codes from the default chart of accounts — see
 // src/accounting/default-chart-of-accounts.ts. Confirming an invoice or
 // recording a payment posts against these directly rather than asking the
@@ -75,6 +100,9 @@ const INVOICE_INCLUDE = {
     },
   },
   payments: { orderBy: { paidAt: 'desc' as const } },
+  // برای نمایش «جزئیات چک» وقتی paymentMethod === 'CHECK' — چک واقعی از همان مسیر
+  // recordPayment ساخته می‌شود (نه فیلد جدا روی خود فاکتور)، پس باید این‌جا واکشی شود.
+  checks: { orderBy: { createdAt: 'desc' as const } },
 };
 
 @Injectable()
@@ -191,6 +219,11 @@ export class InvoicesService {
     const taxRate = isOfficial ? (dto.taxRate ?? 0) : undefined;
     const taxAmount = isOfficial && dto.taxRate ? Math.round(((subtotal - discount) * dto.taxRate) / 100) : 0;
 
+    const paymentMethod = dto.paymentMethod ?? 'CASH';
+    if (paymentMethod === 'BANK_TRANSFER' && !dto.paymentBankInfo?.trim()) {
+      throw new BadRequestException('برای روش پرداخت بانکی، شماره کارت/حساب برای نمایش به مشتری الزامی است');
+    }
+
     // فاکتورهای رسمی توالی شماره‌گذاری مستقل خودشان را دارند (پشت‌سرهم و جدا از فاکتورهای عادی).
     let officialInvoiceNo: number | undefined;
     if (isOfficial) {
@@ -210,6 +243,8 @@ export class InvoicesService {
         taxAmount,
         total: subtotal - discount + taxAmount,
         notes: dto.notes,
+        paymentMethod,
+        paymentBankInfo: paymentMethod === 'BANK_TRANSFER' ? dto.paymentBankInfo?.trim() : undefined,
         isOfficial,
         officialInvoiceNo,
         createdByUserId,
@@ -303,6 +338,30 @@ export class InvoicesService {
       where: { moduleCode_key: { moduleCode: SALES_SETTINGS_MODULE, key: DELIVERY_SMS_TEMPLATE_KEY } },
       create: { moduleCode: SALES_SETTINGS_MODULE, key: DELIVERY_SMS_TEMPLATE_KEY, value: template },
       update: { value: template },
+    });
+  }
+
+  /**
+   * پیش‌فرض شماره کارت/حساب بانکی شرکت که هنگام انتخاب روش پرداخت «بانکی» در فرم
+   * فاکتور جدید به‌عنوان پیشنهاد نمایش داده می‌شود — صادرکننده می‌تواند آن را برای هر
+   * فاکتور تغییر دهد. تنظیمات → عمومی فیلد «حساب بانکی شرکت» جداگانه‌ای ندارد، پس این
+   * مقدار مثل الگوی الگوی پیامک تحویل بالا، زیر تنظیمات همین ماژول (فروش) نگه‌داری می‌شود.
+   */
+  private static readonly DEFAULT_BANK_INFO_KEY = 'defaultBankInfo';
+
+  async getDefaultBankInfo(tenantDb: TenantRequestContext['tenantDb']): Promise<string> {
+    const row = await tenantDb.moduleSetting.findUnique({
+      where: { moduleCode_key: { moduleCode: SALES_SETTINGS_MODULE, key: InvoicesService.DEFAULT_BANK_INFO_KEY } },
+    });
+    const value = row?.value;
+    return typeof value === 'string' ? value : '';
+  }
+
+  async setDefaultBankInfo(ctx: TenantRequestContext, value: string): Promise<void> {
+    await ctx.tenantDb.moduleSetting.upsert({
+      where: { moduleCode_key: { moduleCode: SALES_SETTINGS_MODULE, key: InvoicesService.DEFAULT_BANK_INFO_KEY } },
+      create: { moduleCode: SALES_SETTINGS_MODULE, key: InvoicesService.DEFAULT_BANK_INFO_KEY, value },
+      update: { value },
     });
   }
 
@@ -523,6 +582,7 @@ export class InvoicesService {
                 amount: dto.amount,
                 dueDate: new Date(dto.checkDueDate!),
                 bankName: dto.checkBankName,
+                photoDataUrl: dto.checkPhotoDataUrl,
                 contactId: invoice.contactId,
                 invoiceId: invoice.id,
                 createdByUserId: userId,
@@ -594,7 +654,11 @@ export class InvoicesService {
     return invoice;
   }
 
-  /** لینک پرداخت آنلاین فاکتور را برای مشتری پیامک می‌کند — همان لینک عمومی که دکمه‌ی پرداخت هم رویش هست. */
+  /**
+   * لینک عمومی فاکتور را برای مشتری پیامک می‌کند — متن راهنمای پرداخت روی همان روشی
+   * است که صادرکننده برای این فاکتور انتخاب کرده (بانکی/آنلاین/چکی)، نه یک لینک
+   * پرداخت آنلاین یک‌شکل روی هر فاکتور.
+   */
   async sendPaymentLinkSms(ctx: TenantRequestContext, id: string, publicWebUrl: string) {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { contact: true } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
@@ -602,21 +666,35 @@ export class InvoicesService {
 
     const url = `${publicWebUrl}/invoice/${publicRef(ctx.tenantSlug)}/${invoice.publicToken}`;
     const remaining = invoice.total - invoice.paidAmount;
+    const instruction = remaining > 0 ? buildPaymentInstructionLine(invoice, url) : '';
     const message =
       remaining > 0
-        ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} تومان صادر شد.\nمشاهده و پرداخت آنلاین: ${url}`
+        ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} تومان صادر شد.\nمشاهده: ${url}${instruction ? `\n${instruction}` : ''}`
         : `فاکتور شماره ${invoice.invoiceNo} برای شما صادر شد.\nمشاهده: ${url}`;
     const result = await this.sms.sendSms(ctx, invoice.contact.phone, message);
     if (!result.success) throw new BadRequestException(result.error ?? 'ارسال پیامک ناموفق بود');
     return { ok: true, url };
   }
 
-  /** شروع پرداخت آنلاین باقی‌مانده‌ی فاکتور از طریق زرین‌پال — فقط برای فاکتور تأییدشده (همان شرط recordPayment). */
+  /**
+   * شروع پرداخت آنلاین باقی‌مانده‌ی فاکتور از طریق زرین‌پال — فقط برای فاکتوری که
+   * صادرکننده در لحظه‌ی صدور خودش «پرداخت آنلاین» را به‌عنوان روش پرداخت انتخاب کرده
+   * (paymentMethod === 'ONLINE_GATEWAY')، نه هر فاکتور تأییدشده‌ای.
+   *
+   * TODO(payment-gateway): این متد مستقیماً به ZarinpalService (../billing/zarinpal.service.js)
+   * وصل است. یک ماژول عمومی‌تر «Payment Gateway» (apps/backend-core/src/payment-gateway/) با
+   * PaymentGatewayService.createPayment/verifyPayment دارد ساخته می‌شود تا چند درگاه را پشت یک
+   * اینترفیس یکسان بیاورد — وقتی آن ماژول آماده شد، این دو متد باید به همان سرویس منتقل شوند؛
+   * فعلاً برای این‌که ماژول سفارش نصب‌نشده باعث کرش هنگام بوت نشود، اصلاً به آن وابسته نیستیم.
+   */
   async initiateGatewayPayment(ctx: TenantRequestContext, id: string, callbackUrl: string): Promise<{ paymentUrl: string } | null> {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status !== 'CONFIRMED' && invoice.status !== 'PARTIALLY_PAID') {
       throw new BadRequestException('این فاکتور هنوز تأیید نشده و آماده‌ی پرداخت نیست');
+    }
+    if (invoice.paymentMethod !== 'ONLINE_GATEWAY') {
+      throw new BadRequestException('روش پرداخت این فاکتور آنلاین نیست — پرداخت آنلاین برای آن فعال نشده است');
     }
     const remaining = invoice.total - invoice.paidAmount;
     if (remaining <= 0) throw new BadRequestException('این فاکتور قبلاً تسویه شده است');
@@ -665,6 +743,11 @@ export class InvoicesService {
     const taxRate = invoice.isOfficial ? (dto.taxRate ?? invoice.taxRate ?? 0) : undefined;
     const taxAmount = invoice.isOfficial && taxRate ? Math.round(((subtotal - discount) * taxRate) / 100) : 0;
 
+    const paymentMethod = dto.paymentMethod ?? invoice.paymentMethod;
+    if (paymentMethod === 'BANK_TRANSFER' && !(dto.paymentBankInfo?.trim() ?? invoice.paymentBankInfo)) {
+      throw new BadRequestException('برای روش پرداخت بانکی، شماره کارت/حساب برای نمایش به مشتری الزامی است');
+    }
+
     await ctx.tenantDb.salesInvoiceLine.deleteMany({ where: { invoiceId: id } });
     return ctx.tenantDb.salesInvoice.update({
       where: { id },
@@ -679,6 +762,8 @@ export class InvoicesService {
         taxAmount,
         total: subtotal - discount + taxAmount,
         notes: dto.notes,
+        paymentMethod,
+        paymentBankInfo: paymentMethod === 'BANK_TRANSFER' ? (dto.paymentBankInfo?.trim() ?? invoice.paymentBankInfo) : null,
         lines: { create: lines },
       },
       include: INVOICE_INCLUDE,

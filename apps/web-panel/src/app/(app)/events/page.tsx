@@ -5,12 +5,13 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { TicketIcon, PlusIcon, SearchIcon, CalendarIcon } from "@/components/icons";
+import { TicketIcon, PlusIcon, SearchIcon, CalendarIcon, BellIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
-import { fetchEvents, type EventItem, type EventStatus } from "@/lib/api";
+import { fetchEvents, fetchEventsSmsSettings, updateEventsSmsSettings, type EventItem, type EventStatus, type EventsSmsSettings } from "@/lib/api";
 import { NewEventModal } from "@/components/events/NewEventModal";
 import { EventDetailModal } from "@/components/events/EventDetailModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
+import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 
 const STATUS_LABELS: Record<EventStatus, string> = { DRAFT: "پیش‌نویس", PUBLISHED: "منتشرشده", CANCELLED: "لغوشده", COMPLETED: "برگزارشده" };
 const STATUS_TONES: Record<EventStatus, "neutral" | "success" | "danger" | "primary"> = { DRAFT: "neutral", PUBLISHED: "success", CANCELLED: "danger", COMPLETED: "primary" };
@@ -23,6 +24,7 @@ export default function EventsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("همه");
   const [newOpen, setNewOpen] = useState(false);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
+  const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
   function reload() {
     fetchEvents().then(setEvents).catch(() => setEvents([]));
@@ -52,12 +54,29 @@ export default function EventsPage() {
           <Link href="/events/check-in" className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl">
             ثبت حضور با اسکن
           </Link>
+          <button
+            onClick={() => setSmsSettingsOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <BellIcon className="w-4 h-4" />
+            تنظیمات پیامک
+          </button>
           <button onClick={() => setNewOpen(true)} className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer">
             <PlusIcon className="w-4 h-4" />
             رویداد جدید
           </button>
         </div>
       </div>
+
+      {smsSettingsOpen ? (
+        <SmsTemplatesModal<EventsSmsSettings>
+          title="تنظیمات پیامک — رویدادها"
+          fetchSettings={fetchEventsSmsSettings}
+          updateSettings={updateEventsSmsSettings}
+          onClose={() => setSmsSettingsOpen(false)}
+          fields={[{ label: "صدور بلیط", key: "ticketIssuedTemplate", placeholders: "{eventTitle} {ticketCode} {link}" }]}
+        />
+      ) : null}
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
         <div className="relative max-w-[300px] flex-1 min-w-[220px]">

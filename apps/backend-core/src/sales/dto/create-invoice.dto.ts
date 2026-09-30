@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsISO8601, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Max, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Max, Min, MinLength, ValidateNested } from 'class-validator';
+
+const PAYMENT_METHODS = ['BANK_TRANSFER', 'ONLINE_GATEWAY', 'CASH', 'CHECK'] as const;
 
 class InvoiceLineDto {
   @IsOptional()
@@ -58,6 +60,16 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  // روش پرداخت انتخابی صادرکننده — پیش‌فرض سرویس CASH است اگر ارسال نشود (بدون نمایش خودکار لینک پرداخت آنلاین).
+  @IsOptional()
+  @IsIn(PAYMENT_METHODS)
+  paymentMethod?: (typeof PAYMENT_METHODS)[number];
+
+  // فقط برای paymentMethod === 'BANK_TRANSFER' — شماره کارت/حساب انتخابی + یادداشت اختیاری.
+  @IsOptional()
+  @IsString()
+  paymentBankInfo?: string;
 
   @IsOptional()
   @IsBoolean()

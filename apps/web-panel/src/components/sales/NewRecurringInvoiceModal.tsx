@@ -6,6 +6,7 @@ import {
   fetchCrmContacts,
   fetchProducts,
   createRecurringInvoice,
+  updateRecurringInvoice,
   ApiError,
   type CrmContact,
   type Product,
@@ -29,19 +30,26 @@ const FREQUENCY_OPTIONS: Array<{ value: RecurrenceFrequency; label: string }> = 
 export function NewRecurringInvoiceModal({
   onClose,
   onCreated,
+  template: editing,
 }: {
   onClose: () => void;
   onCreated: (template: RecurringInvoiceDetail) => void;
+  /** حالت ویرایش الگوی موجود */
+  template?: RecurringInvoiceDetail;
 }) {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [contactId, setContactId] = useState("");
-  const [frequency, setFrequency] = useState<RecurrenceFrequency>("MONTHLY");
-  const [intervalCount, setIntervalCount] = useState("1");
-  const [nextRunAt, setNextRunAt] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const [contactId, setContactId] = useState(editing?.contact.id ?? "");
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>(editing?.frequency ?? "MONTHLY");
+  const [intervalCount, setIntervalCount] = useState(editing ? String(editing.intervalCount) : "1");
+  const [nextRunAt, setNextRunAt] = useState(editing?.nextRunAt ? editing.nextRunAt.slice(0, 10) : "");
+  const [discount, setDiscount] = useState(editing?.discount ? String(editing.discount) : "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [lines, setLines] = useState<DraftLine[]>(
+    editing
+      ? editing.lines.map((l) => ({ productId: l.productId ?? "", description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) }))
+      : [emptyLine()],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +78,7 @@ export function NewRecurringInvoiceModal({
     if (!contactId || !nextRunAt || validLines.length === 0) return;
     setSubmitting(true);
     try {
-      const template = await createRecurringInvoice({
+      const payload = {
         contactId,
         frequency,
         intervalCount: Number(intervalCount) || 1,
@@ -83,7 +91,8 @@ export function NewRecurringInvoiceModal({
           quantity: Number(l.quantity),
           unitPrice: Number(l.unitPrice) || 0,
         })),
-      });
+      };
+      const template = editing ? await updateRecurringInvoice(editing.id, payload) : await createRecurringInvoice(payload);
       onCreated(template);
       onClose();
     } catch (err) {
@@ -94,7 +103,7 @@ export function NewRecurringInvoiceModal({
   }
 
   return (
-    <Modal title="فاکتور تکرارشونده جدید" onClose={onClose} width="max-w-[640px]">
+    <Modal title={editing ? "ویرایش الگوی تکرارشونده" : "فاکتور تکرارشونده جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>
@@ -235,7 +244,7 @@ export function NewRecurringInvoiceModal({
           disabled={submitting || !contactId || !nextRunAt}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت الگوی تکرارشونده"}
+          {submitting ? "در حال ثبت..." : editing ? "ذخیره‌ی تغییرات" : "ثبت الگوی تکرارشونده"}
         </button>
       </form>
     </Modal>

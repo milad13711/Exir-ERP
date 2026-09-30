@@ -30,7 +30,7 @@ export class EngagementsService {
       where: { id },
       include: {
         ...ENGAGEMENT_INCLUDE,
-        sessions: { orderBy: { scheduledAt: 'desc' }, include: { survey: { select: { rating: true, submittedAt: true } } } },
+        sessions: { orderBy: { scheduledAt: 'desc' }, include: { survey: { select: { rating: true, note: true, sentAt: true, submittedAt: true } } } },
         goals: { include: { checkIns: { orderBy: { recordedAt: 'desc' } } }, orderBy: { createdAt: 'asc' } },
       },
     });

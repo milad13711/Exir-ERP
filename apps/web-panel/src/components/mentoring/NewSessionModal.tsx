@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
-import { createMentoringSession, type MentoringEngagement, type MentoringSessionMode } from "@/lib/api";
+import { createMentoringSession, updateMentoringSession, ApiError, type MentoringEngagement, type MentoringSession, type MentoringSessionMode } from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -9,12 +9,24 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 const MODE_LABELS: Record<MentoringSessionMode, string> = { ONLINE: "آنلاین", PHONE: "تلفنی", IN_PERSON: "حضوری" };
 
-export function NewSessionModal({ engagement, onClose, onCreated }: { engagement: MentoringEngagement; onClose: () => void; onCreated: () => void }) {
-  const [mode, setMode] = useState<MentoringSessionMode>("ONLINE");
+/** برای ساخت جلسه‌ی جدید `engagement` بدهید؛ برای ویرایش جلسه‌ی زمان‌بندی‌شده، `session` را هم بدهید. */
+export function NewSessionModal({
+  engagement,
+  session,
+  onClose,
+  onCreated,
+}: {
+  engagement: MentoringEngagement;
+  session?: MentoringSession;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const editing = !!session;
+  const [mode, setMode] = useState<MentoringSessionMode>(session?.mode ?? "ONLINE");
   // بدون مقدار پیش‌فرض عمداً — محاسبه‌ی «اکنون» در بدنه‌ی رندر (برای مقدار اولیه‌ی state) طبق قانون react-hooks/purity مجاز نیست
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState("60");
-  const [location, setLocation] = useState("");
+  const [scheduledAt, setScheduledAt] = useState(session?.scheduledAt ?? "");
+  const [durationMinutes, setDurationMinutes] = useState(session ? String(session.durationMinutes) : "60");
+  const [location, setLocation] = useState(session?.location ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,24 +38,33 @@ export function NewSessionModal({ engagement, onClose, onCreated }: { engagement
     setSaving(true);
     setError(null);
     try {
-      await createMentoringSession({
-        engagementId: engagement.id,
-        mode,
-        scheduledAt: new Date(scheduledAt).toISOString(),
-        durationMinutes: Number(durationMinutes) || 60,
-        location: location.trim() || undefined,
-      });
+      if (editing) {
+        await updateMentoringSession(session.id, {
+          mode,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          durationMinutes: Number(durationMinutes) || 60,
+          location: location.trim() || undefined,
+        });
+      } else {
+        await createMentoringSession({
+          engagementId: engagement.id,
+          mode,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          durationMinutes: Number(durationMinutes) || 60,
+          location: location.trim() || undefined,
+        });
+      }
       onCreated();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ثبت جلسه ناموفق بود");
+      setError(err instanceof ApiError ? err.message : editing ? "ویرایش جلسه ناموفق بود" : "ثبت جلسه ناموفق بود");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal title={`جلسه‌ی جدید — ${engagement.title}`} onClose={onClose} width="max-w-[460px]">
+    <Modal title={editing ? `ویرایش جلسه — ${engagement.title}` : `جلسه‌ی جدید — ${engagement.title}`} onClose={onClose} width="max-w-[460px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>نحوه‌ی برگزاری</label>
@@ -86,7 +107,7 @@ export function NewSessionModal({ engagement, onClose, onCreated }: { engagement
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
         <button type="submit" disabled={saving || !formValid} className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50">
-          {saving ? "در حال ثبت..." : "ثبت جلسه"}
+          {saving ? "در حال ثبت..." : editing ? "ذخیره تغییرات" : "ثبت جلسه"}
         </button>
       </form>
     </Modal>

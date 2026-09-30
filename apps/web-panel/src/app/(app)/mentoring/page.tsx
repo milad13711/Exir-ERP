@@ -4,19 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CompassIcon, PlusIcon, SearchIcon, BoltIcon } from "@/components/icons";
+import { CompassIcon, PlusIcon, SearchIcon, BoltIcon, BellIcon } from "@/components/icons";
 import { formatToman, toPersianDigits } from "@/lib/persian";
 import {
   fetchMentoringEngagements,
   fetchMentoringOverview,
+  fetchMentoringSmsSettings,
+  updateMentoringSmsSettings,
   type MentoringEngagement,
   type MentoringEngagementStatus,
   type MentoringOverview,
+  type MentoringSmsSettings,
 } from "@/lib/api";
 import { NewEngagementModal } from "@/components/mentoring/NewEngagementModal";
 import { EngagementDetailModal } from "@/components/mentoring/EngagementDetailModal";
 import { MentoringReportsModal } from "@/components/mentoring/MentoringReportsModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
+import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 
 const STATUS_LABELS: Record<MentoringEngagementStatus, string> = {
   ACTIVE: "فعال",
@@ -42,6 +46,7 @@ export default function MentoringPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [openEngagementId, setOpenEngagementId] = useState<string | null>(null);
+  const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
   function reload() {
     fetchMentoringEngagements().then(setEngagements).catch(() => setEngagements([]));
@@ -77,6 +82,13 @@ export default function MentoringPage() {
             گزارش‌ها
           </button>
           <button
+            onClick={() => setSmsSettingsOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <BellIcon className="w-4 h-4" />
+            تنظیمات پیامک
+          </button>
+          <button
             onClick={() => setNewOpen(true)}
             className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
           >
@@ -85,6 +97,22 @@ export default function MentoringPage() {
           </button>
         </div>
       </div>
+
+      {smsSettingsOpen ? (
+        <SmsTemplatesModal<MentoringSmsSettings>
+          title="تنظیمات پیامک — منتورینگ"
+          fetchSettings={fetchMentoringSmsSettings}
+          updateSettings={updateMentoringSmsSettings}
+          onClose={() => setSmsSettingsOpen(false)}
+          fields={[
+            { label: "ثبت جلسه — مشتری", key: "scheduledContactTemplate", placeholders: "{title} {when} {mode} {addressPart}" },
+            { label: "ثبت جلسه — مشاور", key: "scheduledAdvisorTemplate", placeholders: "{contactName} {when} {mode}" },
+            { label: "یادآوری جلسه — مشتری", key: "reminderContactTemplate", placeholders: "{title} {when}" },
+            { label: "یادآوری جلسه — مشاور", key: "reminderAdvisorTemplate", placeholders: "{contactName} {when}" },
+            { label: "نظرسنجی پس از پایان جلسه", key: "surveyTemplate", placeholders: "{title} {link}" },
+          ]}
+        />
+      ) : null}
 
       {overview && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -103,6 +131,15 @@ export default function MentoringPage() {
           <Card className="p-3.5">
             <div className="text-[11.5px] text-muted">درآمد این ماه</div>
             <div className="text-lg font-extrabold mt-1">{formatToman(overview.revenueThisMonth)}</div>
+          </Card>
+          <Card className="p-3.5">
+            <div className="text-[11.5px] text-muted">رضایت مشتریان</div>
+            <div className="text-lg font-extrabold mt-1">
+              {overview.avgSatisfaction != null ? `${toPersianDigits(overview.avgSatisfaction)} از ۵` : "—"}
+            </div>
+            {overview.surveyResponseCount > 0 && (
+              <div className="text-[10.5px] text-muted mt-0.5">از {toPersianDigits(overview.surveyResponseCount)} نظرسنجی</div>
+            )}
           </Card>
         </div>
       )}

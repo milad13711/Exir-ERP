@@ -9,6 +9,7 @@ import {
   type RecurringInvoiceDetail,
   type RecurrenceFrequency,
 } from "@/lib/api";
+import { NewRecurringInvoiceModal } from "./NewRecurringInvoiceModal";
 
 const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
   WEEKLY: "هفتگی",
@@ -29,6 +30,7 @@ export function RecurringInvoiceDetailModal({
   const [template, setTemplate] = useState<RecurringInvoiceDetail | null>(null);
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   function load() {
     fetchRecurringInvoice(templateId).then(setTemplate);
@@ -106,13 +108,21 @@ export function RecurringInvoiceDetailModal({
           {template.notes ? <div className="text-[12px] text-muted">یادداشت: {template.notes}</div> : null}
 
           <div className="flex items-center justify-between pt-2 border-t border-border">
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
-            >
-              {deleting ? "در حال حذف..." : "حذف الگو"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? "در حال حذف..." : "حذف الگو"}
+              </button>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+              >
+                ویرایش
+              </button>
+            </div>
             <button
               onClick={handleToggleActive}
               disabled={toggling}
@@ -123,6 +133,18 @@ export function RecurringInvoiceDetailModal({
           </div>
         </div>
       )}
+
+      {editOpen && template ? (
+        <NewRecurringInvoiceModal
+          template={template}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            setEditOpen(false);
+            load();
+            onChanged();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

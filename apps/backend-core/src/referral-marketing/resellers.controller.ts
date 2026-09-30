@@ -7,9 +7,11 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ResellersService } from './resellers.service.js';
+import { ReferralNpsSurveyService } from './referral-nps-survey.service.js';
 import { CreateResellerDto } from './dto/create-reseller.dto.js';
 import { UpdateResellerDto } from './dto/update-reseller.dto.js';
 import { LinkConversionDto } from './dto/link-conversion.dto.js';
+import { UpdateReferralSmsSettingsDto } from './dto/update-referral-sms-settings.dto.js';
 
 /** دسترسی مدیریتی به فهرست نمایندگان — دیدِ محدود خودِ نماینده در ResellerSelfController است. */
 @Controller('referral-marketing/resellers')
@@ -18,6 +20,7 @@ import { LinkConversionDto } from './dto/link-conversion.dto.js';
 export class ResellersController {
   constructor(
     private readonly resellers: ResellersService,
+    private readonly npsSurvey: ReferralNpsSurveyService,
     private readonly permissions: PermissionsService,
   ) {}
 
@@ -31,6 +34,18 @@ export class ResellersController {
   async dashboard(@Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertViewAll(ctx, 'referral-marketing');
     return this.resellers.dashboard(ctx);
+  }
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'referral-marketing');
+    return this.npsSurvey.getSmsSettings(ctx);
+  }
+
+  @Patch('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateReferralSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'referral-marketing');
+    return this.npsSurvey.setSmsSettings(ctx, dto);
   }
 
   @Get(':id')

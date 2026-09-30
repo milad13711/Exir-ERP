@@ -26,6 +26,28 @@ export type MatchCandidate = {
   averageRating: number | null;
 };
 
+const FLEET_MODULE_CODE = 'fleet';
+const SMS_KEY = { moduleCode: FLEET_MODULE_CODE, key: 'sms' } as const;
+
+export type FleetSmsSettings = {
+  enabled: boolean;
+  offerDispatchTemplate: string;
+  offerAcceptedTemplate: string;
+  deliveredSurveyTemplate: string;
+};
+export const DEFAULT_FLEET_SMS: FleetSmsSettings = {
+  enabled: true,
+  offerDispatchTemplate: 'پیشنهاد بار جدید:\nنوع: {cargoType}\nمقدار: {quantity}\nآدرس تحویل: {deliveryAddress}\nزمان بارگیری: {pickup}\nمشاهده و پذیرش: {link}',
+  offerAcceptedTemplate: 'راننده «{driverName}» بار شماره {shipmentNo} را پذیرفت.\nتماس با راننده: {driverPhone}',
+  deliveredSurveyTemplate: 'بار شماره {shipmentNo} با موفقیت تحویل داده شد. نظر شما به ما کمک می‌کند: {link}',
+};
+
+export function renderFleetTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  return out;
+}
+
 @Injectable()
 export class ShipmentsService {
   constructor(
@@ -34,6 +56,17 @@ export class ShipmentsService {
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
   ) {}
+
+  async getSmsSettings(ctx: TenantRequestContext): Promise<FleetSmsSettings> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SMS_KEY } });
+    return row ? { ...DEFAULT_FLEET_SMS, ...(row.value as Partial<FleetSmsSettings>) } : DEFAULT_FLEET_SMS;
+  }
+
+  async setSmsSettings(ctx: TenantRequestContext, dto: FleetSmsSettings): Promise<FleetSmsSettings> {
+    const value = { ...dto };
+    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SMS_KEY }, update: { value }, create: { ...SMS_KEY, value } });
+    return this.getSmsSettings(ctx);
+  }
 
   list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }) {
     const where: Record<string, unknown> = {};
@@ -177,8 +210,15 @@ export class ShipmentsService {
     });
 
     if (shipment.createdBy) {
-      const message = `راننده «${offer.driver.name}» بار شماره ${shipment.shipmentNo} را پذیرفت.\nتماس با راننده: ${offer.driver.phone}`;
-      await this.sms.sendSms(ctx, shipment.createdBy.phone, message);
+      const smsSettings = await this.getSmsSettings(ctx);
+      if (smsSettings.enabled) {
+        const message = renderFleetTemplate(smsSettings.offerAcceptedTemplate, {
+          driverName: offer.driver.name,
+          shipmentNo: String(shipment.shipmentNo),
+          driverPhone: offer.driver.phone,
+        });
+        await this.sms.sendSms(ctx, shipment.createdBy.phone, message);
+      }
       await this.notifications.notify(ctx.tenantDb, {
         userId: shipment.createdBy.id,
         type: 'fleet.offer.accepted',
@@ -230,9 +270,10 @@ export class ShipmentsService {
     await ctx.tenantDb.shipment.update({ where: { id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
 
     const survey = await ctx.tenantDb.deliverySurvey.create({ data: { shipmentId: id } });
-    if (shipment.contact?.phone) {
+    const smsSettings = await this.getSmsSettings(ctx);
+    if (smsSettings.enabled && shipment.contact?.phone) {
       const url = `${publicWebUrl}/survey/${publicRef(tenantSlug)}/${survey.publicToken}`;
-      const message = `بار شماره ${shipment.shipmentNo} با موفقیت تحویل داده شد. نظر شما به ما کمک می‌کند: ${url}`;
+      const message = renderFleetTemplate(smsSettings.deliveredSurveyTemplate, { shipmentNo: String(shipment.shipmentNo), link: url });
       const result = await this.sms.sendSms(ctx, shipment.contact.phone, message);
       if (result.success) {
         await ctx.tenantDb.deliverySurvey.update({ where: { id: survey.id }, data: { sentAt: new Date() } });

@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { setCheckReminderChannels, ApiError } from "@/lib/api";
+import {
+  setCheckReminderChannels,
+  fetchChecksSmsSettings,
+  updateChecksSmsSettings,
+  type ChecksSmsSettings,
+  ApiError,
+} from "@/lib/api";
 
 export function CheckReminderSettingsModal({
   currentSms,
@@ -17,6 +23,12 @@ export function CheckReminderSettingsModal({
   const [notification, setNotification] = useState(currentNotification);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [smsSettings, setSmsSettings] = useState<ChecksSmsSettings | null>(null);
+  const [smsSaved, setSmsSaved] = useState(false);
+
+  useEffect(() => {
+    fetchChecksSmsSettings().then(setSmsSettings);
+  }, []);
 
   async function handleSave() {
     setBusy(true);
@@ -30,6 +42,13 @@ export function CheckReminderSettingsModal({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleSaveSms() {
+    if (!smsSettings) return;
+    setSmsSettings(await updateChecksSmsSettings(smsSettings));
+    setSmsSaved(true);
+    setTimeout(() => setSmsSaved(false), 2000);
   }
 
   return (
@@ -64,6 +83,49 @@ export function CheckReminderSettingsModal({
         >
           {busy ? "در حال ذخیره..." : "ذخیره"}
         </button>
+
+        {smsSettings ? (
+          <div className="border-t border-border pt-4 flex flex-col gap-3">
+            <div className="text-[13px] font-extrabold">متن پیامک‌ها</div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsSettings.enabled}
+                onChange={(e) => setSmsSettings({ ...smsSettings, enabled: e.target.checked })}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <span className="text-[12.5px] font-bold">ارسال پیامک برای این ماژول فعال باشد</span>
+            </label>
+
+            {(
+              [
+                ["یادآوری سررسید — چک دریافتی", "dueReminderReceivedTemplate"],
+                ["یادآوری سررسید — چک صادرشده", "dueReminderIssuedTemplate"],
+                ["هشدار برگشت چک (به مدیران)", "bounceAlertTemplate"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="border border-border rounded-xl p-3">
+                <div className="text-[12px] font-bold mb-2">{label}</div>
+                <textarea
+                  value={smsSettings[key]}
+                  onChange={(e) => setSmsSettings({ ...smsSettings, [key]: e.target.value })}
+                  rows={2}
+                  className="w-full text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary resize-none"
+                />
+                <div className="text-[11px] text-muted mt-1.5" dir="ltr">
+                  {key === "bounceAlertTemplate" ? "متغیرها: {direction} {partyName} {sayadId} {amount}" : "متغیرها: {sayadId} {amount} {dueDate}"}
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={handleSaveSms}
+              className="self-start text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-primary text-white cursor-pointer"
+            >
+              {smsSaved ? "ذخیره شد ✓" : "ذخیره متن پیامک‌ها"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

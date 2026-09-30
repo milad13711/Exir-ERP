@@ -4,7 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
-import { formatWhenFa } from './sessions.service.js';
+import { formatWhenFa, renderMentoringTemplate, DEFAULT_MENTORING_SMS } from './sessions.service.js';
 import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 
 const REMINDER_HOURS_BEFORE = 3;
@@ -68,14 +68,27 @@ export class MentoringReminderService implements OnModuleInit {
       where: { status: 'SCHEDULED', reminderSentAt: null, scheduledAt: { gte: now, lte: windowEnd } },
       include: { engagement: { include: { contact: { select: { name: true, phone: true } }, advisor: { select: { name: true, phone: true } } } } },
     });
+    if (dueSessions.length === 0) return;
+
+    const smsRow = await tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'mentoring', key: 'sms' } } });
+    const smsSettings = { ...DEFAULT_MENTORING_SMS, ...((smsRow?.value as Partial<typeof DEFAULT_MENTORING_SMS>) ?? {}) };
+    if (!smsSettings.enabled) return;
 
     for (const session of dueSessions) {
       const whenFa = formatWhenFa(session.scheduledAt);
       if (session.engagement.contact.phone) {
-        await this.sms.sendSms({ tenantId, tenantDb }, session.engagement.contact.phone, `یادآوری: جلسه‌ی «${session.engagement.title}» شما ساعتی دیگر، در ${whenFa} برگزار می‌شود.`);
+        await this.sms.sendSms(
+          { tenantId, tenantDb },
+          session.engagement.contact.phone,
+          renderMentoringTemplate(smsSettings.reminderContactTemplate, { title: session.engagement.title, when: whenFa }),
+        );
       }
       if (session.engagement.advisor.phone) {
-        await this.sms.sendSms({ tenantId, tenantDb }, session.engagement.advisor.phone, `یادآوری: جلسه‌ی شما با ${session.engagement.contact.name} در ${whenFa} برگزار می‌شود.`);
+        await this.sms.sendSms(
+          { tenantId, tenantDb },
+          session.engagement.advisor.phone,
+          renderMentoringTemplate(smsSettings.reminderAdvisorTemplate, { contactName: session.engagement.contact.name, when: whenFa }),
+        );
       }
       await tenantDb.mentoringSession.update({ where: { id: session.id }, data: { reminderSentAt: new Date() } });
     }

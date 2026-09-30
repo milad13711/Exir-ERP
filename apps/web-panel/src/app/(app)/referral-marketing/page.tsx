@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { ShareIcon, PlusIcon } from "@/components/icons";
+import { ShareIcon, PlusIcon, BellIcon } from "@/components/icons";
 import { formatToman, toPersianDigits } from "@/lib/persian";
 import {
   fetchResellers,
@@ -13,15 +13,19 @@ import {
   fetchMyReferralConversions,
   fetchMyReferralCommissions,
   fetchMySupportTickets,
+  fetchReferralSmsSettings,
+  updateReferralSmsSettings,
   type Reseller,
   type ResellerDashboardRow,
   type ReferralConversion,
   type ReferralCommission,
   type ResellerSupportTicket,
+  type ReferralSmsSettings,
 } from "@/lib/api";
 import { NewResellerModal } from "@/components/referral-marketing/NewResellerModal";
 import { ResellerDetailModal } from "@/components/referral-marketing/ResellerDetailModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
+import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 
 type Tab = "resellers" | "dashboard" | "me";
 
@@ -88,6 +92,7 @@ function ResellersTab() {
   const [resellers, setResellers] = useState<Reseller[] | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
   function reload() {
     fetchResellers().then(setResellers).catch(() => setResellers([]));
@@ -96,7 +101,14 @@ function ResellersTab() {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4">
+        <button
+          onClick={() => setSmsSettingsOpen(true)}
+          className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+        >
+          <BellIcon className="w-4 h-4" />
+          تنظیمات پیامک
+        </button>
         <button
           onClick={() => setNewOpen(true)}
           className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
@@ -105,6 +117,16 @@ function ResellersTab() {
           نماینده‌ی جدید
         </button>
       </div>
+
+      {smsSettingsOpen ? (
+        <SmsTemplatesModal<ReferralSmsSettings>
+          title="تنظیمات پیامک — نمایندگی و رفرال"
+          fetchSettings={fetchReferralSmsSettings}
+          updateSettings={updateReferralSmsSettings}
+          onClose={() => setSmsSettingsOpen(false)}
+          fields={[{ label: "نظرسنجی رضایت پس از معرفی (NPS)", key: "npsSurveyTemplate", placeholders: "{resellerName} {link}" }]}
+        />
+      ) : null}
 
       <div className="grid sm:grid-cols-2 gap-3">
         {resellers === null ? (

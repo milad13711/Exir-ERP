@@ -4,6 +4,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { publicRef } from '../common/tenant-public-key.js';
+import { renderFleetTemplate, DEFAULT_FLEET_SMS } from './shipments.service.js';
 
 const OFFER_GAP_MS = 5 * 60 * 1000;
 
@@ -49,6 +50,11 @@ export class FleetOfferDispatchService {
       where: { status: 'OFFERED' },
       include: { offers: { orderBy: { rank: 'asc' }, include: { driver: { select: { id: true, name: true, phone: true } } } } },
     });
+    if (shipments.length === 0) return;
+
+    const smsRow = await tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'fleet', key: 'sms' } } });
+    const smsSettings = { ...DEFAULT_FLEET_SMS, ...((smsRow?.value as Partial<typeof DEFAULT_FLEET_SMS>) ?? {}) };
+    if (!smsSettings.enabled) return;
 
     for (const shipment of shipments) {
       const nextScheduled = shipment.offers.find((o) => o.status === 'SCHEDULED');
@@ -64,7 +70,13 @@ export class FleetOfferDispatchService {
 
       const offerUrl = `${publicWebUrl}/fleet/offer/${publicRef(slug)}/${nextScheduled.publicToken}`;
       const pickup = shipment.pickupAt.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
-      const message = `پیشنهاد بار جدید:\nنوع: ${shipment.cargoType}\nمقدار: ${shipment.quantity}${shipment.unit ? ' ' + shipment.unit : ''}\nآدرس تحویل: ${shipment.deliveryAddress}\nزمان بارگیری: ${pickup}\nمشاهده و پذیرش: ${offerUrl}`;
+      const message = renderFleetTemplate(smsSettings.offerDispatchTemplate, {
+        cargoType: shipment.cargoType,
+        quantity: `${shipment.quantity}${shipment.unit ? ' ' + shipment.unit : ''}`,
+        deliveryAddress: shipment.deliveryAddress,
+        pickup,
+        link: offerUrl,
+      });
 
       await this.sms.sendSms({ tenantId, tenantDb }, nextScheduled.driver.phone, message);
       await tenantDb.shipmentOffer.update({ where: { id: nextScheduled.id }, data: { status: 'PENDING', sentAt: new Date() } });

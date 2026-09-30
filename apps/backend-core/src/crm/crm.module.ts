@@ -16,6 +16,7 @@ import { FunnelService } from './funnel.service.js';
 import { FunnelKpiService } from './funnel-kpi.service.js';
 import { FunnelChurnCronService } from './funnel-churn-cron.service.js';
 import { CrmAutomationTriggers } from './crm-automation.triggers.js';
+import { CrmOpportunityService } from './crm-opportunity.service.js';
 
 @Module({
   imports: [WebhooksModule, PermissionsModule, NotificationsModule, ModuleGuardModule, AutomationModule, SmsModule],
@@ -29,7 +30,8 @@ import { CrmAutomationTriggers } from './crm-automation.triggers.js';
     FunnelKpiService,
     FunnelChurnCronService,
     CrmAutomationTriggers,
+    CrmOpportunityService,
   ],
-  exports: [CreditScoreService, SupplierRiskService, FunnelService, PartyStatementService],
+  exports: [CreditScoreService, SupplierRiskService, FunnelService, PartyStatementService, CrmOpportunityService],
 })
 export class CrmModule {}

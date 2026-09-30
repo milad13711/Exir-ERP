@@ -48,6 +48,21 @@ export class InvoicesController {
     return { template: await this.invoices.getDeliverySmsTemplate(ctx) };
   }
 
+  /** پیش‌فرض شماره کارت/حساب بانکی — پیشنهاد اولیه در فرم فاکتور جدید وقتی روش پرداخت «بانکی» انتخاب شود. */
+  @Get('settings/default-bank-info')
+  async getDefaultBankInfo(@Ctx() ctx: TenantRequestContext) {
+    return { bankInfo: await this.invoices.getDefaultBankInfo(ctx.tenantDb) };
+  }
+
+  @Put('settings/default-bank-info')
+  async setDefaultBankInfo(@Body() body: { bankInfo: string }, @Ctx() ctx: TenantRequestContext) {
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
+      throw new ForbiddenException('فقط مالک یا مدیر می‌تواند این تنظیم را تغییر دهد');
+    }
+    await this.invoices.setDefaultBankInfo(ctx, body.bankInfo ?? '');
+    return { bankInfo: await this.invoices.getDefaultBankInfo(ctx.tenantDb) };
+  }
+
   @Get('settings/payment-reminder-days')
   async getPaymentReminderDays(@Ctx() ctx: TenantRequestContext) {
     return { days: await this.invoices.getPaymentReminderDays(ctx.tenantDb) };
@@ -120,6 +135,21 @@ export class InvoicesController {
     return this.invoices.sendPaymentLinkSms(ctx, id, publicWebUrl);
   }
 
+  /**
+   * دکمه‌ی «پرداخت آنلاین» داخل خود پنل (برای فاکتوری که روش پرداختش آنلاین انتخاب شده) —
+   * لینک درگاه را مستقیم برمی‌گرداند تا کاربر بدون پیامک هم بتواند باز/کپی کند.
+   */
+  @Post(':id/online-payment-link')
+  async getOnlinePaymentLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'sales');
+    const invoice = await this.invoices.detail(ctx, id, {});
+    const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
+    const callbackUrl = `${apiUrl}/public/tenants/${ctx.tenantSlug}/invoices/${invoice.publicToken}/callback`;
+    const result = await this.invoices.initiateGatewayPayment(ctx, id, callbackUrl);
+    if (!result) throw new BadRequestException('درگاه پرداخت در دسترس نیست — ابتدا آن را در تنظیمات پیکربندی کنید');
+    return result;
+  }
+
   @Post(':id/delivery/code')
   @RequireModule('delivery-signature')
   async sendDeliveryCode(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
@@ -164,6 +194,9 @@ export class InvoicesController {
         deliveryConfirmedName: invoice.deliveryConfirmedName,
         deliverySignatureDataUrl: invoice.deliverySignatureDataUrl,
         deliveryConfirmedAt: invoice.deliveryConfirmedAt,
+        paymentMethod: invoice.paymentMethod,
+        paymentBankInfo: invoice.paymentBankInfo,
+        checks: invoice.checks,
         contact: invoice.contact,
         lines: invoice.lines,
       },

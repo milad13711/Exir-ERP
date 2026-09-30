@@ -15,6 +15,7 @@ import { UpdateEventDto } from './dto/update-event.dto.js';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto.js';
 import { CheckInTicketDto } from './dto/check-in-ticket.dto.js';
+import { UpdateEventsSmsSettingsDto } from './dto/update-events-sms-settings.dto.js';
 
 @Controller('events')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -137,6 +138,18 @@ export class EventsController {
     const png = await this.qr.toPngBuffer(qrToken);
     res.setHeader('Content-Type', 'image/png');
     res.send(png);
+  }
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'events');
+    return this.events.getSmsSettings(ctx);
+  }
+
+  @Patch('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateEventsSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'events');
+    return this.events.setSmsSettings(ctx, dto);
   }
 
   /** پوستر آماده‌ی انتشار در استوری/پست اینستاگرام یا واتس‌اپ — فقط تصویر می‌سازد، ارسال واقعی به شبکه‌ی اجتماعی وجود ندارد. */

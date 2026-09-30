@@ -9,10 +9,11 @@ import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import type { SendSmsResult } from '../sms/exir-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
-import { InvoicesService } from './invoices.service.js';
+import { InvoicesService, buildPaymentInstructionLine } from './invoices.service.js';
 import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { matchesSchedule } from '../scheduling/schedule-match.util.js';
+import { publicRef } from '../common/tenant-public-key.js';
 
 const REMINDER_COOLDOWN_MS = 20 * 60 * 60 * 1000; // شبکه‌ی ایمنی؛ شرط اصلیِ ارسال الان تطبیق دقیقِ روز+ساعت تنظیم‌شده است، نه این کول‌داون
 
@@ -81,17 +82,18 @@ export class PaymentReminderService implements OnModuleInit {
     const tenants = await this.controlDb.tenant.findMany({ where: { status: 'ACTIVE' } });
     for (const tenant of tenants) {
       try {
-        await this.remindForTenant(tenant.id, tenant.dbHost, tenant.dbPort, tenant.dbName);
+        await this.remindForTenant(tenant.id, tenant.slug, tenant.dbHost, tenant.dbPort, tenant.dbName);
       } catch (err) {
         this.logger.error(`Payment reminder sweep failed for tenant ${tenant.id}: ${err instanceof Error ? err.message : err}`);
       }
     }
   }
 
-  private async remindForTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
+  private async remindForTenant(tenantId: string, tenantSlug: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
     const schedule = await this.scheduling.getConfig(tenantDb, INVOICE_DUE_REMINDER_JOB_CODE);
     const now = new Date();
+    const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
 
     const candidates = await tenantDb.salesInvoice.findMany({
       where: {
@@ -113,8 +115,10 @@ export class PaymentReminderService implements OnModuleInit {
       const dueDateFa = faDate(invoice.dueAt!);
       const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
 
-      if (invoice.contact.phone) {
-        const message = buildDueReminderMessage(invoice as { invoiceNo: number; total: number; paidAmount: number; dueAt: Date });
+      // نقدی یعنی پرداخت حضوری در محل — هیچ پیامک یادآور پرداختی برای مشتری معنی ندارد.
+      if (invoice.contact.phone && invoice.paymentMethod !== 'CASH') {
+        const publicUrl = `${publicWebUrl}/invoice/${publicRef(tenantSlug)}/${invoice.publicToken}`;
+        const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0]);
         const result = await this.sms.sendSms({ tenantId, tenantDb }, invoice.contact.phone, message);
         if (!result.success) {
           this.logger.warn(`Payment reminder SMS failed (tenant ${tenantId}, invoice ${invoice.id}): ${result.error}`);
@@ -150,8 +154,11 @@ export class PaymentReminderService implements OnModuleInit {
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (!invoice.dueAt) return { success: false, error: 'این فاکتور سررسید ندارد' };
     if (!invoice.contact.phone) return { success: false, error: 'مشتری این فاکتور شماره تماس ثبت‌شده ندارد' };
+    if (invoice.paymentMethod === 'CASH') return { success: false, error: 'روش پرداخت این فاکتور نقدی است — یادآور پیامکی معنی ندارد' };
 
-    const message = buildDueReminderMessage(invoice as { invoiceNo: number; total: number; paidAmount: number; dueAt: Date });
+    const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+    const publicUrl = `${publicWebUrl}/invoice/${publicRef(ctx.tenantSlug)}/${invoice.publicToken}`;
+    const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0]);
     const result = await this.sms.sendSms({ tenantId: ctx.tenantId, tenantDb: ctx.tenantDb }, invoice.contact.phone, message);
     if (result.success) {
       await ctx.tenantDb.salesInvoice.update({ where: { id: invoiceId }, data: { lastPaymentReminderAt: new Date() } });

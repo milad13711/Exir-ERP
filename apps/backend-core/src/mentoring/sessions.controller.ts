@@ -11,6 +11,8 @@ import { UpdateSessionDto } from './dto/update-session.dto.js';
 import { CompleteSessionDto } from './dto/complete-session.dto.js';
 import { CancelSessionDto } from './dto/cancel-session.dto.js';
 import { CreateSessionInvoiceDto } from './dto/create-session-invoice.dto.js';
+import { UpdateMentoringSmsSettingsDto } from './dto/update-mentoring-sms-settings.dto.js';
+import { CreateOpportunityDto } from './dto/create-opportunity.dto.js';
 
 @Controller('mentoring/sessions')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -50,6 +52,18 @@ export class SessionsController {
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertViewAll(ctx, 'mentoring');
     return this.sessions.detail(ctx, id);
+  }
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'mentoring');
+    return this.sessions.getSmsSettings(ctx);
+  }
+
+  @Patch('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateMentoringSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'mentoring');
+    return this.sessions.setSmsSettings(ctx, dto);
   }
 
   @Get(':id/suggested-amount')
@@ -93,5 +107,13 @@ export class SessionsController {
   async createInvoice(@Param('id') id: string, @Body() dto: CreateSessionInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
     return this.sessions.createInvoice(ctx, id, dto);
+  }
+
+  /** ساخت فرصت فروش در CRM برای پیگیری بعد از جلسه‌ی تکمیل‌شده. */
+  @Post(':id/create-opportunity')
+  async createOpportunity(@Param('id') id: string, @Body() dto: CreateOpportunityDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertCreate(ctx, 'crm');
+    return this.sessions.createOpportunity(ctx, id, dto);
   }
 }

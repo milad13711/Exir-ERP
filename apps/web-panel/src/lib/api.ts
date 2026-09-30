@@ -1640,6 +1640,30 @@ export function deleteCurrency(id: string) {
   return apiFetch<{ success: boolean }>(`/settings/currencies/${id}`, { method: "DELETE" });
 }
 
+// ── درگاه پرداخت ─────────────────────────────────────────────────────────
+
+export type PaymentGatewayProvider = "ZARINPAL" | "BITPAY";
+
+export type PaymentGatewaySettings = {
+  activeProvider: PaymentGatewayProvider | null;
+  zarinpal: { merchantId: string; hasMerchantId: boolean; sandbox: boolean };
+  bitpay: { apiKey: string; hasApiKey: boolean; testMode: boolean };
+};
+
+export function fetchPaymentGatewaySettings() {
+  return apiFetch<PaymentGatewaySettings>("/payment-gateway/settings");
+}
+
+export function savePaymentGatewaySettings(data: Partial<{
+  activeProvider: PaymentGatewayProvider | null;
+  zarinpalMerchantId: string;
+  zarinpalSandbox: boolean;
+  bitpayApiKey: string;
+  bitpayTestMode: boolean;
+}>) {
+  return apiFetch<PaymentGatewaySettings>("/payment-gateway/settings", { method: "PUT", body: JSON.stringify(data) });
+}
+
 // ── Warehouse ────────────────────────────────────────────────────────────
 
 export type StockMovementType = "RECEIPT" | "ISSUE" | "ADJUSTMENT";
@@ -2811,6 +2835,19 @@ export function fetchWebhookDeliveries(id: string) {
 
 export type SalesInvoiceStatus = "DRAFT" | "CONFIRMED" | "PARTIALLY_PAID" | "PAID" | "CANCELLED";
 export type SalesPaymentMethod = "CASH" | "BANK_TRANSFER" | "CHECK" | "POS" | "ONLINE_GATEWAY";
+/** روش پرداخت انتخابی صادرکننده روی خود فاکتور — تصمیم آگاهانه در لحظه‌ی صدور، جدا از SalesPaymentMethod هر رسید پرداخت. */
+export type SalesInvoicePaymentMethod = "BANK_TRANSFER" | "ONLINE_GATEWAY" | "CASH" | "CHECK";
+
+export type SalesInvoiceCheck = {
+  id: string;
+  sayadId: string;
+  amount: number;
+  dueDate: string;
+  bankName: string | null;
+  status: string;
+  photoDataUrl: string | null;
+  createdAt: string;
+};
 
 export type SalesInvoiceLine = {
   id: string;
@@ -2861,6 +2898,8 @@ export type SalesInvoice = {
   contact: { id: string; name: string; company: string | null };
   /** آیا این فاکتور مرجوعی فروش دارد — برای نمایش برچسب «مرجوع‌شده» به‌جای «پرداخت‌شده»ی گمراه‌کننده. */
   hasReturn: boolean;
+  paymentMethod: SalesInvoicePaymentMethod;
+  paymentBankInfo: string | null;
 };
 
 export type SalesInvoiceDetail = SalesInvoice & {
@@ -2880,6 +2919,7 @@ export type SalesInvoiceDetail = SalesInvoice & {
   deal: { id: string; title: string } | null;
   lines: SalesInvoiceLine[];
   payments: SalesPayment[];
+  checks: SalesInvoiceCheck[];
   creditWarning: string | null;
 };
 
@@ -2899,6 +2939,8 @@ export function createSalesInvoice(data: {
   dueAt?: string;
   discount?: number;
   notes?: string;
+  paymentMethod?: SalesInvoicePaymentMethod;
+  paymentBankInfo?: string;
   isOfficial?: boolean;
   taxRate?: number;
   lines: Array<{
@@ -2927,6 +2969,7 @@ export function recordSalesPayment(
     checkSayadId?: string;
     checkDueDate?: string;
     checkBankName?: string;
+    checkPhotoDataUrl?: string;
   },
 ) {
   return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}/payments`, {
@@ -3099,6 +3142,22 @@ export function sendSalesInvoicePaymentLink(id: string) {
   return apiFetch<{ ok: true; url: string }>(`/sales/invoices/${id}/send-payment-link`, { method: "POST" });
 }
 
+/** دکمه‌ی «پرداخت آنلاین» داخل پنل — فقط برای فاکتوری که روش پرداختش ONLINE_GATEWAY است. */
+export function fetchSalesInvoiceOnlinePaymentLink(id: string) {
+  return apiFetch<{ paymentUrl: string }>(`/sales/invoices/${id}/online-payment-link`, { method: "POST" });
+}
+
+export function fetchDefaultBankInfo() {
+  return apiFetch<{ bankInfo: string }>(`/sales/invoices/settings/default-bank-info`);
+}
+
+export function updateDefaultBankInfo(bankInfo: string) {
+  return apiFetch<{ bankInfo: string }>(`/sales/invoices/settings/default-bank-info`, {
+    method: "PUT",
+    body: JSON.stringify({ bankInfo }),
+  });
+}
+
 // ── فاکتور فروش — نمای عمومی (بدون ورود) ──────────────────────────────────
 
 export type PublicSalesInvoiceView = {
@@ -3115,6 +3174,9 @@ export type PublicSalesInvoiceView = {
   contact: { name: string; company: string | null };
   lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
   payments: Array<{ amount: number; method: SalesPaymentMethod; paidAt: string }>;
+  paymentMethod: SalesInvoicePaymentMethod;
+  paymentBankInfo: string | null;
+  paymentInstruction: string | null;
   canPayOnline: boolean;
   gatewayAvailable: boolean;
 };
@@ -3727,6 +3789,21 @@ export function setCheckReminderChannels(data: { sms?: boolean; notification?: b
   });
 }
 
+export type ChecksSmsSettings = {
+  enabled: boolean;
+  dueReminderReceivedTemplate: string;
+  dueReminderIssuedTemplate: string;
+  bounceAlertTemplate: string;
+};
+
+export function fetchChecksSmsSettings() {
+  return apiFetch<ChecksSmsSettings>("/checks/settings/sms");
+}
+
+export function updateChecksSmsSettings(data: ChecksSmsSettings) {
+  return apiFetch<ChecksSmsSettings>("/checks/settings/sms", { method: "PUT", body: JSON.stringify(data) });
+}
+
 // ── پیوست فایل عمومی ─────────────────────────────────────────────────────
 
 export type Attachment = {
@@ -4219,6 +4296,18 @@ export function updateBookingSmsSettings(data: BookingSmsSettings) {
   return apiFetch<BookingSmsSettings>("/booking/appointments/settings/sms", { method: "PUT", body: JSON.stringify(data) });
 }
 
+export type CreateOpportunityInput = {
+  title: string;
+  summary?: string;
+  value?: number;
+  stage?: CrmDealStage;
+  expectedCloseAt?: string;
+};
+
+export function createAppointmentOpportunity(id: string, data: CreateOpportunityInput) {
+  return apiFetch<CrmDeal>(`/booking/appointments/${id}/create-opportunity`, { method: "POST", body: JSON.stringify(data) });
+}
+
 export function fetchMyAvailability() {
   return apiFetch<StaffAvailabilitySlot[]>("/booking/my-availability");
 }
@@ -4269,6 +4358,7 @@ export type PublicAppointmentView = {
   startAt: string;
   endAt: string;
   status: AppointmentStatus;
+  confirmationMessage: string;
   location: string | null;
   paymentStatus: AppointmentPaymentStatus;
   amount: number | null;
@@ -5099,6 +5189,21 @@ export function fetchShipment(id: string) {
   return apiFetch<Shipment>(`/fleet/shipments/${id}`);
 }
 
+export type FleetSmsSettings = {
+  enabled: boolean;
+  offerDispatchTemplate: string;
+  offerAcceptedTemplate: string;
+  deliveredSurveyTemplate: string;
+};
+
+export function fetchFleetSmsSettings() {
+  return apiFetch<FleetSmsSettings>("/fleet/shipments/settings/sms");
+}
+
+export function updateFleetSmsSettings(data: FleetSmsSettings) {
+  return apiFetch<FleetSmsSettings>("/fleet/shipments/settings/sms", { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function createShipment(data: {
   sourceType?: ShipmentSourceType;
   sourceStockMovementId?: string;
@@ -5633,6 +5738,23 @@ export function fetchMentoringEngagement(id: string) {
   return apiFetch<MentoringEngagement>(`/mentoring/engagements/${id}`);
 }
 
+export type MentoringSmsSettings = {
+  enabled: boolean;
+  scheduledContactTemplate: string;
+  scheduledAdvisorTemplate: string;
+  reminderContactTemplate: string;
+  reminderAdvisorTemplate: string;
+  surveyTemplate: string;
+};
+
+export function fetchMentoringSmsSettings() {
+  return apiFetch<MentoringSmsSettings>("/mentoring/sessions/settings/sms");
+}
+
+export function updateMentoringSmsSettings(data: MentoringSmsSettings) {
+  return apiFetch<MentoringSmsSettings>("/mentoring/sessions/settings/sms", { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function createMentoringEngagement(data: {
   contactId: string;
   advisorUserId: string;
@@ -5678,6 +5800,13 @@ export function createMentoringSession(data: {
   return apiFetch<MentoringSession>("/mentoring/sessions", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function updateMentoringSession(
+  id: string,
+  data: Partial<{ mode: MentoringSessionMode; scheduledAt: string; durationMinutes: number; location: string }>,
+) {
+  return apiFetch<MentoringSession>(`/mentoring/sessions/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function completeMentoringSession(id: string, minutesNote?: string) {
   return apiFetch<MentoringSession>(`/mentoring/sessions/${id}/complete`, { method: "POST", body: JSON.stringify({ minutesNote }) });
 }
@@ -5698,6 +5827,10 @@ export function createMentoringSessionInvoice(id: string, amount: number) {
   return apiFetch<{ id: string; invoiceNo: number }>(`/mentoring/sessions/${id}/invoice`, { method: "POST", body: JSON.stringify({ amount }) });
 }
 
+export function createMentoringSessionOpportunity(id: string, data: CreateOpportunityInput) {
+  return apiFetch<CrmDeal>(`/mentoring/sessions/${id}/create-opportunity`, { method: "POST", body: JSON.stringify(data) });
+}
+
 export function createMentoringGoal(data: {
   engagementId: string;
   title: string;
@@ -5710,7 +5843,10 @@ export function createMentoringGoal(data: {
   return apiFetch<MentoringGoal>("/mentoring/goals", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateMentoringGoal(id: string, data: Partial<Omit<Parameters<typeof createMentoringGoal>[0], "engagementId" | "type">>) {
+export function updateMentoringGoal(
+  id: string,
+  data: Partial<Omit<Parameters<typeof createMentoringGoal>[0], "engagementId" | "type">> & { status?: MentoringGoalStatus },
+) {
   return apiFetch<MentoringGoal>(`/mentoring/goals/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
@@ -5725,6 +5861,8 @@ export type MentoringOverview = {
   goalAchievementRate: number | null;
   totalRevenue: number;
   revenueThisMonth: number;
+  avgSatisfaction: number | null;
+  surveyResponseCount: number;
 };
 
 export function fetchMentoringOverview() {
@@ -5756,6 +5894,8 @@ export type MentoringAdvisorRow = {
   cancelled: number;
   noShow: number;
   revenue: number;
+  avgSatisfaction: number | null;
+  surveyResponseCount: number;
 };
 
 export function fetchMentoringByAdvisor() {
@@ -5958,6 +6098,16 @@ export function checkInEventTicket(qrToken: string) {
 
 export function eventTicketQrImageUrl(qrToken: string): string {
   return `${API_URL}/events/tickets/${qrToken}/qr.png`;
+}
+
+export type EventsSmsSettings = { enabled: boolean; ticketIssuedTemplate: string };
+
+export function fetchEventsSmsSettings() {
+  return apiFetch<EventsSmsSettings>("/events/settings/sms");
+}
+
+export function updateEventsSmsSettings(data: EventsSmsSettings) {
+  return apiFetch<EventsSmsSettings>("/events/settings/sms", { method: "PATCH", body: JSON.stringify(data) });
 }
 
 /** پوستر رویداد احراز‌هویت لازم دارد — img src مستقیم توکن نمی‌فرستد، پس به Object URL تبدیل می‌شود (همان الگوی fetchCampaignImageObjectUrl). */
@@ -7112,6 +7262,16 @@ export function fetchResellerDashboard() {
 
 export function fetchReseller(id: string) {
   return apiFetch<Reseller>(`/referral-marketing/resellers/${id}`);
+}
+
+export type ReferralSmsSettings = { enabled: boolean; npsSurveyTemplate: string };
+
+export function fetchReferralSmsSettings() {
+  return apiFetch<ReferralSmsSettings>("/referral-marketing/resellers/settings/sms");
+}
+
+export function updateReferralSmsSettings(data: ReferralSmsSettings) {
+  return apiFetch<ReferralSmsSettings>("/referral-marketing/resellers/settings/sms", { method: "PATCH", body: JSON.stringify(data) });
 }
 
 export function createReseller(data: {

@@ -16,6 +16,7 @@ import {
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
+import { NewQuotationModal } from "./NewQuotationModal";
 
 const STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   DRAFT: "پیش‌نویس",
@@ -51,6 +52,7 @@ export function QuotationDetailModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function handleCopyLink() {
     if (!quotation || !me) return;
@@ -175,6 +177,13 @@ export function QuotationDetailModal({
                   ارسال به مشتری
                 </button>
                 <button
+                  onClick={() => setEditOpen(true)}
+                  disabled={busy}
+                  className="text-[12.5px] font-bold text-primary bg-primary-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  ویرایش
+                </button>
+                <button
                   onClick={handleDelete}
                   disabled={busy}
                   className="text-[12.5px] font-bold text-danger bg-danger-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
@@ -233,6 +242,18 @@ export function QuotationDetailModal({
           </div>
         </div>
       )}
+
+      {editOpen && quotation ? (
+        <NewQuotationModal
+          quotation={quotation}
+          onClose={() => setEditOpen(false)}
+          onCreated={() => {
+            setEditOpen(false);
+            reload();
+            onChanged();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

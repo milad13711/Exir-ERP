@@ -68,6 +68,12 @@ export default function PublicAppointmentPage({ params }: { params: Promise<{ sl
               <div className="text-lg font-extrabold mb-1">{view.customerName} عزیز</div>
               <div className="text-[13px] text-ink-soft mb-4">وضعیت رزرو: {STATUS_LABEL[view.status]}</div>
 
+              {view.confirmationMessage && (
+                <div className="bg-primary-soft border border-primary/20 rounded-xl p-3.5 text-[13px] font-semibold text-ink mb-4 whitespace-pre-wrap">
+                  {view.confirmationMessage}
+                </div>
+              )}
+
               <div className="border border-border rounded-xl overflow-hidden mb-4">
                 <Row label="خدمت" value={view.serviceName} />
                 <Row label="تاریخ و ساعت" value={formatJalaliDateTime(view.startAt)} />

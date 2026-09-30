@@ -24,9 +24,30 @@ const CHECK_INCLUDE = {
 
 const CHECKS_SETTINGS_MODULE = 'checks';
 const REMINDER_CHANNELS_KEY = 'reminderChannels';
+const SMS_KEY = { moduleCode: CHECKS_SETTINGS_MODULE, key: 'sms' } as const;
 
 export type ReminderChannels = { sms: boolean; notification: boolean };
 const DEFAULT_REMINDER_CHANNELS: ReminderChannels = { sms: true, notification: true };
+
+export type ChecksSmsSettings = {
+  enabled: boolean;
+  dueReminderReceivedTemplate: string;
+  dueReminderIssuedTemplate: string;
+  bounceAlertTemplate: string;
+};
+const DEFAULT_CHECKS_SMS: ChecksSmsSettings = {
+  enabled: true,
+  dueReminderReceivedTemplate:
+    'یادآوری: چک شما به شماره صیادی {sayadId} به مبلغ {amount} تومان در تاریخ {dueDate} نزد ما سررسید می‌شود — لطفاً از موجودی کافی حساب اطمینان حاصل فرمایید.',
+  dueReminderIssuedTemplate: 'یادآوری: چک ما به شماره صیادی {sayadId} به مبلغ {amount} تومان در تاریخ {dueDate} نزد شما سررسید می‌شود.',
+  bounceAlertTemplate: 'اکسیر ERP — هشدار فوری: چک {direction} {partyName} به شماره صیادی {sayadId} و مبلغ {amount} تومان برگشت خورد.',
+};
+
+export function renderChecksTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  return out;
+}
 
 @Injectable()
 export class ChecksService {
@@ -136,8 +157,9 @@ export class ChecksService {
   /**
    * A bounced check is urgent regardless of the tenant's regular reminder
    * channel toggles (that setting governs the routine due-date reminder,
-   * not this) — every owner/admin gets an in-app+email notification AND a
-   * forced SMS, since a bounce needs same-day attention.
+   * not this) — every owner/admin gets an in-app+email notification, plus an
+   * SMS unless the tenant has explicitly turned off this module's SMS
+   * templates from Settings → پیامک.
    */
   private async alertManagersOfBounce(
     ctx: TenantRequestContext,
@@ -149,7 +171,13 @@ export class ChecksService {
     const partyName = check.contact?.name;
     const title = `⚠ چک برگشتی — ${partyName ?? ''}`;
     const body = `چک ${check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای'} ${partyName ?? ''} به شماره صیادی ${check.sayadId} و مبلغ ${check.amount.toLocaleString('en-US')} تومان برگشت خورد.`;
-    const smsMessage = `اکسیر ERP — هشدار فوری: ${body}`;
+    const smsSettings = await this.getSmsSettings(ctx);
+    const smsMessage = renderChecksTemplate(smsSettings.bounceAlertTemplate, {
+      direction: check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای',
+      partyName: partyName ?? '',
+      sayadId: check.sayadId,
+      amount: check.amount.toLocaleString('en-US'),
+    });
 
     for (const manager of managers) {
       await this.notifications.notify(ctx.tenantDb, {
@@ -159,7 +187,7 @@ export class ChecksService {
         body,
         link: '/checks',
       });
-      await this.sms.sendSms(ctx, manager.phone, smsMessage);
+      if (smsSettings.enabled) await this.sms.sendSms(ctx, manager.phone, smsMessage);
     }
   }
 
@@ -279,5 +307,16 @@ export class ChecksService {
       create: { moduleCode: CHECKS_SETTINGS_MODULE, key: REMINDER_CHANNELS_KEY, value: channels },
       update: { value: channels },
     });
+  }
+
+  async getSmsSettings(ctx: TenantRequestContext): Promise<ChecksSmsSettings> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SMS_KEY } });
+    return row ? { ...DEFAULT_CHECKS_SMS, ...(row.value as Partial<ChecksSmsSettings>) } : DEFAULT_CHECKS_SMS;
+  }
+
+  async setSmsSettings(ctx: TenantRequestContext, dto: ChecksSmsSettings): Promise<ChecksSmsSettings> {
+    const value = { ...dto };
+    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SMS_KEY }, update: { value }, create: { ...SMS_KEY, value } });
+    return this.getSmsSettings(ctx);
   }
 }

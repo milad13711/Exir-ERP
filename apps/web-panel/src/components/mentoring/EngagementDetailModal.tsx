@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { deleteMentoringEngagement } from "@/lib/api";
+import { deleteMentoringEngagement, deleteMentoringGoal } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { PlusIcon } from "@/components/icons";
+import { PlusIcon, StarIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { formatJalaliDateTime, formatToman } from "@/lib/persian";
 import {
   fetchMentoringEngagement,
@@ -19,8 +19,11 @@ import {
   type MentoringSession,
   type MentoringSessionStatus,
   type MentoringGoalType,
+  type MentoringGoal,
 } from "@/lib/api";
 import { NewSessionModal } from "./NewSessionModal";
+import { CreateOpportunityModal } from "./CreateOpportunityModal";
+import { EditGoalModal } from "./EditGoalModal";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -40,10 +43,13 @@ const SESSION_STATUS_TONES: Record<MentoringSessionStatus, "primary" | "success"
 const MODE_LABEL_FA: Record<string, string> = { ONLINE: "آنلاین", PHONE: "تلفنی", IN_PERSON: "حضوری" };
 const GOAL_STATUS_LABELS: Record<string, string> = { IN_PROGRESS: "در حال پیگیری", ACHIEVED: "محقق‌شده", MISSED: "محقق‌نشده", CANCELLED: "لغوشده" };
 
-function SessionRow({ session, onChanged }: { session: MentoringSession; onChanged: () => void }) {
+function SessionRow({ session, engagement, onChanged }: { session: MentoringSession; engagement: MentoringEngagement; onChanged: () => void }) {
+  const contactName = engagement.contact.name;
   const [busy, setBusy] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [amount, setAmount] = useState("");
+  const [opportunityOpen, setOpportunityOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function handleComplete() {
     const minutesNote = window.prompt("صورت‌جلسه (اختیاری):") ?? undefined;
@@ -110,14 +116,27 @@ function SessionRow({ session, onChanged }: { session: MentoringSession; onChang
 
       {session.minutesNote && <div className="text-[12px] text-ink-soft bg-slate-50 rounded-lg p-2 mt-2 whitespace-pre-wrap">{session.minutesNote}</div>}
 
-      {session.survey?.rating != null && (
-        <div className="text-[11.5px] text-muted mt-2">نظرسنجی: {session.survey.rating} از ۵{session.survey.note ? ` — ${session.survey.note}` : ""}</div>
-      )}
+      {session.survey?.submittedAt && session.survey.rating != null ? (
+        <div className="text-[12px] bg-warning-soft/40 rounded-lg p-2.5 mt-2 flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <span className="font-bold text-[11.5px] text-ink-soft ml-1">نظرسنجی مشتری:</span>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <StarIcon key={i} className={`w-3.5 h-3.5 ${i < session.survey!.rating! ? "text-warning fill-warning" : "text-border"}`} />
+            ))}
+          </div>
+          {session.survey.note && <div className="text-[11.5px] text-ink-soft whitespace-pre-wrap">{session.survey.note}</div>}
+        </div>
+      ) : session.status === "COMPLETED" && session.survey?.sentAt ? (
+        <div className="text-[11px] text-muted mt-2">نظرسنجی برای مشتری ارسال شده — هنوز پاسخ داده نشده</div>
+      ) : null}
 
       {session.status === "SCHEDULED" && (
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <button disabled={busy} onClick={handleComplete} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg bg-success-soft text-success cursor-pointer disabled:opacity-50">
             تکمیل جلسه
+          </button>
+          <button disabled={busy} onClick={() => setEditOpen(true)} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg bg-primary-soft text-primary cursor-pointer disabled:opacity-50">
+            ویرایش
           </button>
           <button disabled={busy} onClick={handleCancel} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-ink-soft cursor-pointer disabled:opacity-50">
             لغو
@@ -145,6 +164,15 @@ function SessionRow({ session, onChanged }: { session: MentoringSession; onChang
         </div>
       )}
       {session.invoiceId && <div className="text-[11.5px] text-success font-semibold mt-2">فاکتور صادر شد</div>}
+      {session.status === "COMPLETED" && (
+        <div className="mt-2">
+          <button onClick={() => setOpportunityOpen(true)} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg bg-primary-soft text-primary cursor-pointer">
+            ایجاد فرصت فروش
+          </button>
+        </div>
+      )}
+      {opportunityOpen && <CreateOpportunityModal sessionId={session.id} contactName={contactName} onClose={() => setOpportunityOpen(false)} />}
+      {editOpen && <NewSessionModal engagement={engagement} session={session} onClose={() => setEditOpen(false)} onCreated={onChanged} />}
     </div>
   );
 }
@@ -212,6 +240,7 @@ function NewGoalForm({ engagementId, onCreated }: { engagementId: string; onCrea
 export function EngagementDetailModal({ engagementId, onClose, onChanged }: { engagementId: string; onClose: () => void; onChanged: () => void }) {
   const [engagement, setEngagement] = useState<MentoringEngagement | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<MentoringGoal | null>(null);
 
   function refetch() {
     fetchMentoringEngagement(engagementId).then(setEngagement).catch(() => setEngagement(null));
@@ -221,6 +250,12 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
   function reload() {
     refetch();
     onChanged();
+  }
+
+  async function handleDeleteGoal(goalId: string) {
+    if (!window.confirm("این هدف و سوابق پیشرفت آن حذف شود؟")) return;
+    await deleteMentoringGoal(goalId);
+    reload();
   }
 
   async function handleStatusChange(status: "PAUSED" | "ACTIVE" | "COMPLETED" | "CANCELLED") {
@@ -283,7 +318,7 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
             {(engagement.sessions ?? []).length === 0 ? (
               <div className="text-[12.5px] text-muted">هنوز جلسه‌ای ثبت نشده</div>
             ) : (
-              engagement.sessions!.map((s) => <SessionRow key={s.id} session={s} onChanged={reload} />)
+              engagement.sessions!.map((s) => <SessionRow key={s.id} session={s} engagement={engagement} onChanged={reload} />)
             )}
           </div>
         </div>
@@ -295,7 +330,15 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
               <div key={g.id} className="border border-border rounded-xl p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[12.5px] font-bold">{g.title}</div>
-                  <Badge tone={g.status === "ACHIEVED" ? "success" : g.status === "MISSED" ? "danger" : "neutral"}>{GOAL_STATUS_LABELS[g.status]}</Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge tone={g.status === "ACHIEVED" ? "success" : g.status === "MISSED" ? "danger" : "neutral"}>{GOAL_STATUS_LABELS[g.status]}</Badge>
+                    <button onClick={() => setEditingGoal(g)} className="text-muted hover:text-primary cursor-pointer p-0.5" title="ویرایش هدف">
+                      <PencilIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDeleteGoal(g.id)} className="text-muted hover:text-danger cursor-pointer p-0.5" title="حذف هدف">
+                      <TrashIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 {g.type === "QUANTITATIVE" && g.targetValue != null && (
                   <div className="text-[11.5px] text-muted mt-1">
@@ -326,6 +369,7 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
       </div>
 
       {newSessionOpen && <NewSessionModal engagement={engagement} onClose={() => setNewSessionOpen(false)} onCreated={reload} />}
+      {editingGoal && <EditGoalModal goal={editingGoal} onClose={() => setEditingGoal(null)} onSaved={reload} />}
       <DeleteRecordButton confirmText="این همکاری با همه‌ی جلسات و اهدافش حذف شود؟" onDelete={() => deleteMentoringEngagement(engagementId)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );

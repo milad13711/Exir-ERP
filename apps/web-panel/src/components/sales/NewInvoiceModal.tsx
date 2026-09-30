@@ -7,11 +7,20 @@ import {
   fetchProducts,
   createSalesInvoice,
   updateSalesInvoice,
+  fetchDefaultBankInfo,
   ApiError,
   type CrmContact,
   type Product,
   type SalesInvoiceDetail,
+  type SalesInvoicePaymentMethod,
 } from "@/lib/api";
+
+const PAYMENT_METHOD_LABELS: Record<SalesInvoicePaymentMethod, string> = {
+  BANK_TRANSFER: "کارت/حساب بانکی",
+  ONLINE_GATEWAY: "درگاه پرداخت آنلاین",
+  CASH: "نقدی",
+  CHECK: "چکی",
+};
 
 type DraftLine = {
   productId: string;
@@ -55,6 +64,8 @@ export function NewInvoiceModal({
   const [isOfficial, setIsOfficial] = useState(editing?.isOfficial ?? false);
   const [taxRate, setTaxRate] = useState(editing?.taxRate ? String(editing.taxRate) : "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<SalesInvoicePaymentMethod>(editing?.paymentMethod ?? "CASH");
+  const [paymentBankInfo, setPaymentBankInfo] = useState(editing?.paymentBankInfo ?? "");
   const [lines, setLines] = useState<DraftLine[]>(editing ? editing.lines.map((l) => ({ productId: l.productId ?? "", description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) })) : [
     prefill?.description
       ? { productId: "", description: prefill.description, quantity: "1", unitPrice: String(prefill.unitPrice ?? "") }
@@ -66,6 +77,17 @@ export function NewInvoiceModal({
   useEffect(() => {
     fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchProducts().then(setProducts).catch(() => setProducts([]));
+  }, []);
+
+  // پیشنهاد پیش‌فرض کارت/حساب بانکی شرکت — فقط وقتی هنوز چیزی برای این فاکتور تایپ نشده (تا فاکتور در حال ویرایش را بازنویسی نکند).
+  useEffect(() => {
+    if (editing?.paymentBankInfo) return;
+    fetchDefaultBankInfo()
+      .then((r) => {
+        if (r.bankInfo) setPaymentBankInfo((prev) => prev || r.bankInfo);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateLine(i: number, patch: Partial<DraftLine>) {
@@ -95,6 +117,10 @@ export function NewInvoiceModal({
     setError(null);
     const validLines = lines.filter((l) => l.description.trim() && Number(l.quantity) > 0);
     if (!contactId || validLines.length === 0) return;
+    if (paymentMethod === "BANK_TRANSFER" && !paymentBankInfo.trim()) {
+      setError("برای روش پرداخت بانکی، شماره کارت/حساب را وارد کنید");
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -106,6 +132,8 @@ export function NewInvoiceModal({
         isOfficial,
         taxRate: isOfficial && taxRateNum > 0 ? taxRateNum : undefined,
         notes: notes.trim() || undefined,
+        paymentMethod,
+        paymentBankInfo: paymentMethod === "BANK_TRANSFER" ? paymentBankInfo.trim() : undefined,
         lines: validLines.map((l) => ({
           productId: l.productId || undefined,
           description: l.description.trim(),
@@ -250,6 +278,38 @@ export function NewInvoiceModal({
             <div className="text-[11.5px] text-muted">مبلغ نهایی</div>
             <div className="text-[16px] font-extrabold mt-1">{total.toLocaleString("en-US")} تومان</div>
           </div>
+        </div>
+
+        <div>
+          <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">روش پرداخت</label>
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.entries(PAYMENT_METHOD_LABELS) as Array<[SalesInvoicePaymentMethod, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPaymentMethod(key)}
+                className={`text-[12px] font-bold px-3 py-2 rounded-lg cursor-pointer border ${
+                  paymentMethod === key ? "bg-primary text-white border-primary" : "bg-slate-50 text-ink-soft border-border"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {paymentMethod === "BANK_TRANSFER" ? (
+            <input
+              value={paymentBankInfo}
+              onChange={(e) => setPaymentBankInfo(e.target.value)}
+              placeholder="شماره کارت/حساب برای نمایش به مشتری روی فاکتور"
+              className="w-full mt-2 text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+            />
+          ) : null}
+          {paymentMethod === "ONLINE_GATEWAY" ? (
+            <div className="text-[11.5px] text-muted mt-2">پس از تأیید فاکتور، دکمه‌ی پرداخت آنلاین و لینک آن برای مشتری در دسترس خواهد بود.</div>
+          ) : null}
+          {paymentMethod === "CHECK" ? (
+            <div className="text-[11.5px] text-muted mt-2">شماره صیادی و عکس چک هنگام دریافت چک از مشتری، از همان فرم «ثبت پرداخت» وارد می‌شود.</div>
+          ) : null}
         </div>
 
         <div>

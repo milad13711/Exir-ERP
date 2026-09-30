@@ -6,7 +6,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { ChecksService } from './checks.service.js';
+import { ChecksService, renderChecksTemplate } from './checks.service.js';
 import { SchedulableJobRegistryService, standardOffsetPresets } from '../scheduling/schedulable-job-registry.service.js';
 
 /**
@@ -84,6 +84,8 @@ export class ChecksReminderService implements OnModuleInit {
     if (dueNow.length === 0) return;
 
     const channels = await this.checks.getReminderChannels(tenantDb);
+    const smsCtx = { tenantId, tenantSlug: '', tenantDb, auth: { role: 'OWNER' } } as unknown as import('../common/request-context.js').TenantRequestContext;
+    const smsSettings = await this.checks.getSmsSettings(smsCtx);
 
     for (const check of dueNow) {
       const partyName = check.contact?.name;
@@ -91,11 +93,13 @@ export class ChecksReminderService implements OnModuleInit {
       const directionFa = check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای';
       const dueDateFa = faDate(check.dueDate);
 
-      if (channels.sms && partyPhone) {
-        const message =
-          check.direction === 'RECEIVED'
-            ? `یادآوری: چک شما به شماره صیادی ${check.sayadId} به مبلغ ${check.amount.toLocaleString('en-US')} تومان در تاریخ ${dueDateFa} نزد ما سررسید می‌شود — لطفاً از موجودی کافی حساب اطمینان حاصل فرمایید.`
-            : `یادآوری: چک ما به شماره صیادی ${check.sayadId} به مبلغ ${check.amount.toLocaleString('en-US')} تومان در تاریخ ${dueDateFa} نزد شما سررسید می‌شود.`;
+      if (channels.sms && smsSettings.enabled && partyPhone) {
+        const template = check.direction === 'RECEIVED' ? smsSettings.dueReminderReceivedTemplate : smsSettings.dueReminderIssuedTemplate;
+        const message = renderChecksTemplate(template, {
+          sayadId: check.sayadId,
+          amount: check.amount.toLocaleString('en-US'),
+          dueDate: dueDateFa,
+        });
         const result = await this.sms.sendSms({ tenantId, tenantDb }, partyPhone, message);
         if (!result.success) {
           this.logger.warn(`Check reminder SMS failed (tenant ${tenantId}, check ${check.id}): ${result.error}`);

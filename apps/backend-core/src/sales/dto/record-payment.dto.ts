@@ -28,4 +28,9 @@ export class RecordPaymentDto {
   @IsOptional()
   @IsString()
   checkBankName?: string;
+
+  // عکس چک — data:image/...;base64,... (اختیاری، طبق همان قرارداد ذخیره‌سازی تصویر CompanyStampService)
+  @IsOptional()
+  @IsString()
+  checkPhotoDataUrl?: string;
 }

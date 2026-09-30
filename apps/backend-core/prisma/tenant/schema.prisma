@@ -661,6 +661,15 @@ model SalesInvoice {
   zarinpalAuthority String?
   paymentRefId      Int?
 
+  // روش پرداخت — انتخاب آگاهانه‌ی صادرکننده در لحظه‌ی صدور (یا ویرایش پیش‌نویس)، نه
+  // نمایش خودکار لینک پرداخت آنلاین روی هر فاکتور. BANK_TRANSFER کارت/حساب انتخابی را
+  // در همان بخش «یادداشت» فاکتور نمایش می‌دهد (paymentBankInfo)؛ ONLINE_GATEWAY دکمه‌ی
+  // پرداخت آنلاین را فعال می‌کند (zarinpalAuthority/paymentRefId بالا)؛ CHECK فقط یک
+  // نشانه است — رکورد Check واقعی از همان مسیر ثبت‌پرداخت/چک موجود (recordPayment) با
+  // اتصال invoiceId ساخته می‌شود؛ CASH نیازی به داده‌ی اضافه ندارد.
+  paymentMethod   SalesInvoicePaymentMethod @default(CASH)
+  paymentBankInfo String? // شماره کارت/حساب + یادداشت انتخابی صادرکننده — فقط برای BANK_TRANSFER
+
   contact           CrmContact         @relation(fields: [contactId], references: [id])
   deal              CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
   project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -729,6 +738,17 @@ enum SalesPaymentMethod {
   CHECK
   POS
   ONLINE_GATEWAY
+}
+
+/// روش پرداختِ انتخاب‌شده روی خودِ فاکتور (SalesInvoice.paymentMethod) — تصمیمی که
+/// صادرکننده در لحظه‌ی صدور می‌گیرد، جدا از SalesPaymentMethod که روش هر رسید پرداخت
+/// واقعی را ثبت می‌کند (ممکن است با هم فرق کنند، مثلاً فاکتور با روش «چکی» اما پرداخت
+/// جزئی نقدی هم ثبت شود). عمداً بدون POS — در لحظه‌ی صدور فاکتور معنی ندارد.
+enum SalesInvoicePaymentMethod {
+  BANK_TRANSFER
+  ONLINE_GATEWAY
+  CASH
+  CHECK
 }
 
 enum SalesQuotationStatus {
@@ -1025,6 +1045,9 @@ model Check {
   reminderSentAt      DateTime?
   clearedAt           DateTime?
   note                String?
+  // عکس چک دریافتی — data:image/...;base64,... طبق همان قرارداد ذخیره‌سازی تصویر بدون
+  // object storage که CompanyStampService برای مهر/امضا استفاده می‌کند (نک settings/company-stamp.service.ts).
+  photoDataUrl        String?
   contactId           String? // طرف‌حساب — مشتری (چک دریافتی) یا تأمین‌کننده (چک صادرشده)، هر دو از یک مدل CrmContact
   endorsedToContactId String? // برای چک دریافتیِ پشت‌نویسی‌شده — به چه کسی واگذار شد
   endorsedAt          DateTime?

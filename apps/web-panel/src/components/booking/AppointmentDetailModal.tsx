@@ -6,6 +6,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { formatJalaliDateTime, formatToman } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { deleteAppointment, sendAppointmentDetails, ApiError, type Appointment } from "@/lib/api";
+import { CreateOpportunityModal } from "./CreateOpportunityModal";
 
 const STATUS_LABEL: Record<Appointment["status"], string> = {
   PENDING_COORDINATION: "در انتظار هماهنگی",
@@ -36,6 +37,7 @@ export function AppointmentDetailModal({
   const { me } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [opportunityOpen, setOpportunityOpen] = useState(false);
   const closedStatus = a.status === "CANCELLED" || a.status === "NO_SHOW";
 
   async function run(fn: () => Promise<unknown>, done: string) {
@@ -112,6 +114,9 @@ export function AppointmentDetailModal({
           {a.customerPhone && a.status !== "CANCELLED" && (
             <button disabled={busy} onClick={() => run(() => sendAppointmentDetails(a.id), "پیام جزئیات ارسال شد ✓")} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50">ارسال جزئیات به مشتری</button>
           )}
+          {a.status === "COMPLETED" && (
+            <button onClick={() => setOpportunityOpen(true)} className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer">ایجاد فرصت فروش</button>
+          )}
           <button onClick={() => copy(`/book/${me?.tenant.publicKey ?? me?.tenant.slug}/a/${a.publicToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک مشتری</button>
           {a.providerToken && (
             <button onClick={() => copy(`/book/${me?.tenant.publicKey ?? me?.tenant.slug}/s/${a.providerToken}`)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">کپی لینک متخصص</button>
@@ -127,6 +132,7 @@ export function AppointmentDetailModal({
           </button>
         </div>
       </div>
+      {opportunityOpen && <CreateOpportunityModal appointment={a} onClose={() => setOpportunityOpen(false)} />}
     </Modal>
   );
 }

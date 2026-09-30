@@ -22,6 +22,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
       }),
     },
     user: { findMany: vi.fn().mockResolvedValue([]) },
+    moduleSetting: { findUnique: vi.fn().mockResolvedValue(null) },
     ...overrides,
   };
   return { tenantDb, checkUpdateCalls, contactUpdateCalls };

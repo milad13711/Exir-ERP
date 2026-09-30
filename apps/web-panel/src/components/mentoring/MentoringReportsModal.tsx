@@ -76,6 +76,7 @@ export function MentoringReportsModal({ onClose }: { onClose: () => void }) {
                   <th className="text-right font-semibold py-2">مشاور</th>
                   <th className="text-right font-semibold py-2">کل جلسات</th>
                   <th className="text-right font-semibold py-2">عدم حضور</th>
+                  <th className="text-right font-semibold py-2">رضایت مشتری</th>
                   <th className="text-right font-semibold py-2">درآمد</th>
                 </tr>
               </thead>
@@ -85,6 +86,16 @@ export function MentoringReportsModal({ onClose }: { onClose: () => void }) {
                     <td className="py-2.5 font-bold">{row.advisorName}</td>
                     <td className="py-2.5">{toPersianDigits(row.total)}</td>
                     <td className="py-2.5">{toPersianDigits(row.noShow)}</td>
+                    <td className="py-2.5">
+                      {row.avgSatisfaction != null ? (
+                        <>
+                          {toPersianDigits(row.avgSatisfaction)} از ۵
+                          <span className="text-muted"> ({toPersianDigits(row.surveyResponseCount)})</span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="py-2.5 font-bold">{formatToman(row.revenue)}</td>
                   </tr>
                 ))}

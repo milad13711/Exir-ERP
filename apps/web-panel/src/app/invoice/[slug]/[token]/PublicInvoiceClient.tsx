@@ -19,6 +19,12 @@ const METHOD_LABELS: Record<string, string> = {
   POS: "کارت‌خوان",
   ONLINE_GATEWAY: "پرداخت آنلاین",
 };
+const INVOICE_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: "کارت/حساب بانکی",
+  ONLINE_GATEWAY: "درگاه پرداخت آنلاین",
+  CASH: "نقدی",
+  CHECK: "چکی",
+};
 
 export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug: string; token: string; invoice: PublicSalesInvoiceView }) {
   const [paying, setPaying] = useState(false);
@@ -126,6 +132,18 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
               </div>
             </div>
           )}
+
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="text-[12px] font-bold text-ink-soft mb-1.5">روش پرداخت</div>
+            <div className="bg-primary-soft text-primary text-[12.5px] font-bold rounded-lg px-3 py-2 w-fit">
+              {INVOICE_PAYMENT_METHOD_LABELS[invoice.paymentMethod] ?? invoice.paymentMethod}
+            </div>
+            {invoice.paymentInstruction && (
+              <div className="text-[12px] text-ink-soft bg-slate-50 border border-border rounded-lg px-3 py-2 mt-2 leading-6">
+                {invoice.paymentInstruction}
+              </div>
+            )}
+          </div>
 
           {invoice.canPayOnline && invoice.gatewayAvailable && (
             <div className="mt-6">

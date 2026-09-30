@@ -31,6 +31,7 @@ MODULES = {
     "booking": (["booking"], "booking", "booking"),
     "checks": (["checks"], "checks", "checks"),
     "confidential-archive": (["confidential-archive"], "confidential-archive", "confidential-archive"),
+    "payment-gateway": (["payment-gateway"], "settings/payment-gateway", None),
     "contracts": (["contracts"], "contracts", "contracts"),
     "crm": (["crm"], "crm", "crm"),
     "daily-checklist": (["daily-checklist"], "dashboard", "dashboard"),

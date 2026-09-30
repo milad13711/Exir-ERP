@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { fetchBookingSmsSettings, updateBookingSmsSettings, ApiError, type BookingSmsSettings } from "@/lib/api";
 
-/** ویرایش متن پیامک تأییدِ نهاییِ نوبت — تا مثلاً شماره‌ی تماس واقعی برای هماهنگی در متن درج شود. */
+/**
+ * ویرایش متن نمایشیِ صفحه‌ی عمومیِ تأیید نوبت — تا مثلاً شماره‌ی تماس واقعی برای هماهنگی در متن درج شود.
+ * این متن در پیامک نمی‌رود (پیامک تأیید کوتاه و ثابت است)؛ فقط روی صفحه‌ای که لینکش داخل پیامک می‌رود نمایش داده می‌شود.
+ */
 export function MessageSettingsModal({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<BookingSmsSettings | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,13 +34,13 @@ export function MessageSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="متن پیامک تأیید نوبت" onClose={onClose} width="max-w-[480px]">
+    <Modal title="متن نمایشی صفحه‌ی تأیید" onClose={onClose} width="max-w-[480px]">
       {!settings ? (
         <div className="text-center text-muted py-6 text-[13px]">{error ?? "در حال بارگذاری..."}</div>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="text-[12px] text-ink-soft">
-            این متن هنگام تأیید نهایی نوبت (توسط شما یا کارشناس) برای مشتری پیامک می‌شود؛ تاریخ، ساعت، خدمت، آدرس و لینک جزئیات جلسه خودکار به آن اضافه می‌شود.
+            این متن روی صفحه‌ی عمومیِ تأیید نوبت (لینکی که داخل پیامک تأیید می‌رود) به مشتری نمایش داده می‌شود؛ خودِ پیامک کوتاه و ثابت باقی می‌ماند. تاریخ، ساعت، خدمت، آدرس و لینک جزئیات جلسه خودکار به آن اضافه می‌شود.
           </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-semibold text-ink-soft">متن سرخط پیام</span>

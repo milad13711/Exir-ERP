@@ -16,6 +16,21 @@ const EVENT_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
 };
 
+const EVENTS_MODULE_CODE = 'events';
+const SMS_KEY = { moduleCode: EVENTS_MODULE_CODE, key: 'sms' } as const;
+
+export type EventsSmsSettings = { enabled: boolean; ticketIssuedTemplate: string };
+const DEFAULT_EVENTS_SMS: EventsSmsSettings = {
+  enabled: true,
+  ticketIssuedTemplate: 'بلیط شما برای «{eventTitle}» صادر شد. کد بلیط: {ticketCode}\nمشاهده بلیط: {link}',
+};
+
+function renderEventsTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  return out;
+}
+
 const HOLDING_TICKET_STATUSES = ['VALID', 'CHECKED_IN'] as const;
 
 function generateTicketCode(): string {
@@ -60,6 +75,17 @@ export class EventsService {
     private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
   ) {}
+
+  async getSmsSettings(ctx: TenantRequestContext): Promise<EventsSmsSettings> {
+    const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SMS_KEY } });
+    return row ? { ...DEFAULT_EVENTS_SMS, ...(row.value as Partial<EventsSmsSettings>) } : DEFAULT_EVENTS_SMS;
+  }
+
+  async setSmsSettings(ctx: TenantRequestContext, dto: EventsSmsSettings): Promise<EventsSmsSettings> {
+    const value = { ...dto };
+    await ctx.tenantDb.moduleSetting.upsert({ where: { moduleCode_key: SMS_KEY }, update: { value }, create: { ...SMS_KEY, value } });
+    return this.getSmsSettings(ctx);
+  }
 
   async list(ctx: TenantRequestContext, filters: { status?: string } = {}) {
     const events = await ctx.tenantDb.event.findMany({
@@ -302,14 +328,18 @@ export class EventsService {
     });
 
     if (publicWebUrl) {
+      const smsSettings = await this.getSmsSettings(ctx);
       for (const booking of bookings) {
         for (const ticket of booking.tickets) {
           const phone = ticket.attendeePhone || booking.buyerPhone;
           const url = `${publicWebUrl}/events/${publicRef(ctx.tenantSlug)}/ticket/${ticket.qrToken}`;
-          await this.sms.sendSms(ctx, 
-            phone,
-            `بلیط شما برای «${booking.event.title}» صادر شد. کد بلیط: ${ticket.ticketCode}\nمشاهده بلیط: ${url}`,
-          );
+          if (smsSettings.enabled) {
+            await this.sms.sendSms(
+              ctx,
+              phone,
+              renderEventsTemplate(smsSettings.ticketIssuedTemplate, { eventTitle: booking.event.title, ticketCode: ticket.ticketCode, link: url }),
+            );
+          }
           await this.automation.emit(ctx, 'events.ticket.issued', {
             eventTitle: booking.event.title,
             attendeeName: ticket.attendeeName,

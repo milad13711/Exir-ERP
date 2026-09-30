@@ -177,40 +177,45 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
           </div>
         )}
 
-        <div className="flex gap-2.5">
-          <div className="flex-1">
-            <label className={labelClass}>قرارداد مرتبط (اختیاری)</label>
-            <select value={contractId} onChange={(e) => setContractId(e.target.value)} className={inputClass}>
-              <option value="">بدون قرارداد</option>
-              {contracts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  #{c.contractNo} {c.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1">
-            <label className={labelClass}>پروژه‌ی مرتبط (اختیاری)</label>
-            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
-              <option value="">بدون پروژه</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  #{p.projectNo} {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <details className="text-[12.5px]">
+          <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر</summary>
+          <div className="flex flex-col gap-3.5 mt-3">
+            <div className="flex gap-2.5">
+              <div className="flex-1">
+                <label className={labelClass}>قرارداد مرتبط (اختیاری)</label>
+                <select value={contractId} onChange={(e) => setContractId(e.target.value)} className={inputClass}>
+                  <option value="">بدون قرارداد</option>
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      #{c.contractNo} {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className={labelClass}>پروژه‌ی مرتبط (اختیاری)</label>
+                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
+                  <option value="">بدون پروژه</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      #{p.projectNo} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-        <div>
-          <label className={labelClass}>تاریخ شروع (اختیاری — پیش‌فرض امروز)</label>
-          <JalaliDateInput value={startDate} onChange={setStartDate} className={inputClass} />
-        </div>
+            <div>
+              <label className={labelClass}>تاریخ شروع (اختیاری — پیش‌فرض امروز)</label>
+              <JalaliDateInput value={startDate} onChange={setStartDate} className={inputClass} />
+            </div>
 
-        <div>
-          <label className={labelClass}>یادداشت (اختیاری)</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputClass} />
-        </div>
+            <div>
+              <label className={labelClass}>یادداشت (اختیاری)</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputClass} />
+            </div>
+          </div>
+        </details>
 
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 

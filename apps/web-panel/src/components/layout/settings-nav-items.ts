@@ -30,6 +30,7 @@ export const settingsNav: SettingsNavItem[] = [
   { href: "/settings/billing", label: "اشتراک و صورتحساب", icon: BillingIcon },
   { href: "/settings/modules", label: "ماژول‌های نصب‌شده", icon: StoreIcon },
   { href: "/settings/currencies", label: "ارزها و نرخ تبدیل", icon: CurrencyIcon, moduleCode: "currency-exchange" },
+  { href: "/settings/payment-gateway", label: "درگاه پرداخت", icon: BillingIcon, moduleCode: "payment-gateway" },
   { href: "/settings/sms", label: "پنل پیامکی", icon: BellIcon },
   { href: "/settings/voip", label: "اتصال تلفن (VoIP)", icon: PhoneIcon, moduleCode: "voip" },
   { href: "/settings/api", label: "API، وب‌هوک و MCP", icon: DocsIcon, moduleCode: "api-access" },

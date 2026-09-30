@@ -9,6 +9,7 @@ import { ChecksService } from './checks.service.js';
 import { CreateCheckDto } from './dto/create-check.dto.js';
 import { UpdateCheckReminderDto } from './dto/update-check-reminder.dto.js';
 import { EndorseCheckDto } from './dto/endorse-check.dto.js';
+import { UpdateChecksSmsSettingsDto } from './dto/update-checks-sms-settings.dto.js';
 
 @Controller('checks')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -62,6 +63,18 @@ export class ChecksController {
     const updated = { sms: body.sms ?? current.sms, notification: body.notification ?? current.notification };
     await this.checks.setReminderChannels(ctx, updated);
     return updated;
+  }
+
+  @Get('settings/sms')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'sales');
+    return this.checks.getSmsSettings(ctx);
+  }
+
+  @Put('settings/sms')
+  async setSmsSettings(@Body() dto: UpdateChecksSmsSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    return this.checks.setSmsSettings(ctx, dto);
   }
 
   @Get(':id')

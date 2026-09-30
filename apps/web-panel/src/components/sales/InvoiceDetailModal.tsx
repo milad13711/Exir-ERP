@@ -10,6 +10,7 @@ import {
   recordSalesPayment,
   openSalesInvoicePdf,
   sendSalesInvoicePaymentLink,
+  fetchSalesInvoiceOnlinePaymentLink,
   signSalesInvoice,
   sendDeliveryCode,
   confirmDelivery,
@@ -22,6 +23,7 @@ import {
   type SalesInvoiceDetail,
   type SalesInvoiceStatus,
   type SalesPaymentMethod,
+  type SalesInvoicePaymentMethod,
   type SalesReturn,
 } from "@/lib/api";
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
@@ -57,6 +59,30 @@ const METHOD_LABELS: Record<SalesPaymentMethod, string> = {
   ONLINE_GATEWAY: "پرداخت آنلاین",
 };
 
+const INVOICE_PAYMENT_METHOD_LABELS: Record<SalesInvoicePaymentMethod, string> = {
+  BANK_TRANSFER: "کارت/حساب بانکی",
+  ONLINE_GATEWAY: "درگاه پرداخت آنلاین",
+  CASH: "نقدی",
+  CHECK: "چکی",
+};
+
+const CHECK_STATUS_LABELS: Record<string, string> = {
+  PENDING: "نزد ما",
+  DEPOSITED: "واگذارشده به بانک",
+  CLEARED: "وصول‌شده",
+  BOUNCED: "برگشتی",
+  CANCELLED: "باطل‌شده",
+};
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function InvoiceDetailModal({
   invoiceId,
   onClose,
@@ -78,6 +104,9 @@ export function InvoiceDetailModal({
   const [checkSayadId, setCheckSayadId] = useState("");
   const [checkDueDate, setCheckDueDate] = useState("");
   const [checkBankName, setCheckBankName] = useState("");
+  const [checkPhotoDataUrl, setCheckPhotoDataUrl] = useState<string | undefined>(undefined);
+  const [onlinePayBusy, setOnlinePayBusy] = useState(false);
+  const [onlinePayUrl, setOnlinePayUrl] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<"CODE" | "SIGNATURE" | null>(null);
   const [deliveryCode, setDeliveryCode] = useState("");
@@ -93,9 +122,13 @@ export function InvoiceDetailModal({
   const [invoiceReturns, setInvoiceReturns] = useState<SalesReturn[]>([]);
 
   function reload() {
+    const isFirstLoad = invoice === null;
     fetchSalesInvoice(invoiceId).then((inv) => {
       setInvoice(inv);
       setPayAmount(String(inv.total - inv.paidAmount));
+      // اولین‌باری که فاکتور بارگذاری می‌شود، روش ثبت پرداخت را با روش انتخابی هنگام صدور فاکتور
+      // هم‌راستا کن — وگرنه فرم همیشه با «نقدی» شروع می‌شود حتی برای فاکتور بانکی/چکی/آنلاین.
+      if (isFirstLoad) setPayMethod(inv.paymentMethod as SalesPaymentMethod);
     });
     fetchInvoiceReturnable(invoiceId)
       .then((r) => setHasReturnable(r.hasReturnable))
@@ -153,12 +186,18 @@ export function InvoiceDetailModal({
         amount: Number(payAmount),
         method: payMethod,
         ...(payMethod === "CHECK"
-          ? { checkSayadId: checkSayadId.trim(), checkDueDate, checkBankName: checkBankName.trim() || undefined }
+          ? {
+              checkSayadId: checkSayadId.trim(),
+              checkDueDate,
+              checkBankName: checkBankName.trim() || undefined,
+              checkPhotoDataUrl,
+            }
           : {}),
       });
       setCheckSayadId("");
       setCheckDueDate("");
       setCheckBankName("");
+      setCheckPhotoDataUrl(undefined);
       reload();
       onChanged();
     } catch (err) {
@@ -179,6 +218,20 @@ export function InvoiceDetailModal({
       setError(err instanceof ApiError ? err.message : "ارسال پیامک ناموفق بود");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleGetOnlinePaymentLink() {
+    setOnlinePayBusy(true);
+    setError(null);
+    setOnlinePayUrl(null);
+    try {
+      const res = await fetchSalesInvoiceOnlinePaymentLink(invoiceId);
+      setOnlinePayUrl(res.paymentUrl);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "اتصال به درگاه پرداخت ناموفق بود");
+    } finally {
+      setOnlinePayBusy(false);
     }
   }
 
@@ -358,10 +411,46 @@ export function InvoiceDetailModal({
             </div>
           ) : null}
 
-          {invoice.notes ? (
+          <div className="bg-primary-soft border border-border rounded-xl px-3.5 py-2 text-[12px] font-bold text-primary w-fit">
+            روش پرداخت: {INVOICE_PAYMENT_METHOD_LABELS[invoice.paymentMethod]}
+          </div>
+
+          {invoice.notes || (invoice.paymentMethod === "BANK_TRANSFER" && invoice.paymentBankInfo) ? (
+            <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 text-[12.5px] flex flex-col gap-1.5">
+              <div className="text-[11px] text-muted mb-0.5">یادداشت روی فاکتور</div>
+              {invoice.paymentMethod === "BANK_TRANSFER" && invoice.paymentBankInfo ? (
+                <div className="font-bold" dir="ltr">
+                  {invoice.paymentBankInfo}
+                </div>
+              ) : null}
+              {invoice.notes ? <div>{invoice.notes}</div> : null}
+            </div>
+          ) : null}
+
+          {invoice.paymentMethod === "CHECK" ? (
             <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 text-[12.5px]">
-              <div className="text-[11px] text-muted mb-1">یادداشت روی فاکتور</div>
-              {invoice.notes}
+              <div className="text-[11px] text-muted mb-1.5">جزئیات چک</div>
+              {invoice.checks.length === 0 ? (
+                <div className="text-muted">هنوز چکی برای این فاکتور ثبت نشده — از فرم «ثبت پرداخت» با روش «چک» وارد کنید.</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {invoice.checks.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 bg-white border border-border rounded-lg px-2.5 py-2">
+                      <div>
+                        <div className="font-bold" dir="ltr">
+                          {c.sayadId}
+                        </div>
+                        <div className="text-muted text-[11.5px]">
+                          {formatToman(c.amount)} · سررسید {formatJalaliDate(c.dueDate)} · {CHECK_STATUS_LABELS[c.status] ?? c.status}
+                        </div>
+                      </div>
+                      {c.photoDataUrl ? (
+                        <img src={c.photoDataUrl} alt="عکس چک" className="h-12 w-16 object-cover rounded-md border border-border" />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -547,23 +636,39 @@ export function InvoiceDetailModal({
                 </div>
 
                 {payMethod === "CHECK" ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={checkSayadId}
-                      onChange={(e) => setCheckSayadId(e.target.value.replace(/[^0-9]/g, ""))}
-                      dir="ltr"
-                      placeholder="شماره صیادی چک"
-                      className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-xl px-3 py-2.5"
-                    />
-                    <div className="w-[150px]">
-                      <JalaliDateInput value={checkDueDate} onChange={setCheckDueDate} placeholder="سررسید" />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={checkSayadId}
+                        onChange={(e) => setCheckSayadId(e.target.value.replace(/[^0-9]/g, ""))}
+                        dir="ltr"
+                        placeholder="شماره صیادی چک"
+                        className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-xl px-3 py-2.5"
+                      />
+                      <div className="w-[150px]">
+                        <JalaliDateInput value={checkDueDate} onChange={setCheckDueDate} placeholder="سررسید" />
+                      </div>
+                      <input
+                        value={checkBankName}
+                        onChange={(e) => setCheckBankName(e.target.value)}
+                        placeholder="بانک (اختیاری)"
+                        className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-xl px-3 py-2.5"
+                      />
                     </div>
-                    <input
-                      value={checkBankName}
-                      onChange={(e) => setCheckBankName(e.target.value)}
-                      placeholder="بانک (اختیاری)"
-                      className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-xl px-3 py-2.5"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setCheckPhotoDataUrl(await readAsDataUrl(file));
+                        }}
+                        className="flex-1 text-[11.5px] text-muted"
+                      />
+                      {checkPhotoDataUrl ? (
+                        <img src={checkPhotoDataUrl} alt="عکس چک" className="h-10 w-14 object-cover rounded-md border border-border" />
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
 
@@ -580,6 +685,29 @@ export function InvoiceDetailModal({
                   ثبت پرداخت
                 </button>
               </form>
+            ) : null}
+
+            {canPay && invoice.paymentMethod === "ONLINE_GATEWAY" ? (
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={handleGetOnlinePaymentLink}
+                  disabled={onlinePayBusy}
+                  className="w-full py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {onlinePayBusy ? "در حال اتصال به درگاه..." : "دریافت لینک پرداخت آنلاین"}
+                </button>
+                {onlinePayUrl && (
+                  <a
+                    href={onlinePayUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11.5px] text-primary bg-primary-soft rounded-lg px-3 py-2 break-all"
+                    dir="ltr"
+                  >
+                    {onlinePayUrl}
+                  </a>
+                )}
+              </div>
             ) : null}
 
             {(invoice.status === "CONFIRMED" || invoice.status === "PARTIALLY_PAID" || invoice.status === "PAID") && hasReturnable ? (

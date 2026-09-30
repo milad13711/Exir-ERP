@@ -12,6 +12,7 @@ import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
 import { ManualPaymentDto } from './dto/manual-payment.dto.js';
 import { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
 import { UpdateBookingSmsSettingsDto } from './dto/update-sms-settings.dto.js';
+import { CreateOpportunityDto } from './dto/create-opportunity.dto.js';
 
 @Controller('booking/appointments')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -118,6 +119,14 @@ export class AppointmentsController {
   async rejectCoordination(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
     return this.appointments.rejectCoordination(ctx, id, dto.reason);
+  }
+
+  /** ساخت فرصت فروش در CRM برای پیگیری بعد از نوبتِ انجام‌شده. */
+  @Post(':id/create-opportunity')
+  async createOpportunity(@Param('id') id: string, @Body() dto: CreateOpportunityDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertCreate(ctx, 'crm');
+    return this.appointments.createOpportunity(ctx, id, dto);
   }
 
   /* تنظیمات */

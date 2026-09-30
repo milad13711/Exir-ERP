@@ -11,6 +11,13 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'باطل‌شده',
 };
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: 'کارت/حساب بانکی',
+  ONLINE_GATEWAY: 'درگاه پرداخت آنلاین',
+  CASH: 'نقدی',
+  CHECK: 'چکی',
+};
+
 type InvoiceForPdf = {
   invoiceNo: number;
   officialInvoiceNo: number | null;
@@ -31,6 +38,9 @@ type InvoiceForPdf = {
   deliveryConfirmedName: string | null;
   deliverySignatureDataUrl: string | null;
   deliveryConfirmedAt: Date | null;
+  paymentMethod: string;
+  paymentBankInfo: string | null;
+  checks: Array<{ sayadId: string; amount: number; dueDate: Date; bankName: string | null }>;
   contact: {
     name: string;
     company: string | null;
@@ -209,6 +219,28 @@ function buildHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
     ${invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">پرداخت‌شده</td><td>${formatToman(invoice.paidAmount)}</td></tr>` : ''}
     ${remaining > 0 && invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">باقی‌مانده</td><td>${formatToman(remaining)}</td></tr>` : ''}
   </table>
+
+  <div class="section-title">روش پرداخت</div>
+  <div class="box">
+    <div style="font-weight: 700;">${escapeHtml(PAYMENT_METHOD_LABELS[invoice.paymentMethod] ?? invoice.paymentMethod)}</div>
+    ${
+      invoice.paymentMethod === 'BANK_TRANSFER' && invoice.paymentBankInfo
+        ? `<div style="color: #64748b; margin-top: 4px;" dir="ltr">${escapeHtml(invoice.paymentBankInfo)}</div>`
+        : ''
+    }
+    ${
+      invoice.paymentMethod === 'CHECK'
+        ? invoice.checks.length > 0
+          ? invoice.checks
+              .map(
+                (c) =>
+                  `<div style="color: #64748b; margin-top: 4px;">شماره صیادی: <span dir="ltr">${escapeHtml(c.sayadId)}</span> — سررسید: ${formatJalaliDate(c.dueDate)} — مبلغ: ${formatToman(c.amount)}${c.bankName ? ` — بانک: ${escapeHtml(c.bankName)}` : ''}</div>`,
+              )
+              .join('')
+          : `<div style="color: #64748b; margin-top: 4px;">چک هنوز نزد فروشنده ثبت نشده است.</div>`
+        : ''
+    }
+  </div>
 
   ${invoice.notes ? `<div class="section-title">یادداشت</div><div class="box">${escapeHtml(invoice.notes)}</div>` : ''}
 

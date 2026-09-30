@@ -6,6 +6,7 @@ import {
   fetchCrmContacts,
   fetchProducts,
   createSalesQuotation,
+  updateSalesQuotation,
   ApiError,
   type CrmContact,
   type Product,
@@ -29,17 +30,24 @@ function emptyLine(): DraftLine {
 export function NewQuotationModal({
   onClose,
   onCreated,
+  quotation: editing,
 }: {
   onClose: () => void;
   onCreated: (quotation: SalesQuotationDetail) => void;
+  /** حالت ویرایش پیش‌فاکتور پیش‌نویس */
+  quotation?: SalesQuotationDetail;
 }) {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [contactId, setContactId] = useState("");
-  const [validUntil, setValidUntil] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const [contactId, setContactId] = useState(editing?.contact.id ?? "");
+  const [validUntil, setValidUntil] = useState(editing?.validUntil ? editing.validUntil.slice(0, 10) : "");
+  const [discount, setDiscount] = useState(editing?.discount ? String(editing.discount) : "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [lines, setLines] = useState<DraftLine[]>(
+    editing
+      ? editing.lines.map((l) => ({ productId: l.productId ?? "", description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) }))
+      : [emptyLine()],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +83,7 @@ export function NewQuotationModal({
     if (!contactId || validLines.length === 0) return;
     setSubmitting(true);
     try {
-      const quotation = await createSalesQuotation({
+      const payload = {
         contactId,
         validUntil: validUntil || undefined,
         discount: discountNum || undefined,
@@ -89,7 +97,8 @@ export function NewQuotationModal({
           unitPriceFx: l.unitPriceFx,
           exchangeRateFx: l.exchangeRateFx,
         })),
-      });
+      };
+      const quotation = editing ? await updateSalesQuotation(editing.id, payload) : await createSalesQuotation(payload);
       onCreated(quotation);
       onClose();
     } catch (err) {
@@ -100,7 +109,7 @@ export function NewQuotationModal({
   }
 
   return (
-    <Modal title="پیش‌فاکتور جدید" onClose={onClose} width="max-w-[640px]">
+    <Modal title={editing ? `ویرایش پیش‌فاکتور ${editing.quotationNo}` : "پیش‌فاکتور جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>
@@ -220,7 +229,7 @@ export function NewQuotationModal({
           disabled={submitting || !contactId}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت پیش‌فاکتور"}
+          {submitting ? "در حال ثبت..." : editing ? "ذخیره‌ی تغییرات" : "ثبت پیش‌فاکتور"}
         </button>
       </form>
     </Modal>

@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { TruckIcon, PlusIcon, SearchIcon, SettingsIcon } from "@/components/icons";
+import { TruckIcon, PlusIcon, SearchIcon, SettingsIcon, BellIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
-import { fetchShipments, type Shipment, type ShipmentStatus } from "@/lib/api";
+import { fetchShipments, fetchFleetSmsSettings, updateFleetSmsSettings, type Shipment, type ShipmentStatus, type FleetSmsSettings } from "@/lib/api";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { ShipmentDetailModal } from "@/components/fleet/ShipmentDetailModal";
 import { DriversModal } from "@/components/fleet/DriversModal";
+import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ShipmentStatus, string> = {
@@ -36,6 +37,7 @@ export default function FleetPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [driversOpen, setDriversOpen] = useState(false);
   const [openShipment, setOpenShipment] = useState<Shipment | null>(null);
+  const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
   function reload() {
     fetchShipments().then(setShipments).catch(() => setShipments([]));
@@ -73,6 +75,13 @@ export default function FleetPage() {
           >
             <SettingsIcon className="w-4 h-4" />
             راننده‌ها
+          </button>
+          <button
+            onClick={() => setSmsSettingsOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <BellIcon className="w-4 h-4" />
+            تنظیمات پیامک
           </button>
           <button
             onClick={() => setNewOpen(true)}
@@ -147,6 +156,19 @@ export default function FleetPage() {
 
       {newOpen ? <NewShipmentModal onClose={() => setNewOpen(false)} onCreated={reload} /> : null}
       {driversOpen ? <DriversModal onClose={() => setDriversOpen(false)} onChanged={() => {}} /> : null}
+      {smsSettingsOpen ? (
+        <SmsTemplatesModal<FleetSmsSettings>
+          title="تنظیمات پیامک — ناوگان حمل و نقل"
+          fetchSettings={fetchFleetSmsSettings}
+          updateSettings={updateFleetSmsSettings}
+          onClose={() => setSmsSettingsOpen(false)}
+          fields={[
+            { label: "پیشنهاد بار به راننده", key: "offerDispatchTemplate", placeholders: "{cargoType} {quantity} {deliveryAddress} {pickup} {link}" },
+            { label: "پذیرش بار توسط راننده (به ثبت‌کننده)", key: "offerAcceptedTemplate", placeholders: "{driverName} {shipmentNo} {driverPhone}" },
+            { label: "نظرسنجی پس از تحویل", key: "deliveredSurveyTemplate", placeholders: "{shipmentNo} {link}" },
+          ]}
+        />
+      ) : null}
       {openShipment ? (
         <ShipmentDetailModal shipment={openShipment} onClose={() => setOpenShipment(null)} onChanged={reload} />
       ) : null}

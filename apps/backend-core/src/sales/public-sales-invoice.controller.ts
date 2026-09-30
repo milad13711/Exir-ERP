@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ZarinpalService } from '../billing/zarinpal.service.js';
-import { InvoicesService } from './invoices.service.js';
+import { InvoicesService, buildPaymentInstructionLine } from './invoices.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
 
@@ -74,7 +74,18 @@ export class PublicSalesInvoiceController {
       contact: invoice.contact,
       lines: invoice.lines,
       payments: invoice.payments,
-      canPayOnline: (invoice.status === 'CONFIRMED' || invoice.status === 'PARTIALLY_PAID') && invoice.paidAmount < invoice.total,
+      paymentMethod: invoice.paymentMethod,
+      paymentBankInfo: invoice.paymentMethod === 'BANK_TRANSFER' ? invoice.paymentBankInfo : null,
+      // راهنمای متنی پرداخت مخصوص روش انتخاب‌شده — فقط برای بانکی/چکی (برای آنلاین همین صفحه دکمه‌ی پرداخت دارد).
+      paymentInstruction:
+        invoice.paymentMethod !== 'ONLINE_GATEWAY' && invoice.total - invoice.paidAmount > 0
+          ? buildPaymentInstructionLine(invoice, '') || null
+          : null,
+      // فقط وقتی صادرکننده «پرداخت آنلاین» را برای همین فاکتور انتخاب کرده — نه خودکار روی هر فاکتور تأییدشده.
+      canPayOnline:
+        invoice.paymentMethod === 'ONLINE_GATEWAY' &&
+        (invoice.status === 'CONFIRMED' || invoice.status === 'PARTIALLY_PAID') &&
+        invoice.paidAmount < invoice.total,
       gatewayAvailable: this.zarinpal.isConfigured,
     };
   }

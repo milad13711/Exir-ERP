@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -28,6 +29,7 @@ export default function CrmPage() {
   const [openContactId, setOpenContactId] = useState<string | null>(null);
   const [newContactOpen, setNewContactOpen] = useState(false);
   const [newDealFor, setNewDealFor] = useState<{ contactId?: string } | null>(null);
+  const searchParams = useSearchParams();
 
   function reloadContacts() {
     fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
@@ -37,6 +39,15 @@ export default function CrmPage() {
     fetchCrmDeals().then(setDeals).catch(() => setDeals([]));
     reloadContacts();
   }, []);
+
+  useEffect(() => {
+    const contactId = searchParams.get("contact");
+    if (contactId) {
+      setTab("contacts");
+      setOpenContactId(contactId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const openDeals = useMemo(
     () => (deals ?? []).filter((d) => d.stage !== "WON" && d.stage !== "LOST"),

@@ -58,6 +58,10 @@ export function ContactModal({
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [form, setForm] = useState({
+    name: "",
+    company: "",
+    phone: "",
+    email: "",
     address: "",
     nationalId: "",
     economicCode: "",
@@ -73,6 +77,10 @@ export function ContactModal({
     fetchCrmContact(contactId).then((c) => {
       setContact(c);
       setForm({
+        name: c.name ?? "",
+        company: c.company ?? "",
+        phone: c.phone ?? "",
+        email: c.email ?? "",
         address: c.address ?? "",
         nationalId: c.nationalId ?? "",
         economicCode: c.economicCode ?? "",
@@ -94,6 +102,10 @@ export function ContactModal({
     setInfoError(null);
     try {
       const updated = await updateCrmContact(contactId, {
+        name: form.name.trim() || undefined,
+        company: form.company.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
         address: form.address || undefined,
         nationalId: form.nationalId || undefined,
         economicCode: form.economicCode || undefined,
@@ -244,6 +256,38 @@ export function ContactModal({
               </div>
             ) : (
               <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                    placeholder={contact.type === "COMPANY" ? "نام مسئول ارتباط" : "نام"}
+                    className="flex-1 text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
+                  />
+                  {contact.type === "COMPANY" ? (
+                    <input
+                      value={form.company}
+                      onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
+                      placeholder="نام شرکت"
+                      className="flex-1 text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
+                    />
+                  ) : null}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={form.phone}
+                    onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="شماره تماس"
+                    dir="ltr"
+                    className="flex-1 text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
+                  />
+                  <input
+                    value={form.email}
+                    onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                    placeholder="ایمیل"
+                    dir="ltr"
+                    className="flex-1 text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
+                  />
+                </div>
                 <input
                   value={form.address}
                   onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
@@ -343,7 +387,7 @@ export function ContactModal({
                   <button
                     type="button"
                     onClick={handleSaveInfo}
-                    disabled={savingInfo}
+                    disabled={savingInfo || !form.name.trim()}
                     className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
                   >
                     {savingInfo ? "در حال ذخیره..." : "ذخیره"}

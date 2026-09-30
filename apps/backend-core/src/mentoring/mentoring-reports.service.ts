@@ -11,7 +11,7 @@ export class MentoringReportsService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const weekEnd = new Date(now.getTime() + 7 * DAY_MS);
 
-    const [activeEngagements, sessionsThisMonth, upcomingSessions, goals, completedSessionsWithInvoice] = await Promise.all([
+    const [activeEngagements, sessionsThisMonth, upcomingSessions, goals, completedSessionsWithInvoice, submittedSurveys] = await Promise.all([
       ctx.tenantDb.mentoringEngagement.count({ where: { status: 'ACTIVE' } }),
       ctx.tenantDb.mentoringSession.count({ where: { scheduledAt: { gte: monthStart }, status: { in: ['COMPLETED', 'SCHEDULED'] } } }),
       ctx.tenantDb.mentoringSession.count({ where: { status: 'SCHEDULED', scheduledAt: { gte: now, lte: weekEnd } } }),
@@ -20,6 +20,7 @@ export class MentoringReportsService {
         where: { status: 'COMPLETED', invoiceId: { not: null } },
         select: { invoice: { select: { total: true, issuedAt: true } } },
       }),
+      ctx.tenantDb.mentoringSessionSurvey.findMany({ where: { rating: { not: null } }, select: { rating: true } }),
     ]);
 
     const decidedGoals = goals.filter((g) => g.status === 'ACHIEVED' || g.status === 'MISSED');
@@ -30,6 +31,11 @@ export class MentoringReportsService {
       .filter((s) => s.invoice && s.invoice.issuedAt >= monthStart)
       .reduce((sum, s) => sum + (s.invoice?.total ?? 0), 0);
 
+    const avgSatisfaction =
+      submittedSurveys.length > 0
+        ? Math.round((submittedSurveys.reduce((sum, s) => sum + (s.rating ?? 0), 0) / submittedSurveys.length) * 10) / 10
+        : null;
+
     return {
       activeEngagements,
       sessionsThisMonth,
@@ -37,6 +43,8 @@ export class MentoringReportsService {
       goalAchievementRate,
       totalRevenue,
       revenueThisMonth,
+      avgSatisfaction,
+      surveyResponseCount: submittedSurveys.length,
     };
   }
 
@@ -114,14 +122,42 @@ export class MentoringReportsService {
   /** گزارش عملکرد به تفکیک مشاور — بار مراجعه، نرخ عدم‌حضور و درآمد هر مشاور. */
   async byAdvisor(ctx: TenantRequestContext) {
     const sessions = await ctx.tenantDb.mentoringSession.findMany({
-      include: { engagement: { select: { advisorUserId: true, advisor: { select: { name: true } } } }, invoice: { select: { total: true } } },
+      include: {
+        engagement: { select: { advisorUserId: true, advisor: { select: { name: true } } } },
+        invoice: { select: { total: true } },
+        survey: { select: { rating: true } },
+      },
     });
 
-    type Row = { advisorUserId: string; advisorName: string; total: number; completed: number; cancelled: number; noShow: number; revenue: number };
+    type Row = {
+      advisorUserId: string;
+      advisorName: string;
+      total: number;
+      completed: number;
+      cancelled: number;
+      noShow: number;
+      revenue: number;
+      ratingSum: number;
+      ratingCount: number;
+      avgSatisfaction: number | null;
+    };
     const rows = new Map<string, Row>();
     for (const s of sessions) {
       const key = s.engagement.advisorUserId;
-      const row = rows.get(key) ?? { advisorUserId: key, advisorName: s.engagement.advisor.name, total: 0, completed: 0, cancelled: 0, noShow: 0, revenue: 0 };
+      const row =
+        rows.get(key) ??
+        ({
+          advisorUserId: key,
+          advisorName: s.engagement.advisor.name,
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+          noShow: 0,
+          revenue: 0,
+          ratingSum: 0,
+          ratingCount: 0,
+          avgSatisfaction: null,
+        } satisfies Row);
       row.total += 1;
       if (s.status === 'COMPLETED') {
         row.completed += 1;
@@ -129,8 +165,18 @@ export class MentoringReportsService {
       }
       if (s.status === 'CANCELLED') row.cancelled += 1;
       if (s.status === 'NO_SHOW') row.noShow += 1;
+      if (s.survey?.rating != null) {
+        row.ratingSum += s.survey.rating;
+        row.ratingCount += 1;
+      }
       rows.set(key, row);
     }
-    return Array.from(rows.values()).sort((a, b) => b.revenue - a.revenue);
+    return Array.from(rows.values())
+      .map(({ ratingSum, ratingCount, ...row }) => ({
+        ...row,
+        avgSatisfaction: ratingCount > 0 ? Math.round((ratingSum / ratingCount) * 10) / 10 : null,
+        surveyResponseCount: ratingCount,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
   }
 }

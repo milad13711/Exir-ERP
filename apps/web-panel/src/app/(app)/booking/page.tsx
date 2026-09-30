@@ -305,7 +305,7 @@ export default function BookingPage() {
             onClick={() => setMessageSettingsOpen(true)}
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
           >
-            متن پیامک تأیید
+            متن صفحه‌ی تأیید
           </button>
           <button
             onClick={() => setNewOpen(true)}
