@@ -12,6 +12,7 @@ import {
   updateCrmDeal,
   deleteCrmDeal,
   addCrmDealActivity,
+  ApiError,
   type CrmDealDetail,
   type CrmDealStage,
 } from "@/lib/api";
@@ -40,6 +41,7 @@ export function DealModal({
   const [editCloseAt, setEditCloseAt] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCrmDeal(dealId).then(setDeal);
@@ -62,12 +64,14 @@ export function DealModal({
     setEditTitle(deal.title);
     setEditValue(String(deal.value));
     setEditCloseAt(deal.expectedCloseAt ? deal.expectedCloseAt.slice(0, 10) : "");
+    setEditError(null);
     setEditing(true);
   }
 
   async function saveEdit() {
     if (!editTitle.trim()) return;
     setSavingEdit(true);
+    setEditError(null);
     try {
       await updateCrmDeal(dealId, {
         title: editTitle.trim(),
@@ -78,6 +82,8 @@ export function DealModal({
       setDeal(fresh);
       onChanged(fresh);
       setEditing(false);
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "ذخیره‌ی تغییرات ناموفق بود");
     } finally {
       setSavingEdit(false);
     }
@@ -86,10 +92,13 @@ export function DealModal({
   async function handleDelete() {
     if (!window.confirm("این فرصت فروش حذف شود؟ این عملیات قابل بازگشت نیست.")) return;
     setDeleting(true);
+    setEditError(null);
     try {
       await deleteCrmDeal(dealId);
       onDeleted(dealId);
       onClose();
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "حذف ناموفق بود");
     } finally {
       setDeleting(false);
     }
@@ -122,6 +131,7 @@ export function DealModal({
                   <JalaliDateInput value={editCloseAt} onChange={setEditCloseAt} placeholder="تاریخ تخمینی بستن" />
                 </div>
               </div>
+              {editError ? <div className="text-[11.5px] text-danger">{editError}</div> : null}
               <div className="flex items-center justify-between">
                 <button
                   type="button"

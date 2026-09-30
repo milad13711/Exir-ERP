@@ -24,6 +24,7 @@ import {
 import { NewSessionModal } from "./NewSessionModal";
 import { CreateOpportunityModal } from "./CreateOpportunityModal";
 import { EditGoalModal } from "./EditGoalModal";
+import { NewEngagementModal } from "./NewEngagementModal";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -241,6 +242,7 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
   const [engagement, setEngagement] = useState<MentoringEngagement | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<MentoringGoal | null>(null);
+  const [editEngagementOpen, setEditEngagementOpen] = useState(false);
 
   function refetch() {
     fetchMentoringEngagement(engagementId).then(setEngagement).catch(() => setEngagement(null));
@@ -287,6 +289,9 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
             {engagement.contact.name} · مشاور: {engagement.advisor.name}
           </div>
           <div className="flex items-center gap-1.5">
+            <button onClick={() => setEditEngagementOpen(true)} className="text-muted hover:text-primary cursor-pointer p-0.5" title="ویرایش همکاری">
+              <PencilIcon className="w-3.5 h-3.5" />
+            </button>
             {engagement.status === "ACTIVE" && (
               <button onClick={() => handleStatusChange("PAUSED")} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-warning-soft text-warning cursor-pointer">
                 توقف موقت
@@ -366,10 +371,18 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
         {engagement.pricingModel === "PACKAGE" && engagement.packagePrice != null && (
           <div className="text-[12px] text-muted">قیمت بسته: {formatToman(engagement.packagePrice)}</div>
         )}
+        {(engagement.contract || engagement.project || engagement.notes) && (
+          <div className="flex flex-col gap-1 text-[12px] text-muted">
+            {engagement.contract && <div>قرارداد مرتبط: #{engagement.contract.contractNo} {engagement.contract.title}</div>}
+            {engagement.project && <div>پروژه‌ی مرتبط: #{engagement.project.projectNo} {engagement.project.name}</div>}
+            {engagement.notes && <div className="whitespace-pre-wrap">یادداشت: {engagement.notes}</div>}
+          </div>
+        )}
       </div>
 
       {newSessionOpen && <NewSessionModal engagement={engagement} onClose={() => setNewSessionOpen(false)} onCreated={reload} />}
       {editingGoal && <EditGoalModal goal={editingGoal} onClose={() => setEditingGoal(null)} onSaved={reload} />}
+      {editEngagementOpen && <NewEngagementModal engagement={engagement} onClose={() => setEditEngagementOpen(false)} onCreated={reload} />}
       <DeleteRecordButton confirmText="این همکاری با همه‌ی جلسات و اهدافش حذف شود؟" onDelete={() => deleteMentoringEngagement(engagementId)} onDeleted={() => { onChanged(); onClose(); }} />
     </Modal>
   );

@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   createMentoringEngagement,
+  updateMentoringEngagement,
   fetchCrmContacts,
   fetchUsers,
   fetchContracts,
@@ -11,6 +12,7 @@ import {
   type TenantUser,
   type Contract,
   type Project,
+  type MentoringEngagement,
   type MentoringPricingModel,
 } from "@/lib/api";
 
@@ -25,23 +27,37 @@ const PRICING_LABELS: Record<MentoringPricingModel, string> = {
   SUBSCRIPTION: "اشتراک ماهانه",
 };
 
-export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [title, setTitle] = useState("");
-  const [contactId, setContactId] = useState("");
+/** برای ساخت همکاری جدید `engagement` را ندهید؛ برای ویرایش همکاری موجود، `engagement` را بدهید. */
+export function NewEngagementModal({
+  engagement,
+  onClose,
+  onCreated,
+}: {
+  engagement?: MentoringEngagement;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const editing = !!engagement;
+  const [title, setTitle] = useState(engagement?.title ?? "");
+  const [contactId, setContactId] = useState(engagement?.contactId ?? "");
   const [contacts, setContacts] = useState<CrmContact[]>([]);
-  const [advisorUserId, setAdvisorUserId] = useState("");
+  const [advisorUserId, setAdvisorUserId] = useState(engagement?.advisorUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
-  const [pricingModel, setPricingModel] = useState<MentoringPricingModel>("HOURLY");
-  const [hourlyRate, setHourlyRate] = useState("");
-  const [packageSessionsCount, setPackageSessionsCount] = useState("");
-  const [packagePrice, setPackagePrice] = useState("");
-  const [subscriptionMonthlyPrice, setSubscriptionMonthlyPrice] = useState("");
+  const [pricingModel, setPricingModel] = useState<MentoringPricingModel>(engagement?.pricingModel ?? "HOURLY");
+  const [hourlyRate, setHourlyRate] = useState(engagement?.hourlyRate != null ? String(engagement.hourlyRate) : "");
+  const [packageSessionsCount, setPackageSessionsCount] = useState(
+    engagement?.packageSessionsCount != null ? String(engagement.packageSessionsCount) : "",
+  );
+  const [packagePrice, setPackagePrice] = useState(engagement?.packagePrice != null ? String(engagement.packagePrice) : "");
+  const [subscriptionMonthlyPrice, setSubscriptionMonthlyPrice] = useState(
+    engagement?.subscriptionMonthlyPrice != null ? String(engagement.subscriptionMonthlyPrice) : "",
+  );
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [contractId, setContractId] = useState("");
+  const [contractId, setContractId] = useState(engagement?.contractId ?? "");
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(engagement?.projectId ?? "");
   const [startDate, setStartDate] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(engagement?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,9 +85,8 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
     setSaving(true);
     setError(null);
     try {
-      await createMentoringEngagement({
+      const payload = {
         title: title.trim(),
-        contactId,
         advisorUserId,
         pricingModel,
         hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
@@ -80,20 +95,24 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
         subscriptionMonthlyPrice: subscriptionMonthlyPrice ? Number(subscriptionMonthlyPrice) : undefined,
         contractId: contractId || undefined,
         projectId: projectId || undefined,
-        startDate: startDate || undefined,
         notes: notes.trim() || undefined,
-      });
+      };
+      if (editing) {
+        await updateMentoringEngagement(engagement.id, payload);
+      } else {
+        await createMentoringEngagement({ ...payload, contactId, startDate: startDate || undefined });
+      }
       onCreated();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ثبت همکاری ناموفق بود");
+      setError(err instanceof Error ? err.message : editing ? "ویرایش همکاری ناموفق بود" : "ثبت همکاری ناموفق بود");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal title="همکاری جدید" onClose={onClose} width="max-w-[520px]">
+    <Modal title={editing ? "ویرایش همکاری" : "همکاری جدید"} onClose={onClose} width="max-w-[520px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>عنوان همکاری</label>
@@ -103,15 +122,19 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
         <div className="flex gap-2.5">
           <div className="flex-1">
             <label className={labelClass}>مشتری</label>
-            <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
-              <option value="">انتخاب کنید</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {!c.phone ? " — بدون شماره موبایل" : ""}
-                </option>
-              ))}
-            </select>
+            {editing ? (
+              <input value={engagement.contact.name} disabled className={`${inputClass} opacity-60`} />
+            ) : (
+              <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
+                <option value="">انتخاب کنید</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {!c.phone ? " — بدون شماره موبایل" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="flex-1">
             <label className={labelClass}>مشاور/مربی</label>
@@ -205,10 +228,12 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
               </div>
             </div>
 
-            <div>
-              <label className={labelClass}>تاریخ شروع (اختیاری — پیش‌فرض امروز)</label>
-              <JalaliDateInput value={startDate} onChange={setStartDate} className={inputClass} />
-            </div>
+            {!editing && (
+              <div>
+                <label className={labelClass}>تاریخ شروع (اختیاری — پیش‌فرض امروز)</label>
+                <JalaliDateInput value={startDate} onChange={setStartDate} className={inputClass} />
+              </div>
+            )}
 
             <div>
               <label className={labelClass}>یادداشت (اختیاری)</label>
@@ -220,7 +245,7 @@ export function NewEngagementModal({ onClose, onCreated }: { onClose: () => void
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
         <button type="submit" disabled={saving || !formValid} className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50">
-          {saving ? "در حال ثبت..." : "ثبت همکاری"}
+          {saving ? "در حال ذخیره..." : editing ? "ذخیره تغییرات" : "ثبت همکاری"}
         </button>
       </form>
     </Modal>
