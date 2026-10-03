@@ -32,6 +32,7 @@ import { PublicResellerApplicationsController } from './public-reseller-applicat
 import { EventsModule } from '../events/events.module.js';
 import { BookStoreModule } from '../book-store/book-store.module.js';
 import { BillingModule } from '../billing/billing.module.js';
+import { PaymentGatewayModule } from '../payment-gateway/payment-gateway.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { PublicEventsService } from './public-events.service.js';
 import { PublicEventsController } from './public-events.controller.js';
@@ -79,6 +80,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     EventsModule,
     BookStoreModule,
     BillingModule,
+    PaymentGatewayModule,
     AutomationModule,
     WarrantyModule,
     AfterSalesModule,

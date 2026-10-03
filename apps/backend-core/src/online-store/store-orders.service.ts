@@ -129,7 +129,7 @@ export class StoreOrdersService {
    * نمی‌کند — فقط ثبت پرداخت انجام‌نشده باقی می‌ماند و تننت مثل قبل دستی
    * پیگیری می‌کند. موفقیت پرداخت، سفارش هنوز-تأییدنشده را هم خودکار تأیید می‌کند.
    */
-  async finalizeOnlinePayment(ctx: TenantRequestContext, orderId: string, paymentRefId: number) {
+  async finalizeOnlinePayment(ctx: TenantRequestContext, orderId: string, paymentRefId: number | null) {
     const order = await ctx.tenantDb.storeOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
     if (order.paidAt) return this.detail(ctx, orderId); // قبلاً نهایی شده — idempotent

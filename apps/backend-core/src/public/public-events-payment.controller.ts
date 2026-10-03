@@ -2,7 +2,7 @@ import { Controller, Get, NotFoundException, Param, Post, Query, Res } from '@ne
 import type { Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { EventsService } from '../events/events.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
@@ -34,7 +34,7 @@ export class PublicEventsPaymentController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly events: EventsService,
   ) {}
 
@@ -55,9 +55,12 @@ export class PublicEventsPaymentController {
     if (bookings[0].status !== 'PENDING_PAYMENT') return { error: 'این سفارش در انتظار پرداخت نیست' };
 
     const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
+    if (!(await this.gateway.isConfigured(ctx))) return { error: 'درگاه پرداخت این کسب‌وکار هنوز تنظیم نشده است' };
+
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
-    const result = await this.zarinpal.requestPayment({
-      amountToman: totalAmount,
+    const result = await this.gateway.createPayment({
+      ctx,
+      amount: totalAmount,
       description: `بلیط رویداد «${bookings[0].event.title}»`,
       callbackUrl: `${apiUrl}/public/events/${publicRef(slug)}/bookings/${orderGroupId}/callback`,
       mobile: bookings[0].buyerPhone,
@@ -65,15 +68,17 @@ export class PublicEventsPaymentController {
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
 
     await ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { zarinpalAuthority: result.authority } });
-    return { paymentUrl: result.paymentUrl };
+    return { paymentUrl: result.redirectUrl };
   }
 
   @Get('callback')
   async callback(
     @Param('slug') slug: string,
     @Param('orderGroupId') orderGroupId: string,
-    @Query('Authority') authority: string | undefined,
+    @Query('Authority') zarinpalAuthority: string | undefined,
     @Query('Status') status: string | undefined,
+    @Query('id_get') bitpayIdGet: string | undefined,
+    @Query('trans_id') bitpayTransId: string | undefined,
     @Res() res: Response,
   ) {
     const ctx = await this.resolveCtx(slug);
@@ -94,14 +99,17 @@ export class PublicEventsPaymentController {
       );
     }
 
-    if (status !== 'OK' || !authority) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
+    // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
+    const authority = zarinpalAuthority ?? bitpayIdGet;
+    if (!authority || (status !== undefined && status !== 'OK')) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
     if (bookings[0].zarinpalAuthority && bookings[0].zarinpalAuthority !== authority) return fail('اطلاعات تراکنش معتبر نیست.');
 
     const totalAmount = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
-    const result = await this.zarinpal.verifyPayment({ amountToman: totalAmount, authority });
-    if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
+    const result = await this.gateway.verifyPayment({ ctx, authority, amount: totalAmount, transId: bitpayTransId });
+    if (!result?.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
-    await ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { paymentRefId: result.refId } });
+    const refNumber = result.refId && /^\d+$/.test(result.refId) ? Number(result.refId) : null;
+    if (refNumber !== null) await ctx.tenantDb.eventBooking.updateMany({ where: { orderGroupId }, data: { paymentRefId: refNumber } });
     await this.events.finalizeOrderPayment(ctx, orderGroupId, webUrl);
 
     return res.send(

@@ -17,7 +17,7 @@ function setup(existingContact: { id: string } | null, serviceOverrides: Record<
     mentoringSession: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
   };
   const sms = { sendSms: vi.fn().mockResolvedValue({ success: true }) };
-  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, {} as never, {} as never, { findSlot: vi.fn().mockResolvedValue({ startAt: '2026-09-25T08:30:00Z', time: '12:00', providerIds: [] }) } as never, {} as never);
+  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, { isConfigured: vi.fn().mockResolvedValue(true) } as never, {} as never, { findSlot: vi.fn().mockResolvedValue({ startAt: '2026-09-25T08:30:00Z', time: '12:00', providerIds: [] }) } as never, {} as never);
   const ctx = { tenantId: 't', tenantSlug: 'acme', tenantDb, auth: { role: 'OWNER', sub: 'g' } } as never;
   return { service, ctx, tenantDb, sms };
 }
@@ -51,5 +51,38 @@ describe('AppointmentsService.createPublic — CRM link + confirmation message',
     await service.createPublic(ctx, { serviceTypeId: 'svc-1', customerName: 'علی', customerPhone: '09121234567', startAt: '2026-09-25T08:30:00Z' } as never);
     expect(tenantDb.appointment.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ paymentStatus: 'PENDING', depositAmount: 500_000, isFullPayment: true }) }));
     expect(sms.sendSms.mock.calls[0][2]).toContain('مبلغ قابل پرداخت');
+  });
+});
+
+describe('AppointmentsService deposit payment — tenant gateway', () => {
+  function build(gateway: Record<string, unknown>) {
+    const appt = { id: 'ap-1', paymentStatus: 'PENDING', depositAmount: 100_000, isFullPayment: false, customerName: 'علی', customerPhone: '09121234567', zarinpalAuthority: 'AUTH1', serviceType: { name: 'مشاوره' } };
+    const tenantDb = { appointment: { findUnique: vi.fn().mockResolvedValue(appt), update: vi.fn().mockResolvedValue({}) } };
+    const service = new AppointmentsService({ emit: vi.fn() } as never, {} as never, gateway as never, {} as never, {} as never, {} as never);
+    return { service, ctx: { tenantId: 't', tenantDb } as never, tenantDb };
+  }
+
+  it('refuses to start payment (never falls back to the platform merchant) when the tenant has no gateway', async () => {
+    const gateway = { isConfigured: vi.fn().mockResolvedValue(false), createPayment: vi.fn() };
+    const { service, ctx, tenantDb } = build(gateway);
+    const result = await service.initiateDepositPayment(ctx, 'ap-1', 'http://cb');
+    expect(result).toEqual({ error: 'درگاه پرداخت این کسب‌وکار هنوز تنظیم نشده است' });
+    expect(gateway.createPayment).not.toHaveBeenCalled();
+    expect(tenantDb.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('creates through the tenant gateway and stores the authority when configured', async () => {
+    const gateway = { isConfigured: vi.fn().mockResolvedValue(true), createPayment: vi.fn().mockResolvedValue({ redirectUrl: 'https://pay/x', authority: 'AUTH1', provider: 'BITPAY' }) };
+    const { service, ctx, tenantDb } = build(gateway);
+    const result = await service.initiateDepositPayment(ctx, 'ap-1', 'http://cb');
+    expect(result).toEqual({ paymentUrl: 'https://pay/x' });
+    expect(gateway.createPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 100_000, callbackUrl: 'http://cb' }));
+    expect(tenantDb.appointment.update).toHaveBeenCalledWith({ where: { id: 'ap-1' }, data: { zarinpalAuthority: 'AUTH1' } });
+  });
+
+  it('verify fails closed when the gateway is gone (verifyPayment returns null)', async () => {
+    const gateway = { isConfigured: vi.fn(), verifyPayment: vi.fn().mockResolvedValue(null) };
+    const { service, ctx } = build(gateway);
+    expect(await service.verifyDepositPayment(ctx, 'ap-1', 'AUTH1')).toEqual({ success: false });
   });
 });

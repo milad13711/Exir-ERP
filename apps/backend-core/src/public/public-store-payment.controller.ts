@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { StoreOrdersService } from '../online-store/store-orders.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { StoreOrderTicketPayload } from '../auth/jwt-payload.type.js';
@@ -38,7 +38,7 @@ export class PublicStorePaymentController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly storeOrders: StoreOrdersService,
     private readonly jwt: JwtService,
   ) {}
@@ -81,9 +81,12 @@ export class PublicStorePaymentController {
       throw new UnauthorizedException('این نشست پرداخت متعلق به این سفارش نیست');
     }
 
+    if (!(await this.gateway.isConfigured(ctx))) return { error: 'درگاه پرداخت این کسب‌وکار هنوز تنظیم نشده است' };
+
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
-    const result = await this.zarinpal.requestPayment({
-      amountToman: order.subtotal,
+    const result = await this.gateway.createPayment({
+      ctx,
+      amount: order.subtotal,
       description: `خرید از فروشگاه آنلاین — سفارش #${order.orderNo}`,
       callbackUrl: `${apiUrl}/public/store/${publicRef(slug)}/orders/${orderId}/callback`,
       mobile: order.customerPhone,
@@ -91,15 +94,17 @@ export class PublicStorePaymentController {
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
 
     await ctx.tenantDb.storeOrder.update({ where: { id: orderId }, data: { zarinpalAuthority: result.authority } });
-    return { paymentUrl: result.paymentUrl };
+    return { paymentUrl: result.redirectUrl };
   }
 
   @Get('callback')
   async callback(
     @Param('slug') slug: string,
     @Param('orderId') orderId: string,
-    @Query('Authority') authority: string | undefined,
+    @Query('Authority') zarinpalAuthority: string | undefined,
     @Query('Status') status: string | undefined,
+    @Query('id_get') bitpayIdGet: string | undefined,
+    @Query('trans_id') bitpayTransId: string | undefined,
     @Res() res: Response,
   ) {
     const ctx = await this.resolveCtx(slug);
@@ -118,13 +123,16 @@ export class PublicStorePaymentController {
     // برخلاف BookOrder، سفارش فروشگاه پیش از پرداخت هم یک وضعیت معتبر دارد
     // (PENDING) — پس شکست پرداخت اینجا سفارش را لغو نمی‌کند، فقط پیام خطا
     // نشان می‌دهد؛ خریدار می‌تواند دوباره تلاش کند یا تننت دستی پیگیری کند.
-    if (status !== 'OK' || !authority) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
+    // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
+    const authority = zarinpalAuthority ?? bitpayIdGet;
+    if (!authority || (status !== undefined && status !== 'OK')) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
     if (order.zarinpalAuthority && order.zarinpalAuthority !== authority) return fail('اطلاعات تراکنش معتبر نیست.');
 
-    const result = await this.zarinpal.verifyPayment({ amountToman: order.subtotal, authority });
-    if (!result.success || !result.refId) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
+    const result = await this.gateway.verifyPayment({ ctx, authority, amount: order.subtotal, transId: bitpayTransId });
+    if (!result?.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
-    await this.storeOrders.finalizeOnlinePayment(ctx, orderId, result.refId);
+    const refNumber = result.refId && /^\d+$/.test(result.refId) ? Number(result.refId) : null;
+    await this.storeOrders.finalizeOnlinePayment(ctx, orderId, refNumber);
 
     return res.send(
       `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>سفارش شما ثبت و تأیید شد.</p>${BRAND_PAGE_TAIL}`,

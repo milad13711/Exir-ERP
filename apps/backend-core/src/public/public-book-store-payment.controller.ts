@@ -2,7 +2,7 @@ import { Controller, Get, NotFoundException, Param, Post, Query, Res } from '@ne
 import type { Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { BookStoreService } from '../book-store/book-store.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
@@ -28,7 +28,7 @@ export class PublicBookStorePaymentController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly bookStore: BookStoreService,
   ) {}
 
@@ -48,9 +48,12 @@ export class PublicBookStorePaymentController {
     if (!order) throw new NotFoundException('این سفارش یافت نشد');
     if (order.status !== 'PENDING_PAYMENT') return { error: 'این سفارش در انتظار پرداخت نیست' };
 
+    if (!(await this.gateway.isConfigured(ctx))) return { error: 'درگاه پرداخت این کسب‌وکار هنوز تنظیم نشده است' };
+
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
-    const result = await this.zarinpal.requestPayment({
-      amountToman: order.unitPrice,
+    const result = await this.gateway.createPayment({
+      ctx,
+      amount: order.unitPrice,
       description: 'خرید کتاب سلطان قیف',
       callbackUrl: `${apiUrl}/public/book/${publicRef(slug)}/orders/${orderId}/callback`,
       mobile: order.buyerPhone,
@@ -58,15 +61,17 @@ export class PublicBookStorePaymentController {
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
 
     await ctx.tenantDb.bookOrder.update({ where: { id: orderId }, data: { zarinpalAuthority: result.authority } });
-    return { paymentUrl: result.paymentUrl };
+    return { paymentUrl: result.redirectUrl };
   }
 
   @Get('callback')
   async callback(
     @Param('slug') slug: string,
     @Param('orderId') orderId: string,
-    @Query('Authority') authority: string | undefined,
+    @Query('Authority') zarinpalAuthority: string | undefined,
     @Query('Status') status: string | undefined,
+    @Query('id_get') bitpayIdGet: string | undefined,
+    @Query('trans_id') bitpayTransId: string | undefined,
     @Res() res: Response,
   ) {
     const ctx = await this.resolveCtx(slug);
@@ -87,13 +92,16 @@ export class PublicBookStorePaymentController {
       );
     }
 
-    if (status !== 'OK' || !authority) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
+    // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
+    const authority = zarinpalAuthority ?? bitpayIdGet;
+    if (!authority || (status !== undefined && status !== 'OK')) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
     if (order.zarinpalAuthority && order.zarinpalAuthority !== authority) return fail('اطلاعات تراکنش معتبر نیست.');
 
-    const result = await this.zarinpal.verifyPayment({ amountToman: order.unitPrice, authority });
-    if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
+    const result = await this.gateway.verifyPayment({ ctx, authority, amount: order.unitPrice, transId: bitpayTransId });
+    if (!result?.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
-    await ctx.tenantDb.bookOrder.update({ where: { id: orderId }, data: { paymentRefId: result.refId } });
+    const refNumber = result.refId && /^\d+$/.test(result.refId) ? Number(result.refId) : null;
+    if (refNumber !== null) await ctx.tenantDb.bookOrder.update({ where: { id: orderId }, data: { paymentRefId: refNumber } });
     await this.bookStore.finalizeOrderPayment(ctx, orderId);
 
     return res.send(

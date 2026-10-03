@@ -5,7 +5,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { normalizePhone } from '../voip/phone-match.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { StaffAvailabilityService } from './staff-availability.service.js';
 import { BookingSlotsService } from './booking-slots.service.js';
 import { CrmOpportunityService } from '../crm/crm-opportunity.service.js';
@@ -53,7 +53,7 @@ export class AppointmentsService {
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly sms: TenantSmsService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly staffAvailability: StaffAvailabilityService,
     private readonly slots: BookingSlotsService,
     private readonly crmOpportunity: CrmOpportunityService,
@@ -591,8 +591,12 @@ export class AppointmentsService {
       throw new BadRequestException('این نوبت نیاز به پرداخت بیعانه ندارد یا قبلاً پرداخت شده است');
     }
 
-    const result = await this.zarinpal.requestPayment({
-      amountToman: appointment.depositAmount,
+    // درگاه همیشه درگاه اختصاصی خود تننت است؛ بدون تنظیم، هرگز به مرچنت پلتفرم برنمی‌گردیم.
+    if (!(await this.gateway.isConfigured(ctx))) return { error: 'درگاه پرداخت این کسب‌وکار هنوز تنظیم نشده است' } as const;
+
+    const result = await this.gateway.createPayment({
+      ctx,
+      amount: appointment.depositAmount,
       description: `${appointment.isFullPayment ? 'پرداخت' : 'بیعانه'} نوبت «${appointment.serviceType.name}» — ${appointment.customerName}`,
       callbackUrl,
       mobile: appointment.customerPhone ?? undefined,
@@ -600,10 +604,10 @@ export class AppointmentsService {
     if (!result) return null;
 
     await ctx.tenantDb.appointment.update({ where: { id }, data: { zarinpalAuthority: result.authority } });
-    return result;
+    return { paymentUrl: result.redirectUrl };
   }
 
-  async verifyDepositPayment(ctx: TenantRequestContext, id: string, authority: string) {
+  async verifyDepositPayment(ctx: TenantRequestContext, id: string, authority: string, transId?: string) {
     const appointment = await ctx.tenantDb.appointment.findUnique({ where: { id }, include: APPOINTMENT_INCLUDE });
     if (!appointment) throw new NotFoundException('نوبت یافت نشد');
     if (appointment.paymentStatus === 'PAID') return { success: true as const, appointment };
@@ -611,10 +615,11 @@ export class AppointmentsService {
       return { success: false as const };
     }
 
-    const verified = await this.zarinpal.verifyPayment({ amountToman: appointment.depositAmount, authority });
-    if (!verified.success) return { success: false as const };
+    const verified = await this.gateway.verifyPayment({ ctx, authority, amount: appointment.depositAmount, transId });
+    if (!verified?.success) return { success: false as const };
 
-    const updated = await this.settlePayment(ctx, id, 'ZARINPAL', verified.refId);
+    const refNumber = verified.refId && /^\d+$/.test(verified.refId) ? Number(verified.refId) : undefined;
+    const updated = await this.settlePayment(ctx, id, verified.provider, refNumber);
 
     return { success: true as const, appointment: updated };
   }

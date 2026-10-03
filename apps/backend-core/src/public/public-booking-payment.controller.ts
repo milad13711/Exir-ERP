@@ -75,6 +75,7 @@ export class PublicBookingPaymentController {
       `${apiUrl}/public/booking/${slug}/appointments/${id}/callback`,
     );
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
+    if ('error' in result) return { error: result.error };
     return { paymentUrl: result.paymentUrl };
   }
 
@@ -82,8 +83,10 @@ export class PublicBookingPaymentController {
   async callback(
     @Param('slug') slug: string,
     @Param('id') id: string,
-    @Query('Authority') authority: string | undefined,
+    @Query('Authority') zarinpalAuthority: string | undefined,
     @Query('Status') status: string | undefined,
+    @Query('id_get') bitpayIdGet: string | undefined,
+    @Query('trans_id') bitpayTransId: string | undefined,
     @Res() res: Response,
   ) {
     const ctx = await this.resolveCtx(slug);
@@ -92,9 +95,11 @@ export class PublicBookingPaymentController {
     const fail = (message: string) =>
       res.send(`${BRAND_PAGE_HEAD}<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>${message}</p>${BRAND_PAGE_TAIL}`);
 
-    if (status !== 'OK' || !authority) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
+    // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
+    const authority = zarinpalAuthority ?? bitpayIdGet;
+    if (!authority || (status !== undefined && status !== 'OK')) return fail('پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.');
 
-    const result = await this.appointments.verifyDepositPayment(ctx, id, authority);
+    const result = await this.appointments.verifyDepositPayment(ctx, id, authority, bitpayTransId);
     if (!result.success) return fail('تأیید تراکنش با درگاه پرداخت ناموفق بود.');
 
     // رسید و تأیید رزرو روی صفحه‌ی عمومی جزئیات جلسه نمایش داده می‌شود
@@ -137,6 +142,7 @@ export class PublicBookingAppointmentController {
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
     const result = await this.appointments.initiatePaymentByToken(ctx, token, `${apiUrl}/public/booking/${slug}`);
     if (!result) return { error: 'درگاه پرداخت در دسترس نیست، لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید' };
+    if ('error' in result) return { error: result.error };
     return { paymentUrl: result.paymentUrl };
   }
 }
