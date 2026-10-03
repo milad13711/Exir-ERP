@@ -50,6 +50,11 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclu
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/backend-core/docker-entrypoint.sh "${HOST}:${REMOTE_DIR}/apps/backend-core/docker-entrypoint.sh"
 rsync -az apps/backend-core/nest-cli.json "${HOST}:${REMOTE_DIR}/apps/backend-core/nest-cli.json"
+# Dockerfile changes (e.g. a new apk package like postgresql-client for pg_dump) must
+# reach the server too, or the build keeps using the OLD Dockerfile silently.
+for app in backend-core web-panel admin-panel; do
+  rsync -az "apps/${app}/Dockerfile" "${HOST}:${REMOTE_DIR}/apps/${app}/Dockerfile"
+done
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/backend-core/prisma/ "${HOST}:${REMOTE_DIR}/apps/backend-core/prisma/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
