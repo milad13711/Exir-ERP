@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { fetchAutoSalePriceEnabled, updateAutoSalePriceEnabled } from "@/lib/api";
+import { ApiError, fetchAutoSalePriceEnabled, updateAutoSalePriceEnabled } from "@/lib/api";
 
 export function SalesPricingSettingsModal({ onClose }: { onClose: () => void }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAutoSalePriceEnabled().then((r) => setEnabled(r.enabled));
@@ -14,9 +15,12 @@ export function SalesPricingSettingsModal({ onClose }: { onClose: () => void }) 
     if (enabled === null || saving) return;
     const next = !enabled;
     setSaving(true);
+    setError(null);
     try {
       await updateAutoSalePriceEnabled(next);
       setEnabled(next);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "خطایی رخ داد و تغییر ذخیره نشد");
     } finally {
       setSaving(false);
     }
@@ -51,6 +55,7 @@ export function SalesPricingSettingsModal({ onClose }: { onClose: () => void }) 
             : "قیمت فروش دیگر روی رسید بازمحاسبه نمی‌شود."}
         </div>
       </button>
+      {error ? <div className="text-[12px] text-danger mt-3">{error}</div> : null}
     </Modal>
   );
 }

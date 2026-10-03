@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 import { WarehouseModule } from '../warehouse/warehouse.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
+import { PaymentGatewayModule } from '../payment-gateway/payment-gateway.module.js';
 import { BillingModule } from '../billing/billing.module.js';
 import { WarrantyModule } from '../warranty/warranty.module.js';
 import { ReferralMarketingModule } from '../referral-marketing/referral-marketing.module.js';
@@ -25,7 +26,7 @@ import { RecurringInvoicesService } from './recurring-invoices.service.js';
 import { SalesAutomationTriggers } from './sales-automation.triggers.js';
 
 @Module({
-  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, WarrantyModule, ReferralMarketingModule, SettingsModule],
+  imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, PaymentGatewayModule, WarrantyModule, ReferralMarketingModule, SettingsModule],
   controllers: [
     InvoicesController,
     QuotationsController,

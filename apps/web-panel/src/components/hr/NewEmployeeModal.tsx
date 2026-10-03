@@ -175,38 +175,7 @@ export function NewEmployeeModal({
             </select>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={newDepartmentName}
-            onChange={(e) => setNewDepartmentName(e.target.value)}
-            placeholder="نام واحد سازمانی جدید"
-            className={`${inputClass} flex-1`}
-          />
-          <button
-            type="button"
-            onClick={handleAddDepartment}
-            disabled={addingDepartment || !newDepartmentName.trim()}
-            className="px-4 py-2.5 rounded-xl bg-slate-100 text-ink-soft text-[12.5px] font-bold whitespace-nowrap disabled:opacity-50"
-          >
-            + واحد جدید
-          </button>
-        </div>
-        <div>
-          <label className={labelClass}>مدیر بالادستی</label>
-          <select value={managerId} onChange={(e) => setManagerId(e.target.value)} className={`${inputClass} bg-slate-50`}>
-            <option value="">بدون مدیر بالادستی</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.fullName} — {emp.position}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className={labelClass}>شماره تماس</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} dir="ltr" />
-          </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>تاریخ استخدام</label>
             <JalaliDateInput value={hireDate} onChange={setHireDate} />
@@ -223,56 +192,93 @@ export function NewEmployeeModal({
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>کد ملی</label>
-            <input
-              value={nationalId}
-              onChange={(e) => setNationalId(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="۱۰ رقم"
-              className={inputClass}
-              dir="ltr"
-              inputMode="numeric"
-              maxLength={10}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>تاریخ تولد</label>
-            <JalaliDateInput value={birthDate} onChange={setBirthDate} placeholder="انتخاب تاریخ تولد" />
-          </div>
-        </div>
 
-        <div className="border border-border rounded-xl p-3.5">
-          <label className="flex items-center gap-2 text-[13px] font-semibold cursor-pointer">
-            <input type="checkbox" checked={grantSystemAccess} onChange={(e) => setGrantSystemAccess(e.target.checked)} />
-            دسترسی به سیستم برای این کارمند ایجاد شود
-          </label>
-          {grantSystemAccess ? (
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <p className="col-span-2 text-[11.5px] text-muted">
-                برای ورود به سیستم از همان «شماره تماس» بالا استفاده می‌شود.
-              </p>
-              <div className="col-span-2">
-                <label className={labelClass}>نقش</label>
-                <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={`${inputClass} bg-slate-50`}>
-                  <option value="">انتخاب کنید</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                  <option value={NEW_ROLE_VALUE}>+ نقش جدید</option>
-                </select>
+        <details className="text-[12.5px]">
+          <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر</summary>
+          <div className="flex flex-col gap-3.5 mt-3">
+            <div className="flex items-center gap-2">
+              <input
+                value={newDepartmentName}
+                onChange={(e) => setNewDepartmentName(e.target.value)}
+                placeholder="نام واحد سازمانی جدید"
+                className={`${inputClass} flex-1`}
+              />
+              <button
+                type="button"
+                onClick={handleAddDepartment}
+                disabled={addingDepartment || !newDepartmentName.trim()}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 text-ink-soft text-[12.5px] font-bold whitespace-nowrap disabled:opacity-50"
+              >
+                + واحد جدید
+              </button>
+            </div>
+            <div>
+              <label className={labelClass}>مدیر بالادستی</label>
+              <select value={managerId} onChange={(e) => setManagerId(e.target.value)} className={`${inputClass} bg-slate-50`}>
+                <option value="">بدون مدیر بالادستی</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.fullName} — {emp.position}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>شماره تماس</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} dir="ltr" />
               </div>
-              {roleId === NEW_ROLE_VALUE ? (
-                <div className="col-span-2">
-                  <label className={labelClass}>نام نقش جدید</label>
-                  <input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} className={inputClass} placeholder="مثلاً سرپرست انبار" />
+              <div>
+                <label className={labelClass}>کد ملی</label>
+                <input
+                  value={nationalId}
+                  onChange={(e) => setNationalId(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="۱۰ رقم"
+                  className={inputClass}
+                  dir="ltr"
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>تاریخ تولد</label>
+              <JalaliDateInput value={birthDate} onChange={setBirthDate} placeholder="انتخاب تاریخ تولد" />
+            </div>
+
+            <div className="border border-border rounded-xl p-3.5">
+              <label className="flex items-center gap-2 text-[13px] font-semibold cursor-pointer">
+                <input type="checkbox" checked={grantSystemAccess} onChange={(e) => setGrantSystemAccess(e.target.checked)} />
+                دسترسی به سیستم برای این کارمند ایجاد شود
+              </label>
+              {grantSystemAccess ? (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <p className="col-span-2 text-[11.5px] text-muted">
+                    برای ورود به سیستم از همان «شماره تماس» بالا استفاده می‌شود.
+                  </p>
+                  <div className="col-span-2">
+                    <label className={labelClass}>نقش</label>
+                    <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={`${inputClass} bg-slate-50`}>
+                      <option value="">انتخاب کنید</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                      <option value={NEW_ROLE_VALUE}>+ نقش جدید</option>
+                    </select>
+                  </div>
+                  {roleId === NEW_ROLE_VALUE ? (
+                    <div className="col-span-2">
+                      <label className={labelClass}>نام نقش جدید</label>
+                      <input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} className={inputClass} placeholder="مثلاً سرپرست انبار" />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
-          ) : null}
-        </div>
+          </div>
+        </details>
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button

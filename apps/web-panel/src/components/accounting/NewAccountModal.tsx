@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { createAccount, type Account, type AccountType } from "@/lib/api";
+import { createAccount, updateAccount, type Account, type AccountType } from "@/lib/api";
 import { ACCOUNT_TYPE_LABELS } from "./accounting-shared";
 
 const inputClass =
@@ -10,16 +10,27 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 export function NewAccountModal({
   onClose,
   onCreated,
+  account: editing,
+  onUpdated,
+  hasMovements,
 }: {
   onClose: () => void;
-  onCreated: (account: Account) => void;
+  onCreated?: (account: Account) => void;
+  /** ویرایش حساب موجود؛ اگر پر باشد، فرم به‌جای ایجاد، ویرایش می‌کند */
+  account?: Account;
+  onUpdated?: (account: Account) => void;
+  /** حساب دارای گردش: تغییر نوع حساب مجاز نیست (سرور هم رد می‌کند) */
+  hasMovements?: boolean;
 }) {
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>("EXPENSE");
-  const [isCashAccount, setIsCashAccount] = useState(false);
+  const [code, setCode] = useState(editing?.code ?? "");
+  const [name, setName] = useState(editing?.name ?? "");
+  const [type, setType] = useState<AccountType>(editing?.type ?? "EXPENSE");
+  const [isCashAccount, setIsCashAccount] = useState(editing?.isCashAccount ?? false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const codeLocked = Boolean(editing?.isSystem);
+  const typeLocked = Boolean(editing && (editing.isSystem || hasMovements));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,8 +38,18 @@ export function NewAccountModal({
     setSubmitting(true);
     setError(null);
     try {
-      const account = await createAccount({ code: code.trim(), name: name.trim(), type, isCashAccount });
-      onCreated({ ...account, balance: 0 });
+      if (editing) {
+        const account = await updateAccount(editing.id, {
+          ...(codeLocked ? {} : { code: code.trim() }),
+          name: name.trim(),
+          ...(typeLocked ? {} : { type }),
+          isCashAccount,
+        });
+        onUpdated?.({ ...account, balance: editing.balance });
+      } else {
+        const account = await createAccount({ code: code.trim(), name: name.trim(), type, isCashAccount });
+        onCreated?.({ ...account, balance: 0 });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطایی رخ داد");
@@ -38,7 +59,7 @@ export function NewAccountModal({
   }
 
   return (
-    <Modal title="حساب جدید" onClose={onClose}>
+    <Modal title={editing ? "ویرایش حساب" : "حساب جدید"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-1">
@@ -50,7 +71,9 @@ export function NewAccountModal({
               placeholder="6010"
               className={inputClass}
               dir="ltr"
+              disabled={codeLocked}
             />
+            {codeLocked ? <p className="text-[11px] text-muted mt-1">کد حساب‌های پیش‌فرض سیستم قابل تغییر نیست</p> : null}
           </div>
           <div className="col-span-2">
             <label className={labelClass}>نام حساب</label>
@@ -64,13 +87,14 @@ export function NewAccountModal({
         </div>
         <div>
           <label className={labelClass}>نوع حساب</label>
-          <select value={type} onChange={(e) => setType(e.target.value as AccountType)} className={inputClass}>
+          <select value={type} onChange={(e) => setType(e.target.value as AccountType)} className={inputClass} disabled={typeLocked}>
             {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((t) => (
               <option key={t} value={t}>
                 {ACCOUNT_TYPE_LABELS[t]}
               </option>
             ))}
           </select>
+          {typeLocked ? <p className="text-[11px] text-muted mt-1">نوع حسابی که گردش دارد (یا پیش‌فرض سیستم است) قابل تغییر نیست</p> : null}
         </div>
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer">
           <input
@@ -87,7 +111,7 @@ export function NewAccountModal({
           disabled={submitting || !code.trim() || !name.trim()}
           className="mt-1.5 w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "افزودن حساب"}
+          {submitting ? "در حال ثبت..." : editing ? "ذخیره تغییرات" : "افزودن حساب"}
         </button>
       </form>
     </Modal>

@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { TrashIcon, PlusIcon } from "@/components/icons";
+import { TrashIcon, PlusIcon, PencilIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import {
   fetchAccounts,
   fetchBudgets,
   fetchBudget,
   createBudget,
+  updateBudget,
   deleteBudget,
   type Account,
   type Budget,
@@ -23,6 +24,7 @@ export function BudgetsTab() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<BudgetDetail | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingDetail, setEditingDetail] = useState(false);
 
   const [name, setName] = useState("");
   const [periodStart, setPeriodStart] = useState("");
@@ -47,6 +49,14 @@ export function BudgetsTab() {
   function closeDetail() {
     setOpenId(null);
     setDetail(null);
+    setEditingDetail(false);
+  }
+
+  function resetDraft() {
+    setName("");
+    setPeriodStart("");
+    setPeriodEnd("");
+    setLines([{ accountId: "", amount: "" }]);
   }
 
   function updateLine(i: number, patch: Partial<DraftLine>) {
@@ -89,6 +99,123 @@ export function BudgetsTab() {
     }
   }
 
+  function openEditDetail() {
+    if (!detail) return;
+    setName(detail.name);
+    setPeriodStart(detail.periodStart.slice(0, 10));
+    setPeriodEnd(detail.periodEnd.slice(0, 10));
+    setLines(detail.lines.map((l) => ({ accountId: l.accountId, amount: String(l.amount) })));
+    setEditingDetail(true);
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!detail) return;
+    const validLines = lines.filter((l) => l.accountId && Number(l.amount) >= 0);
+    if (!name.trim() || !periodStart || !periodEnd || validLines.length === 0) return;
+    setSubmitting(true);
+    try {
+      await updateBudget(detail.id, {
+        name: name.trim(),
+        periodStart,
+        periodEnd,
+        lines: validLines.map((l) => ({ accountId: l.accountId, amount: Number(l.amount) || 0 })),
+      });
+      // پاسخ PUT شامل actual/variance محاسبه‌شده نیست (فقط GET جزئیات آن را حساب می‌کند) — برای همین دوباره واکشی می‌کنیم
+      const fresh = await fetchBudget(detail.id);
+      setDetail(fresh);
+      setEditingDetail(false);
+      reload();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (openId && detail && editingDetail) {
+    return (
+      <div className="mt-5 flex flex-col gap-4">
+        <button
+          onClick={() => setEditingDetail(false)}
+          className="text-[12px] font-bold text-primary cursor-pointer self-start"
+        >
+          ← انصراف از ویرایش
+        </button>
+        <Card className="p-4">
+          <form onSubmit={handleUpdate} className="flex flex-col gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11.5px] text-muted mb-1 block">نام بودجه</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full text-[12.5px] bg-slate-50 border border-border rounded-lg px-3 py-2 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[11.5px] text-muted mb-1 block">از تاریخ</label>
+                <JalaliDateInput value={periodStart} onChange={setPeriodStart} />
+              </div>
+              <div>
+                <label className="text-[11.5px] text-muted mb-1 block">تا تاریخ</label>
+                <JalaliDateInput value={periodEnd} onChange={setPeriodEnd} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {lines.map((l, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <select
+                    value={l.accountId}
+                    onChange={(e) => updateLine(i, { accountId: e.target.value })}
+                    className="flex-1 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  >
+                    <option value="">انتخاب حساب...</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.code})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={l.amount}
+                    onChange={(e) => updateLine(i, { amount: e.target.value.replace(/[^0-9]/g, "") })}
+                    placeholder="مبلغ بودجه (تومان)"
+                    dir="ltr"
+                    className="w-40 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                    disabled={lines.length === 1}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-danger hover:bg-danger-soft cursor-pointer disabled:opacity-30 shrink-0"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setLines((prev) => [...prev, { accountId: "", amount: "" }])}
+                className="flex items-center gap-1 text-[12px] font-bold text-primary cursor-pointer self-start"
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+                افزودن ردیف
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting || !name.trim() || !periodStart || !periodEnd}
+              className="py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold cursor-pointer disabled:opacity-50"
+            >
+              {submitting ? "در حال ذخیره..." : "ذخیره تغییرات"}
+            </button>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
   if (openId && detail) {
     const totalBudget = detail.lines.reduce((s, l) => s + l.amount, 0);
     const totalActual = detail.lines.reduce((s, l) => s + l.actual, 0);
@@ -98,18 +225,27 @@ export function BudgetsTab() {
           ← بازگشت به فهرست بودجه‌ها
         </button>
         <Card className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[14px] font-extrabold">{detail.name}</div>
               <div className="text-[12px] text-muted mt-1">
                 {formatJalaliDate(detail.periodStart)} تا {formatJalaliDate(detail.periodEnd)}
               </div>
             </div>
-            <div className="text-left">
-              <div className="text-[11px] text-muted">جمع بودجه / واقعی</div>
-              <div className="text-[13px] font-bold mt-0.5">
-                {formatToman(totalBudget)} / {formatToman(totalActual)}
+            <div className="flex items-center gap-3">
+              <div className="text-left">
+                <div className="text-[11px] text-muted">جمع بودجه / واقعی</div>
+                <div className="text-[13px] font-bold mt-0.5">
+                  {formatToman(totalBudget)} / {formatToman(totalActual)}
+                </div>
               </div>
+              <button
+                onClick={openEditDetail}
+                className="flex items-center gap-1.5 text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer shrink-0"
+              >
+                <PencilIcon className="w-3.5 h-3.5" />
+                ویرایش
+              </button>
             </div>
           </div>
         </Card>
@@ -150,7 +286,10 @@ export function BudgetsTab() {
     <div className="mt-5 flex flex-col gap-4">
       <div className="flex justify-end">
         <button
-          onClick={() => setCreating((v) => !v)}
+          onClick={() => {
+            if (!creating) resetDraft();
+            setCreating((v) => !v);
+          }}
           className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />

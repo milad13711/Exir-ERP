@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -9,6 +9,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { ensureDefaultChartOfAccounts } from './default-chart-of-accounts.js';
 import { ensureFixedAssetAccounts, computeDepreciation, FIXED_ASSET_ACCOUNT } from './fixed-assets.js';
 import { CreateFixedAssetDto } from './dto/create-fixed-asset.dto.js';
+import { UpdateFixedAssetDto } from './dto/update-fixed-asset.dto.js';
 import { DisposeFixedAssetDto } from './dto/dispose-fixed-asset.dto.js';
 
 @Controller('accounting/fixed-assets')
@@ -57,6 +58,34 @@ export class FixedAssetsController {
       },
     });
     return { ...asset, depreciation: computeDepreciation(asset) };
+  }
+
+  /**
+   * ویرایش جزئیات خرید — فقط تا قبل از اولین سند استهلاک مجاز است، چون بعد از
+   * آن تغییر بهای تمام‌شده/عمر مفید با استهلاکی که قبلاً سندش ثبت شده ناهم‌خوان می‌شود.
+   */
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateFixedAssetDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'accounting');
+    const asset = await ctx.tenantDb.fixedAsset.findUnique({ where: { id } });
+    if (!asset) throw new NotFoundException('دارایی ثابت یافت نشد');
+    if (asset.status === 'DISPOSED') throw new ConflictException('دارایی واگذارشده قابل ویرایش نیست');
+    if (asset.postedDepreciation > 0) {
+      throw new ConflictException('برای دارایی‌ای که سند استهلاک آن ثبت شده، جزئیات خرید قابل ویرایش نیست');
+    }
+    const updated = await ctx.tenantDb.fixedAsset.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.category !== undefined ? { category: dto.category } : {}),
+        ...(dto.purchaseDate ? { purchaseDate: new Date(dto.purchaseDate) } : {}),
+        ...(dto.purchaseCost !== undefined ? { purchaseCost: dto.purchaseCost } : {}),
+        ...(dto.salvageValue !== undefined ? { salvageValue: dto.salvageValue } : {}),
+        ...(dto.usefulLifeMonths !== undefined ? { usefulLifeMonths: dto.usefulLifeMonths } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      },
+    });
+    return { ...updated, depreciation: computeDepreciation(updated) };
   }
 
   /**

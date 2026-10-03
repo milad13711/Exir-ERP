@@ -1,6 +1,6 @@
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
-const METHODS = ['CASH', 'BANK_TRANSFER', 'CHECK', 'POS'] as const;
+const METHODS = ['CASH', 'BANK_TRANSFER', 'CHECK', 'POS', 'ONLINE_GATEWAY'] as const;
 
 export class RecordPurchasePaymentDto {
   @IsInt()

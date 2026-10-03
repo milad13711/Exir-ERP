@@ -131,4 +131,61 @@ export class PurchaseReturnsService {
     await ctx.tenantDb.purchaseReturn.update({ where: { id: ret.id }, data: { journalEntryId: entry.id } });
     return ret;
   }
+
+  /**
+   * حذف یک مرجوعی خرید. مرجوعی مثل سند ثبت‌شده‌ی مرجوعی فروش (نگاه کنید به
+   * SalesReturnsService.remove) وضعیت DRAFT ندارد — همان لحظه‌ی ثبت سند
+   * حسابداری و حواله‌ی انبار واقعی پست شده، پس حذف ساده‌ی ردیف نادرست است.
+   * به‌جای آن: یک سند حسابداری معکوس برای سند اصلی پست می‌شود (و سند اصلی
+   * voided می‌شود)، یک حواله‌ی انبار معکوس (RECEIPT) برای برگرداندن موجودی‌ای
+   * که مرجوعی کم کرده بود ثبت می‌شود، و در نهایت ردیف مرجوعی (و خطوطش با
+   * onDelete: Cascade) حذف می‌شود — تا سقف قابل‌مرجوع سفارش هم دوباره باز شود.
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const ret = await ctx.tenantDb.purchaseReturn.findUnique({ where: { id }, include: { lines: true, order: true } });
+    if (!ret) throw new NotFoundException('مرجوعی خرید یافت نشد');
+
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
+    const original = ret.journalEntryId
+      ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: ret.journalEntryId }, include: { lines: true } })
+      : null;
+
+    await ctx.tenantDb.$transaction([
+      ...(original
+        ? [
+            ctx.tenantDb.journalEntry.create({
+              data: {
+                date: new Date(),
+                description: `حذف مرجوعی خرید شماره ${ret.returnNo} برای سفارش ${ret.order.orderNo}`,
+                status: 'POSTED',
+                postedAt: new Date(),
+                reversalOfId: original.id,
+                createdByUserId: userId ?? undefined,
+                lines: { create: original.lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, description: l.description })) },
+              },
+            }),
+            ctx.tenantDb.journalEntry.update({ where: { id: original.id }, data: { voidedAt: new Date(), voidReason: 'حذف مرجوعی خرید' } }),
+          ]
+        : []),
+      ...ret.lines
+        .filter((l) => l.productId)
+        .map((l) =>
+          ctx.tenantDb.stockMovement.create({
+            data: {
+              productId: l.productId!,
+              warehouseId: warehouse.id,
+              type: 'RECEIPT',
+              quantityDelta: l.quantity,
+              unitCost: l.unitCost,
+              reference: `حذف مرجوعی خرید #${ret.returnNo}`,
+              createdByUserId: userId ?? undefined,
+            },
+          }),
+        ),
+      ctx.tenantDb.purchaseReturn.delete({ where: { id } }),
+    ]);
+    return { success: true };
+  }
 }

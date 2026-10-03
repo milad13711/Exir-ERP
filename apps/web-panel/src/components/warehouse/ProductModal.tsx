@@ -47,6 +47,7 @@ export function ProductModal({
   const [editProfitMarginPercent, setEditProfitMarginPercent] = useState("");
   const [editReorderPoint, setEditReorderPoint] = useState("");
   const [editCurrencyId, setEditCurrencyId] = useState("");
+  const [initialProfitMarginPercent, setInitialProfitMarginPercent] = useState("");
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -74,6 +75,7 @@ export function ProductModal({
     setEditCostPrice(product.currencyId ? (product.costPriceFx ?? "0") : String(product.costPrice));
     setEditSalePrice(product.currencyId ? (product.salePriceFx ?? "0") : String(product.salePrice));
     setEditProfitMarginPercent(product.profitMarginPercent ?? "");
+    setInitialProfitMarginPercent(product.profitMarginPercent ?? "");
     setEditReorderPoint(String(product.reorderPoint));
     setEditing(true);
   }
@@ -82,6 +84,13 @@ export function ProductModal({
     if (!editName.trim()) return;
     setSavingEdit(true);
     try {
+      // profitMarginPercent فقط وقتی به بک‌اند فرستاده می‌شود که کاربر واقعاً
+      // مقدارش را تغییر داده باشد — این فیلد برای بک‌اند یعنی «اعمال دوباره‌ی
+      // درصد سود» (بازگشت salePriceSource به AUTO). اگر همیشه فرستاده شود،
+      // هر ویرایش بی‌ربط (مثلاً فقط تغییر نام) قیمت فروش دستی (MANUAL) کاربر
+      // را بی‌صدا به AUTO برمی‌گرداند و بازمحاسبه می‌کند.
+      const marginChanged =
+        !editCurrencyId && Number(editProfitMarginPercent || 0) !== Number(initialProfitMarginPercent || 0);
       await updateProduct(productId, {
         name: editName.trim(),
         category: editCategory.trim() || undefined,
@@ -91,7 +100,7 @@ export function ProductModal({
         currencyId: editCurrencyId || "",
         costPriceFx: editCurrencyId ? Number(editCostPrice) || 0 : undefined,
         salePriceFx: editCurrencyId ? Number(editSalePrice) || 0 : undefined,
-        profitMarginPercent: !editCurrencyId && editProfitMarginPercent ? Number(editProfitMarginPercent) : undefined,
+        profitMarginPercent: marginChanged && editProfitMarginPercent ? Number(editProfitMarginPercent) : undefined,
       });
       setEditing(false);
       load();

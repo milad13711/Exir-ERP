@@ -341,11 +341,11 @@ function BackupExportCard() {
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleDownload() {
+  async function handleDownload(format: "sql" | "json") {
     setDownloading(true);
     setError(null);
     try {
-      await downloadBackupExport();
+      await downloadBackupExport(format);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
     } finally {
@@ -385,16 +385,23 @@ function BackupExportCard() {
     <Card className="p-6 mt-5">
       <h2 className="text-[15px] font-extrabold text-ink mb-1">پشتیبان‌گیری و خروجی داده</h2>
       <p className="text-[12.5px] text-muted mb-4">
-        یک فایل JSON شامل تمام داده‌های اصلی این محیط کاری (مخاطبین، فاکتورها، کالاها، اسناد حسابداری و...) دانلود
-        می‌شود. این فایل برای آرشیو یا انتقال داده است.
+        یک نسخه‌ی کامل SQL فشرده (.sql.gz) از تمام داده‌های این محیط کاری — همه‌ی ماژول‌ها — دانلود می‌شود. بکاپ
+        خودکار روزانه هم با همین قالب ذخیره می‌شود.
       </p>
       <div className="flex items-center gap-3 flex-wrap">
         <button
-          onClick={handleDownload}
+          onClick={() => handleDownload("sql")}
           disabled={downloading}
           className="px-5 py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {downloading ? "در حال آماده‌سازی..." : "دانلود پشتیبان کامل (JSON)"}
+          {downloading ? "در حال آماده‌سازی..." : "دانلود پشتیبان کامل (SQL)"}
+        </button>
+        <button
+          onClick={() => handleDownload("json")}
+          disabled={downloading}
+          className="px-4 py-2.5 rounded-xl bg-slate-100 text-ink-soft text-[12.5px] font-bold cursor-pointer disabled:opacity-50"
+        >
+          فایل JSON (قابل بازیابی از همین‌جا)
         </button>
         <button
           onClick={handlePickFile}
@@ -406,8 +413,8 @@ function BackupExportCard() {
         <input ref={fileInputRef} type="file" accept="application/json" onChange={handleFileSelected} className="hidden" />
       </div>
       <p className="text-[11.5px] text-muted mt-2">
-        بازیابی فقط روی یک محیط کاری کاملاً خالی (بدون هیچ مخاطب یا فاکتوری) مجاز است — برای بازگردانی بعد از از دست
-        رفتن داده، نه برای ادغام با داده‌ی فعلی.
+        «بازیابی از فایل پشتیبان» فقط فایل JSON را می‌پذیرد و فقط روی یک محیط کاری کاملاً خالی مجاز است. بازگردانیِ
+        فایل SQL توسط مدیر سرور انجام می‌شود: gunzip -c backup.sql.gz | psql ‹نام دیتابیس›
       </p>
       {error ? <div className="text-[12px] text-danger mt-2">{error}</div> : null}
       {importResult ? <div className="text-[12px] text-success mt-2">{importResult}</div> : null}

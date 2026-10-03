@@ -42,7 +42,19 @@ export function NewPurchaseOrderModal({
   const [supplierId, setSupplierId] = useState(editing?.supplier.id ?? "");
   const [newSupplierName, setNewSupplierName] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
-  const [lines, setLines] = useState<DraftLine[]>(editing ? editing.lines.map((l) => ({ productId: l.product?.id ?? "", description: l.description, quantity: String(l.quantity), unitCost: String(l.unitCost) })) : [emptyLine()]);
+  const [lines, setLines] = useState<DraftLine[]>(
+    editing
+      ? editing.lines.map((l) => ({
+          productId: l.product?.id ?? "",
+          description: l.description,
+          quantity: String(l.quantity),
+          unitCost: String(l.unitCost),
+          currencyId: l.currencyId ?? undefined,
+          unitCostFx: l.unitCostFx != null ? Number(l.unitCostFx) : undefined,
+          exchangeRateFx: l.exchangeRateFx != null ? Number(l.exchangeRateFx) : undefined,
+        }))
+      : [emptyLine()],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

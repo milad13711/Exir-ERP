@@ -20,16 +20,22 @@ import {
   updatePayrollSlip,
   issuePayrollSlip,
   payPayrollSlip,
+  deletePayrollSlip,
   openPayrollSlipPdf,
   fetchPayrollTaxSettings,
   updatePayrollTaxSettings,
   fetchOrgChart,
+  fetchDepartments,
+  updateDepartment,
+  deleteDepartment,
   type Employee,
   deleteLeaveRequest,
   type HrSummary,
   type LeaveRequest,
   type PayrollSlip,
   type OrgChartEntry,
+  type Department,
+  ApiError,
 } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import {
@@ -45,10 +51,12 @@ import { GrantAccessModal } from "@/components/hr/GrantAccessModal";
 import { useWorkspace } from "@/lib/workspace-context";
 import { EmployeeModal } from "@/components/hr/EmployeeModal";
 import { NewLeaveModal } from "@/components/hr/NewLeaveModal";
+import { NewDepartmentModal } from "@/components/hr/NewDepartmentModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
+import { TrashIcon } from "@/components/icons";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-type Tab = "employees" | "orgchart" | "attendance" | "leave" | "payroll";
+type Tab = "employees" | "orgchart" | "attendance" | "leave" | "payroll" | "departments";
 const TODAY = new Date().toISOString().slice(0, 10);
 
 export default function HrPage() {
@@ -63,6 +71,8 @@ export default function HrPage() {
   const [accessEmployee, setAccessEmployee] = useState<Employee | null>(null);
   const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
   const [newLeaveOpen, setNewLeaveOpen] = useState(false);
+  const [newDepartmentOpen, setNewDepartmentOpen] = useState(false);
+  const [departmentsReloadKey, setDepartmentsReloadKey] = useState(0);
 
   function reloadCore() {
     fetchEmployees().then(setEmployees).catch(() => setEmployees([]));
@@ -89,11 +99,17 @@ export default function HrPage() {
           <p className="text-[13.5px] text-muted mt-1">پرونده پرسنلی، حضور و غیاب، مرخصی و فیش حقوقی</p>
         </div>
         <button
-          onClick={() => (tab === "leave" ? setNewLeaveOpen(true) : setNewEmployeeOpen(true))}
+          onClick={() =>
+            tab === "leave"
+              ? setNewLeaveOpen(true)
+              : tab === "departments"
+                ? setNewDepartmentOpen(true)
+                : setNewEmployeeOpen(true)
+          }
           className="flex items-center gap-1.5 bg-primary text-white text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer shrink-0"
         >
           <PlusIcon className="w-4 h-4" />
-          {tab === "leave" ? "درخواست مرخصی" : "کارمند جدید"}
+          {tab === "leave" ? "درخواست مرخصی" : tab === "departments" ? "واحد جدید" : "کارمند جدید"}
         </button>
       </div>
 
@@ -117,6 +133,7 @@ export default function HrPage() {
         {(
           [
             ["employees", "پرسنل"],
+            ["departments", "واحدهای سازمانی"],
             ["orgchart", "نمودار سازمانی"],
             ["attendance", "حضور و غیاب"],
             ["leave", "مرخصی‌ها"],
@@ -213,6 +230,9 @@ export default function HrPage() {
         />
       ) : null}
 
+      {tab === "departments" ? (
+        <DepartmentsTab employees={employees ?? []} reloadKey={departmentsReloadKey} />
+      ) : null}
       {tab === "orgchart" ? <OrgChartTab onSelect={setOpenEmployeeId} /> : null}
       {tab === "attendance" ? <AttendanceTab /> : null}
       {tab === "leave" ? <LeaveTab /> : null}
@@ -245,6 +265,141 @@ export default function HrPage() {
           onCreated={() => reloadCore()}
         />
       ) : null}
+
+      {newDepartmentOpen ? (
+        <NewDepartmentModal
+          employees={employees ?? []}
+          onClose={() => setNewDepartmentOpen(false)}
+          onCreated={() => {
+            setNewDepartmentOpen(false);
+            setDepartmentsReloadKey((k) => k + 1);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DepartmentsTab({ employees, reloadKey }: { employees: Employee[]; reloadKey: number }) {
+  const [departments, setDepartments] = useState<Department[] | null>(null);
+
+  function reload() {
+    fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
+  }
+  useEffect(reload, [reloadKey]);
+
+  async function handleDelete(dept: Department) {
+    if (!window.confirm(`واحد «${dept.name}» حذف شود؟`)) return;
+    try {
+      await deleteDepartment(dept.id);
+      reload();
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : "حذف ناموفق بود");
+    }
+  }
+
+  return (
+    <Card className="mt-5 p-2">
+      {departments === null ? (
+        <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
+      ) : departments.length === 0 ? (
+        <div className="p-8 text-center text-muted text-sm">هنوز واحد سازمانی‌ای ثبت نشده است</div>
+      ) : (
+        departments.map((d, i) => (
+          <DepartmentRow
+            key={d.id}
+            department={d}
+            employees={employees}
+            isLast={i === departments.length - 1}
+            onChanged={reload}
+            onDelete={() => handleDelete(d)}
+          />
+        ))
+      )}
+    </Card>
+  );
+}
+
+function DepartmentRow({
+  department,
+  employees,
+  isLast,
+  onChanged,
+  onDelete,
+}: {
+  department: Department;
+  employees: Employee[];
+  isLast: boolean;
+  onChanged: () => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(department.name);
+  const [managerId, setManagerId] = useState(department.managerId ?? "");
+  const [savingName, setSavingName] = useState(false);
+
+  async function saveName() {
+    if (!name.trim() || name.trim() === department.name) {
+      setName(department.name);
+      return;
+    }
+    setSavingName(true);
+    try {
+      await updateDepartment(department.id, { name: name.trim() });
+      onChanged();
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : "ذخیره نام واحد ناموفق بود");
+      setName(department.name);
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function handleManagerChange(value: string) {
+    setManagerId(value);
+    try {
+      await updateDepartment(department.id, { managerId: value || null });
+      onChanged();
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : "ذخیره مدیر واحد ناموفق بود");
+    }
+  }
+
+  return (
+    <div
+      className={clsx("flex items-center gap-3 px-4 py-3.5 flex-wrap", !isLast && "border-b border-border")}
+    >
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={saveName}
+        disabled={savingName}
+        className="flex-1 min-w-[160px] text-[13px] font-bold bg-transparent outline-none border border-transparent hover:border-border focus:border-primary focus:bg-slate-50 rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
+      />
+      <Badge tone="neutral">{toPersianDigits(department._count.employees)} نفر</Badge>
+      <div className="flex items-center gap-2 shrink-0">
+        <label className="text-[11px] text-muted">مدیر واحد:</label>
+        <select
+          value={managerId}
+          onChange={(e) => handleManagerChange(e.target.value)}
+          className="text-[12px] bg-slate-50 border border-border rounded-lg px-2.5 py-1.5 outline-none min-w-[160px]"
+        >
+          <option value="">بدون مدیر</option>
+          {employees.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.fullName} — {e.position}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button
+        onClick={onDelete}
+        disabled={department._count.employees > 0}
+        title={department._count.employees > 0 ? "ابتدا کارمندان این واحد را منتقل کنید" : "حذف واحد"}
+        className="flex items-center gap-1 text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+      >
+        <TrashIcon className="w-3.5 h-3.5" />
+        حذف
+      </button>
     </div>
   );
 }
@@ -614,6 +769,17 @@ function PayrollRow({ slip, isLast, onChanged }: { slip: PayrollSlip; isLast: bo
       setBusy(false);
     }
   }
+  async function handleDelete() {
+    if (!window.confirm("این فیش پیش‌نویس حذف شود؟")) return;
+    setBusy(true);
+    try {
+      await deletePayrollSlip(slip.id);
+      onChanged();
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : "حذف ناموفق بود");
+      setBusy(false);
+    }
+  }
 
   return (
     <div className={clsx("flex items-center gap-3 px-4 py-3.5 flex-wrap", !isLast && "border-b border-border")}>
@@ -653,6 +819,15 @@ function PayrollRow({ slip, isLast, onChanged }: { slip: PayrollSlip; isLast: bo
           className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50 shrink-0"
         >
           صدور فیش
+        </button>
+      ) : null}
+      {slip.status === "DRAFT" ? (
+        <button
+          onClick={handleDelete}
+          disabled={busy}
+          className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          حذف
         </button>
       ) : slip.status === "ISSUED" ? (
         <button

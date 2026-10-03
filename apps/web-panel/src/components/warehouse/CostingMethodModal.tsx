@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { fetchCostingMethod, updateCostingMethod, type CostingMethod } from "@/lib/api";
+import { ApiError, fetchCostingMethod, updateCostingMethod, type CostingMethod } from "@/lib/api";
 
 const OPTIONS: Array<{ value: CostingMethod; label: string; description: string }> = [
   {
@@ -23,6 +23,7 @@ const OPTIONS: Array<{ value: CostingMethod; label: string; description: string 
 export function CostingMethodModal({ onClose }: { onClose: () => void }) {
   const [current, setCurrent] = useState<CostingMethod | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCostingMethod().then((r) => setCurrent(r.method));
@@ -31,9 +32,12 @@ export function CostingMethodModal({ onClose }: { onClose: () => void }) {
   async function handleSelect(method: CostingMethod) {
     if (method === current || saving) return;
     setSaving(true);
+    setError(null);
     try {
       await updateCostingMethod(method);
       setCurrent(method);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "خطایی رخ داد و تغییر ذخیره نشد");
     } finally {
       setSaving(false);
     }
@@ -64,6 +68,7 @@ export function CostingMethodModal({ onClose }: { onClose: () => void }) {
           </button>
         ))}
       </div>
+      {error ? <div className="text-[12px] text-danger mt-3">{error}</div> : null}
     </Modal>
   );
 }

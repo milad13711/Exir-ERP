@@ -1293,6 +1293,17 @@ export function createAccount(data: {
   return apiFetch<Account>("/accounting/accounts", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function updateAccount(
+  id: string,
+  data: Partial<{ code: string; name: string; type: AccountType; isCashAccount: boolean }>,
+) {
+  return apiFetch<Account>(`/accounting/accounts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteAccount(id: string) {
+  return apiFetch<{ success: boolean }>(`/accounting/accounts/${id}`, { method: "DELETE" });
+}
+
 export type LedgerRow = {
   id: string;
   entryNumber: number;
@@ -1495,6 +1506,21 @@ export function createFixedAsset(data: {
   notes?: string;
 }) {
   return apiFetch<FixedAsset>("/accounting/fixed-assets", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateFixedAsset(
+  id: string,
+  data: Partial<{
+    name: string;
+    category: string;
+    purchaseDate: string;
+    purchaseCost: number;
+    salvageValue: number;
+    usefulLifeMonths: number;
+    notes: string;
+  }>,
+) {
+  return apiFetch<FixedAsset>(`/accounting/fixed-assets/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function postFixedAssetDepreciation(id: string) {
@@ -2442,11 +2468,11 @@ export function updateEmployee(
     employeeCode: string;
     fullName: string;
     position: string;
-    departmentId: string;
-    nationalId: string;
-    birthDate: string;
-    phone: string;
-    email: string;
+    departmentId: string | null;
+    nationalId: string | null;
+    birthDate: string | null;
+    phone: string | null;
+    email: string | null;
     hireDate: string;
     baseSalary: number;
   }>,
@@ -2470,6 +2496,10 @@ export function addEmployeeDocument(
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export function deleteEmployeeDocument(employeeId: string, documentId: string) {
+  return apiFetch<{ success: boolean }>(`/hr/employees/${employeeId}/documents/${documentId}`, { method: "DELETE" });
 }
 
 // ── گواهی‌نامه‌ها (ماژول مستقل certificates) ────────────────────────────────
@@ -2726,6 +2756,11 @@ export function issuePayrollSlip(id: string) {
 
 export function payPayrollSlip(id: string) {
   return apiFetch<PayrollSlip>(`/hr/payroll/${id}/pay`, { method: "POST" });
+}
+
+/** فقط فیش پیش‌نویس قابل حذف است — برای وقتی که فیش اشتباه تولید شده. */
+export function deletePayrollSlip(id: string) {
+  return apiFetch<{ success: boolean }>(`/hr/payroll/${id}`, { method: "DELETE" });
 }
 
 export function openPayrollSlipPdf(id: string): Promise<void> {
@@ -3024,9 +3059,10 @@ export function setPaymentReminderDays(days: number) {
   });
 }
 
-export async function downloadBackupExport(): Promise<void> {
+/** format "sql" = پشتیبان کامل pg_dump فشرده (پیش‌فرض)؛ "json" = خروجی محدودِ قابل بازیابی از داخل برنامه. */
+export async function downloadBackupExport(format: "sql" | "json" = "sql"): Promise<void> {
   const token = getToken();
-  const res = await fetch(`${API_URL}/settings/backup/export`, {
+  const res = await fetch(`${API_URL}/settings/backup/export${format === "json" ? "?format=json" : ""}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new ApiError("دریافت فایل پشتیبان ناموفق بود", res.status);
@@ -3034,7 +3070,7 @@ export async function downloadBackupExport(): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `exir-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `exir-backup-${new Date().toISOString().slice(0, 10)}.${format === "json" ? "json" : "sql.gz"}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -3696,6 +3732,10 @@ export function createPurchaseReturn(data: {
   lines: Array<{ productId?: string; description: string; quantity: number; unitCost: number }>;
 }) {
   return apiFetch<PurchaseReturnDetail>("/purchasing/returns", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deletePurchaseReturn(id: string) {
+  return apiFetch<{ success: boolean }>(`/purchasing/returns/${id}`, { method: "DELETE" });
 }
 
 // ── چک‌ها: دریافتی و صادرشده، با یادآوری خودکار پیش از سررسید ──────────

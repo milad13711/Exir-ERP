@@ -250,7 +250,16 @@ export default function AccountingPage() {
         />
       ) : null}
 
-      {openAccountId ? <LedgerModal accountId={openAccountId} onClose={() => setOpenAccountId(null)} /> : null}
+      {openAccountId ? (
+        <LedgerModal
+          accountId={openAccountId}
+          onClose={() => setOpenAccountId(null)}
+          onUpdated={(updated) =>
+            setAccounts((prev) => (prev ?? []).map((a) => (a.id === updated.id ? { ...a, ...updated } : a)))
+          }
+          onDeleted={(id) => setAccounts((prev) => (prev ?? []).filter((a) => a.id !== id))}
+        />
+      ) : null}
     </div>
   );
 }

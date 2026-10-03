@@ -71,7 +71,7 @@ export class AuthService {
         LAB_REVIEW: 'کد ورود شما به پورتال آزمایشگاه جیره',
         RATION_RESULT: 'کد تأیید مشاهده‌ی نتیجه‌ی آزمایش جیره',
         STORE_ORDER: 'کد تأیید سفارش فروشگاه شما',
-        CONFIDENTIAL_ARCHIVE: 'کد ورود به بایگانی اسناد محرمانه',
+        CONFIDENTIAL_ARCHIVE: 'کد دسترسی به بایگانی',
       };
       const message = `${purposeText[purpose]} در اکسیر ERP: ${code}`;
       const result = await this.sms.sendSms(phone, message);

@@ -316,7 +316,7 @@ export class EmployeesController {
         position: dto.position,
         departmentId: dto.departmentId,
         nationalId: dto.nationalId,
-        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+        birthDate: dto.birthDate === null ? null : dto.birthDate ? new Date(dto.birthDate) : undefined,
         phone: dto.phone,
         email: dto.email,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
@@ -388,5 +388,14 @@ export class EmployeesController {
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
       },
     });
+  }
+
+  @Delete(':id/documents/:documentId')
+  async removeDocument(@Param('id') id: string, @Param('documentId') documentId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'hr');
+    const doc = await ctx.tenantDb.employeeDocument.findUnique({ where: { id: documentId } });
+    if (!doc || doc.employeeId !== id) throw new NotFoundException('مدرک یافت نشد');
+    await ctx.tenantDb.employeeDocument.delete({ where: { id: documentId } });
+    return { success: true };
   }
 }

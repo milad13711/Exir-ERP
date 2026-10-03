@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
@@ -38,10 +38,10 @@ function withoutKeys<T extends Record<string, unknown>>(rows: T[], keys: string[
 }
 
 /**
- * پشتیبان‌گیری کامل — همه‌ی داده‌های اصلی این محیط کاری را به‌صورت یک فایل
- * JSON دانلود می‌کند. این خروجی یک بکاپ خام در سطح اپلیکیشن است (نه یک
- * pg_dump واقعی)؛ برای بازیابی نیاز به اسکریپت وارد کردن دستی دارد، اما
- * برای آرشیو دوره‌ای یا انتقال داده کافی است.
+ * پشتیبان‌گیری کامل — پیش‌فرض یک فایل SQL فشرده (pg_dump واقعی، همه‌ی جدول‌ها
+ * و ماژول‌ها، بازیابی با psql). خروجی JSON (`?format=json`) فقط برای مسیر
+ * قدیمی «بازیابی از داخل برنامه» نگه داشته شده — پوشش آن محدود به جدول‌های
+ * اصلی است و برای آرشیو کامل توصیه نمی‌شود.
  */
 @Controller('settings/backup')
 @UseGuards(JwtAuthGuard)
@@ -51,12 +51,25 @@ export class BackupController {
   @Get('export')
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
-  async export(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    const payload = await this.backup.buildExportPayload(ctx.tenantDb, ctx.tenantId);
-    const fileName = `exir-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.send(stringifyWithBigInt(payload, 2));
+  async export(@Query('format') format: string | undefined, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    const day = new Date().toISOString().slice(0, 10);
+    if (format === 'json') {
+      const payload = await this.backup.buildExportPayload(ctx.tenantDb, ctx.tenantId);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="exir-backup-${day}.json"`);
+      res.send(stringifyWithBigInt(payload, 2));
+      return;
+    }
+
+    const conn = await this.backup.getTenantConnection(ctx.tenantId);
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="exir-backup-${day}.sql.gz"`);
+    try {
+      await this.backup.streamTenantDump(conn, res);
+    } catch (err) {
+      // هدرها قبلاً رفته‌اند؛ تنها راه اعلام شکست قطع کردن اتصال است تا کلاینت فایل ناقص را «موفق» ندانَد.
+      res.destroy(err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   /**

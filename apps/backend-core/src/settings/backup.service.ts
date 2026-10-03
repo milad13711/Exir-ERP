@@ -1,13 +1,41 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
+import { mkdir, readdir, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createGzip } from 'node:zlib';
+import { pipeline } from 'node:stream/promises';
+import type { Writable } from 'node:stream';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 
 const RETAIN_DAYS = 14;
+
+export type DumpConnection = { dbHost: string; dbPort: number; dbName: string };
+
+/**
+ * آرگومان‌ها و env اجرای pg_dump — رمز فقط از راه PGPASSWORD می‌رود (نه روی
+ * خط فرمان) تا در لیست پردازه‌ها دیده نشود. --clean --if-exists باعث می‌شود
+ * بازیابی با psql روی یک دیتابیس موجود هم بدون خطا انجام شود.
+ */
+export function buildPgDumpInvocation(conn: DumpConnection, env: NodeJS.ProcessEnv = process.env) {
+  const args = [
+    '--host', conn.dbHost,
+    '--port', String(conn.dbPort),
+    '--username', env.TENANT_DB_ADMIN_USER ?? 'postgres',
+    '--dbname', conn.dbName,
+    '--no-owner',
+    '--no-privileges',
+    '--clean',
+    '--if-exists',
+  ];
+  const childEnv: NodeJS.ProcessEnv = { ...env };
+  if (env.TENANT_DB_ADMIN_PASSWORD) childEnv.PGPASSWORD = env.TENANT_DB_ADMIN_PASSWORD;
+  return { args, env: childEnv };
+}
 
 /**
  * Off-site copy of the daily backup — every backup so far lived only on
@@ -57,6 +85,33 @@ export class BackupService {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
   ) {}
+
+  /**
+   * پشتیبان کامل و واقعی: pg_dump با خروجی SQL ساده که مستقیم در جریان gzip
+   * می‌شود. برخلاف خروجی JSON (که فقط ۲۸ جدول را پوشش می‌داد و همه‌چیز را
+   * در حافظه‌ی سرور نگه می‌داشت) این مسیر همه‌ی جدول‌های همه‌ی ماژول‌ها را
+   * شامل می‌شود، سریع‌تر است و حجم حافظه‌اش مستقل از اندازه‌ی داده است.
+   * بازیابی: gunzip -c backup.sql.gz | psql <db>
+   */
+  async streamTenantDump(conn: DumpConnection, out: Writable): Promise<void> {
+    const { args, env } = buildPgDumpInvocation(conn);
+    const child = spawn('pg_dump', args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      if (stderr.length < 4000) stderr += chunk.toString();
+    });
+    const exited = new Promise<void>((resolve, reject) => {
+      child.on('error', (err) => reject(new Error(`اجرای pg_dump ممکن نشد: ${err.message}`)));
+      child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`pg_dump با کد ${code} متوقف شد: ${stderr.trim()}`))));
+    });
+    // اگر pg_dump وسط کار شکست بخورد، pipeline هم باید شکست بخورد تا فایل ناقص «موفق» نشان داده نشود.
+    await Promise.all([pipeline(child.stdout, createGzip(), out), exited]);
+  }
+
+  async getTenantConnection(tenantId: string): Promise<DumpConnection> {
+    const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    return { dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName };
+  }
 
   async buildExportPayload(db: TenantPrismaClient, tenantId: string) {
     const [
@@ -169,28 +224,31 @@ export class BackupService {
   }
 
   private async backupOneTenant(
-    tenantId: string,
+    _tenantId: string,
     slug: string,
     dbHost: string,
     dbPort: number,
     dbName: string,
   ): Promise<void> {
-    const db = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
-    const payload = await this.buildExportPayload(db, tenantId);
-
     const tenantDir = join(this.backupDir, slug);
     await mkdir(tenantDir, { recursive: true });
-    const fileName = `${new Date().toISOString().slice(0, 10)}.json`;
-    const body = stringifyWithBigInt(payload);
-    await writeFile(join(tenantDir, fileName), body, 'utf-8');
+    const fileName = `${new Date().toISOString().slice(0, 10)}.sql.gz`;
+    const filePath = join(tenantDir, fileName);
+
+    try {
+      await this.streamTenantDump({ dbHost, dbPort, dbName }, createWriteStream(filePath));
+    } catch (err) {
+      await unlink(filePath).catch(() => {}); // فایل نیمه‌کاره نباید به‌عنوان بکاپ سالم بماند
+      throw err;
+    }
 
     await this.pruneOldBackups(tenantDir);
     this.logger.log(`Backup written for tenant "${slug}": ${fileName}`);
 
-    await this.uploadOffsite(slug, fileName, body);
+    await this.uploadOffsite(slug, fileName, await readFile(filePath));
   }
 
-  private async uploadOffsite(slug: string, fileName: string, body: string): Promise<void> {
+  private async uploadOffsite(slug: string, fileName: string, body: Buffer): Promise<void> {
     const s3 = getS3Client();
     if (!s3) return; // بدون تنظیم BACKUP_S3_* — این ماژول فعلاً غیرفعال است، نه خطا
 
@@ -200,7 +258,7 @@ export class BackupService {
           Bucket: s3.bucket,
           Key: `${slug}/${fileName}`,
           Body: body,
-          ContentType: 'application/json',
+          ContentType: 'application/gzip',
         }),
       );
       this.logger.log(`Backup uploaded off-site for tenant "${slug}": ${fileName}`);
@@ -214,7 +272,7 @@ export class BackupService {
     const cutoff = Date.now() - RETAIN_DAYS * 86_400_000;
     const files = await readdir(tenantDir);
     for (const file of files) {
-      const dateMatch = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(file);
+      const dateMatch = /^(\d{4}-\d{2}-\d{2})\.(json|sql\.gz)$/.exec(file);
       if (!dateMatch) continue;
       const fileDate = new Date(dateMatch[1]).getTime();
       if (fileDate < cutoff) {

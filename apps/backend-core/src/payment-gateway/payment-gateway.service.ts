@@ -43,6 +43,14 @@ export class PaymentGatewayService {
     private readonly bitpay: BitpayGatewayProvider,
   ) {}
 
+  /** آیا این تننت یک درگاه فعال با اعتبارنامه‌ی کامل دارد؟ (برای نمایش/مسدودکردن گزینه‌ی «پرداخت آنلاین» در ماژول‌ها) */
+  async isConfigured(ctx: TenantRequestContext): Promise<boolean> {
+    const s = await this.settings.get(ctx);
+    if (s.activeProvider === 'ZARINPAL') return !!s.zarinpal.merchantId;
+    if (s.activeProvider === 'BITPAY') return !!s.bitpay.apiKey;
+    return false;
+  }
+
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult | null> {
     const s = await this.settings.get(input.ctx);
     if (!s.activeProvider) return null;

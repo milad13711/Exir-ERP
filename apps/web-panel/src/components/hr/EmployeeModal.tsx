@@ -9,6 +9,7 @@ import {
   fetchEmployee,
   assignManager,
   addEmployeeDocument,
+  deleteEmployeeDocument,
   updateEmployee,
   terminateEmployee,
   reactivateEmployee,
@@ -76,6 +77,7 @@ export function EmployeeModal({
   const [editBirthDate, setEditBirthDate] = useState("");
   const [editBaseSalary, setEditBaseSalary] = useState("");
   const [editHireDate, setEditHireDate] = useState("");
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [kpiOpen, setKpiOpen] = useState(false);
@@ -98,7 +100,11 @@ export function EmployeeModal({
     });
   }
   function reloadCertificates() {
-    fetchCertificates({ employeeId }).then(setCertificates);
+    // ماژول گواهی‌نامه‌ها اختیاری است — اگر برای این محیط کاری فعال نباشد،
+    // این درخواست ۴۰۳ می‌گیرد؛ به‌جای خطای کنسول، فقط فهرست را خالی نشان بده.
+    fetchCertificates({ employeeId })
+      .then(setCertificates)
+      .catch(() => setCertificates([]));
   }
   function reloadActions() {
     fetchRewards(employeeId).then(setRewards);
@@ -128,6 +134,7 @@ export function EmployeeModal({
     setEditBirthDate(employee.birthDate ? employee.birthDate.slice(0, 10) : "");
     setEditBaseSalary(String(employee.baseSalary));
     setEditHireDate(employee.hireDate.slice(0, 10));
+    setEditDetailsOpen(Boolean(employee.phone || employee.email || employee.nationalId || employee.birthDate));
     setEditing(true);
   }
 
@@ -138,11 +145,12 @@ export function EmployeeModal({
       await updateEmployee(employeeId, {
         fullName: editFullName.trim(),
         position: editPosition.trim(),
-        departmentId: editDepartmentId || undefined,
-        phone: editPhone.trim() || undefined,
-        email: editEmail.trim() || undefined,
-        nationalId: editNationalId.trim() || undefined,
-        birthDate: editBirthDate || undefined,
+        // null = پاک‌کردن فیلد (undefined یعنی بدون تغییر)
+        departmentId: editDepartmentId || null,
+        phone: editPhone.trim() || null,
+        email: editEmail.trim() || null,
+        nationalId: editNationalId.trim() || null,
+        birthDate: editBirthDate || null,
         baseSalary: Number(editBaseSalary) || 0,
         hireDate: editHireDate,
       });
@@ -186,6 +194,12 @@ export function EmployeeModal({
     } finally {
       setSavingDoc(false);
     }
+  }
+
+  async function handleDeleteDocument(id: string) {
+    if (!window.confirm("این مدرک حذف شود؟")) return;
+    await deleteEmployeeDocument(employeeId, id);
+    reload();
   }
 
   async function handleDownloadCertificate(cert: Certificate, kind: "png" | "pdf") {
@@ -264,48 +278,16 @@ export function EmployeeModal({
                   ))}
                 </select>
               </div>
-              <div className="flex gap-2.5">
-                <input
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="شماره تماس"
-                  dir="ltr"
-                  className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
-                />
-                <input
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  placeholder="ایمیل"
-                  dir="ltr"
-                  className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
-                />
+              <div>
+                <label className="text-[11px] text-muted block mb-1">حقوق پایه</label>
                 <input
                   value={editBaseSalary}
                   onChange={(e) => setEditBaseSalary(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="حقوق پایه"
                   dir="ltr"
                   inputMode="numeric"
-                  className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
+                  className="w-full text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
                 />
-              </div>
-              <div className="flex gap-2.5">
-                <input
-                  value={editNationalId}
-                  onChange={(e) => setEditNationalId(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="کد ملی"
-                  dir="ltr"
-                  inputMode="numeric"
-                  maxLength={10}
-                  className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
-                />
-                <div className="flex-1">
-                  <JalaliDateInput
-                    value={editBirthDate}
-                    onChange={setEditBirthDate}
-                    placeholder="تاریخ تولد"
-                    className="text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2 w-full"
-                  />
-                </div>
               </div>
               <div>
                 <label className="text-[11px] text-muted block mb-1">تاریخ استخدام</label>
@@ -332,6 +314,46 @@ export function EmployeeModal({
                   {savingEdit ? "در حال ذخیره..." : "ذخیره"}
                 </button>
               </div>
+              <details className="text-[12.5px]" open={editDetailsOpen}>
+                <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر</summary>
+                <div className="flex flex-col gap-2.5 mt-2.5">
+                  <div className="flex gap-2.5">
+                    <input
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="شماره تماس"
+                      dir="ltr"
+                      className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
+                    />
+                    <input
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="ایمیل"
+                      dir="ltr"
+                      className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
+                    />
+                  </div>
+                  <div className="flex gap-2.5">
+                    <input
+                      value={editNationalId}
+                      onChange={(e) => setEditNationalId(e.target.value.replace(/[^0-9]/g, ""))}
+                      placeholder="کد ملی"
+                      dir="ltr"
+                      inputMode="numeric"
+                      maxLength={10}
+                      className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
+                    />
+                    <div className="flex-1">
+                      <JalaliDateInput
+                        value={editBirthDate}
+                        onChange={setEditBirthDate}
+                        placeholder="تاریخ تولد"
+                        className="text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2 w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
           ) : (
             <div className="flex items-start justify-between gap-3">
@@ -536,21 +558,25 @@ export function EmployeeModal({
             ) : (
               <div className="flex flex-col gap-1.5 mb-3">
                 {employee.documents.map((d) => (
-                  <a
+                  <div
                     key={d.id}
-                    href={d.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 hover:bg-slate-100 transition-colors"
+                    className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
-                    <div>
+                    <a href={d.fileUrl} target="_blank" rel="noreferrer" className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
                       <div className="text-[12.5px] font-bold">{d.title}</div>
                       <div className="text-[11px] text-muted mt-0.5">
                         {DOC_TYPE_LABELS[d.type]} · {formatJalaliDate(d.uploadedAt)}
                         {d.expiresAt ? ` · انقضا: ${formatJalaliDate(d.expiresAt)}` : ""}
                       </div>
-                    </div>
-                  </a>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDocument(d.id)}
+                      className="text-[11px] font-bold text-danger bg-danger-soft px-2.5 py-1 rounded-lg cursor-pointer shrink-0"
+                    >
+                      حذف
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

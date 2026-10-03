@@ -1,6 +1,6 @@
 import { NewPurchaseOrderModal } from "./NewPurchaseOrderModal";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
-import { cancelPurchaseOrder, deletePurchaseOrder } from "@/lib/api";
+import { cancelPurchaseOrder, deletePurchaseOrder, deletePurchaseReturn } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -8,6 +8,7 @@ import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import {
   fetchPurchaseOrder,
+  fetchPurchaseReturns,
   receivePurchaseOrder,
   approvePurchaseOrder,
   rejectPurchaseOrder,
@@ -16,6 +17,7 @@ import {
   type PurchaseOrderDetail,
   type PurchaseOrderStatus,
   type SalesPaymentMethod,
+  type PurchaseReturn,
 } from "@/lib/api";
 import { NewPurchaseReturnModal } from "./NewPurchaseReturnModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
@@ -63,12 +65,16 @@ export function PurchaseOrderDetailModal({
   const [checkSayadId, setCheckSayadId] = useState("");
   const [checkDueDate, setCheckDueDate] = useState("");
   const [checkBankName, setCheckBankName] = useState("");
+  const [orderReturns, setOrderReturns] = useState<PurchaseReturn[]>([]);
 
   function reload() {
     fetchPurchaseOrder(orderId).then((o) => {
       setOrder(o);
       setPayAmount(String(o.total - o.paidAmount));
     });
+    fetchPurchaseReturns()
+      .then((rs) => setOrderReturns(rs.filter((r) => r.order.id === orderId)))
+      .catch(() => setOrderReturns([]));
   }
   useEffect(reload, [orderId]);
 
@@ -217,6 +223,38 @@ export function PurchaseOrderDetailModal({
                       {METHOD_LABELS[p.method]} · {formatJalaliDate(p.paidAt)}
                     </span>
                     <span className="font-bold">{formatToman(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {orderReturns.length > 0 ? (
+            <div>
+              <div className="text-[12px] text-muted mb-2">مرجوعی‌های این سفارش</div>
+              <div className="flex flex-col gap-2">
+                {orderReturns.map((r) => (
+                  <div key={r.id} className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                    <div className="text-[12px]">
+                      <div className="font-bold">
+                        مرجوعی #{r.returnNo} — {formatToman(r.total)}
+                      </div>
+                      <div className="text-muted mt-0.5">
+                        {formatJalaliDate(r.createdAt)}
+                        {r.reason ? ` · ${r.reason}` : ""}
+                      </div>
+                    </div>
+                    <div className="[&>div]:mt-0! [&>div]:pt-0! [&>div]:border-t-0!">
+                      <DeleteRecordButton
+                        label="حذف مرجوعی"
+                        confirmText="این مرجوعی حذف شود؟ سند حسابداری و موجودی انبار با سند معکوس برگردانده می‌شود."
+                        onDelete={() => deletePurchaseReturn(r.id)}
+                        onDeleted={() => {
+                          reload();
+                          onChanged();
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

@@ -12,7 +12,7 @@ import { CreditScoreService } from '../crm/credit-score.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { WarrantyService } from '../warranty/warranty.service.js';
 import { ReferralCommissionService } from '../referral-marketing/referral-commission.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
@@ -115,7 +115,7 @@ export class InvoicesService {
     private readonly costing: CostingService,
     private readonly automation: AutomationEngineService,
     private readonly funnel: FunnelService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly warranty: WarrantyService,
     private readonly controlDb: ControlPrismaService,
     private readonly referralCommission: ReferralCommissionService,
@@ -220,6 +220,9 @@ export class InvoicesService {
     const taxAmount = isOfficial && dto.taxRate ? Math.round(((subtotal - discount) * dto.taxRate) / 100) : 0;
 
     const paymentMethod = dto.paymentMethod ?? 'CASH';
+    if (paymentMethod === 'ONLINE_GATEWAY' && !(await this.gateway.isConfigured(ctx))) {
+      throw new BadRequestException('برای پرداخت آنلاین ابتدا درگاه پرداخت را در تنظیمات ← درگاه پرداخت وصل و فعال کنید');
+    }
     if (paymentMethod === 'BANK_TRANSFER' && !dto.paymentBankInfo?.trim()) {
       throw new BadRequestException('برای روش پرداخت بانکی، شماره کارت/حساب برای نمایش به مشتری الزامی است');
     }
@@ -681,11 +684,7 @@ export class InvoicesService {
    * صادرکننده در لحظه‌ی صدور خودش «پرداخت آنلاین» را به‌عنوان روش پرداخت انتخاب کرده
    * (paymentMethod === 'ONLINE_GATEWAY')، نه هر فاکتور تأییدشده‌ای.
    *
-   * TODO(payment-gateway): این متد مستقیماً به ZarinpalService (../billing/zarinpal.service.js)
-   * وصل است. یک ماژول عمومی‌تر «Payment Gateway» (apps/backend-core/src/payment-gateway/) با
-   * PaymentGatewayService.createPayment/verifyPayment دارد ساخته می‌شود تا چند درگاه را پشت یک
-   * اینترفیس یکسان بیاورد — وقتی آن ماژول آماده شد، این دو متد باید به همان سرویس منتقل شوند؛
-   * فعلاً برای این‌که ماژول سفارش نصب‌نشده باعث کرش هنگام بوت نشود، اصلاً به آن وابسته نیستیم.
+   * درگاه همیشه درگاهِ اختصاصی خود تننت است (ماژول «درگاه پرداخت»)، نه مرچنت پلتفرم اکسیر.
    */
   async initiateGatewayPayment(ctx: TenantRequestContext, id: string, callbackUrl: string): Promise<{ paymentUrl: string } | null> {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
@@ -699,32 +698,35 @@ export class InvoicesService {
     const remaining = invoice.total - invoice.paidAmount;
     if (remaining <= 0) throw new BadRequestException('این فاکتور قبلاً تسویه شده است');
 
-    const result = await this.zarinpal.requestPayment({
-      amountToman: remaining,
+    const result = await this.gateway.createPayment({
+      ctx,
+      amount: remaining,
       description: `فاکتور فروش شماره ${invoice.invoiceNo}`,
       callbackUrl,
     });
     if (!result) return null;
     await ctx.tenantDb.salesInvoice.update({ where: { id }, data: { zarinpalAuthority: result.authority } });
-    return { paymentUrl: result.paymentUrl };
+    return { paymentUrl: result.redirectUrl };
   }
 
   /** بازگشت از درگاه — تأیید تراکنش و ثبت پرداخت از همان مسیر دستی recordPayment (سند حسابداری و رهگیری قیف یکسان می‌ماند). */
-  async verifyGatewayPayment(ctx: TenantRequestContext, id: string, authority: string): Promise<{ success: boolean }> {
+  async verifyGatewayPayment(ctx: TenantRequestContext, id: string, authority: string, transId?: string): Promise<{ success: boolean }> {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status === 'PAID') return { success: true }; // قبلاً تسویه شده — idempotent
     if (!invoice.zarinpalAuthority || invoice.zarinpalAuthority !== authority) return { success: false };
 
     const remaining = invoice.total - invoice.paidAmount;
-    const result = await this.zarinpal.verifyPayment({ amountToman: remaining, authority });
-    if (!result.success) return { success: false };
+    const result = await this.gateway.verifyPayment({ ctx, authority, amount: remaining, transId });
+    if (!result?.success) return { success: false };
 
-    await ctx.tenantDb.salesInvoice.update({ where: { id }, data: { paymentRefId: result.refId } });
+    const refNumber = result.refId && /^\d+$/.test(result.refId) ? Number(result.refId) : null;
+    if (refNumber !== null) await ctx.tenantDb.salesInvoice.update({ where: { id }, data: { paymentRefId: refNumber } });
+    const gatewayName = result.provider === 'BITPAY' ? 'بیت‌پی' : 'زرین‌پال';
     await this.recordPayment(ctx, id, {
       amount: remaining,
       method: 'ONLINE_GATEWAY',
-      note: result.refId ? `کد پیگیری زرین‌پال: ${result.refId}` : undefined,
+      note: result.refId ? `کد پیگیری ${gatewayName}: ${result.refId}` : undefined,
     });
     return { success: true };
   }
@@ -744,6 +746,9 @@ export class InvoicesService {
     const taxAmount = invoice.isOfficial && taxRate ? Math.round(((subtotal - discount) * taxRate) / 100) : 0;
 
     const paymentMethod = dto.paymentMethod ?? invoice.paymentMethod;
+    if (paymentMethod === 'ONLINE_GATEWAY' && !(await this.gateway.isConfigured(ctx))) {
+      throw new BadRequestException('برای پرداخت آنلاین ابتدا درگاه پرداخت را در تنظیمات ← درگاه پرداخت وصل و فعال کنید');
+    }
     if (paymentMethod === 'BANK_TRANSFER' && !(dto.paymentBankInfo?.trim() ?? invoice.paymentBankInfo)) {
       throw new BadRequestException('برای روش پرداخت بانکی، شماره کارت/حساب برای نمایش به مشتری الزامی است');
     }

@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Get, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -9,6 +9,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateAccountDto } from './dto/create-account.dto.js';
+import { UpdateAccountDto } from './dto/update-account.dto.js';
 import { ensureDefaultChartOfAccounts } from './default-chart-of-accounts.js';
 import { accountBalance } from './balance.js';
 
@@ -61,6 +62,53 @@ export class AccountsController {
         isCashAccount: dto.isCashAccount ?? false,
       },
     });
+  }
+
+  /** ویرایش کدینگ حساب — تغییر کد حساب‌های پیش‌فرض سیستم مجاز نیست چون ماژول‌های دیگر (مثل دارایی ثابت) با کد به آن‌ها ارجاع می‌دهند. */
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateAccountDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'accounting');
+    const account = await ctx.tenantDb.account.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('حساب یافت نشد');
+    if (dto.code && dto.code !== account.code) {
+      if (account.isSystem) throw new ConflictException('کد حساب‌های پیش‌فرض سیستم قابل تغییر نیست');
+      const existing = await ctx.tenantDb.account.findUnique({ where: { code: dto.code } });
+      if (existing) throw new ConflictException('حسابی با این کد از قبل وجود دارد');
+    }
+    if (dto.type && dto.type !== account.type) {
+      if (account.isSystem) throw new ConflictException('نوع حساب‌های پیش‌فرض سیستم قابل تغییر نیست');
+      // تغییر نوع حسابِ دارای گردش، ماهیت مانده و گزارش‌های مالی (ترازنامه/سود و زیان) قبلی را بی‌صدا عوض می‌کند
+      const lineCount = await ctx.tenantDb.journalLine.count({ where: { accountId: id } });
+      if (lineCount > 0) throw new ConflictException('این حساب در اسناد حسابداری گردش دارد و نوع آن قابل تغییر نیست');
+    }
+    return ctx.tenantDb.account.update({
+      where: { id },
+      data: {
+        ...(dto.code ? { code: dto.code } : {}),
+        ...(dto.name ? { name: dto.name } : {}),
+        ...(dto.type ? { type: dto.type } : {}),
+        ...(dto.isCashAccount !== undefined ? { isCashAccount: dto.isCashAccount } : {}),
+      },
+    });
+  }
+
+  /** حذف فقط وقتی مجاز است که حساب پیش‌فرض سیستم نباشد و هیچ سند/بودجه/ردیف مغایرت‌گیری‌ای به آن وصل نباشد. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'accounting');
+    const account = await ctx.tenantDb.account.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('حساب یافت نشد');
+    if (account.isSystem) throw new ConflictException('حساب‌های پیش‌فرض سیستم حذف نمی‌شوند');
+    const [lineCount, budgetLineCount, statementLineCount] = await Promise.all([
+      ctx.tenantDb.journalLine.count({ where: { accountId: id } }),
+      ctx.tenantDb.budgetLine.count({ where: { accountId: id } }),
+      ctx.tenantDb.bankStatementLine.count({ where: { accountId: id } }),
+    ]);
+    if (lineCount > 0 || budgetLineCount > 0 || statementLineCount > 0) {
+      throw new ConflictException('این حساب در سند، بودجه یا مغایرت‌گیری استفاده شده و حذف نمی‌شود');
+    }
+    await ctx.tenantDb.account.delete({ where: { id } });
+    return { success: true };
   }
 
   @Get('export')

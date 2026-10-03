@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -103,6 +103,17 @@ export class PayrollController {
       data: { allowances: dto.allowances, deductions: dto.deductions, insuranceAmount, taxAmount },
       include: { employee: employeeSelect },
     });
+  }
+
+  /** حذف فیش اشتباه — فقط پیش‌نویس؛ فیش صادرشده یا پرداخت‌شده سابقه‌ی مالی است و حذف نمی‌شود. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'hr');
+    const slip = await ctx.tenantDb.payrollSlip.findUnique({ where: { id } });
+    if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
+    if (slip.status !== 'DRAFT') throw new BadRequestException('فقط فیش پیش‌نویس قابل حذف است');
+    await ctx.tenantDb.payrollSlip.delete({ where: { id } });
+    return { success: true };
   }
 
   @Post(':id/issue')

@@ -2,12 +2,27 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import { fetchAccountLedger, type Account, type LedgerRow } from "@/lib/api";
+import { fetchAccountLedger, deleteAccount, ApiError, type Account, type LedgerRow } from "@/lib/api";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_TONES } from "./accounting-shared";
+import { NewAccountModal } from "./NewAccountModal";
+import { PencilIcon, TrashIcon } from "@/components/icons";
 
-export function LedgerModal({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+export function LedgerModal({
+  accountId,
+  onClose,
+  onUpdated,
+  onDeleted,
+}: {
+  accountId: string;
+  onClose: () => void;
+  onUpdated?: (account: Account) => void;
+  onDeleted?: (accountId: string) => void;
+}) {
   const [account, setAccount] = useState<Account | null>(null);
   const [rows, setRows] = useState<LedgerRow[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAccountLedger(accountId).then((data) => {
@@ -15,6 +30,22 @@ export function LedgerModal({ accountId, onClose }: { accountId: string; onClose
       setRows(data.rows);
     });
   }, [accountId]);
+
+  async function handleDelete() {
+    if (!account) return;
+    if (!window.confirm(`حساب «${account.name}» حذف شود؟`)) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount(account.id);
+      onDeleted?.(account.id);
+      onClose();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "حذف ناموفق بود");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <Modal title="دفتر حساب" onClose={onClose} width="max-w-[620px]">
@@ -35,6 +66,27 @@ export function LedgerModal({ accountId, onClose }: { accountId: string; onClose
               <div className="text-[11px] text-muted">مانده فعلی</div>
               <div className="text-lg font-extrabold text-primary">{formatToman(account.balance)}</div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-1.5 text-[12px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
+            >
+              <PencilIcon className="w-3.5 h-3.5" />
+              ویرایش
+            </button>
+            {!account.isSystem ? (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 text-[12px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+                {deleting ? "در حال حذف..." : "حذف"}
+              </button>
+            ) : null}
+            {deleteError ? <span className="text-[11.5px] text-danger font-semibold">{deleteError}</span> : null}
           </div>
 
           {rows.length === 0 ? (
@@ -71,6 +123,17 @@ export function LedgerModal({ accountId, onClose }: { accountId: string; onClose
           )}
         </div>
       )}
+      {editing && account ? (
+        <NewAccountModal
+          account={account}
+          hasMovements={(rows?.length ?? 0) > 0}
+          onClose={() => setEditing(false)}
+          onUpdated={(updated) => {
+            setAccount(updated);
+            onUpdated?.(updated);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

@@ -38,13 +38,22 @@ export function NewProductModal({
     setSubmitting(true);
     setError(null);
     try {
+      // وقتی درصد سود پر شده، قیمت فروش نمایشی در فرم از روی فرمول محاسبه و
+      // نمایش داده می‌شود، ولی فیلد salePrice دست‌نخورده (خالی) می‌ماند. اگر
+      // همان مقدار محاسبه‌شده اینجا هم فرستاده نشود، وقتی تنظیم سراسری
+      // «محاسبه خودکار قیمت فروش» غیرفعال است، بک‌اند آن را نادیده می‌گیرد و
+      // کالا با قیمت فروش صفر ساخته می‌شود — پس همیشه مقدار مؤثر را می‌فرستیم.
+      const effectiveSalePrice =
+        !currencyId && profitMarginPercent && costPrice
+          ? String(Math.round(Number(costPrice) * (1 + Number(profitMarginPercent) / 100)))
+          : salePrice;
       const product = await createProduct({
         sku: sku.trim(),
         name: name.trim(),
         unit: unit.trim() || undefined,
         category: category.trim() || undefined,
         costPrice: !currencyId && costPrice ? Number(costPrice) : undefined,
-        salePrice: !currencyId && salePrice ? Number(salePrice) : undefined,
+        salePrice: !currencyId && effectiveSalePrice ? Number(effectiveSalePrice) : undefined,
         reorderPoint: reorderPoint ? Number(reorderPoint) : undefined,
         currencyId: currencyId || undefined,
         costPriceFx: currencyId && costPrice ? Number(costPrice) : undefined,

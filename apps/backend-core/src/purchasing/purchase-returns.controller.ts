@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -33,5 +33,11 @@ export class PurchaseReturnsController {
   async create(@Body() dto: CreatePurchaseReturnDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'purchasing');
     return this.returns.create(ctx, dto);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'purchasing');
+    return this.returns.remove(ctx, id);
   }
 }

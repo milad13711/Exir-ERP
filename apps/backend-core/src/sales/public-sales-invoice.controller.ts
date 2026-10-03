@@ -2,7 +2,7 @@ import { Controller, Get, NotFoundException, Param, Post, Query, Res } from '@ne
 import type { Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import { ZarinpalService } from '../billing/zarinpal.service.js';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { InvoicesService, buildPaymentInstructionLine } from './invoices.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
@@ -34,7 +34,7 @@ export class PublicSalesInvoiceController {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly zarinpal: ZarinpalService,
+    private readonly gateway: PaymentGatewayService,
     private readonly invoices: InvoicesService,
   ) {}
 
@@ -86,7 +86,7 @@ export class PublicSalesInvoiceController {
         invoice.paymentMethod === 'ONLINE_GATEWAY' &&
         (invoice.status === 'CONFIRMED' || invoice.status === 'PARTIALLY_PAID') &&
         invoice.paidAmount < invoice.total,
-      gatewayAvailable: this.zarinpal.isConfigured,
+      gatewayAvailable: await this.gateway.isConfigured(ctx),
     };
   }
 
@@ -110,10 +110,14 @@ export class PublicSalesInvoiceController {
   async callback(
     @Param('slug') slug: string,
     @Param('token') token: string,
-    @Query('Authority') authority: string | undefined,
+    @Query('Authority') zarinpalAuthority: string | undefined,
     @Query('Status') status: string | undefined,
+    @Query('id_get') bitpayIdGet: string | undefined,
+    @Query('trans_id') bitpayTransId: string | undefined,
     @Res() res: Response,
   ) {
+    // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
+    const authority = zarinpalAuthority ?? bitpayIdGet;
     const ctx = await this.resolveCtx(slug);
     const webUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
     const backLink = webUrl ? `<a class="btn" href="${webUrl}/invoice/${publicRef(slug)}/${token}">بازگشت به فاکتور</a>` : '';
@@ -124,11 +128,11 @@ export class PublicSalesInvoiceController {
       return res.send(`${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>فاکتور تسویه شده است.</p>${backLink}${BRAND_PAGE_TAIL}`);
     }
 
-    if (status !== 'OK' || !authority) {
+    if (!authority || (status !== undefined && status !== 'OK')) {
       return res.send(`${BRAND_PAGE_HEAD}<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>پرداخت توسط شما لغو شد یا تراکنش نامعتبر بود.</p>${backLink}${BRAND_PAGE_TAIL}`);
     }
 
-    const result = await this.invoices.verifyGatewayPayment(ctx, invoice.id, authority);
+    const result = await this.invoices.verifyGatewayPayment(ctx, invoice.id, authority, bitpayTransId);
     if (!result.success) {
       return res.send(`${BRAND_PAGE_HEAD}<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>تأیید تراکنش با درگاه پرداخت ناموفق بود.</p>${backLink}${BRAND_PAGE_TAIL}`);
     }
