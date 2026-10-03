@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import Link from "next/link";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { TicketIcon, PlusIcon, SearchIcon, CalendarIcon, BellIcon } from "@/components/icons";
+import { TicketIcon, PlusIcon, CalendarIcon, BellIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { fetchEvents, fetchEventsSmsSettings, updateEventsSmsSettings, type EventItem, type EventStatus, type EventsSmsSettings } from "@/lib/api";
 import { NewEventModal } from "@/components/events/NewEventModal";
@@ -26,19 +29,35 @@ export default function EventsPage() {
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
-  function reload() {
-    fetchEvents().then(setEvents).catch(() => setEvents([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchEvents({ q: debouncedSearch.trim() || undefined })
+      .then((r) => {
+        if (isCurrent()) setEvents(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setEvents((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
-  useEffect(reload, []);
+  const reload = loadList;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
 
   const filtered = useMemo(() => {
     if (!events) return [];
     return events.filter((e) => {
       const matchesStatus = statusFilter === "همه" || e.status === statusFilter;
-      const matchesSearch = !search.trim() || e.title.includes(search);
-      return matchesStatus && matchesSearch;
+      return matchesStatus;
     });
-  }, [events, search, statusFilter]);
+  }, [events, statusFilter]);
 
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
@@ -79,15 +98,7 @@ export default function EventsPage() {
       ) : null}
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
-        <div className="relative max-w-[300px] flex-1 min-w-[220px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی عنوان رویداد..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[300px] flex-1 min-w-[220px]" value={search} onChange={setSearch} placeholder="جستجوی عنوان رویداد..." loading={searching} />
         <div className="flex items-center gap-2 flex-wrap">
           {(["همه", "DRAFT", "PUBLISHED", "COMPLETED", "CANCELLED"] as StatusFilter[]).map((s) => (
             <button

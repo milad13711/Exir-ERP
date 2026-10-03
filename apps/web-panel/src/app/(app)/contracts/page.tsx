@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { DocsIcon, PlusIcon, SearchIcon, SettingsIcon } from "@/components/icons";
+import { DocsIcon, PlusIcon, SettingsIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import { fetchContracts, fetchContractCategories, type Contract, type ContractStatus } from "@/lib/api";
 import { NewContractModal } from "@/components/contracts/NewContractModal";
@@ -41,21 +44,43 @@ export default function ContractsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("همه");
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchContracts({ q: debouncedSearch.trim() || undefined })
+      .then((r) => {
+        if (isCurrent()) setContracts(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setContracts((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
+  }
   function reload() {
-    fetchContracts().then(setContracts).catch(() => setContracts([]));
+    loadList();
     fetchContractCategories().then(setCategories).catch(() => setCategories([]));
   }
-  useEffect(reload, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchContractCategories().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   const filtered = useMemo(() => {
     if (!contracts) return [];
     return contracts.filter((c) => {
       const matchesStatus = statusFilter === "همه" || c.status === statusFilter;
       const matchesCategory = categoryFilter === "همه" || c.category === categoryFilter;
-      const matchesSearch = !search.trim() || c.title.includes(search) || partyDisplayName(c).includes(search) || String(c.contractNo).includes(search);
-      return matchesStatus && matchesCategory && matchesSearch;
+      return matchesStatus && matchesCategory;
     });
-  }, [contracts, search, statusFilter, categoryFilter]);
+  }, [contracts, statusFilter, categoryFilter]);
 
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
@@ -86,15 +111,7 @@ export default function ContractsPage() {
       </div>
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
-        <div className="relative max-w-[300px] flex-1 min-w-[220px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی عنوان، طرف قرارداد یا شماره..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[300px] flex-1 min-w-[220px]" value={search} onChange={setSearch} placeholder="جستجوی عنوان، طرف قرارداد یا شماره..." loading={searching} />
         <div className="flex items-center gap-2 flex-wrap">
           {(["همه", "DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"] as StatusFilter[]).map((s) => (
             <button

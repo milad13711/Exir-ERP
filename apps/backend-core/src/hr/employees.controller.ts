@@ -20,6 +20,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto.js';
 import { AssignManagerDto } from './dto/assign-manager.dto.js';
 import { CreateEmployeeDocumentDto } from './dto/create-employee-document.dto.js';
 import { getVisibleEmployeeIds } from './org-chain.util.js';
+import { normalizeSearchTerm } from '../common/search.js';
 
 const EMPLOYEE_EXCEL_HEADERS = ['کد پرسنلی', 'نام کامل', 'سمت', 'واحد', 'تلفن', 'ایمیل', 'تاریخ استخدام', 'حقوق پایه'];
 
@@ -61,6 +62,7 @@ export class EmployeesController {
     @Query('includeTerminated') includeTerminated: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
+    q = normalizeSearchTerm(q);
     await this.permissions.assertView(ctx, 'hr');
     const visible = await resolveVisibilityFilter(ctx, this.permissions);
     return ctx.tenantDb.employee.findMany({

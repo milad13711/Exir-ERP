@@ -29,9 +29,13 @@ export class InvoicesController {
   ) {}
 
   @Get()
-  async list(@Query('contactId') contactId: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  async list(
+    @Query('contactId') contactId: string | undefined,
+    @Query('q') q: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
     const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
-    return this.invoices.list(ctx, contactId ? { ...scope, contactId } : scope);
+    return this.invoices.list(ctx, contactId ? { ...scope, contactId } : scope, q);
   }
 
   @Get('settings/delivery-sms-template')

@@ -5,6 +5,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import type { CreateProjectDto } from './dto/create-project.dto.js';
 import type { UpdateProjectDto } from './dto/update-project.dto.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const STAGE_INCLUDE = {
   requestedBy: { select: { id: true, name: true } },
@@ -73,10 +74,22 @@ export class ProjectsService implements OnModuleInit {
     return map;
   }
 
-  async list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }, scope: Record<string, unknown> = {}) {
+  async list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string; q?: string }, scope: Record<string, unknown> = {}) {
+    const term = normalizeSearchTerm(filters.q);
+    const no = term ? searchTermAsInt(term) : undefined;
     const projects = await ctx.tenantDb.project.findMany({
       where: {
         ...scope,
+        ...(term
+          ? {
+              OR: [
+                ...(no !== undefined ? [{ projectNo: no }] : []),
+                { name: { contains: term, mode: 'insensitive' as const } },
+                { contact: { name: { contains: term, mode: 'insensitive' as const } } },
+                { contact: { company: { contains: term, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.contactId ? { contactId: filters.contactId } : {}),
       },

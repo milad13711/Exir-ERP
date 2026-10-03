@@ -93,9 +93,10 @@ export class ContractsController {
     @Query('contactId') contactId: string | undefined,
     @Query('legalCategory') legalCategory: string | undefined,
     @Query('category') category: string | undefined,
+    @Query('q') q: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category }, await this.contractScope(ctx));
+    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category, q }, await this.contractScope(ctx));
   }
 
   @Get(':id')

@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { TruckIcon, PlusIcon, SearchIcon, SettingsIcon, BellIcon } from "@/components/icons";
+import { TruckIcon, PlusIcon, SettingsIcon, BellIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { fetchShipments, fetchFleetSmsSettings, updateFleetSmsSettings, type Shipment, type ShipmentStatus, type FleetSmsSettings } from "@/lib/api";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
@@ -39,24 +42,35 @@ export default function FleetPage() {
   const [openShipment, setOpenShipment] = useState<Shipment | null>(null);
   const [smsSettingsOpen, setSmsSettingsOpen] = useState(false);
 
-  function reload() {
-    fetchShipments().then(setShipments).catch(() => setShipments([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchShipments(undefined, undefined, debouncedSearch.trim() || undefined)
+      .then((r) => {
+        if (isCurrent()) setShipments(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setShipments((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
-  useEffect(reload, []);
+  const reload = loadList;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
 
   const filtered = useMemo(() => {
     if (!shipments) return [];
     return shipments.filter((s) => {
       const matchesStatus = statusFilter === "همه" || s.status === statusFilter;
-      const matchesSearch =
-        !search.trim() ||
-        s.cargoType.includes(search) ||
-        (s.contact?.name.includes(search) ?? false) ||
-        (s.driver?.name.includes(search) ?? false) ||
-        String(s.shipmentNo).includes(search);
-      return matchesStatus && matchesSearch;
+      return matchesStatus;
     });
-  }, [shipments, search, statusFilter]);
+  }, [shipments, statusFilter]);
 
   return (
     <div className="p-5 lg:p-7 max-w-[1100px] mx-auto">
@@ -94,15 +108,7 @@ export default function FleetPage() {
       </div>
 
       <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
-        <div className="relative max-w-[300px] flex-1 min-w-[220px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی نوع بار، مشتری، راننده یا شماره..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[300px] flex-1 min-w-[220px]" value={search} onChange={setSearch} placeholder="جستجوی نوع بار، مشتری، راننده یا شماره..." loading={searching} />
         <div className="flex items-center gap-2 flex-wrap">
           {(["همه", "DRAFT", "OFFERED", "ACCEPTED", "DELIVERED", "CANCELLED"] as StatusFilter[]).map((s) => (
             <button

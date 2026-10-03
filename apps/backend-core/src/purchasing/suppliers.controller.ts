@@ -23,6 +23,7 @@ import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } f
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateSupplierDto } from './dto/create-supplier.dto.js';
 import { UpdateSupplierDto } from './dto/update-supplier.dto.js';
+import { normalizeSearchTerm } from '../common/search.js';
 
 const SUPPLIER_EXCEL_HEADERS = ['نام', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
 
@@ -41,6 +42,7 @@ export class SuppliersController {
 
   @Get()
   async list(@Query('q') q: string | undefined, @Ctx() ctx: TenantRequestContext) {
+    q = normalizeSearchTerm(q);
     await this.permissions.assertView(ctx, 'purchasing');
     return ctx.tenantDb.crmContact.findMany({
       where: {

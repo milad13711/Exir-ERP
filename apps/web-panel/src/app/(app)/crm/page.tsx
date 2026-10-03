@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { CrmIcon, PlusIcon, SearchIcon, BuildingIcon, PhoneIcon } from "@/components/icons";
+import { CrmIcon, PlusIcon, BuildingIcon, PhoneIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
 import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact } from "@/lib/api";
 import { STAGE_ORDER, STAGE_META } from "@/components/crm/crm-shared";
@@ -23,7 +26,14 @@ export default function CrmPage() {
   const [tab, setTab] = useState<Tab>("pipeline");
   const [deals, setDeals] = useState<CrmDeal[] | null>(null);
   const [contacts, setContacts] = useState<CrmContact[] | null>(null);
+  // contacts = what the list shows (server-filtered by `q`); allContacts = the unfiltered set,
+  // kept for pickers (e.g. new-deal modal) that need every contact regardless of the search box.
+  const [allContacts, setAllContacts] = useState<CrmContact[] | null>(null);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
 
   const [openDealId, setOpenDealId] = useState<string | null>(null);
   const [openContactId, setOpenContactId] = useState<string | null>(null);
@@ -32,13 +42,33 @@ export default function CrmPage() {
   const searchParams = useSearchParams();
 
   function reloadContacts() {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
+    const q = debouncedSearch.trim();
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchCrmContacts(q || undefined)
+      .then((r) => {
+        if (!isCurrent()) return;
+        setContacts(r);
+        if (!q) setAllContacts(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setContacts((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
+    // Keep the unfiltered set fresh when the list itself is filtered.
+    if (q) fetchCrmContacts().then(setAllContacts).catch(() => {});
   }
 
   useEffect(() => {
     fetchCrmDeals().then(setDeals).catch(() => setDeals([]));
-    reloadContacts();
   }, []);
+
+  useEffect(() => {
+    reloadContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   useEffect(() => {
     const contactId = searchParams.get("contact");
@@ -59,18 +89,7 @@ export default function CrmPage() {
   );
   const pipelineValue = useMemo(() => openDeals.reduce((sum, d) => sum + d.value, 0), [openDeals]);
 
-  const filteredContacts = useMemo(() => {
-    if (!contacts) return [];
-    const q = search.trim();
-    if (!q) return contacts;
-    return contacts.filter(
-      (c) =>
-        c.name.includes(q) ||
-        (c.company ?? "").includes(q) ||
-        (c.phone ?? "").includes(q) ||
-        (c.email ?? "").includes(q),
-    );
-  }, [contacts, search]);
+  const filteredContacts = contacts ?? [];
 
   function upsertDeal(deal: CrmDeal) {
     setDeals((prev) => {
@@ -192,15 +211,13 @@ export default function CrmPage() {
       ) : (
         <div className="mt-5">
           <div className="flex items-start gap-3 flex-wrap mb-4">
-            <div className="relative max-w-[320px] flex-1 min-w-[220px]">
-              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="جستجوی نام، شرکت، تلفن یا ایمیل..."
-                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-              />
-            </div>
+            <SearchInput
+              className="max-w-[320px] flex-1 min-w-[220px]"
+              value={search}
+              onChange={setSearch}
+              placeholder="جستجوی نام، شرکت، تلفن یا ایمیل..."
+              loading={searching}
+            />
             <ExcelImportExportBar
               exportPath="/crm/contacts/export"
               exportFilename="contacts.xlsx"
@@ -261,7 +278,10 @@ export default function CrmPage() {
         <ContactModal
           contactId={openContactId}
           onClose={() => setOpenContactId(null)}
-          onDeleted={() => setContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev)}
+          onDeleted={() => {
+            setContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev);
+            setAllContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev);
+          }}
           onNewDeal={(contactId) => {
             setOpenContactId(null);
             setNewDealFor({ contactId });
@@ -272,13 +292,13 @@ export default function CrmPage() {
       {newContactOpen ? (
         <NewContactModal
           onClose={() => setNewContactOpen(false)}
-          onCreated={(contact) => setContacts((prev) => [contact, ...(prev ?? [])])}
+          onCreated={() => reloadContacts()}
         />
       ) : null}
 
       {newDealFor ? (
         <NewDealModal
-          contacts={contacts ?? []}
+          contacts={allContacts ?? contacts ?? []}
           defaultContactId={newDealFor.contactId}
           onClose={() => setNewDealFor(null)}
           onCreated={upsertDeal}

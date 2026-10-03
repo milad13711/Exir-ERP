@@ -7,6 +7,7 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import { DriversService } from './drivers.service.js';
 import type { CreateShipmentDto } from './dto/create-shipment.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const SHIPMENT_INCLUDE = {
   contact: { select: { id: true, name: true, company: true, phone: true } },
@@ -68,10 +69,21 @@ export class ShipmentsService {
     return this.getSmsSettings(ctx);
   }
 
-  list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string }) {
+  list(ctx: TenantRequestContext, filters: { status?: string; contactId?: string; q?: string }) {
     const where: Record<string, unknown> = {};
     if (filters.status) where.status = filters.status;
     if (filters.contactId) where.contactId = filters.contactId;
+    const term = normalizeSearchTerm(filters.q);
+    if (term) {
+      const no = searchTermAsInt(term);
+      where.OR = [
+        ...(no !== undefined ? [{ shipmentNo: no }] : []),
+        { cargoType: { contains: term, mode: 'insensitive' } },
+        { contact: { name: { contains: term, mode: 'insensitive' } } },
+        { driver: { name: { contains: term, mode: 'insensitive' } } },
+        { driver: { plateNumber: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
     return ctx.tenantDb.shipment.findMany({
       where,
       include: SHIPMENT_INCLUDE,

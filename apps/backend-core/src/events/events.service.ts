@@ -10,6 +10,7 @@ import type { UpdateEventDto } from './dto/update-event.dto.js';
 import type { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
 import type { UpdateTicketTypeDto } from './dto/update-ticket-type.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const EVENT_INCLUDE = {
   ticketTypes: { orderBy: { sortOrder: 'asc' as const } },
@@ -87,9 +88,20 @@ export class EventsService {
     return this.getSmsSettings(ctx);
   }
 
-  async list(ctx: TenantRequestContext, filters: { status?: string } = {}) {
+  async list(ctx: TenantRequestContext, filters: { status?: string; q?: string } = {}) {
+    const term = normalizeSearchTerm(filters.q);
     const events = await ctx.tenantDb.event.findMany({
-      where: filters.status ? { status: filters.status as never } : {},
+      where: {
+        ...(filters.status ? { status: filters.status as never } : {}),
+        ...(term
+          ? {
+              OR: [
+                { title: { contains: term, mode: 'insensitive' as const } },
+                { venue: { contains: term, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+      },
       include: EVENT_INCLUDE,
       orderBy: { startAt: 'desc' },
     });

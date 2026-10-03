@@ -94,9 +94,10 @@ export class ProjectsController {
   async list(
     @Query('status') status: string | undefined,
     @Query('contactId') contactId: string | undefined,
+    @Query('q') q: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.projects.list(ctx, { status, contactId }, await this.projectScope(ctx));
+    return this.projects.list(ctx, { status, contactId, q }, await this.projectScope(ctx));
   }
 
   @Post()

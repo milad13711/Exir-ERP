@@ -30,9 +30,13 @@ export class EventsController {
   ) {}
 
   @Get()
-  async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  async list(
+    @Query('status') status: string | undefined,
+    @Query('q') q: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
     await this.permissions.assertViewAll(ctx, 'events');
-    return this.events.list(ctx, { status });
+    return this.events.list(ctx, { status, q });
   }
 
   @Get(':id')

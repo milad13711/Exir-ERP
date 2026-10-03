@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { HrIcon, PlusIcon, SearchIcon, CheckIcon } from "@/components/icons";
+import { HrIcon, PlusIcon, CheckIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate, toPersianDigits, toJalali } from "@/lib/persian";
 import {
   fetchEmployees,
@@ -74,19 +77,35 @@ export default function HrPage() {
   const [newDepartmentOpen, setNewDepartmentOpen] = useState(false);
   const [departmentsReloadKey, setDepartmentsReloadKey] = useState(0);
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchEmployees(debouncedSearch.trim() || undefined)
+      .then((r) => {
+        if (isCurrent()) setEmployees(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setEmployees((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
+  }
   function reloadCore() {
-    fetchEmployees().then(setEmployees).catch(() => setEmployees([]));
+    loadList();
     fetchHrSummary().then(setSummary).catch(() => {});
   }
-  useEffect(reloadCore, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
+  useEffect(() => {
+    fetchHrSummary().then(setSummary).catch(() => {});
+  }, []);
 
-  const filteredEmployees = useMemo(() => {
-    if (!employees) return [];
-    if (!search.trim()) return employees;
-    return employees.filter(
-      (e) => e.fullName.includes(search) || e.employeeCode.includes(search) || e.position.includes(search),
-    );
-  }, [employees, search]);
+  const filteredEmployees = employees ?? [];
 
   return (
     <div className="p-5 lg:p-7 max-w-[1240px] mx-auto">
@@ -156,15 +175,7 @@ export default function HrPage() {
       {tab === "employees" ? (
         <>
           <div className="flex items-center gap-3 flex-wrap mt-5 mb-4">
-            <div className="relative max-w-[320px] flex-1 min-w-[220px]">
-              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="جستجوی نام، کد پرسنلی یا سمت..."
-                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-              />
-            </div>
+            <SearchInput className="max-w-[320px] flex-1 min-w-[220px]" value={search} onChange={setSearch} placeholder="جستجوی نام، کد پرسنلی یا سمت..." loading={searching} />
             <div className="mr-auto">
               <ExcelImportExportBar
                 exportPath="/hr/employees/export"

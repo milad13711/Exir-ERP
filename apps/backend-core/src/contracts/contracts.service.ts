@@ -12,6 +12,7 @@ import type { UpdateContractDto } from './dto/update-contract.dto.js';
 import type { SaveContractTemplateDto } from './dto/save-contract-template.dto.js';
 import type { SignContractDto } from './dto/sign-contract.dto.js';
 import type { AddWitnessDto } from './dto/add-witness.dto.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const CONTRACT_INCLUDE = {
   contact: { select: { id: true, name: true, company: true, phone: true } },
@@ -92,10 +93,23 @@ export class ContractsService implements OnModuleInit {
     });
   }
 
-  list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string }, scope: Record<string, unknown> = {}) {
+  list(ctx: TenantRequestContext, filters: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string; q?: string }, scope: Record<string, unknown> = {}) {
+    const term = normalizeSearchTerm(filters.q);
+    const no = term ? searchTermAsInt(term) : undefined;
     return ctx.tenantDb.contract.findMany({
       where: {
         ...scope,
+        ...(term
+          ? {
+              OR: [
+                ...(no !== undefined ? [{ contractNo: no }] : []),
+                { title: { contains: term, mode: 'insensitive' as const } },
+                { secondPartyName: { contains: term, mode: 'insensitive' as const } },
+                { contact: { name: { contains: term, mode: 'insensitive' as const } } },
+                { contact: { company: { contains: term, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
         ...(filters.type ? { type: filters.type as never } : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.contactId ? { contactId: filters.contactId } : {}),

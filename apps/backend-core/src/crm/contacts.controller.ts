@@ -22,6 +22,7 @@ import { CreateContactDto } from './dto/create-contact.dto.js';
 import { UpdateContactDto } from './dto/update-contact.dto.js';
 import { UpdateCreditInputsDto } from './dto/update-credit-inputs.dto.js';
 import { AddActivityDto } from './dto/add-activity.dto.js';
+import { normalizeSearchTerm } from '../common/search.js';
 
 const CONTACT_EXCEL_HEADERS = ['نام', 'نوع', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
 
@@ -44,6 +45,7 @@ export class ContactsController {
     @Query('isSupplier') isSupplier: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
+    q = normalizeSearchTerm(q);
     const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
     return ctx.tenantDb.crmContact.findMany({
       where: {

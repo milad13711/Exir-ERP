@@ -20,6 +20,7 @@ import type { RecordPaymentDto } from './dto/record-payment.dto.js';
 import type { SignInvoiceDto } from './dto/sign-invoice.dto.js';
 import type { ConfirmDeliveryDto } from './dto/confirm-delivery.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const DELIVERY_CODE_TTL_MS = 30 * 60 * 1000;
 const SALES_SETTINGS_MODULE = 'sales';
@@ -181,9 +182,22 @@ export class InvoicesService {
     });
   }
 
-  async list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
+  async list(ctx: TenantRequestContext, scope: Record<string, unknown>, q?: string) {
+    const term = normalizeSearchTerm(q);
+    const no = term ? searchTermAsInt(term) : undefined;
     const invoices = await ctx.tenantDb.salesInvoice.findMany({
-      where: scope,
+      where: {
+        ...scope,
+        ...(term
+          ? {
+              OR: [
+                ...(no !== undefined ? [{ invoiceNo: no }, { officialInvoiceNo: no }] : []),
+                { contact: { name: { contains: term, mode: 'insensitive' as const } } },
+                { contact: { company: { contains: term, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
+      },
       include: {
         contact: { select: { id: true, name: true, company: true } },
         _count: { select: { returns: true } },

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-import { ShieldIcon, PlusIcon, SearchIcon, StoreIcon } from "@/components/icons";
+import { ShieldIcon, PlusIcon, StoreIcon } from "@/components/icons";
 import { toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -99,12 +102,27 @@ function CodesTab() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
 
-  function reload() {
-    fetchWarrantyCodes({ status: statusFilter === "همه" ? undefined : statusFilter, search: search || undefined })
-      .then(setCodes)
-      .catch(() => setCodes([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchWarrantyCodes({ status: statusFilter === "همه" ? undefined : statusFilter, search: debouncedSearch.trim() || undefined })
+      .then((r) => {
+        if (isCurrent()) setCodes(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setCodes((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
-  useEffect(reload, [search, statusFilter]);
+  const reload = loadList;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch, statusFilter]);
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -136,15 +154,7 @@ function CodesTab() {
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative max-w-[300px] flex-1 min-w-[220px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی کد، نام یا موبایل مشتری..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[300px] flex-1 min-w-[220px]" value={search} onChange={setSearch} placeholder="جستجوی کد، نام یا موبایل مشتری..." loading={searching} />
         <div className="flex items-center gap-2 flex-wrap">
           {(["همه", "PENDING", "ACTIVE", "EXPIRED", "VOID"] as const).map((s) => (
             <button

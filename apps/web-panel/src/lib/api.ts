@@ -2958,9 +2958,12 @@ export type SalesInvoiceDetail = SalesInvoice & {
   creditWarning: string | null;
 };
 
-export function fetchSalesInvoices(contactId?: string) {
-  const qs = contactId ? `?contactId=${encodeURIComponent(contactId)}` : "";
-  return apiFetch<SalesInvoice[]>(`/sales/invoices${qs}`);
+export function fetchSalesInvoices(contactId?: string, q?: string) {
+  const params = new URLSearchParams();
+  if (contactId) params.set("contactId", contactId);
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return apiFetch<SalesInvoice[]>(`/sales/invoices${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchSalesInvoice(id: string) {
@@ -3621,8 +3624,8 @@ export type PurchaseOrderDetail = PurchaseOrder & {
   payments: PurchasePayment[];
 };
 
-export function fetchPurchaseOrders() {
-  return apiFetch<PurchaseOrder[]>("/purchasing/orders");
+export function fetchPurchaseOrders(q?: string) {
+  return apiFetch<PurchaseOrder[]>(`/purchasing/orders${q ? `?q=${encodeURIComponent(q)}` : ""}`);
 }
 
 export function fetchPurchaseOrder(id: string) {
@@ -4600,7 +4603,7 @@ export type ContractTemplate = {
   updatedAt: string;
 };
 
-export function fetchContracts(params: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string } = {}) {
+export function fetchContracts(params: { type?: string; status?: string; contactId?: string; legalCategory?: string; category?: string; q?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Contract[]>(`/contracts${qs ? `?${qs}` : ""}`);
 }
@@ -4806,7 +4809,7 @@ export type Project = {
   stages: ProjectStage[];
 };
 
-export function fetchProjects(params: { status?: string; contactId?: string } = {}) {
+export function fetchProjects(params: { status?: string; contactId?: string; q?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<Project[]>(`/projects${qs ? `?${qs}` : ""}`);
 }
@@ -5217,8 +5220,9 @@ export type MatchCandidate = {
   averageRating: number | null;
 };
 
-export function fetchShipments(status?: string, contactId?: string) {
+export function fetchShipments(status?: string, contactId?: string, q?: string) {
   const params = new URLSearchParams();
+  if (q) params.set("q", q);
   if (status) params.set("status", status);
   if (contactId) params.set("contactId", contactId);
   const qs = params.toString();
@@ -6058,7 +6062,7 @@ export type EventTicket = {
   booking: { buyerName: string; buyerPhone: string };
 };
 
-export function fetchEvents(params: { status?: string } = {}) {
+export function fetchEvents(params: { status?: string; q?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return apiFetch<EventItem[]>(`/events${qs ? `?${qs}` : ""}`);
 }

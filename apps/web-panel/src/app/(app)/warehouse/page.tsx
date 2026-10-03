@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { WarehouseIcon, PlusIcon, SearchIcon, WarningIcon, OrdersIcon, AccountingIcon, SettingsIcon } from "@/components/icons";
+import { WarehouseIcon, PlusIcon, WarningIcon, OrdersIcon, AccountingIcon, SettingsIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
 import { fetchProducts, fetchWarehouseSummary, type Product, type WarehouseSummary } from "@/lib/api";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
@@ -32,23 +35,39 @@ export default function WarehousePage() {
   const [salesPricingModalOpen, setSalesPricingModalOpen] = useState(false);
   const [view, setView] = useState<"products" | "movements">("products");
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchProducts(debouncedSearch.trim() || undefined)
+      .then((r) => {
+        if (isCurrent()) setProducts(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setProducts((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
+  }
   function reload() {
-    fetchProducts().then(setProducts).catch(() => setProducts([]));
+    loadList();
     fetchWarehouseSummary().then(setSummary).catch(() => {});
   }
 
-  useEffect(reload, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
+  useEffect(() => {
+    fetchWarehouseSummary().then(setSummary).catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     if (!products) return [];
     return products.filter((p) => {
-      const matchesSearch =
-        !search.trim() ||
-        p.name.includes(search) ||
-        p.sku.toLowerCase().includes(search.toLowerCase()) ||
-        (p.category ?? "").includes(search);
-      const matchesLowStock = !lowStockOnly || p.isLowStock;
-      return matchesSearch && matchesLowStock;
+      return !lowStockOnly || p.isLowStock;
     });
   }, [products, search, lowStockOnly]);
 
@@ -145,15 +164,7 @@ export default function WarehousePage() {
       ) : (
         <>
           <div className="flex items-center gap-2.5 mt-5 flex-wrap">
-            <div className="relative flex-1 min-w-[220px] max-w-[320px]">
-              <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="جستجوی نام، کد کالا یا دسته..."
-                className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-              />
-            </div>
+            <SearchInput className="flex-1 min-w-[220px] max-w-[320px]" value={search} onChange={setSearch} placeholder="جستجوی نام، کد کالا یا دسته..." loading={searching} />
             <button
               onClick={() => setLowStockOnly((v) => !v)}
               className={clsx(

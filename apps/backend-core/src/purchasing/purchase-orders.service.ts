@@ -8,6 +8,7 @@ import { CostingService } from '../warehouse/costing.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import type { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
 import type { RecordPurchasePaymentDto } from './dto/record-purchase-payment.dto.js';
+import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
 const PURCHASING_SETTINGS_MODULE = 'purchasing';
 const APPROVAL_THRESHOLD_KEY = 'approvalThreshold';
@@ -64,9 +65,22 @@ export class PurchaseOrdersService implements OnModuleInit {
     });
   }
 
-  async list(ctx: TenantRequestContext, scope: Record<string, unknown>) {
+  async list(ctx: TenantRequestContext, scope: Record<string, unknown>, q?: string) {
+    const term = normalizeSearchTerm(q);
+    const no = term ? searchTermAsInt(term) : undefined;
     const orders = await ctx.tenantDb.purchaseOrder.findMany({
-      where: scope,
+      where: {
+        ...scope,
+        ...(term
+          ? {
+              OR: [
+                ...(no !== undefined ? [{ orderNo: no }] : []),
+                { supplier: { name: { contains: term, mode: 'insensitive' as const } } },
+                { supplier: { company: { contains: term, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
+      },
       include: {
         supplier: { select: { id: true, name: true, company: true } },
         _count: { select: { returns: true } },

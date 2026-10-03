@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { OrdersIcon, PlusIcon, SearchIcon, ShieldIcon, BuildingIcon, WarningIcon } from "@/components/icons";
+import { OrdersIcon, PlusIcon, ShieldIcon, BuildingIcon, WarningIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import {
   fetchPurchaseOrders,
@@ -48,13 +51,30 @@ export default function PurchasingPage() {
   const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
   const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
 
-  function reload() {
-    fetchPurchaseOrders().then(setOrders).catch(() => setOrders([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchPurchaseOrders(debouncedSearch.trim() || undefined)
+      .then((r) => {
+        if (isCurrent()) setOrders(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setOrders((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
+  const reload = loadList;
   function reloadReturns() {
     fetchPurchaseReturns().then(setReturns).catch(() => setReturns([]));
   }
-  useEffect(reload, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
   useEffect(reloadReturns, []);
   useEffect(() => {
     fetchPurchaseApprovalThreshold()
@@ -62,11 +82,7 @@ export default function PurchasingPage() {
       .catch(() => {});
   }, []);
 
-  const filtered = (orders ?? []).filter((o) => {
-    if (!search.trim()) return true;
-    const q = search.trim();
-    return o.supplier.name.includes(q) || (o.supplier.company ?? "").includes(q) || String(o.orderNo).includes(q);
-  });
+  const filtered = orders ?? [];
 
   return (
     <div className="p-5 lg:p-7 max-w-[1000px] mx-auto">
@@ -129,15 +145,7 @@ export default function PurchasingPage() {
       </div>
 
       {tab === "orders" ? (
-        <div className="relative max-w-[320px] mt-4 mb-4">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی تأمین‌کننده یا شماره سفارش..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[320px] mt-4 mb-4" value={search} onChange={setSearch} placeholder="جستجوی تأمین‌کننده یا شماره سفارش..." loading={searching} />
       ) : null}
 
       {tab === "returns" ? (

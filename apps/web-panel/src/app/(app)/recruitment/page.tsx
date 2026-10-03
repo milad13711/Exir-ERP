@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-import { BriefcaseIcon, PlusIcon, SearchIcon, CalendarIcon } from "@/components/icons";
+import { BriefcaseIcon, PlusIcon, CalendarIcon } from "@/components/icons";
 import { toPersianDigits, formatJalaliDateTime } from "@/lib/persian";
 import {
   fetchJobPostings,
@@ -200,25 +203,32 @@ function ApplicantsTab() {
   const [stageFilter, setStageFilter] = useState<"همه" | ApplicantStage>("همه");
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  function reload() {
-    fetchApplicants({ search: search || undefined, stage: stageFilter === "همه" ? undefined : stageFilter })
-      .then(setApplicants)
-      .catch(() => setApplicants([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchApplicants({ search: debouncedSearch.trim() || undefined, stage: stageFilter === "همه" ? undefined : stageFilter })
+      .then((r) => {
+        if (isCurrent()) setApplicants(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setApplicants((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
-  useEffect(reload, [search, stageFilter]);
+  const reload = loadList;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch, stageFilter]);
 
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative max-w-[280px] flex-1 min-w-[200px]">
-          <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجوی نام یا موبایل..."
-            className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-          />
-        </div>
+        <SearchInput className="max-w-[280px] flex-1 min-w-[200px]" value={search} onChange={setSearch} placeholder="جستجوی نام یا موبایل..." loading={searching} />
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value as "همه" | ApplicantStage)}

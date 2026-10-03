@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { ReceiptIcon, PlusIcon, SearchIcon, SettingsIcon, DocsIcon, CalendarIcon, WarningIcon } from "@/components/icons";
+import { ReceiptIcon, PlusIcon, SettingsIcon, DocsIcon, CalendarIcon, WarningIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import {
   fetchSalesInvoices,
@@ -99,9 +102,25 @@ export default function SalesPage() {
       }
     : undefined;
 
-  function reload() {
-    fetchSalesInvoices().then(setInvoices).catch(() => setInvoices([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchSalesInvoices(undefined, debouncedSearch.trim() || undefined)
+      .then((r) => {
+        if (isCurrent()) setInvoices(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setInvoices((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
+  const reload = loadList;
   function reloadQuotations() {
     fetchSalesQuotations().then(setQuotations).catch(() => setQuotations([]));
   }
@@ -111,7 +130,8 @@ export default function SalesPage() {
   function reloadReturns() {
     fetchSalesReturns().then(setReturns).catch(() => setReturns([]));
   }
-  useEffect(reload, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
   useEffect(reloadQuotations, []);
   useEffect(reloadRecurring, []);
   useEffect(reloadReturns, []);
@@ -123,15 +143,7 @@ export default function SalesPage() {
 
   const showNewModal = newOpen || Boolean(dealPrefill);
 
-  const filtered = (invoices ?? []).filter((inv) => {
-    if (!search.trim()) return true;
-    const q = search.trim();
-    return (
-      inv.contact.name.includes(q) ||
-      (inv.contact.company ?? "").includes(q) ||
-      String(inv.invoiceNo).includes(q)
-    );
-  });
+  const filtered = invoices ?? [];
 
   const filteredQuotations = (quotations ?? []).filter((q) => {
     if (!search.trim()) return true;
@@ -231,15 +243,7 @@ export default function SalesPage() {
         </button>
       </div>
 
-      <div className="relative max-w-[320px] mt-4 mb-4">
-        <SearchIcon className="w-4 h-4 text-muted absolute top-1/2 -translate-y-1/2 right-3.5" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={tab === "quotations" ? "جستجوی مشتری یا شماره پیش‌فاکتور..." : "جستجوی مشتری یا شماره فاکتور..."}
-          className="w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl pr-10 pl-3.5 py-2.5 focus:border-primary transition-colors"
-        />
-      </div>
+      <SearchInput className="max-w-[320px] mt-4 mb-4" value={search} onChange={setSearch} placeholder={tab === "quotations" ? "جستجوی مشتری یا شماره پیش‌فاکتور..." : "جستجوی مشتری یا شماره فاکتور..."} loading={searching} />
 
       {tab === "returns" ? (
         <Card className="p-2">

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { Card } from "@/components/ui/Card";
-import { SearchIcon, StarIcon, PlusIcon } from "@/components/icons";
+import { StarIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import {
@@ -35,17 +38,27 @@ export default function CertificatesPage() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [templateSettings, setTemplateSettings] = useState<CertificateTemplateSettings | null>(null);
 
-  function reload() {
-    fetchCertificates({ search: search || undefined })
-      .then(setCertificates)
-      .catch(() => setCertificates([]));
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const beginRequest = useRequestGuard();
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const searching = loadedFor === null || loadedFor !== search.trim();
+  function loadList() {
+    const isCurrent = beginRequest();
+    const requested = debouncedSearch.trim();
+    fetchCertificates({ search: debouncedSearch.trim() || undefined })
+      .then((r) => {
+        if (isCurrent()) setCertificates(r);
+      })
+      .catch(() => {
+        if (isCurrent()) setCertificates((prev) => prev ?? []);
+      })
+      .finally(() => {
+        if (isCurrent()) setLoadedFor(requested);
+      });
   }
-
-  useEffect(() => {
-    const t = setTimeout(reload, 250);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  const reload = loadList;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadList, [debouncedSearch]);
 
   async function openTemplateSettings() {
     const settings = await fetchCertificateTemplateSettings();
@@ -92,15 +105,7 @@ export default function CertificatesPage() {
 
       <Card className="mt-6 p-0 overflow-hidden">
         <div className="p-4 border-b border-border">
-          <div className="relative max-w-[320px]">
-            <SearchIcon className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جستجو با کد گواهی یا نام گیرنده..."
-              className="w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl pr-9 pl-3.5 py-2.5 focus:border-primary transition-colors"
-            />
-          </div>
+          <SearchInput className="max-w-[320px]" value={search} onChange={setSearch} placeholder="جستجو با کد گواهی یا نام گیرنده..." loading={searching} />
         </div>
 
         {certificates === null ? (

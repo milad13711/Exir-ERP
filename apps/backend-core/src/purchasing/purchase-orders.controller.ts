@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -21,9 +21,9 @@ export class PurchaseOrdersController {
   ) {}
 
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query('q') q: string | undefined, @Ctx() ctx: TenantRequestContext) {
     const scope = await this.permissions.viewScope(ctx, 'purchasing', 'createdByUserId');
-    return this.orders.list(ctx, scope);
+    return this.orders.list(ctx, scope, q);
   }
 
   @Get('settings/approval-threshold')

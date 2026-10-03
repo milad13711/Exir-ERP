@@ -28,6 +28,7 @@ import { withFxPrices } from './fx-price.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultWarehouse } from './default-warehouse.js';
 import { CostingService, computeSalePriceFromMargin } from './costing.service.js';
+import { normalizeSearchTerm } from '../common/search.js';
 
 const PRODUCT_EXCEL_HEADERS = [
   'کد کالا',
@@ -56,6 +57,7 @@ export class ProductsController {
     @Query('includeInactive') includeInactive: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
+    q = normalizeSearchTerm(q);
     await this.permissions.assertView(ctx, 'warehouse');
     const products = await ctx.tenantDb.product.findMany({
       where: {
