@@ -13,7 +13,7 @@ function makeCtx(slip: any) {
 }
 
 describe('PayrollController.remove', () => {
-  const perms = { assertDelete: vi.fn() } as any;
+  const perms = { assertDelete: vi.fn(), assertViewAll: vi.fn() } as any;
   const c = new (PayrollController as any)(perms, {}, {}) as PayrollController;
 
   it('deletes a DRAFT slip', async () => {

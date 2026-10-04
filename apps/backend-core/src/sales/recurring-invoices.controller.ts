@@ -39,12 +39,14 @@ export class RecurringInvoicesController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateRecurringInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.permissions.assertViewAll(ctx, 'sales'); // قالب‌های دوره‌ای مالکِ مشخصی ندارند — فقط با «مشاهده‌ی همه»
     return this.recurring.update(ctx, id, dto);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'sales');
+    await this.permissions.assertViewAll(ctx, 'sales');
     return this.recurring.remove(ctx, id);
   }
 }

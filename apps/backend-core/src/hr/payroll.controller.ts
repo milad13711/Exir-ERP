@@ -58,6 +58,7 @@ export class PayrollController {
   @Post('generate')
   async generate(@Body() dto: GeneratePayrollDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const employees = await ctx.tenantDb.employee.findMany({ where: { status: 'ACTIVE' } });
     const existing = await ctx.tenantDb.payrollSlip.findMany({
       where: { periodYear: dto.year, periodMonth: dto.month },
@@ -93,6 +94,7 @@ export class PayrollController {
   @Post(':id')
   async update(@Param('id') id: string, @Body() dto: UpdatePayrollDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const slip = await ctx.tenantDb.payrollSlip.findUnique({ where: { id } });
     if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
     if (slip.status !== 'DRAFT') throw new BadRequestException('فقط فیش پیش‌نویس قابل ویرایش است');
@@ -109,6 +111,7 @@ export class PayrollController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const slip = await ctx.tenantDb.payrollSlip.findUnique({ where: { id } });
     if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
     if (slip.status !== 'DRAFT') throw new BadRequestException('فقط فیش پیش‌نویس قابل حذف است');
@@ -119,6 +122,7 @@ export class PayrollController {
   @Post(':id/issue')
   async issue(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const slip = await ctx.tenantDb.payrollSlip.findUnique({ where: { id } });
     if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
     if (slip.status !== 'DRAFT') throw new BadRequestException('این فیش قبلاً صادر شده است');
@@ -132,6 +136,7 @@ export class PayrollController {
   @Post(':id/pay')
   async pay(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const slip = await ctx.tenantDb.payrollSlip.findUnique({ where: { id } });
     if (!slip) throw new NotFoundException('فیش حقوقی یافت نشد');
     if (slip.status !== 'ISSUED') throw new BadRequestException('ابتدا باید فیش صادر شود');

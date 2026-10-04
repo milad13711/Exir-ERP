@@ -2,25 +2,25 @@ import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@n
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { DashboardService } from './dashboard.service.js';
-import { DashboardCalendarService, type CalendarEvent } from './dashboard-calendar.service.js';
+import { DashboardCalendarService, type CalendarAccess, type CalendarEvent, type CalendarScope } from './dashboard-calendar.service.js';
 import { InvoiceDueRemindersService } from './invoice-due-reminders.service.js';
 import { CreateInvoiceFollowUpDto } from './dto/create-invoice-follow-up.dto.js';
 import { CreateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
 
-// نوع رویداد تقویم -> کد ماژولی که مجوز مشاهده‌اش را کنترل می‌کند؛ null یعنی
-// همیشه نمایش داده می‌شود (وظیفه/یادآوری دستی، بدون ماژول اختصاصی).
-const CALENDAR_EVENT_MODULE: Record<CalendarEvent['type'], string | null> = {
+// نوع رویداد تقویم -> کد ماژولی که مجوز مشاهده‌اش (همه/فقط خودم) را کنترل می‌کند.
+// یادآوری دستی شخصی است و جدا (فقط برای سازنده) مدیریت می‌شود.
+const CALENDAR_EVENT_MODULE: Record<Exclude<CalendarEvent['type'], 'reminder'>, string> = {
   'birthday-employee': 'hr',
   'birthday-contact': 'crm',
-  task: null,
+  task: 'tasks',
   interview: 'recruitment',
   'mentoring-session': 'mentoring',
   'invoice-due': 'sales',
   'check-due': 'accounting',
   'contract-end': 'contracts',
-  reminder: null,
 };
 
 @Controller('dashboard')
@@ -36,22 +36,20 @@ export class DashboardController {
   /** تقویم ماهانه‌ی داشبورد — تولد/وظیفه/مصاحبه/جلسه/سررسید فاکتور و چک/پایان قرارداد/یادآوری دستی، به تفکیک روز. */
   @Get('calendar')
   async monthCalendar(@Query('year') year: string, @Query('month') month: string, @Ctx() ctx: TenantRequestContext) {
-    const [result, acl] = await Promise.all([
-      this.calendar.monthCalendar(ctx, Number(year), Number(month)),
+    const [acl, userId] = await Promise.all([
       this.permissions.effectiveMatrix(ctx),
+      resolveTenantUserId(ctx).catch(() => null),
     ]);
-    if (acl.manager) return result;
-    const can = (code: string | null) => {
-      if (!code) return true;
-      return !!acl.modules[code] && (acl.modules[code].canViewAll || acl.modules[code].canViewOwn);
+    const scopeFor = (code: string): CalendarScope => {
+      if (acl.manager) return 'all';
+      const m = acl.modules[code];
+      if (!m) return 'none';
+      return m.canViewAll ? 'all' : m.canViewOwn ? 'own' : 'none';
     };
-    return {
-      ...result,
-      days: result.days.map((d) => {
-        const events = d.events.filter((e) => can(CALENDAR_EVENT_MODULE[e.type]));
-        return { ...d, events, hasBirthday: events.some((e) => e.type === 'birthday-employee' || e.type === 'birthday-contact') };
-      }),
-    };
+    const scope = Object.fromEntries(
+      Object.entries(CALENDAR_EVENT_MODULE).map(([type, code]) => [type, scopeFor(code)]),
+    ) as CalendarAccess['scope'];
+    return this.calendar.monthCalendar(ctx, Number(year), Number(month), { userId, scope });
   }
 
   /** ایجاد یادآوری دستی روی یک روز مشخص از تقویم داشبورد. */

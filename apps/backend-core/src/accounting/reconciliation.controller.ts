@@ -94,6 +94,7 @@ export class ReconciliationController {
   @Delete('statement-lines/:id')
   async removeStatementLine(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const line = await ctx.tenantDb.bankStatementLine.findUnique({ where: { id } });
     if (!line) throw new NotFoundException('ردیف صورت‌حساب یافت نشد');
     if (line.matchedJournalLineId) throw new ConflictException('این ردیف تطبیق‌خورده است — ابتدا تطبیق را لغو کنید');
@@ -104,6 +105,7 @@ export class ReconciliationController {
   @Post('match')
   async match(@Body() dto: MatchStatementLineDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting');
     const [statementLine, journalLine] = await Promise.all([
       ctx.tenantDb.bankStatementLine.findUnique({ where: { id: dto.statementLineId } }),
       ctx.tenantDb.journalLine.findUnique({ where: { id: dto.journalLineId }, include: { bankStatementLine: true } }),
@@ -124,6 +126,7 @@ export class ReconciliationController {
   @Post('unmatch/:statementLineId')
   async unmatch(@Param('statementLineId') statementLineId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const line = await ctx.tenantDb.bankStatementLine.findUnique({ where: { id: statementLineId } });
     if (!line) throw new NotFoundException('ردیف صورت‌حساب یافت نشد');
     return ctx.tenantDb.bankStatementLine.update({
@@ -140,6 +143,7 @@ export class ReconciliationController {
   @Post(':accountId/auto-match')
   async autoMatch(@Param('accountId') accountId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const [statementLines, journalLines] = await Promise.all([
       ctx.tenantDb.bankStatementLine.findMany({ where: { accountId, matchedJournalLineId: null } }),
       ctx.tenantDb.journalLine.findMany({ where: { accountId, entry: { status: 'POSTED' }, bankStatementLine: null } }),

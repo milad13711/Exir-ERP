@@ -30,6 +30,7 @@ export class RationFollowupsController {
   @Patch(':id/complete')
   async complete(@Param('id') id: string, @Body() dto: CompleteFollowupDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const checkin = await ctx.tenantDb.rationFollowUpCheckin.findUnique({ where: { id } });
     if (!checkin) throw new NotFoundException('پیگیری یافت نشد');
     return ctx.tenantDb.rationFollowUpCheckin.update({

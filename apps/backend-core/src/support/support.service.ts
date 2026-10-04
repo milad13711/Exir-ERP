@@ -53,16 +53,20 @@ export class SupportService {
     });
   }
 
-  private async findOwnedTicket(tenantId: string, ticketId: string) {
+  /** تیکت باید متعلق به همین مستأجر باشد؛ و اگر `actor` داده شود، کاربر عادی فقط تیکت‌های خودش را می‌بیند (مالک/مدیر همه‌ی تیکت‌های مستأجر). */
+  private async findOwnedTicket(tenantId: string, ticketId: string, actor?: { sub: string; manager: boolean }) {
     const ticket = await this.controlDb.supportTicket.findUnique({ where: { id: ticketId } });
     if (!ticket || ticket.tenantId !== tenantId) {
+      throw new NotFoundException('تیکت یافت نشد');
+    }
+    if (actor && !actor.manager && ticket.createdByUserId !== actor.sub) {
       throw new NotFoundException('تیکت یافت نشد');
     }
     return ticket;
   }
 
-  async getMessages(tenantId: string, ticketId: string) {
-    const ticket = await this.findOwnedTicket(tenantId, ticketId);
+  async getMessages(tenantId: string, ticketId: string, actor?: { sub: string; manager: boolean }) {
+    const ticket = await this.findOwnedTicket(tenantId, ticketId, actor);
     const messages = await this.controlDb.supportMessage.findMany({
       where: { ticketId: ticket.id },
       orderBy: { createdAt: 'asc' },
@@ -75,8 +79,9 @@ export class SupportService {
     ticketId: string,
     globalUserId: string,
     body: string,
+    manager = false,
   ) {
-    const ticket = await this.findOwnedTicket(tenantId, ticketId);
+    const ticket = await this.findOwnedTicket(tenantId, ticketId, { sub: globalUserId, manager });
     if (ticket.status === 'CLOSED') {
       throw new ForbiddenException('این تیکت بسته شده است');
     }

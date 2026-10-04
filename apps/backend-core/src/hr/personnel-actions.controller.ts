@@ -33,6 +33,7 @@ export class PersonnelRewardsController {
   @Post()
   async create(@Body() dto: CreatePersonnelActionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     await findEmployeeOrThrow(ctx, dto.employeeId);
     const createdByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
     return ctx.tenantDb.personnelReward.create({
@@ -51,6 +52,7 @@ export class PersonnelRewardsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const row = await ctx.tenantDb.personnelReward.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('این پاداش یافت نشد');
     await ctx.tenantDb.personnelReward.delete({ where: { id } });
@@ -77,6 +79,7 @@ export class PersonnelPenaltiesController {
   @Post()
   async create(@Body() dto: CreatePersonnelActionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     await findEmployeeOrThrow(ctx, dto.employeeId);
     const createdByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
     return ctx.tenantDb.personnelPenalty.create({
@@ -95,6 +98,7 @@ export class PersonnelPenaltiesController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const row = await ctx.tenantDb.personnelPenalty.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('این جریمه یافت نشد');
     await ctx.tenantDb.personnelPenalty.delete({ where: { id } });

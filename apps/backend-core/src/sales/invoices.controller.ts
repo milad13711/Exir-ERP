@@ -5,6 +5,7 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { InvoicesService } from './invoices.service.js';
@@ -27,6 +28,13 @@ export class InvoicesController {
     private readonly pdf: SalesInvoicePdfService,
     private readonly controlDb: ControlPrismaService,
   ) {}
+
+  /** کاربر «فقط خودم» فقط روی فاکتورهای خودش می‌تواند عملیات انجام دهد؛ خارج از دامنه → ۴۰۴. */
+  private async assertInvoiceInScope(ctx: TenantRequestContext, id: string) {
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    await assertInScope(ctx.tenantDb.salesInvoice, scope, { id }, { message: 'فاکتور یافت نشد' });
+    return scope;
+  }
 
   @Get()
   async list(
@@ -96,18 +104,21 @@ export class InvoicesController {
   @Put(':id')
   async updateDraft(@Param('id') id: string, @Body() dto: CreateInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.updateDraft(ctx, id, dto);
   }
 
   @Delete(':id')
   async removeDraft(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.removeDraft(ctx, id);
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     const reason = (dto?.reason ?? '').trim();
     if (reason.length < 3) throw new BadRequestException('دلیل ابطال را بنویسید');
     return this.invoices.cancel(ctx, id, reason);
@@ -116,25 +127,28 @@ export class InvoicesController {
   @Post(':id/confirm')
   async confirm(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.confirm(ctx, id);
   }
 
   @Post(':id/payments')
   async recordPayment(@Param('id') id: string, @Body() dto: RecordPaymentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.recordPayment(ctx, id, dto);
   }
 
   @Post(':id/sign')
   async sign(@Param('id') id: string, @Body() dto: SignInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.sign(ctx, id, dto);
   }
 
   /** لینک عمومی مشاهده/پرداخت آنلاین فاکتور را با پیامک برای مشتری می‌فرستد. */
   @Post(':id/send-payment-link')
   async sendPaymentLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
     return this.invoices.sendPaymentLinkSms(ctx, id, publicWebUrl);
   }
@@ -145,8 +159,8 @@ export class InvoicesController {
    */
   @Post(':id/online-payment-link')
   async getOnlinePaymentLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'sales');
-    const invoice = await this.invoices.detail(ctx, id, {});
+    const scope = await this.assertInvoiceInScope(ctx, id);
+    const invoice = await this.invoices.detail(ctx, id, scope);
     const apiUrl = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001/api').replace(/\/$/, '');
     const callbackUrl = `${apiUrl}/public/tenants/${ctx.tenantSlug}/invoices/${invoice.publicToken}/callback`;
     const result = await this.invoices.initiateGatewayPayment(ctx, id, callbackUrl);
@@ -158,6 +172,7 @@ export class InvoicesController {
   @RequireModule('delivery-signature')
   async sendDeliveryCode(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.sendDeliveryCode(ctx, id);
   }
 
@@ -165,12 +180,14 @@ export class InvoicesController {
   @RequireModule('delivery-signature')
   async confirmDelivery(@Param('id') id: string, @Body() dto: ConfirmDeliveryDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
     return this.invoices.confirmDelivery(ctx, id, dto);
   }
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    const invoice = await this.invoices.detail(ctx, id, {});
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const invoice = await this.invoices.detail(ctx, id, scope);
     const [settingsRows, tenant] = await Promise.all([
       ctx.tenantDb.moduleSetting.findMany({ where: { moduleCode: GENERAL_SETTINGS_MODULE } }),
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),

@@ -41,6 +41,7 @@ export class ReportsController {
   @Delete('categories/:id')
   async deleteCategory(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.deleteCategory(ctx, id);
   }
 
@@ -76,48 +77,56 @@ export class ReportsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateReportDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.update(ctx, id, dto);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.remove(ctx, id);
   }
 
   @Post(':id/archive')
   async archive(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.setArchived(ctx, id, true);
   }
 
   @Post(':id/unarchive')
   async unarchive(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.setArchived(ctx, id, false);
   }
 
   @Post(':id/convert-to-knowledge')
   async convertToKnowledge(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.setKnowledge(ctx, id, true);
   }
 
   @Post(':id/unconvert-knowledge')
   async unconvertKnowledge(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.setKnowledge(ctx, id, false);
   }
 
   @Post(':id/refer')
   async refer(@Param('id') id: string, @Body() dto: ReferReportDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.refer(ctx, id, dto);
   }
 
   @Post(':id/referrals/:referralId/paraph')
   async paraphReferral(@Param('id') id: string, @Param('referralId') referralId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.reports.paraphReferral(ctx, id, referralId);
   }
 }

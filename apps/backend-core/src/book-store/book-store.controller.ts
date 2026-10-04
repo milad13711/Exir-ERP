@@ -26,6 +26,7 @@ export class BookStoreController {
   @Post('orders/:id/ship')
   async ship(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'book-store');
+    await this.permissions.assertViewAll(ctx, 'book-store'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.bookStore.markShipped(ctx, id);
   }
 

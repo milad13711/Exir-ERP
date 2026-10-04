@@ -12,6 +12,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto.js';
 import { isInManagerChain } from './org-chain.util.js';
+import { resolveVisibilityFilter } from './employees.controller.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -65,6 +66,8 @@ export class LeaveController implements OnModuleInit {
     if (end < start) throw new BadRequestException('تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد');
 
     await ctx.tenantDb.employee.findUniqueOrThrow({ where: { id: dto.employeeId } });
+    const visible = await resolveVisibilityFilter(ctx, this.permissions);
+    if (visible && !visible.has(dto.employeeId)) throw new NotFoundException('کارمند یافت نشد یا اجازه‌ی ثبت مرخصی برای او را ندارید');
     const daysCount = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY) + 1;
 
     const created = await ctx.tenantDb.leaveRequest.create({
@@ -99,6 +102,7 @@ export class LeaveController implements OnModuleInit {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     const l = await ctx.tenantDb.leaveRequest.findUnique({ where: { id } });
     if (!l) throw new NotFoundException('درخواست مرخصی یافت نشد');
     if (l.status === 'APPROVED') throw new ConflictException('مرخصی تأییدشده حذف نمی‌شود');

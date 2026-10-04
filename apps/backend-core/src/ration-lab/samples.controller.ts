@@ -127,6 +127,7 @@ export class RationSamplesController {
   @Post(':id/mark-in-transit')
   async markInTransit(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     if (sample.status !== 'COLLECTED') throw new BadRequestException('این نمونه از قبل به آزمایشگاه منتقل شده است');
@@ -136,6 +137,7 @@ export class RationSamplesController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateSampleDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     if (!EDITABLE_STATUSES.has(sample.status)) {
@@ -192,6 +194,7 @@ export class RationSamplesController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'ration-lab');
+    await this.permissions.assertViewAll(ctx, 'ration-lab'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const sample = await ctx.tenantDb.rationSample.findUnique({ where: { id } });
     if (!sample) throw new NotFoundException('نمونه یافت نشد');
     if (!EDITABLE_STATUSES.has(sample.status)) {

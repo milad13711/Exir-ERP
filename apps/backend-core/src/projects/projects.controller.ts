@@ -4,6 +4,7 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { projectScope } from '../permissions/entity-scopes.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ProjectsService } from './projects.service.js';
 import { StageTemplatesService } from './stage-templates.service.js';
@@ -39,19 +40,8 @@ export class ProjectsController {
    * «مشاهده‌ی همه» = همه‌ی پروژه‌ها؛ «فقط خودم» = فقط پروژه‌هایی که کاربر مدیر، سازنده، عضو تیم
    * یا مسئول یکی از مراحلشان است.
    */
-  private async projectScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
-    const matrix = await this.permissions.getEffective(ctx, 'projects');
-    if (matrix.canViewAll) return {};
-    if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
-    const userId = await resolveTenantUserId(ctx);
-    return {
-      OR: [
-        { managerUserId: userId },
-        { createdByUserId: userId },
-        { members: { some: { userId } } },
-        { stages: { some: { responsibleUserId: userId } } },
-      ],
-    };
+  private projectScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    return projectScope(this.permissions, ctx);
   }
 
   /** دسترسی به یک پروژه‌ی مشخص — برای کاربر «فقط خودم»، فقط پروژه‌های خودش. */

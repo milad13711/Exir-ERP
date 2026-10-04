@@ -76,6 +76,7 @@ export class BudgetsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateBudgetDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await ctx.tenantDb.budget.findUniqueOrThrow({ where: { id } });
     return ctx.tenantDb.budget.update({
       where: { id },
@@ -92,6 +93,7 @@ export class BudgetsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await ctx.tenantDb.budget.findUniqueOrThrow({ where: { id } });
     await ctx.tenantDb.budget.delete({ where: { id } });
     return { success: true };

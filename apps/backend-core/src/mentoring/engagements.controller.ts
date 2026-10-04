@@ -45,6 +45,7 @@ export class EngagementsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await safeDelete(() => ctx.tenantDb.mentoringEngagement.delete({ where: { id } }));
     return { success: true };
   }
@@ -52,6 +53,7 @@ export class EngagementsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateEngagementDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.engagements.update(ctx, id, dto);
   }
 }

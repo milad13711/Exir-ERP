@@ -36,6 +36,7 @@ export class StoreOrdersController {
   @Put(':id/status')
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.orders.updateStatus(ctx, id, dto);
   }
 }

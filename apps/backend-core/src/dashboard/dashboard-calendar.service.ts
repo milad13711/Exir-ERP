@@ -23,6 +23,17 @@ export type CalendarEvent = {
   link: string | null;
 };
 
+/**
+ * دسترسی کاربر به هر نوع رویداد تقویم: `all` = همه‌ی رکوردها، `own` = فقط رکوردهای
+ * مربوط به خودش، `none` = اصلاً نمایش داده نشود. تقویم نباید از سطح دسترسی ماژول‌ها
+ * بزرگ‌تر باشد (پیش‌تر هر کسی کارهای همه‌ی همکاران را می‌دید).
+ */
+export type CalendarScope = 'all' | 'own' | 'none';
+export type CalendarAccess = {
+  userId: string | null;
+  scope: Record<Exclude<CalendarEventType, 'reminder'>, CalendarScope>;
+};
+
 export type CalendarDay = {
   day: number;
   isFriday: boolean;
@@ -40,7 +51,15 @@ export type CalendarDay = {
  */
 @Injectable()
 export class DashboardCalendarService {
-  async monthCalendar(ctx: TenantRequestContext, jalaliYear: number, jalaliMonth: number) {
+  async monthCalendar(ctx: TenantRequestContext, jalaliYear: number, jalaliMonth: number, access: CalendarAccess) {
+    const me = access.userId;
+    const sc = access.scope;
+    // کاربری که شناسه‌ی محلی ندارد نمی‌تواند «رکورد خودش» داشته باشد -> هیچ‌چیز نشان داده نمی‌شود.
+    const gate = <T,>(kind: keyof CalendarAccess['scope'], ownWhere: Record<string, unknown>, run: (where: Record<string, unknown>) => Promise<T[]>): Promise<T[]> => {
+      if (sc[kind] === 'none') return Promise.resolve([]);
+      if (sc[kind] === 'own') return me ? run(ownWhere) : Promise.resolve([]);
+      return run({});
+    };
     const monthLength = jalaliMonthLength(jalaliYear, jalaliMonth);
     const { start, end } = jalaliMonthGregorianRange(jalaliYear, jalaliMonth);
 
@@ -77,31 +96,42 @@ export class DashboardCalendarService {
       contracts,
       reminders,
     ] = await Promise.all([
-      ctx.tenantDb.employee.findMany({ where: { birthDate: { not: null } }, select: { id: true, fullName: true, birthDate: true } }),
-      ctx.tenantDb.crmContact.findMany({ where: { birthDate: { not: null } }, select: { id: true, name: true, company: true, birthDate: true } }),
-      ctx.tenantDb.task.findMany({ where: { dueAt: { gte: start, lt: end } }, select: { id: true, title: true, dueAt: true } }),
-      ctx.tenantDb.jobInterview.findMany({
-        where: { scheduledAt: { gte: start, lt: end } },
-        select: { id: true, scheduledAt: true, applicant: { select: { name: true } } },
-      }),
-      ctx.tenantDb.mentoringSession.findMany({
-        where: { scheduledAt: { gte: start, lt: end } },
-        select: { id: true, scheduledAt: true, engagement: { select: { contact: { select: { name: true } } } } },
-      }),
-      ctx.tenantDb.salesInvoice.findMany({
-        where: { dueAt: { gte: start, lt: end } },
-        select: { id: true, invoiceNo: true, dueAt: true },
-      }),
-      ctx.tenantDb.check.findMany({
-        where: { dueDate: { gte: start, lt: end } },
-        select: { id: true, sayadId: true, dueDate: true },
-      }),
-      ctx.tenantDb.contract.findMany({
-        where: { endDate: { gte: start, lt: end } },
-        select: { id: true, contractNo: true, endDate: true },
-      }),
+      gate('birthday-employee', { userId: me }, (w) => ctx.tenantDb.employee.findMany({ where: { birthDate: { not: null }, ...w }, select: { id: true, fullName: true, birthDate: true } })),
+      gate('birthday-contact', { ownerUserId: me }, (w) => ctx.tenantDb.crmContact.findMany({ where: { birthDate: { not: null }, ...w }, select: { id: true, name: true, company: true, birthDate: true } })),
+      gate('task', { assignedUserId: me }, (w) => ctx.tenantDb.task.findMany({ where: { dueAt: { gte: start, lt: end }, ...w }, select: { id: true, title: true, dueAt: true } })),
+      gate('interview', { interviewerUserId: me }, (w) =>
+        ctx.tenantDb.jobInterview.findMany({
+          where: { scheduledAt: { gte: start, lt: end }, ...w },
+          select: { id: true, scheduledAt: true, applicant: { select: { name: true } } },
+        }),
+      ),
+      gate('mentoring-session', { engagement: { advisorUserId: me } }, (w) =>
+        ctx.tenantDb.mentoringSession.findMany({
+          where: { scheduledAt: { gte: start, lt: end }, ...w },
+          select: { id: true, scheduledAt: true, engagement: { select: { contact: { select: { name: true } } } } },
+        }),
+      ),
+      gate('invoice-due', { createdByUserId: me }, (w) =>
+        ctx.tenantDb.salesInvoice.findMany({
+          where: { dueAt: { gte: start, lt: end }, ...w },
+          select: { id: true, invoiceNo: true, dueAt: true },
+        }),
+      ),
+      gate('check-due', { createdByUserId: me }, (w) =>
+        ctx.tenantDb.check.findMany({
+          where: { dueDate: { gte: start, lt: end }, ...w },
+          select: { id: true, sayadId: true, dueDate: true },
+        }),
+      ),
+      gate('contract-end', { createdByUserId: me }, (w) =>
+        ctx.tenantDb.contract.findMany({
+          where: { endDate: { gte: start, lt: end }, ...w },
+          select: { id: true, contractNo: true, endDate: true },
+        }),
+      ),
       ctx.tenantDb.dashboardReminder.findMany({
-        where: { date: { gte: start, lt: end } },
+        // یادآوری دستی شخصی است: هر کس فقط یادآوری‌های خودش را می‌بیند (حتی مدیر).
+        where: { date: { gte: start, lt: end }, createdByUserId: me ?? '__none__' },
         select: { id: true, title: true, note: true, date: true },
       }),
     ]);
@@ -175,6 +205,8 @@ export class DashboardCalendarService {
   async deleteReminder(ctx: TenantRequestContext, id: string) {
     const existing = await ctx.tenantDb.dashboardReminder.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('یادآوری یافت نشد');
+    const me = await resolveTenantUserId(ctx).catch(() => null);
+    if (existing.createdByUserId !== me) throw new NotFoundException('یادآوری یافت نشد');
     await ctx.tenantDb.dashboardReminder.delete({ where: { id } });
     return { ok: true };
   }

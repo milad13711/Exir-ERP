@@ -94,12 +94,12 @@ export class CampaignsService {
     return { ok: true };
   }
 
-  async list(ctx: TenantRequestContext) {
-    return ctx.tenantDb.marketingCampaign.findMany({ orderBy: { createdAt: 'desc' } });
+  async list(ctx: TenantRequestContext, scope: Record<string, unknown> = {}) {
+    return ctx.tenantDb.marketingCampaign.findMany({ where: scope, orderBy: { createdAt: 'desc' } });
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const campaign = await ctx.tenantDb.marketingCampaign.findUnique({ where: { id }, include: CAMPAIGN_INCLUDE });
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const campaign = await ctx.tenantDb.marketingCampaign.findFirst({ where: { id, ...scope }, include: CAMPAIGN_INCLUDE });
     if (!campaign) throw new NotFoundException('کمپین یافت نشد');
 
     // عملکرد کمپین: چند نفر از گیرندگان طی بازه‌ی زیر بعد از ارسال خرید ثبت کردند —

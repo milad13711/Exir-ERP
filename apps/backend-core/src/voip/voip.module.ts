@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PermissionsModule } from '../permissions/permissions.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { VoipProviderRegistryService } from './voip-provider-registry.service.js';
@@ -13,7 +14,7 @@ import { NavatelReportsController } from './navatel-reports.controller.js';
 import { CallLogService } from './call-log.service.js';
 
 @Module({
-  imports: [ModuleGuardModule, AutomationModule],
+  imports: [ModuleGuardModule, AutomationModule, PermissionsModule],
   controllers: [VoipController, VoipWebhookController, NavatelReportsController],
   providers: [
     VoipProviderRegistryService,

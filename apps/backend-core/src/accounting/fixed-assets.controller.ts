@@ -67,6 +67,7 @@ export class FixedAssetsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateFixedAssetDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const asset = await ctx.tenantDb.fixedAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('دارایی ثابت یافت نشد');
     if (asset.status === 'DISPOSED') throw new ConflictException('دارایی واگذارشده قابل ویرایش نیست');
@@ -96,6 +97,7 @@ export class FixedAssetsController {
   @Post(':id/post-depreciation')
   async postDepreciation(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
     await ensureFixedAssetAccounts(ctx.tenantDb);
     const asset = await ctx.tenantDb.fixedAsset.findUnique({ where: { id } });
@@ -134,6 +136,7 @@ export class FixedAssetsController {
   @Post(':id/dispose')
   async dispose(@Param('id') id: string, @Body() dto: DisposeFixedAssetDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
+    await this.permissions.assertViewAll(ctx, 'accounting'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const asset = await ctx.tenantDb.fixedAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('دارایی ثابت یافت نشد');
     if (asset.status === 'DISPOSED') throw new BadRequestException('این دارایی قبلاً واگذار شده است');

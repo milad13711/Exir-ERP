@@ -6,6 +6,8 @@ import { SupportService } from './support.service.js';
 import { CreateTicketDto } from './dto/create-ticket.dto.js';
 import { AddMessageDto } from './dto/add-message.dto.js';
 
+const isManager = (ctx: TenantRequestContext) => ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN';
+
 @Controller('support/tickets')
 @UseGuards(JwtAuthGuard)
 export class SupportController {
@@ -23,7 +25,7 @@ export class SupportController {
 
   @Get(':id/messages')
   messages(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.support.getMessages(ctx.tenantId, id);
+    return this.support.getMessages(ctx.tenantId, id, { sub: ctx.auth.sub, manager: isManager(ctx) });
   }
 
   @Post(':id/messages')
@@ -32,6 +34,6 @@ export class SupportController {
     @Body() dto: AddMessageDto,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.support.addTenantMessage(ctx.tenantId, id, ctx.auth.sub, dto.body);
+    return this.support.addTenantMessage(ctx.tenantId, id, ctx.auth.sub, dto.body, isManager(ctx));
   }
 }

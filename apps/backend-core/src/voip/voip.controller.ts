@@ -8,6 +8,8 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { VoipProviderRegistryService } from './voip-provider-registry.service.js';
 import { CallLogService } from './call-log.service.js';
 import { phonesMatch } from './phone-match.js';
@@ -22,6 +24,7 @@ export class VoipController {
   constructor(
     private readonly registry: VoipProviderRegistryService,
     private readonly callLog: CallLogService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   @Get('providers')
@@ -143,8 +146,21 @@ export class VoipController {
     @Query('limit') limit: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
+    // مالک/مدیر: تاریخچه‌ی همه‌ی تماس‌ها. سایر کاربران: فقط تماس‌های خودشان؛ یا تماس‌های یک مخاطب که طبق
+    // ماتریس دسترسی CRM اجازه‌ی دیدنش را دارند (تب تماس‌ها در پروفایل مخاطب).
+    const manager = ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN';
+    let where: { contactId?: string; userId?: string };
+    if (manager) {
+      where = { contactId, userId: mine === 'true' ? ((await resolveTenantUserId(ctx)) ?? undefined) : undefined };
+    } else if (contactId) {
+      const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+      await assertInScope(ctx.tenantDb.crmContact, scope, { id: contactId }, { message: 'مخاطب یافت نشد' });
+      where = { contactId };
+    } else {
+      where = { userId: (await resolveTenantUserId(ctx)) ?? '__none__' };
+    }
     return ctx.tenantDb.callLog.findMany({
-      where: { contactId, userId: mine === 'true' ? ((await resolveTenantUserId(ctx)) ?? undefined) : undefined },
+      where,
       include: { contact: { select: { id: true, name: true, company: true } }, user: { select: { id: true, name: true } } },
       orderBy: { startedAt: 'desc' },
       take: limit ? Math.min(Number(limit), 200) : 100,

@@ -34,12 +34,14 @@ export class AfterSalesController {
   @Patch('services/:id/status')
   async updateServiceStatus(@Param('id') id: string, @Body() dto: UpdateServiceStatusDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, AFTER_SALES_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, AFTER_SALES_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.afterSales.updateServiceStatus(ctx, id, dto);
   }
 
   @Post('services/:id/sms')
   async sendSms(@Param('id') id: string, @Body() body: { message: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, AFTER_SALES_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, AFTER_SALES_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.afterSales.sendCustomSmsToServiceCustomer(ctx, id, body.message ?? '');
   }
 

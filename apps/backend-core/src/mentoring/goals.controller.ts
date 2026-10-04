@@ -29,6 +29,7 @@ export class GoalsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await safeDelete(() => ctx.tenantDb.mentoringGoal.delete({ where: { id } }));
     return { success: true };
   }
@@ -36,12 +37,14 @@ export class GoalsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateGoalDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.goals.update(ctx, id, dto);
   }
 
   @Post(':id/check-ins')
   async addCheckIn(@Param('id') id: string, @Body() dto: CreateGoalCheckInDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.goals.addCheckIn(ctx, id, dto);
   }
 }

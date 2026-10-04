@@ -40,12 +40,14 @@ export class QrCodeController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateQrCodeDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'qr-code');
+    await this.permissions.assertViewAll(ctx, 'qr-code'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.qrCodes.update(ctx, id, dto);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'qr-code');
+    await this.permissions.assertViewAll(ctx, 'qr-code'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.qrCodes.remove(ctx, id);
   }
 

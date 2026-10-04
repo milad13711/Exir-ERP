@@ -111,6 +111,7 @@ export class CertificatesController {
 
   @Put('template-settings')
   async updateTemplateSettings(@Body() dto: Partial<CertificateTemplateSettings>, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'certificates');
     return this.templateSettings.update(ctx, dto);
   }
 
@@ -199,6 +200,7 @@ export class CertificatesController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'certificates');
+    await this.permissions.assertViewAll(ctx, 'certificates'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const cert = await ctx.tenantDb.certificate.findUnique({ where: { id } });
     if (!cert) throw new NotFoundException('این گواهی یافت نشد');
     await ctx.tenantDb.certificate.delete({ where: { id } });

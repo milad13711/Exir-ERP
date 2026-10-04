@@ -49,7 +49,9 @@ export class UsersService implements OnModuleInit {
     return { role: (membership?.role ?? 'MEMBER') as MembershipRole, membershipId: membership?.id ?? null, globalUserId: user.globalUserId };
   }
 
+  /** مالک/مدیر: پروفایل کامل. سایر کاربران (برای انتخابگرهای «ارجاع به...»): فقط نام/شناسه — بدون موبایل/ایمیل همکاران. */
   async listUsers(ctx: TenantRequestContext) {
+    const manager = ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN';
     const users = await ctx.tenantDb.user.findMany({
       include: { roles: { include: { role: true } } },
       orderBy: { createdAt: 'asc' },
@@ -63,8 +65,8 @@ export class UsersService implements OnModuleInit {
       membershipRole: roleByGlobal.get(u.globalUserId) ?? 'MEMBER',
       id: u.id,
       name: u.name,
-      email: u.email,
-      phone: u.phone,
+      email: manager ? u.email : null,
+      phone: manager ? u.phone : null,
       status: u.status,
       roles: u.roles.map((r) => r.role.name),
       roleIds: u.roles.map((r) => r.roleId),

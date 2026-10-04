@@ -6,6 +6,8 @@ import { RequireModule } from '../common/decorators/require-module.decorator.js'
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { contractScope } from '../permissions/entity-scopes.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ContractsService, contractPartyName, contractSecondPartyName } from './contracts.service.js';
@@ -30,12 +32,16 @@ export class ContractsController {
   ) {}
 
   /** «مشاهده‌ی همه» = همه‌ی قراردادها؛ «فقط خودم» = قراردادهایی که خودش ساخته، امضای شرکتشان به او ارجاع شده یا قرارداد داخلی خودش است. */
-  private async contractScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
-    const matrix = await this.permissions.getEffective(ctx, 'contracts');
-    if (matrix.canViewAll) return {};
-    if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
-    const userId = await resolveTenantUserId(ctx);
-    return { OR: [{ createdByUserId: userId }, { referredSignerUserId: userId }, { employee: { userId } }] };
+  private contractScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    return contractScope(this.permissions, ctx);
+  }
+
+  private async assertContractInScope(ctx: TenantRequestContext, id: string) {
+    await assertInScope(ctx.tenantDb.contract, await this.contractScope(ctx), { id }, { message: 'قرارداد یافت نشد' });
+  }
+
+  private async assertChildInScope(ctx: TenantRequestContext, delegate: Parameters<typeof assertInScope>[0], id: string) {
+    await assertInScope(delegate, await this.contractScope(ctx), { id }, { wrap: (scope) => ({ contract: scope }), message: 'رکورد یافت نشد' });
   }
 
   // نکته: مسیرهای ثابت (stage-templates‌مانند) باید قبل از مسیرهای پارامتری
@@ -153,24 +159,28 @@ export class ContractsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.update(ctx, id, dto);
   }
 
   @Post(':id/sign')
   async sign(@Param('id') id: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.signAsCompany(ctx, id, dto);
   }
 
   @Post(':id/terminate')
   async terminate(@Param('id') id: string, @Body() dto: TerminateContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.terminate(ctx, id, dto.reason);
   }
 
   @Post(':id/renew')
   async renew(@Param('id') id: string, @Body() dto: RenewContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.renew(ctx, id, dto.newEndDate);
   }
 
@@ -183,6 +193,7 @@ export class ContractsController {
   @Post('edit-requests/:requestId/resolve')
   async resolveEditRequest(@Param('requestId') requestId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertChildInScope(ctx, ctx.tenantDb.contractEditRequest, requestId);
     return this.contracts.resolveEditRequest(ctx, requestId);
   }
 
@@ -195,12 +206,14 @@ export class ContractsController {
   @Post(':id/amendments')
   async createAmendment(@Param('id') id: string, @Body('text') text: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.createAmendment(ctx, id, text);
   }
 
   @Post('amendments/:amendmentId/sign')
   async signAmendment(@Param('amendmentId') amendmentId: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertChildInScope(ctx, ctx.tenantDb.contractAmendment, amendmentId);
     return this.contracts.signAmendmentAsCompany(ctx, amendmentId, dto);
   }
 
@@ -213,12 +226,14 @@ export class ContractsController {
   @Post(':id/witnesses')
   async addWitness(@Param('id') id: string, @Body() dto: AddWitnessDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
     return this.contracts.addWitness(ctx, id, dto);
   }
 
   @Delete('witnesses/:witnessId')
   async removeWitness(@Param('witnessId') witnessId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'contracts');
+    await this.assertChildInScope(ctx, ctx.tenantDb.contractWitness, witnessId);
     await this.contracts.removeWitness(ctx, witnessId);
     return { ok: true };
   }

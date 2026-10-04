@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -33,7 +33,7 @@ const EMPLOYEE_INCLUDE = { department: { select: { id: true, name: true } } };
  * a Department they're the designated manager of. Returns null for
  * canViewAll/no-linked-employee-record callers, meaning "don't filter".
  */
-async function resolveVisibilityFilter(
+export async function resolveVisibilityFilter(
   ctx: TenantRequestContext,
   permissions: PermissionsService,
 ): Promise<Set<string> | null> {
@@ -55,6 +55,12 @@ export class EmployeesController {
     private readonly automation: AutomationEngineService,
     private readonly users: UsersService,
   ) {}
+
+  /** کاربر «فقط خودم»: فقط پرونده‌ی خودش و زیردستانش/واحدهای تحت مدیریتش؛ خارج از آن → ۴۰۴. */
+  private async assertEmployeeVisible(ctx: TenantRequestContext, id: string) {
+    const visible = await resolveVisibilityFilter(ctx, this.permissions);
+    if (visible && !visible.has(id)) throw new NotFoundException('کارمند یافت نشد یا اجازه‌ی دسترسی به پرونده‌ی او را ندارید');
+  }
 
   @Get()
   async list(
@@ -219,6 +225,10 @@ export class EmployeesController {
   @Post()
   async create(@Body() dto: CreateEmployeeDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    // دادن دسترسی سیستمی (ساخت کاربر با نقش) فقط مالک/مدیر — وگرنه کارمندِ منابع انسانی می‌تواند برای خودش/دیگری نقش پرقدرت بسازد.
+    if (dto.grantSystemAccess && ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
+      throw new ForbiddenException('فقط مالک یا مدیر می‌تواند دسترسی سیستمی بدهد');
+    }
     const existing = await ctx.tenantDb.employee.findUnique({ where: { employeeCode: dto.employeeCode } });
     if (existing) throw new ConflictException('کارمندی با این کد پرسنلی از قبل وجود دارد');
 
@@ -295,6 +305,7 @@ export class EmployeesController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
     await safeDelete(() => ctx.tenantDb.employee.delete({ where: { id } }));
@@ -304,6 +315,7 @@ export class EmployeesController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
     if (dto.employeeCode && dto.employeeCode !== existing.employeeCode) {
@@ -337,6 +349,7 @@ export class EmployeesController {
   @Post(':id/terminate')
   async terminate(@Param('id') id: string, @Body() body: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
     const updated = await ctx.tenantDb.employee.update({
@@ -354,6 +367,7 @@ export class EmployeesController {
   @Post(':id/reactivate')
   async reactivate(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     const existing = await ctx.tenantDb.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('کارمند یافت نشد');
     return ctx.tenantDb.employee.update({ where: { id }, data: { status: 'ACTIVE' } });
@@ -362,6 +376,7 @@ export class EmployeesController {
   @Post(':id/manager')
   async assignManager(@Param('id') id: string, @Body() dto: AssignManagerDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     await ctx.tenantDb.employee.findUniqueOrThrow({ where: { id } });
     if (dto.managerId === id) {
       throw new ConflictException('یک کارمند نمی‌تواند مدیر بالادستی خودش باشد');
@@ -380,6 +395,7 @@ export class EmployeesController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     await ctx.tenantDb.employee.findUniqueOrThrow({ where: { id } });
     return ctx.tenantDb.employeeDocument.create({
       data: {
@@ -395,6 +411,7 @@ export class EmployeesController {
   @Delete(':id/documents/:documentId')
   async removeDocument(@Param('id') id: string, @Param('documentId') documentId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.assertEmployeeVisible(ctx, id);
     const doc = await ctx.tenantDb.employeeDocument.findUnique({ where: { id: documentId } });
     if (!doc || doc.employeeId !== id) throw new NotFoundException('مدرک یافت نشد');
     await ctx.tenantDb.employeeDocument.delete({ where: { id: documentId } });

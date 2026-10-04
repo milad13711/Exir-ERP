@@ -39,30 +39,35 @@ export class FormsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateFormDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.forms.update(ctx, id, dto);
   }
 
   @Post(':id/publish')
   async publish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.forms.setStatus(ctx, id, 'PUBLISHED');
   }
 
   @Post(':id/close')
   async close(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.forms.setStatus(ctx, id, 'CLOSED');
   }
 
   @Post(':id/unpublish')
   async unpublish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.forms.setStatus(ctx, id, 'DRAFT');
   }
 
   @Post(':id/delete')
   async delete(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'forms');
+    await this.permissions.assertViewAll(ctx, 'forms'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.forms.delete(ctx, id);
   }
 

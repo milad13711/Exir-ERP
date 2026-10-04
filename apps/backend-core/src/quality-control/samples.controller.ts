@@ -73,6 +73,7 @@ export class QualitySamplesController {
   @Post(':id/results')
   async addResult(@Param('id') id: string, @Body() dto: AddResultDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const [sample, testType] = await Promise.all([
       ctx.tenantDb.qualitySample.findUnique({ where: { id }, include: { productionOrder: { include: { bom: { include: { outputProduct: true } } } } } }),
       ctx.tenantDb.qualityTestType.findUnique({ where: { id: dto.testTypeId } }),

@@ -56,9 +56,10 @@ export class FunnelKpiService {
     return this.getStageLabels(ctx);
   }
 
-  async getFunnelSummary(ctx: TenantRequestContext) {
+  async getFunnelSummary(ctx: TenantRequestContext, scope: Record<string, unknown> = {}) {
     const stageLabels = await this.getStageLabels(ctx);
     const contacts = await ctx.tenantDb.crmContact.findMany({
+      where: scope,
       select: {
         id: true,
         funnelStage: true,
@@ -68,7 +69,7 @@ export class FunnelKpiService {
         createdAt: true,
       },
     });
-    const events = await ctx.tenantDb.crmFunnelStageEvent.findMany({ select: { contactId: true, toStage: true } });
+    const events = await ctx.tenantDb.crmFunnelStageEvent.findMany({ where: { contact: scope }, select: { contactId: true, toStage: true } });
 
     const currentDistribution: Record<string, number> = Object.fromEntries(ALL_STAGES.map((s) => [s, 0]));
     for (const c of contacts) currentDistribution[c.funnelStage] = (currentDistribution[c.funnelStage] ?? 0) + 1;
@@ -140,8 +141,9 @@ export class FunnelKpiService {
     };
   }
 
-  async getSalesKpis(ctx: TenantRequestContext) {
+  async getSalesKpis(ctx: TenantRequestContext, scope: Record<string, unknown> = {}) {
     const contacts = await ctx.tenantDb.crmContact.findMany({
+      where: scope,
       select: { id: true, ownerUserId: true, source: true, acquisitionCost: true, purchaseCount: true, createdAt: true },
     });
 
@@ -174,7 +176,7 @@ export class FunnelKpiService {
 
     // میانگین زمان پیگیری: از لحظه‌ی ثبت سرنخ تا اولین تماس/جلسه/ایمیل واقعی
     const activities = await ctx.tenantDb.crmActivity.findMany({
-      where: { type: { in: ['CALL', 'MEETING', 'EMAIL'] }, contactId: { not: null } },
+      where: { type: { in: ['CALL', 'MEETING', 'EMAIL'] }, contactId: { not: null }, contact: scope },
       orderBy: { createdAt: 'asc' },
       select: { contactId: true, createdAt: true },
     });

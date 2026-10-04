@@ -64,6 +64,7 @@ export class ResellersController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await safeDelete(() => ctx.tenantDb.resellerProfile.delete({ where: { id } }));
     return { success: true };
   }
@@ -83,36 +84,42 @@ export class ResellersController {
   @Post(':id/settlements')
   async createSettlement(@Param('id') id: string, @Body() dto: { note?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.generateSettlement(ctx, id, dto?.note);
   }
 
   @Post('settlements/:settlementId/settle')
   async settle(@Param('settlementId') settlementId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.settle(ctx, settlementId);
   }
 
   @Post(':id/end')
   async end(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.endCooperation(ctx, id, (dto?.reason ?? 'پایان همکاری').trim());
   }
 
   @Post(':id/map-visibility')
   async mapVisibility(@Param('id') id: string, @Body() dto: { hidden: boolean }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.setMapVisibility(ctx, id, !!dto.hidden);
   }
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateResellerDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.update(ctx, id, dto);
   }
 
   @Post(':id/grant-access')
   async grantAccess(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.grantAccess(ctx, id);
   }
 
@@ -126,6 +133,7 @@ export class ResellersController {
   @Post(':id/conversions')
   async linkConversion(@Param('id') id: string, @Body() dto: LinkConversionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'referral-marketing');
+    await this.permissions.assertViewAll(ctx, 'referral-marketing'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.resellers.linkConversion(ctx, id, dto.contactId);
   }
 

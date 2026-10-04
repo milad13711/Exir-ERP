@@ -4,6 +4,7 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { SalesReturnsService } from './sales-returns.service.js';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto.js';
@@ -39,12 +40,15 @@ export class SalesReturnsController {
   @Post()
   async create(@Body() dto: CreateSalesReturnDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'sales');
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    await assertInScope(ctx.tenantDb.salesInvoice, scope, { id: dto.invoiceId }, { message: 'فاکتور یافت نشد' });
     return this.returns.create(ctx, dto);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'sales');
+    await this.permissions.assertViewAll(ctx, 'sales');
     return this.returns.remove(ctx, id);
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FixedAssetsController } from './fixed-assets.controller.js';
 
-const perms = { assertEdit: vi.fn() } as any;
+const perms = { assertEdit: vi.fn(), assertViewAll: vi.fn() } as any;
 
 function makeCtx(asset: any) {
   return {

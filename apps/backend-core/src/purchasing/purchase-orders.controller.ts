@@ -4,6 +4,7 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { PurchaseOrdersService } from './purchase-orders.service.js';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
@@ -19,6 +20,11 @@ export class PurchaseOrdersController {
     private readonly orders: PurchaseOrdersService,
     private readonly permissions: PermissionsService,
   ) {}
+
+  private async assertOrderInScope(ctx: TenantRequestContext, id: string) {
+    const scope = await this.permissions.viewScope(ctx, 'purchasing', 'createdByUserId');
+    await assertInScope(ctx.tenantDb.purchaseOrder, scope, { id }, { message: 'سفارش خرید یافت نشد' });
+  }
 
   @Get()
   async list(@Query('q') q: string | undefined, @Ctx() ctx: TenantRequestContext) {
@@ -55,24 +61,28 @@ export class PurchaseOrdersController {
   @Put(':id')
   async updateDraft(@Param('id') id: string, @Body() dto: CreatePurchaseOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'purchasing');
+    await this.assertOrderInScope(ctx, id);
     return this.orders.updateDraft(ctx, id, dto);
   }
 
   @Delete(':id')
   async removeDraft(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'purchasing');
+    await this.assertOrderInScope(ctx, id);
     return this.orders.removeDraft(ctx, id);
   }
 
   @Post(':id/cancel')
   async cancelDraft(@Param('id') id: string, @Body() dto: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'purchasing');
+    await this.assertOrderInScope(ctx, id);
     return this.orders.cancelDraft(ctx, id, (dto?.reason ?? 'بدون توضیح').trim());
   }
 
   @Post(':id/receive')
   async receive(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'purchasing');
+    await this.assertOrderInScope(ctx, id);
     return this.orders.receive(ctx, id);
   }
 
@@ -93,6 +103,7 @@ export class PurchaseOrdersController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'purchasing');
+    await this.assertOrderInScope(ctx, id);
     return this.orders.recordPayment(ctx, id, dto);
   }
 }

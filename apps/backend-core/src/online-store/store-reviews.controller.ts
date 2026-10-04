@@ -27,6 +27,7 @@ export class StoreReviewsController {
   @Put(':id/status')
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateReviewStatusDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'online-store');
+    await this.permissions.assertViewAll(ctx, 'online-store'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const review = await ctx.tenantDb.storeReview.findUnique({ where: { id } });
     if (!review) throw new NotFoundException('نظر یافت نشد');
     return ctx.tenantDb.storeReview.update({ where: { id }, data: { status: dto.status } });

@@ -33,6 +33,7 @@ export class DepartmentsController {
   @Post()
   async create(@Body() dto: CreateDepartmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // مدیرِ واحد تعیین‌کننده‌ی دیدِ پرونده‌هاست — فقط با «مشاهده‌ی همه»
     const existing = await ctx.tenantDb.department.findUnique({ where: { name: dto.name } });
     if (existing) throw new ConflictException('واحدی با این نام از قبل وجود دارد');
     return ctx.tenantDb.department.create({
@@ -68,6 +69,7 @@ export class DepartmentsController {
   @Post('import')
   async import(@Body() dto: ImportExcelDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // مدیرِ واحد تعیین‌کننده‌ی دیدِ پرونده‌هاست — فقط با «مشاهده‌ی همه»
     const buffer = Buffer.from(dto.fileBase64, 'base64');
     const rows = await parseExcelBuffer(buffer);
 
@@ -95,6 +97,7 @@ export class DepartmentsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateDepartmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // مدیرِ واحد تعیین‌کننده‌ی دیدِ پرونده‌هاست — فقط با «مشاهده‌ی همه»
     const existing = await ctx.tenantDb.department.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('واحد سازمانی یافت نشد');
     if (dto.name && dto.name !== existing.name) {
@@ -111,6 +114,7 @@ export class DepartmentsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // مدیرِ واحد تعیین‌کننده‌ی دیدِ پرونده‌هاست — فقط با «مشاهده‌ی همه»
     const existing = await ctx.tenantDb.department.findUnique({ where: { id }, include: { _count: { select: { employees: true } } } });
     if (!existing) throw new NotFoundException('واحد سازمانی یافت نشد');
     if (existing._count.employees > 0) {

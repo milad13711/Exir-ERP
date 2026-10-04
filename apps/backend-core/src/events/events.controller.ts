@@ -54,42 +54,49 @@ export class EventsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateEventDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.update(ctx, id, dto);
   }
 
   @Post(':id/publish')
   async publish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.setStatus(ctx, id, 'PUBLISHED');
   }
 
   @Post(':id/unpublish')
   async unpublish(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.setStatus(ctx, id, 'DRAFT');
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.setStatus(ctx, id, 'CANCELLED');
   }
 
   @Post(':id/ticket-types')
   async createTicketType(@Param('id') id: string, @Body() dto: CreateTicketTypeDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.createTicketType(ctx, id, dto);
   }
 
   @Patch('ticket-types/:ticketTypeId')
   async updateTicketType(@Param('ticketTypeId') ticketTypeId: string, @Body() dto: UpdateTicketTypeDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.updateTicketType(ctx, ticketTypeId, dto);
   }
 
   @Post('ticket-types/:ticketTypeId/delete')
   async deleteTicketType(@Param('ticketTypeId') ticketTypeId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.deleteTicketType(ctx, ticketTypeId);
   }
 

@@ -83,7 +83,8 @@ export class JournalEntriesController implements OnModuleInit {
   @Put(':id')
   async updateDraft(@Param('id') id: string, @Body() dto: CreateJournalEntryDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
-    const entry = await ctx.tenantDb.journalEntry.findUnique({ where: { id } });
+    const scope = await this.permissions.viewScope(ctx, 'accounting', 'createdByUserId');
+    const entry = await ctx.tenantDb.journalEntry.findFirst({ where: { id, ...scope } });
     if (!entry) throw new NotFoundException('سند حسابداری یافت نشد');
     if (entry.status !== 'DRAFT') throw new ConflictException('سند قطعی‌شده ویرایش نمی‌شود؛ آن را باطل و سند اصلاحی ثبت کنید');
     this.validateLines(dto.lines);
@@ -105,7 +106,8 @@ export class JournalEntriesController implements OnModuleInit {
   @Delete(':id')
   async removeDraft(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'accounting');
-    const entry = await ctx.tenantDb.journalEntry.findUnique({ where: { id } });
+    const scope = await this.permissions.viewScope(ctx, 'accounting', 'createdByUserId');
+    const entry = await ctx.tenantDb.journalEntry.findFirst({ where: { id, ...scope } });
     if (!entry) throw new NotFoundException('سند حسابداری یافت نشد');
     if (entry.status !== 'DRAFT') throw new ConflictException('سند قطعی‌شده حذف نمی‌شود؛ آن را باطل کنید');
     await ctx.tenantDb.journalEntry.delete({ where: { id } });
@@ -117,7 +119,8 @@ export class JournalEntriesController implements OnModuleInit {
     await this.permissions.assertDelete(ctx, 'accounting');
     const reason = (dto?.reason ?? '').trim();
     if (reason.length < 3) throw new BadRequestException('دلیل ابطال را بنویسید');
-    const entry = await ctx.tenantDb.journalEntry.findUnique({ where: { id } });
+    const scope = await this.permissions.viewScope(ctx, 'accounting', 'createdByUserId');
+    const entry = await ctx.tenantDb.journalEntry.findFirst({ where: { id, ...scope } });
     if (!entry) throw new NotFoundException('سند حسابداری یافت نشد');
     const outcome = await this.approvals.runOrRequest(
       ctx,
@@ -196,7 +199,8 @@ export class JournalEntriesController implements OnModuleInit {
   @Post(':id/post')
   async post(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
-    const entry = await ctx.tenantDb.journalEntry.findUnique({ where: { id } });
+    const scope = await this.permissions.viewScope(ctx, 'accounting', 'createdByUserId');
+    const entry = await ctx.tenantDb.journalEntry.findFirst({ where: { id, ...scope } });
     if (!entry) throw new NotFoundException('سند حسابداری یافت نشد');
     if (entry.status === 'POSTED') {
       throw new BadRequestException('این سند قبلاً ثبت قطعی شده است');

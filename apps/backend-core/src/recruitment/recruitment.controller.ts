@@ -62,6 +62,7 @@ export class RecruitmentController {
   @Delete('postings/:id')
   async removePosting(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await safeDelete(() => ctx.tenantDb.jobPosting.delete({ where: { id } }));
     return { success: true };
   }
@@ -69,6 +70,7 @@ export class RecruitmentController {
   @Delete('applicants/:id')
   async removeApplicant(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const a = await ctx.tenantDb.jobApplicant.findUnique({ where: { id } });
     if (a?.stage === 'HIRED') throw new ConflictException('متقاضی جذب‌شده حذف نمی‌شود؛ پرونده‌ی پرسنلی او در منابع انسانی است');
     await safeDelete(() => ctx.tenantDb.jobApplicant.delete({ where: { id } }));
@@ -78,18 +80,21 @@ export class RecruitmentController {
   @Patch('postings/:id')
   async updatePosting(@Param('id') id: string, @Body() dto: UpdateJobPostingDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.updatePosting(ctx, id, dto);
   }
 
   @Post('postings/:id/close')
   async closePosting(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.closePosting(ctx, id);
   }
 
   @Post('postings/:id/reopen')
   async reopenPosting(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.requestReopenPosting(ctx, id);
   }
 
@@ -121,18 +126,21 @@ export class RecruitmentController {
   @Patch('applicants/:id')
   async updateApplicant(@Param('id') id: string, @Body() dto: UpdateApplicantDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.updateApplicant(ctx, id, dto);
   }
 
   @Post('applicants/:id/specialist-decision')
   async specialistDecision(@Param('id') id: string, @Body() dto: DecisionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.specialistDecision(ctx, id, dto);
   }
 
   @Post('applicants/:id/management-decision')
   async managementDecision(@Param('id') id: string, @Body() dto: DecisionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.managementDecision(ctx, id, dto);
   }
 
@@ -164,18 +172,21 @@ export class RecruitmentController {
   @Patch('interviews/:id')
   async updateInterview(@Param('id') id: string, @Body() dto: UpdateInterviewDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.updateInterview(ctx, id, dto);
   }
 
   @Post('interviews/:id/cancel')
   async cancelInterview(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.cancelInterview(ctx, id);
   }
 
   @Post('interviews/:id/report')
   async recordInterviewReport(@Param('id') id: string, @Body() dto: RecordInterviewReportDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.recordInterviewReport(ctx, id, dto);
   }
 
@@ -196,6 +207,7 @@ export class RecruitmentController {
   @Post('offers/:id/send')
   async sendOffer(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, RECRUITMENT_MODULE_CODE);
+    await this.permissions.assertViewAll(ctx, RECRUITMENT_MODULE_CODE); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.recruitment.sendOffer(ctx, id);
   }
 

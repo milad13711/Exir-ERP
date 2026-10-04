@@ -55,12 +55,14 @@ export class WarrantyController {
   @Post('codes/:id/void')
   async void_(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.warranty.void(ctx, id);
   }
 
   @Post('codes/:id/extend')
   async extend(@Param('id') id: string, @Body() dto: ExtendWarrantyDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.warranty.extend(ctx, id, dto.expiresAt);
   }
 
@@ -114,6 +116,7 @@ export class WarrantyController {
   @Patch('products/:id')
   async updateProduct(@Param('id') id: string, @Body() dto: UpdateProductWarrantySettingsDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'warranty');
+    await this.permissions.assertViewAll(ctx, 'warranty'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.warranty.updateProductSettings(ctx, id, dto);
   }
 

@@ -96,7 +96,7 @@ export class TasksController {
   @Post(':id/toggle')
   async toggle(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'tasks');
-    const task = await ctx.tenantDb.task.findUniqueOrThrow({ where: { id } });
+    const task = await this.requireTask(ctx, id);
     return ctx.tenantDb.task.update({
       where: { id },
       data:
@@ -110,8 +110,7 @@ export class TasksController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateTaskDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'tasks');
-    const existing = await ctx.tenantDb.task.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('وظیفه یافت نشد');
+    const existing = await this.requireTask(ctx, id);
 
     let assignedUserId = existing.assignedUserId;
     if (dto.assignedUserId !== undefined && dto.assignedUserId !== existing.assignedUserId) {
@@ -200,8 +199,10 @@ export class TasksController {
     return { success: true };
   }
 
+  /** وظیفه را فقط در محدوده‌ی دسترسی کاربر می‌یابد — «فقط خودم» یعنی ویرایش/حذف وظیفه‌ی دیگران هم ممنوع (۴۰۴). */
   private async requireTask(ctx: TenantRequestContext, id: string) {
-    const task = await ctx.tenantDb.task.findUnique({ where: { id } });
+    const scope = await this.permissions.viewScope(ctx, 'tasks', 'assignedUserId');
+    const task = await ctx.tenantDb.task.findFirst({ where: { id, ...scope } });
     if (!task) throw new NotFoundException('وظیفه یافت نشد');
     return task;
   }
@@ -215,8 +216,7 @@ export class TasksController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'tasks');
-    const existing = await ctx.tenantDb.task.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('وظیفه یافت نشد');
+    await this.requireTask(ctx, id);
     await ctx.tenantDb.task.delete({ where: { id } });
     return { success: true };
   }

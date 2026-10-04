@@ -4,6 +4,8 @@ import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ChecksService } from './checks.service.js';
 import { CreateCheckDto } from './dto/create-check.dto.js';
@@ -20,15 +22,28 @@ export class ChecksController {
     private readonly permissions: PermissionsService,
   ) {}
 
-  /** چک‌ها هم به فروش (دریافتی) و هم خرید (صادرشده) مربوط می‌شوند — دسترسی مشاهده با هرکدام از این دو ماژول کافی است. */
-  private async assertViewEither(ctx: TenantRequestContext): Promise<void> {
+  /**
+   * چک‌ها هم به فروش (دریافتی) و هم خرید (صادرشده) مربوط می‌شوند: چک دریافتی تابع دسترسی ماژول فروش و چک صادرشده
+   * تابع ماژول خرید است — «مشاهده‌ی همه» همه‌ی چک‌های آن جهت، «فقط خودم» فقط چک‌های ثبت‌شده‌ی خودش. بدون هیچ‌کدام → ۴۰۳.
+   */
+  private async checkScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
     const [sales, purchasing] = await Promise.all([
       this.permissions.getEffective(ctx, 'sales'),
       this.permissions.getEffective(ctx, 'purchasing'),
     ]);
-    if (!sales.canViewAll && !sales.canViewOwn && !purchasing.canViewAll && !purchasing.canViewOwn) {
-      throw new ForbiddenException('اجازه‌ی مشاهده‌ی چک‌ها را ندارید');
-    }
+    if (sales.canViewAll && purchasing.canViewAll) return {};
+    const me = !(sales.canViewAll && purchasing.canViewAll) ? await resolveTenantUserId(ctx) : null;
+    const branches: Record<string, unknown>[] = [];
+    if (sales.canViewAll) branches.push({ direction: 'RECEIVED' });
+    else if (sales.canViewOwn) branches.push({ direction: 'RECEIVED', createdByUserId: me });
+    if (purchasing.canViewAll) branches.push({ direction: 'ISSUED' });
+    else if (purchasing.canViewOwn) branches.push({ direction: 'ISSUED', createdByUserId: me });
+    if (branches.length === 0) throw new ForbiddenException('اجازه‌ی مشاهده‌ی چک‌ها را ندارید');
+    return { OR: branches };
+  }
+
+  private async assertCheckInScope(ctx: TenantRequestContext, id: string) {
+    await assertInScope(ctx.tenantDb.check, await this.checkScope(ctx), { id }, { message: 'چک یافت نشد' });
   }
 
   @Get()
@@ -39,13 +54,12 @@ export class ChecksController {
     @Query('contactId') contactId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    await this.assertViewEither(ctx);
-    return this.checks.list(ctx, {
-      direction,
-      status,
-      dueSoonDays: dueSoonDays ? Number(dueSoonDays) : undefined,
-      contactId,
-    });
+    const scope = await this.checkScope(ctx);
+    return this.checks.list(
+      ctx,
+      { direction, status, dueSoonDays: dueSoonDays ? Number(dueSoonDays) : undefined, contactId },
+      scope,
+    );
   }
 
   @Get('settings/reminder-channels')
@@ -79,8 +93,7 @@ export class ChecksController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.assertViewEither(ctx);
-    return this.checks.detail(ctx, id);
+    return this.checks.detail(ctx, id, await this.checkScope(ctx));
   }
 
   @Post()
@@ -92,30 +105,35 @@ export class ChecksController {
   @Post(':id/deposit')
   async markDeposited(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.markDeposited(ctx, id);
   }
 
   @Post(':id/clear')
   async markCleared(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.markCleared(ctx, id);
   }
 
   @Post(':id/bounce')
   async markBounced(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.markBounced(ctx, id);
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.cancel(ctx, id);
   }
 
   @Post(':id/endorse')
   async endorse(@Param('id') id: string, @Body() dto: EndorseCheckDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.endorse(ctx, id, dto.toContactId);
   }
 
@@ -126,6 +144,7 @@ export class ChecksController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertCheckInScope(ctx, id);
     return this.checks.updateReminderDays(ctx, id, dto.reminderDaysBefore);
   }
 }

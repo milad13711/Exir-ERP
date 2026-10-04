@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { ForbiddenException, Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -23,6 +23,8 @@ export class UsersController {
 
   @Get('roles')
   roles(@Ctx() ctx: TenantRequestContext) {
+    // ماتریس دسترسیِ نقش‌ها اطلاعات مدیریتی است؛ کاربر عادی ماتریس مؤثر خودش را از مسیر /workspace می‌گیرد.
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') throw new ForbiddenException('فقط مالک یا مدیر');
     return this.users.listRoles(ctx);
   }
 

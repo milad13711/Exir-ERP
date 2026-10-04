@@ -81,12 +81,14 @@ export class SessionsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateSessionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.sessions.update(ctx, id, dto);
   }
 
   @Post(':id/complete')
   async complete(@Param('id') id: string, @Body() dto: CompleteSessionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
     return this.sessions.complete(ctx, id, dto.minutesNote, publicWebUrl, ctx.tenantSlug);
   }
@@ -94,18 +96,21 @@ export class SessionsController {
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Body() dto: CancelSessionDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.sessions.cancel(ctx, id, dto.reason);
   }
 
   @Post(':id/no-show')
   async noShow(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.sessions.noShow(ctx, id);
   }
 
   @Post(':id/invoice')
   async createInvoice(@Param('id') id: string, @Body() dto: CreateSessionInvoiceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.sessions.createInvoice(ctx, id, dto);
   }
 
@@ -113,6 +118,7 @@ export class SessionsController {
   @Post(':id/create-opportunity')
   async createOpportunity(@Param('id') id: string, @Body() dto: CreateOpportunityDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'mentoring');
+    await this.permissions.assertViewAll(ctx, 'mentoring'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await this.permissions.assertCreate(ctx, 'crm');
     return this.sessions.createOpportunity(ctx, id, dto);
   }

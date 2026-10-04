@@ -63,18 +63,21 @@ export class ShipmentsController {
   @Post(':id/send-offers')
   async sendOffers(@Param('id') id: string, @Body() dto: SendOffersDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.shipments.sendOffers(ctx, id, dto.driverIds);
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.shipments.cancel(ctx, id);
   }
 
   @Post(':id/deliver')
   async deliver(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
     return this.shipments.deliver(ctx, id, publicWebUrl, ctx.tenantSlug);
   }

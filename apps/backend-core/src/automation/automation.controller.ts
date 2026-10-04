@@ -95,6 +95,7 @@ export class AutomationController {
   @Patch('rules/:id')
   async updateRule(@Param('id') id: string, @Body() dto: UpdateRuleDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'automation');
+    await this.permissions.assertViewAll(ctx, 'automation'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const existing = await ctx.tenantDb.automationRule.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('قانون اتوماسیون یافت نشد');
     return ctx.tenantDb.automationRule.update({
@@ -107,6 +108,7 @@ export class AutomationController {
   @Delete('rules/:id')
   async deleteRule(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'automation');
+    await this.permissions.assertViewAll(ctx, 'automation'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const existing = await ctx.tenantDb.automationRule.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('قانون اتوماسیون یافت نشد');
     await ctx.tenantDb.automationRule.delete({ where: { id } });

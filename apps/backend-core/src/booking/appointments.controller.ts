@@ -63,42 +63,49 @@ export class AppointmentsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.update(ctx, id, dto);
   }
 
   @Post(':id/confirm')
   async confirm(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.confirm(ctx, id);
   }
 
   @Post(':id/complete')
   async complete(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.complete(ctx, id);
   }
 
   @Post(':id/no-show')
   async noShow(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.noShow(ctx, id);
   }
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.cancel(ctx, id, dto.reason);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.remove(ctx, id);
   }
 
   @Post(':id/manual-payment')
   async manualPayment(@Param('id') id: string, @Body() dto: ManualPaymentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.recordManualPayment(ctx, id, dto);
   }
 
@@ -106,18 +113,21 @@ export class AppointmentsController {
   @Post(':id/send-details')
   async sendDetails(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.sendDetails(ctx, id);
   }
 
   @Post(':id/approve-coordination')
   async approveCoordination(@Param('id') id: string, @Body() dto: ApproveCoordinationDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.approveCoordination(ctx, id, dto);
   }
 
   @Post(':id/reject-coordination')
   async rejectCoordination(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.appointments.rejectCoordination(ctx, id, dto.reason);
   }
 
@@ -125,6 +135,7 @@ export class AppointmentsController {
   @Post(':id/create-opportunity')
   async createOpportunity(@Param('id') id: string, @Body() dto: CreateOpportunityDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'booking');
+    await this.permissions.assertViewAll(ctx, 'booking'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     await this.permissions.assertCreate(ctx, 'crm');
     return this.appointments.createOpportunity(ctx, id, dto);
   }

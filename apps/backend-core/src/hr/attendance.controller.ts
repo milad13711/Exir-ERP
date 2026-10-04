@@ -39,6 +39,7 @@ export class AttendanceController {
   @Post()
   async mark(@Body() dto: MarkAttendanceDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
     if (dto.checkIn && dto.checkOut && new Date(dto.checkOut) < new Date(dto.checkIn)) {
       throw new BadRequestException('زمان خروج نمی‌تواند قبل از زمان ورود باشد');
     }

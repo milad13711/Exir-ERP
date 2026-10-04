@@ -17,6 +17,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { WebhooksService } from '../webhooks/webhooks.service.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateDealDto } from './dto/create-deal.dto.js';
@@ -42,6 +43,18 @@ export class DealsController {
     private readonly permissions: PermissionsService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /** عملیات روی یک فرصت فروش مشخص: کاربر «فقط خودم» فقط فرصت‌های خودش؛ خارج از دامنه → ۴۰۴. */
+  private async assertDealInScope(ctx: TenantRequestContext, id: string) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    await assertInScope(ctx.tenantDb.crmDeal, scope, { id }, { message: 'فرصت فروش یافت نشد' });
+  }
+
+  /** مخاطبِ مرجع نیز باید در دامنه‌ی دید کاربر باشد. */
+  private async assertContactInScope(ctx: TenantRequestContext, contactId: string) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    await assertInScope(ctx.tenantDb.crmContact, scope, { id: contactId }, { message: 'مخاطب یافت نشد' });
+  }
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
@@ -70,6 +83,7 @@ export class DealsController {
   @Post()
   async create(@Body() dto: CreateDealDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'crm');
+    await this.assertContactInScope(ctx, dto.contactId);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
     const ownerUserId = await resolveTenantUserId(ctx);
     const deal = await ctx.tenantDb.crmDeal.create({
@@ -107,6 +121,7 @@ export class DealsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertDealInScope(ctx, id);
     const existing = await ctx.tenantDb.crmDeal.findUniqueOrThrow({ where: { id } });
     const userId = await resolveTenantUserId(ctx);
     const isClosing = dto.stage === 'WON' || dto.stage === 'LOST';
@@ -160,9 +175,11 @@ export class DealsController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateDealDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertDealInScope(ctx, id);
     const existing = await ctx.tenantDb.crmDeal.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('فرصت فروش یافت نشد');
     if (dto.contactId) {
+      await this.assertContactInScope(ctx, dto.contactId);
       await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
     }
     return ctx.tenantDb.crmDeal.update({
@@ -182,6 +199,7 @@ export class DealsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'crm');
+    await this.assertDealInScope(ctx, id);
     const existing = await ctx.tenantDb.crmDeal.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('فرصت فروش یافت نشد');
     const invoiceCount = await ctx.tenantDb.salesInvoice.count({ where: { dealId: id } });
@@ -199,6 +217,7 @@ export class DealsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertDealInScope(ctx, id);
     await ctx.tenantDb.crmDeal.findUniqueOrThrow({ where: { id } });
     const userId = await resolveTenantUserId(ctx);
     return ctx.tenantDb.crmActivity.create({

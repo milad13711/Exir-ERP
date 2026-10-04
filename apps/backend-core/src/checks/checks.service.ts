@@ -61,8 +61,9 @@ export class ChecksService {
   list(
     ctx: TenantRequestContext,
     filters: { direction?: 'RECEIVED' | 'ISSUED'; status?: string; dueSoonDays?: number; contactId?: string },
+    scope: Record<string, unknown> = {},
   ) {
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = Object.keys(scope).length > 0 ? { AND: [scope] } : {};
     if (filters.direction) where.direction = filters.direction;
     if (filters.status) where.status = filters.status;
     if (filters.contactId) where.contactId = filters.contactId;
@@ -73,8 +74,8 @@ export class ChecksService {
     return ctx.tenantDb.check.findMany({ where, include: CHECK_INCLUDE, orderBy: { dueDate: 'asc' } });
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const check = await ctx.tenantDb.check.findUnique({ where: { id }, include: CHECK_INCLUDE });
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const check = await ctx.tenantDb.check.findFirst({ where: { id, ...scope }, include: CHECK_INCLUDE });
     if (!check) throw new NotFoundException('چک یافت نشد');
     return check;
   }

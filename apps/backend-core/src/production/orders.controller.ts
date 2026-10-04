@@ -107,6 +107,7 @@ export class ProductionOrdersController {
   @Post(':id/approve-raw-materials')
   async approveRawMaterials(@Param('id') id: string, @Body() dto: ApproveRawMaterialDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const order = await ctx.tenantDb.productionOrder.findUnique({
       where: { id },
       include: { bom: { include: { lines: { include: { rawMaterial: true } } } } },
@@ -169,6 +170,7 @@ export class ProductionOrdersController {
   @Post(':id/start')
   async start(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
     if (order.status !== 'RAW_MATERIAL_APPROVED') {
@@ -189,6 +191,7 @@ export class ProductionOrdersController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const stage = await ctx.tenantDb.productionOrderStage.findUnique({
       where: { id: stageId },
       include: { workCenter: true },
@@ -242,6 +245,7 @@ export class ProductionOrdersController {
   @Post(':id/complete')
   async complete(@Param('id') id: string, @Body() dto: CompleteOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id }, include: { bom: true } });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
 
@@ -314,6 +318,7 @@ export class ProductionOrdersController {
   @Post(':id/reject')
   async reject(@Param('id') id: string, @Body() dto: RejectOrderDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
     if (order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'REJECTED') {

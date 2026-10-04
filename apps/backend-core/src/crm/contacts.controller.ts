@@ -8,6 +8,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { WebhooksService } from '../webhooks/webhooks.service.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
@@ -39,6 +40,13 @@ export class ContactsController {
     private readonly partyTransactions: PartyTransactionsService,
     private readonly funnel: FunnelService,
   ) {}
+
+  /** کاربر «فقط خودم» فقط روی مخاطبین خودش می‌تواند عملیات انجام دهد؛ خارج از دامنه → ۴۰۴. */
+  private async assertContactInScope(ctx: TenantRequestContext, id: string) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    await assertInScope(ctx.tenantDb.crmContact, scope, { id }, { message: 'مخاطب یافت نشد' });
+  }
+
   @Get()
   async list(
     @Query('q') q: string | undefined,
@@ -178,6 +186,7 @@ export class ContactsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertCreate(ctx, 'crm');
+    await this.assertContactInScope(ctx, id);
     return this.partyTransactions.create(ctx, id, dto);
   }
 
@@ -189,6 +198,8 @@ export class ContactsController {
   @Post('transfers')
   async transferBetweenParties(@Body() dto: CreatePartyTransferDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'crm');
+    await this.assertContactInScope(ctx, dto.fromContactId);
+    await this.assertContactInScope(ctx, dto.toContactId);
     return this.partyTransactions.transfer(ctx, dto);
   }
 
@@ -227,6 +238,7 @@ export class ContactsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'crm');
+    await this.assertContactInScope(ctx, id);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
     await safeDelete(() => ctx.tenantDb.crmContact.delete({ where: { id } }));
     return { success: true };
@@ -235,9 +247,11 @@ export class ContactsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertContactInScope(ctx, id);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
     if (dto.referredById) {
       if (dto.referredById === id) throw new NotFoundException('مخاطب نمی‌تواند معرف خودش باشد');
+      await this.assertContactInScope(ctx, dto.referredById);
       await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.referredById } });
     }
     const contact = await ctx.tenantDb.crmContact.update({
@@ -275,6 +289,7 @@ export class ContactsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertContactInScope(ctx, id);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
     await ctx.tenantDb.crmContact.update({
       where: { id },
@@ -292,6 +307,7 @@ export class ContactsController {
     await this.permissions.assertCreate(ctx, 'crm');
     const ownerUserId = await resolveTenantUserId(ctx);
     if (dto.referredById) {
+      await this.assertContactInScope(ctx, dto.referredById);
       await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.referredById } });
     }
     const contact = await ctx.tenantDb.crmContact.create({
@@ -338,6 +354,7 @@ export class ContactsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'crm');
+    await this.assertContactInScope(ctx, id);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
     const userId = await resolveTenantUserId(ctx);
     return ctx.tenantDb.crmActivity.create({

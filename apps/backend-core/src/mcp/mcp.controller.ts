@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -66,6 +66,11 @@ export class McpController {
   @Post()
   @HttpCode(200)
   async handle(@Body() body: JsonRpcRequest, @Ctx() ctx: TenantRequestContext) {
+    // ابزارهای MCP مستقیم روی همه‌ی داده‌ی مستأجر (حقوق پرسنل، فاکتورها، حسابداری...) کار می‌کنند و
+    // ماتریس دسترسی ماژول‌ها را اعمال نمی‌کنند؛ پس فقط مالک/مدیر (و کلید API که همان نقش را به ارث می‌برد).
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
+      throw new ForbiddenException('دسترسی به MCP فقط برای مالک یا مدیر است');
+    }
     // A JSON-RPC *notification* (no id) never gets a response body.
     const respond = (result: unknown) =>
       body.id === undefined || body.id === null ? {} : { jsonrpc: '2.0', id: body.id, result };
