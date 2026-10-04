@@ -4,7 +4,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { PlusIcon, BoltIcon, TrashIcon, BellIcon, SendIcon, TasksIcon, ChevronDownIcon } from "@/components/icons";
+import { PlusIcon, BoltIcon, TrashIcon, PencilIcon, BellIcon, SendIcon, TasksIcon, ChevronDownIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import {
   fetchAutomationRules,
@@ -34,6 +34,7 @@ const ACTION_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> =
 export default function AutomationPage() {
   const [rules, setRules] = useState<AutomationRule[] | null>(null);
   const [triggers, setTriggers] = useState<TriggerDefinition[]>([]);
+  const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [newRuleOpen, setNewRuleOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function AutomationPage() {
   }
 
   async function remove(rule: AutomationRule) {
+    if (!window.confirm(`قانون «${rule.name}» حذف شود؟ این کار قابل بازگشت نیست.`)) return;
     setBusyId(rule.id);
     setError(null);
     try {
@@ -136,6 +138,14 @@ export default function AutomationPage() {
                     </button>
                     <button
                       disabled={busyId === rule.id}
+                      onClick={() => setEditingRule(rule)}
+                      title="ویرایش"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:bg-slate-100 hover:text-primary cursor-pointer disabled:opacity-50"
+                    >
+                      <PencilIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      disabled={busyId === rule.id}
                       onClick={() => remove(rule)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer disabled:opacity-50"
                     >
@@ -205,6 +215,7 @@ export default function AutomationPage() {
       </div>
 
       {newRuleOpen ? <NewAutomationRuleModal onClose={() => setNewRuleOpen(false)} onCreated={reload} /> : null}
+      {editingRule ? <NewAutomationRuleModal rule={editingRule} onClose={() => setEditingRule(null)} onCreated={reload} /> : null}
     </div>
   );
 }

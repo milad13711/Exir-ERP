@@ -43,6 +43,15 @@ for svc in "${SERVICES[@]}"; do
   docker logs "exir-erp-${svc}-1" --tail 15
 done
 
+# The server disk is small (24G): build cache and dangling images from old builds
+# filled it once and failed a deploy ("no space left on device"). Safe to prune —
+# running containers and volumes are untouched.
+echo "==> Pruning build cache and dangling images..."
+docker builder prune -af >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+df -h / | tail -1
+
 echo "==> Final status:"
 docker compose -f docker-compose.on-premise.yml ps --format 'table {{.Name}}\t{{.Status}}'
 

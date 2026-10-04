@@ -3991,7 +3991,15 @@ export function createAutomationRule(data: {
   return apiFetch<AutomationRule>("/automation/rules", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateAutomationRule(id: string, data: { name?: string; isActive?: boolean }) {
+export function updateAutomationRule(
+  id: string,
+  data: {
+    name?: string;
+    isActive?: boolean;
+    triggerCode?: string;
+    actions?: Array<{ type: AutomationActionType; config: Record<string, unknown>; sequenceOrder?: number }>;
+  },
+) {
   return apiFetch<AutomationRule>(`/automation/rules/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 

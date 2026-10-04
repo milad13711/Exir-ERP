@@ -98,11 +98,24 @@ export class AutomationController {
     await this.permissions.assertViewAll(ctx, 'automation'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     const existing = await ctx.tenantDb.automationRule.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('قانون اتوماسیون یافت نشد');
-    return ctx.tenantDb.automationRule.update({
+    if (dto.triggerCode && !this.registry.get(dto.triggerCode)) throw new NotFoundException('تریگر انتخاب‌شده یافت نشد');
+    const actions = dto.actions;
+    // تغییر تریگر یا اقدام‌ها اتمی است: اقدام‌های قبلی و جدید هیچ‌وقت نیمه‌کاره باقی نمی‌مانند.
+    const update = ctx.tenantDb.automationRule.update({
       where: { id },
-      data: { name: dto.name, isActive: dto.isActive },
+      data: {
+        name: dto.name,
+        isActive: dto.isActive,
+        triggerCode: dto.triggerCode,
+        ...(actions
+          ? { actions: { create: actions.map((a, i) => ({ type: a.type, config: a.config as never, sequenceOrder: a.sequenceOrder ?? i })) } }
+          : {}),
+      },
       include: RULE_INCLUDE,
     });
+    if (!actions) return update;
+    const [, updated] = await ctx.tenantDb.$transaction([ctx.tenantDb.automationAction.deleteMany({ where: { ruleId: id } }), update]);
+    return updated;
   }
 
   @Delete('rules/:id')

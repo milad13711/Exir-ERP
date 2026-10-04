@@ -5,7 +5,9 @@ import {
   fetchTriggers,
   fetchUsers,
   createAutomationRule,
+  updateAutomationRule,
   ApiError,
+  type AutomationRule,
   type TriggerDefinition,
   type TenantUser,
   type AutomationActionType,
@@ -37,12 +39,24 @@ function emptyTask(): TaskDraft {
   return { type: "CREATE_TASK", assigneeMode: "NONE", fixedUserId: "", payloadField: "", title: "", priority: "NORMAL" };
 }
 
-export function NewAutomationRuleModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+/** اقدام ذخیره‌شده‌ی یک قانون را به پیش‌نویس قابل‌ویرایش تبدیل می‌کند (مقدارهای خالی -> رشته‌ی خالی). */
+function draftFromAction(a: AutomationRule["actions"][number]): ActionDraft {
+  const c = a.config as Record<string, string | undefined>;
+  if (a.type === "NOTIFY_IN_APP") {
+    return { ...emptyNotify(), targetMode: (c.targetMode as NotifyDraft["targetMode"]) ?? "FIXED", fixedUserId: c.fixedUserId ?? "", payloadField: c.payloadField ?? "", title: c.title ?? "", body: c.body ?? "", link: c.link ?? "" };
+  }
+  if (a.type === "SEND_SMS") {
+    return { ...emptySms(), phoneMode: (c.phoneMode as SmsDraft["phoneMode"]) ?? "FIXED", fixedPhone: c.fixedPhone ?? "", payloadField: c.payloadField ?? "", message: c.message ?? "" };
+  }
+  return { ...emptyTask(), assigneeMode: (c.assigneeMode as TaskDraft["assigneeMode"]) ?? "NONE", fixedUserId: c.fixedUserId ?? "", payloadField: c.payloadField ?? "", title: c.title ?? "", priority: (c.priority as TaskDraft["priority"]) ?? "NORMAL" };
+}
+
+export function NewAutomationRuleModal({ onClose, onCreated, rule }: { onClose: () => void; onCreated: () => void; rule?: AutomationRule }) {
   const [triggers, setTriggers] = useState<TriggerDefinition[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
-  const [name, setName] = useState("");
-  const [triggerCode, setTriggerCode] = useState("");
-  const [actions, setActions] = useState<ActionDraft[]>([emptyNotify()]);
+  const [name, setName] = useState(rule?.name ?? "");
+  const [triggerCode, setTriggerCode] = useState(rule?.triggerCode ?? "");
+  const [actions, setActions] = useState<ActionDraft[]>(rule?.actions.length ? rule.actions.map(draftFromAction) : [emptyNotify()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +93,8 @@ export function NewAutomationRuleModal({ onClose, onCreated }: { onClose: () => 
     setSubmitting(true);
     setError(null);
     try {
-      await createAutomationRule({
+      const save = rule ? (data: Parameters<typeof createAutomationRule>[0]) => updateAutomationRule(rule.id, data) : createAutomationRule;
+      await save({
         name: name.trim(),
         triggerCode,
         actions: actions.map((a, i) => {
@@ -114,7 +129,7 @@ export function NewAutomationRuleModal({ onClose, onCreated }: { onClose: () => 
   }
 
   return (
-    <Modal title="قانون اتوماسیون جدید" onClose={onClose} width="max-w-[640px]">
+    <Modal title={rule ? "ویرایش قانون اتوماسیون" : "قانون اتوماسیون جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>نام قانون</label>
@@ -278,7 +293,7 @@ export function NewAutomationRuleModal({ onClose, onCreated }: { onClose: () => 
           disabled={submitting || !valid}
           className="mt-1.5 w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت قانون"}
+          {submitting ? "در حال ثبت..." : rule ? "ذخیره‌ی تغییرات" : "ثبت قانون"}
         </button>
       </form>
     </Modal>
