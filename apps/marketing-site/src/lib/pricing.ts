@@ -25,12 +25,15 @@
  *      ۱۹۹ دلار در سال، مستقل از تعداد/نوع ماژول‌های خریداری‌شده.
  */
 
+/** همان قاعده‌ی سرور (backend module-license-usd.ts): ماهانه = قیمت پایه ÷ ۴۰ (ثابت)، سالانه = ۵ برابر ماهانه، لایسنس = ۶ برابر سالانه. */
+const BASE_TO_MONTHLY_DIVISOR = 40;
+const YEARLY_TO_MONTHLY_MULTIPLIER = 5;
+const LICENSE_TO_YEARLY_MULTIPLIER = 6;
+
 /** جمع دقیق تمام وزن‌های MODULE_LICENSE_WEIGHTS_USD زیر؛ عنوان صفحه‌ی ماژول‌ها همیشه با جمع واقعی قیمت‌ها یکی است. */
-export const FULL_LICENSE_USD = 11775;
+export const FULL_LICENSE_USD = Math.round((11775 * LICENSE_TO_YEARLY_MULTIPLIER * YEARLY_TO_MONTHLY_MULTIPLIER) / BASE_TO_MONTHLY_DIVISOR);
 export const ANNUAL_SUPPORT_USD = 199;
-/** همان قاعده‌ی سرور (backend module-license-usd.ts): سالانه = لایسنس ÷ ۶، ماهانه = سالانه ÷ ۵. */
-const LICENSE_TO_YEARLY_DIVISOR = 6;
-const MONTHLY_DIVISOR = 5;
+
 
 /**
  * سهم هر ماژول از قیمت لایسنس کامل (دلار) — مجموع همه‌ی این وزن‌ها دقیقاً
@@ -88,10 +91,11 @@ export function licenseWeightOf(code: string): number {
 }
 
 /** قیمت مجزای یک ماژول به‌تنهایی (سهم آن از بازه‌ی سالانه‌ی سازمانی). */
-export function usdPricingFromLicense(licenseUsd: number): UsdPricing {
-  if (licenseUsd <= 0) return { licenseUsd: 0, yearlyUsd: 0, monthlyUsd: 0 };
-  const yearlyUsd = licenseUsd / LICENSE_TO_YEARLY_DIVISOR;
-  return { licenseUsd, yearlyUsd, monthlyUsd: yearlyUsd / MONTHLY_DIVISOR };
+export function usdPricingFromLicense(baseUsd: number): UsdPricing {
+  if (baseUsd <= 0) return { licenseUsd: 0, yearlyUsd: 0, monthlyUsd: 0 };
+  const monthlyUsd = baseUsd / BASE_TO_MONTHLY_DIVISOR;
+  const yearlyUsd = monthlyUsd * YEARLY_TO_MONTHLY_MULTIPLIER;
+  return { licenseUsd: yearlyUsd * LICENSE_TO_YEARLY_MULTIPLIER, yearlyUsd, monthlyUsd };
 }
 
 export function sumUsdPricing(list: UsdPricing[]): UsdPricing {

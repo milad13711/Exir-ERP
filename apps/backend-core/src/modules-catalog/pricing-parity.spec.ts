@@ -22,14 +22,20 @@ describe('module pricing', () => {
     }
   });
 
-  it('a factory ERP with ~12 modules costs about one billion Toman as a license', () => {
+  it('a factory ERP with ~12 modules costs about 750M Toman as a license (30× the fixed monthly price)', () => {
     const factory = ['production', 'warehouse', 'accounting', 'purchasing', 'sales', 'crm', 'hr', 'quality-control', 'checks', 'reports', 'contracts', 'projects'];
     const total = factory.reduce((sum, code) => sum + deriveModulePrices(MODULE_LICENSE_USD[code], 231_800).license, 0);
-    expect(total).toBeGreaterThan(900_000_000);
-    expect(total).toBeLessThan(1_250_000_000);
+    expect(total).toBeGreaterThan(675_000_000);
+    expect(total).toBeLessThan(940_000_000);
   });
 
   it('tasks stays free', () => {
     expect(deriveModulePrices(MODULE_LICENSE_USD.tasks, 231_800)).toEqual({ monthly: 0, yearly: 0, license: 0 });
+  });
+});
+
+describe('monthly price stays anchored', () => {
+  it('monthly price is base ÷ 40 (unchanged by the yearly/license multipliers)', () => {
+    expect(deriveModulePrices(400, 400_000)).toEqual({ monthly: 4_000_000, yearly: 20_000_000, license: 120_000_000 });
   });
 });

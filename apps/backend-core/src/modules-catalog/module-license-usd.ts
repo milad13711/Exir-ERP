@@ -1,6 +1,8 @@
 /**
  * منبع واحد قیمت پایه‌ی دلاری (لایسنس مادام‌العمر) هر ماژول — همه‌ی قیمت‌ها از همین‌جا مشتق می‌شوند:
- *   سالانه = لایسنس ÷ ۶ ، ماهانه = سالانه ÷ ۵ (یعنی لایسنس = ۶ برابر سالانه و سالانه = ۵ برابر ماهانه).
+ *   «قیمت پایه» (این جدول، دلار) ثابت‌کننده‌ی قیمت ماهانه است: ماهانه = پایه ÷ ۴۰ ؛ سپس سالانه = ۵ برابر ماهانه
+ *   و لایسنس = ۶ برابر سالانه (= ۳۰ برابر ماهانه، یعنی ۰٫۷۵ برابر قیمت پایه).
+ *   (نام فیلد «licenseUsd» از قدیم مانده؛ معنای آن اکنون «قیمت پایه‌ی دلاری» است.)
  * تومان = دلار × نرخ لحظه‌ای و گردشده به هزار تومان. مقیاس طوری تنظیم شده که یک ERP کارخانه‌ای با
  * ۱۰ تا ۱۵ ماژول فعال حدود ۱ میلیارد تومان لایسنس شود. سایت بازاریابی (marketing-site/src/lib/pricing.ts)
  * دقیقاً همین جدول را دارد و تست pricing-parity.spec.ts هم‌ارزی‌شان را تضمین می‌کند.
@@ -44,16 +46,18 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "marketing": 415,
 };
 
-/** لایسنس = ۶ برابر اشتراک سالانه؛ اشتراک سالانه = ۵ برابر ماهانه. */
-export const LICENSE_TO_YEARLY_DIVISOR = 6;
+/** قیمت ماهانه‌ی دلاری = قیمت پایه ÷ ۴۰ (ثابت؛ همان ماهانه‌ی پیش از تغییر ضریب‌ها). */
+export const BASE_TO_MONTHLY_DIVISOR = 40;
+/** سالانه = ۵ برابر ماهانه؛ لایسنس = ۶ برابر سالانه. (نام «DIVISOR» از قدیم مانده؛ هر دو ضریب‌اند.) */
 export const YEARLY_TO_MONTHLY_DIVISOR = 5;
+export const LICENSE_TO_YEARLY_DIVISOR = 6;
 
 export type DerivedModulePrices = { monthly: number; yearly: number; license: number };
 
 /** قیمت‌های تومانی سازگار یک ماژول از روی قیمت پایه‌ی دلاری. صفر یعنی رایگان. */
 export function deriveModulePrices(licenseUsd: number, usdToToman: number): DerivedModulePrices {
   if (licenseUsd <= 0 || usdToToman <= 0) return { monthly: 0, yearly: 0, license: 0 };
-  const monthlyExact = (licenseUsd * usdToToman) / (LICENSE_TO_YEARLY_DIVISOR * YEARLY_TO_MONTHLY_DIVISOR);
+  const monthlyExact = (licenseUsd * usdToToman) / BASE_TO_MONTHLY_DIVISOR;
   const monthly = Math.max(1000, Math.round(monthlyExact / 1000) * 1000);
   const yearly = monthly * YEARLY_TO_MONTHLY_DIVISOR;
   return { monthly, yearly, license: yearly * LICENSE_TO_YEARLY_DIVISOR };
