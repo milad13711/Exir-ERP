@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { LogoMark, DocsIcon, PencilIcon, DragHandleIcon, CheckIcon } from "@/components/icons";
+import { ShieldIcon, LogoMark, DocsIcon, PencilIcon, DragHandleIcon, CheckIcon } from "@/components/icons";
 import { canViewModule } from "@/lib/access";
 import { primaryNav, secondaryNav, type NavItem } from "./nav";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -86,7 +86,7 @@ function useVisibleNav(items: NavItem[], navOrder: string[]) {
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { me, refreshMe } = useWorkspace();
+  const { me, refreshMe, isPlatformOwner } = useWorkspace();
   const navOrder = me?.navOrder ?? [];
   const isCustomOrder = navOrder.length > 0;
   const visiblePrimaryNav = useVisibleNav(primaryNav, navOrder);
@@ -191,7 +191,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {!editing && (
           <>
             <div className="h-px bg-border my-3 mx-1.5" />
-            {secondaryNav.map((item) => (
+            {[...(isPlatformOwner ? [{ href: "/platform", label: "مدیریت پلتفرم", icon: ShieldIcon, category: "عمومی" } as NavItem] : []), ...secondaryNav].map((item) => (
               <NavLink
                 key={item.href}
                 href={item.href}

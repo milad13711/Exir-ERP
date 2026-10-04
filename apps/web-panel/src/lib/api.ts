@@ -7742,3 +7742,124 @@ export function setArchiveAccess(userId: string, canEdit: boolean) {
 export function revokeArchiveAccess(userId: string) {
   return apiFetch<{ ok: true }>(`/confidential-archive/access/${userId}`, { method: "DELETE" });
 }
+
+
+// ── Platform management (parent tenant only) ─────────────────────────────
+
+export type PlatformCatalogModule = {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  isCore: boolean;
+  isListed: boolean;
+  version: string;
+  licenseUsd: number;
+  priceMonthly: number;
+  priceYearly: number;
+  priceLicense: number;
+};
+export type PlatformTenantRow = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  createdAt: string;
+  planName: string | null;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  activeModulesCount: number;
+};
+export type PlatformTenantModule = {
+  code: string;
+  name: string;
+  category: string;
+  status: string;
+  billingMode: "MONTHLY" | "YEARLY" | "LICENSE" | null;
+  currentPeriodEnd: string | null;
+  pendingRenewalInvoiceId: string | null;
+};
+export type PlatformInvoice = {
+  id: string;
+  tenantId: string;
+  amount: number;
+  status: "PENDING" | "PAID" | "FAILED";
+  purpose: string | null;
+  items: { moduleCode: string; moduleName: string; billingMode: string; amount: number }[] | null;
+  issuedAt: string;
+  dueAt: string;
+  paidAt: string | null;
+  tenant?: { id: string; name: string; slug: string };
+};
+export type PlatformRenewal = {
+  tenant: { id: string; name: string; slug: string };
+  moduleCode: string;
+  moduleName: string;
+  billingMode: "MONTHLY" | "YEARLY" | null;
+  nextRenewalAt: string;
+  renewalAmount: number;
+  pendingInvoice: PlatformInvoice | null;
+};
+export type PlatformTicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export type PlatformTicketMessage = { id: string; senderType: "TENANT_USER" | "ADMIN" | "SYSTEM"; body: string; createdAt: string };
+export type PlatformTicket = {
+  id: string;
+  subject: string;
+  status: PlatformTicketStatus;
+  priority: string;
+  createdAt: string;
+  resolutionNote: string | null;
+  tenant: { name: string; slug: string };
+  createdByUser: { name: string | null; phone: string };
+  messages: PlatformTicketMessage[];
+};
+
+export function fetchPlatformMe() {
+  return apiFetch<{ isPlatformOwner: boolean }>("/platform/me");
+}
+export function fetchPlatformModules() {
+  return apiFetch<PlatformCatalogModule[]>("/platform/modules");
+}
+export function fetchPlatformTenants() {
+  return apiFetch<PlatformTenantRow[]>("/platform/tenants");
+}
+export function fetchPlatformTenant(id: string) {
+  return apiFetch<{ tenant: PlatformTenantRow; modules: PlatformTenantModule[]; invoices: PlatformInvoice[] }>(`/platform/tenants/${id}`);
+}
+export function createPlatformModuleInvoice(
+  tenantId: string,
+  input: { items: { code: string; billingMode: "MONTHLY" | "YEARLY" | "LICENSE" }[]; dueAt?: string; note?: string },
+) {
+  return apiFetch<PlatformInvoice>(`/platform/tenants/${tenantId}/module-invoice`, { method: "POST", body: JSON.stringify(input) });
+}
+export function fetchPlatformInvoices(params: { status?: string; tenantId?: string; recurring?: boolean } = {}) {
+  const q = new URLSearchParams();
+  if (params.status) q.set("status", params.status);
+  if (params.tenantId) q.set("tenantId", params.tenantId);
+  if (params.recurring) q.set("recurring", "true");
+  return apiFetch<PlatformInvoice[]>(`/platform/invoices?${q.toString()}`);
+}
+export function fetchPlatformRenewals() {
+  return apiFetch<PlatformRenewal[]>("/platform/renewals");
+}
+export function markPlatformInvoicePaid(id: string) {
+  return apiFetch<PlatformInvoice>(`/platform/invoices/${id}/mark-paid`, { method: "POST" });
+}
+export function cancelPlatformInvoice(id: string) {
+  return apiFetch<PlatformInvoice>(`/platform/invoices/${id}/cancel`, { method: "POST" });
+}
+export function fetchPlatformTickets(params: { status?: string; tenantId?: string } = {}) {
+  const q = new URLSearchParams();
+  if (params.status) q.set("status", params.status);
+  if (params.tenantId) q.set("tenantId", params.tenantId);
+  return apiFetch<PlatformTicket[]>(`/platform/tickets?${q.toString()}`);
+}
+export function fetchPlatformTicket(id: string) {
+  return apiFetch<PlatformTicket>(`/platform/tickets/${id}`);
+}
+export function replyPlatformTicket(id: string, body: string) {
+  return apiFetch<PlatformTicketMessage>(`/platform/tickets/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) });
+}
+export function setPlatformTicketStatus(id: string, status: PlatformTicketStatus, resolutionNote?: string) {
+  return apiFetch<PlatformTicket>(`/platform/tickets/${id}/status`, { method: "POST", body: JSON.stringify({ status, resolutionNote }) });
+}

@@ -9,6 +9,7 @@ import {
   fetchSubscription,
   fetchLicenseStatus,
   fetchModules,
+  fetchPlatformMe,
   setOfflineModuleInstalled,
   type Me,
   type Subscription,
@@ -44,6 +45,8 @@ type WorkspaceState = {
   installedModules: Set<string>;
   /** بعد از فعال/غیرفعال‌سازی هر ماژول — تا سایدبار و بقیه‌ی صفحه بدون رفرش کامل مرورگر خودشان را با وضعیت تازه‌ی ماژول‌ها به‌روز کنند. */
   refreshInstalledModules: () => void;
+  /** کاربر ادمین/مالک تننت مادر پلتفرم است (برای نمایش «مدیریت پلتفرم»). */
+  isPlatformOwner: boolean;
 };
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
@@ -54,6 +57,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription>(null);
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPlatformOwner, setIsPlatformOwner] = useState(false);
   const [installedModules, setInstalledModules] = useState<Set<string>>(new Set());
 
   const refreshSubscription = useCallback(() => {
@@ -88,6 +92,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       router.replace("/login");
       return;
     }
+    fetchPlatformMe().then((r) => setIsPlatformOwner(r.isPlatformOwner)).catch(() => setIsPlatformOwner(false));
     Promise.all([fetchMe(), fetchSubscription(), fetchLicenseStatus(), fetchModules().catch(() => [])])
       .then(([meData, subData, licenseData, modules]) => {
         setMe(meData);
@@ -111,7 +116,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceContext.Provider
-      value={{ me, subscription, license, loading, refreshSubscription, refreshMe, installedModules, refreshInstalledModules }}
+      value={{ me, subscription, license, loading, refreshSubscription, refreshMe, installedModules, refreshInstalledModules, isPlatformOwner }}
     >
       {children}
     </WorkspaceContext.Provider>

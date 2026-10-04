@@ -564,8 +564,12 @@ export class TenantsService {
     return { success: true };
   }
 
-  async markInvoicePaid(invoiceId: string, actorAdminId: string) {
-    return this.settleInvoicePaid(invoiceId, { actorType: 'admin_user', actorId: actorAdminId });
+  async markInvoicePaid(
+    invoiceId: string,
+    actorAdminId: string,
+    opts?: { actorType?: string; metadata?: Record<string, unknown> },
+  ) {
+    return this.settleInvoicePaid(invoiceId, { actorType: opts?.actorType ?? 'admin_user', actorId: actorAdminId, metadata: opts?.metadata });
   }
 
   /** Same settlement, but for a customer's own Zarinpal payment — no admin actor involved. */
