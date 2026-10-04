@@ -3004,6 +3004,7 @@ export function recordSalesPayment(
     amount: number;
     method?: SalesPaymentMethod;
     note?: string;
+    paidAt?: string;
     checkSayadId?: string;
     checkDueDate?: string;
     checkBankName?: string;
@@ -3210,7 +3211,16 @@ export type PublicSalesInvoiceView = {
   total: number;
   paidAmount: number;
   notes: string | null;
-  contact: { name: string; company: string | null };
+  contact: { name: string; company: string | null; phoneMasked: string | null };
+  seller: { name: string; logoUrl: string | null };
+  isOfficial: boolean;
+  officialInvoiceNo: number | null;
+  taxRate: number | null;
+  confirmedAt: string | null;
+  signedAt: string | null;
+  signedByName: string | null;
+  deliveryConfirmedAt: string | null;
+  cancelReason: string | null;
   lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
   payments: Array<{ amount: number; method: SalesPaymentMethod; paidAt: string }>;
   paymentMethod: SalesInvoicePaymentMethod;
@@ -3681,6 +3691,7 @@ export function recordPurchasePayment(
     amount: number;
     method?: SalesPaymentMethod;
     note?: string;
+    paidAt?: string;
     checkSayadId?: string;
     checkDueDate?: string;
     checkBankName?: string;

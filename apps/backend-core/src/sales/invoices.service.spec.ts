@@ -187,10 +187,32 @@ describe('InvoicesService.recordPayment', () => {
       total: 1_000_000,
       paidAmount: 0,
       contactId: 'contact-1',
+      issuedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000),
       contact: { name: 'مشتری تست', phone: '09120000000' },
       ...overrides,
     };
   }
+
+  it('records the user-chosen payment date on the payment and the journal entry', async () => {
+    const { tenantDb, journalEntryCalls } = makeTenantDb();
+    tenantDb.salesInvoice.findUnique.mockResolvedValue(invoiceStub());
+    tenantDb.salesInvoice.findUniqueOrThrow.mockResolvedValue(invoiceStub({ status: 'PAID', paidAmount: 1_000_000 }));
+    const when = new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString();
+
+    await service.recordPayment(makeCtx(tenantDb), 'inv-1', { amount: 1_000_000, method: 'CASH', paidAt: when });
+
+    expect((journalEntryCalls[0].date as Date).toISOString()).toBe(when);
+    expect((tenantDb.salesPayment.create.mock.calls[0][0] as { data: { paidAt: Date } }).data.paidAt.toISOString()).toBe(when);
+  });
+
+  it('rejects a payment date in the future or before the invoice was issued', async () => {
+    const { tenantDb } = makeTenantDb();
+    tenantDb.salesInvoice.findUnique.mockResolvedValue(invoiceStub());
+    const future = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString();
+    const beforeIssue = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    await expect(service.recordPayment(makeCtx(tenantDb), 'inv-1', { amount: 1000, paidAt: future })).rejects.toThrow('آینده');
+    await expect(service.recordPayment(makeCtx(tenantDb), 'inv-1', { amount: 1000, paidAt: beforeIssue })).rejects.toThrow('قبل از تاریخ صدور');
+  });
 
   it('posts Dr Cash / Cr AR and marks PAID when the payment covers the full balance', async () => {
     const { tenantDb, journalEntryCalls, invoiceUpdateCalls } = makeTenantDb();

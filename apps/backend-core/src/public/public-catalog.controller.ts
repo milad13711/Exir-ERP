@@ -1,3 +1,4 @@
+import { moduleYearlyPrice } from '../modules-catalog/module-pricing.js';
 import { BadRequestException, Controller, Get, NotFoundException, Post, Body } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { PublicExchangeRateService } from './public-exchange-rate.service.js';
@@ -103,7 +104,7 @@ export class PublicCatalogController {
     const moduleLines = billableModules.map((m) => ({
       code: m.code,
       name: m.name,
-      price: isYearly ? m.priceMonthly * 12 : m.priceMonthly,
+      price: isYearly ? moduleYearlyPrice(m) : m.priceMonthly,
     }));
     const total = planPrice + moduleLines.reduce((sum, l) => sum + l.price, 0);
 

@@ -15,6 +15,11 @@ export class RecordPaymentDto {
   @IsString()
   note?: string;
 
+  // تاریخ واقعی دریافت وجه (ISO) — اگر نیاید «اکنون». آینده و قبل از صدور فاکتور مجاز نیست.
+  @IsOptional()
+  @IsISO8601()
+  paidAt?: string;
+
   // الزامی وقتی method === 'CHECK' — اعتبارسنجی در سرویس انجام می‌شود
   @IsOptional()
   @IsString()

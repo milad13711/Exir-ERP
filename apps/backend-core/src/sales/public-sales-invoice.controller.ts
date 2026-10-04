@@ -53,14 +53,28 @@ export class PublicSalesInvoiceController {
     const invoice = await ctx.tenantDb.salesInvoice.findFirst({
       where: { publicToken: token },
       include: {
-        contact: { select: { name: true, company: true } },
+        contact: { select: { name: true, company: true, phone: true } },
         lines: { select: { description: true, quantity: true, unitPrice: true, lineTotal: true } },
         payments: { select: { amount: true, method: true, paidAt: true }, orderBy: { paidAt: 'desc' } },
       },
     });
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
 
+    const [tenant, logoSetting] = await Promise.all([
+      this.controlDb.tenant.findUnique({ where: { slug }, select: { name: true } }),
+      ctx.tenantDb.moduleSetting.findFirst({ where: { moduleCode: 'general', key: 'logoUrl' }, select: { value: true } }),
+    ]);
+
     return {
+      seller: { name: tenant?.name ?? '', logoUrl: (logoSetting?.value as string | undefined) ?? null },
+      isOfficial: invoice.isOfficial,
+      officialInvoiceNo: invoice.officialInvoiceNo,
+      taxRate: invoice.taxRate,
+      confirmedAt: invoice.confirmedAt,
+      signedAt: invoice.signedAt,
+      signedByName: invoice.signedByName,
+      deliveryConfirmedAt: invoice.deliveryConfirmedAt,
+      cancelReason: invoice.status === 'CANCELLED' ? invoice.cancelReason : null,
       invoiceNo: invoice.invoiceNo,
       status: invoice.status,
       issuedAt: invoice.issuedAt,
@@ -71,7 +85,8 @@ export class PublicSalesInvoiceController {
       total: invoice.total,
       paidAmount: invoice.paidAmount,
       notes: invoice.notes,
-      contact: invoice.contact,
+      // شماره‌ی مشتری در لینک عمومی فقط نیمه‌پنهان نشان داده می‌شود (لینک ممکن است فوروارد شود).
+      contact: { name: invoice.contact.name, company: invoice.contact.company, phoneMasked: maskPhone(invoice.contact.phone) },
       lines: invoice.lines,
       payments: invoice.payments,
       paymentMethod: invoice.paymentMethod,
@@ -139,4 +154,10 @@ export class PublicSalesInvoiceController {
 
     return res.send(`${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>رسید برای شما ثبت شد.</p>${backLink}${BRAND_PAGE_TAIL}`);
   }
+}
+
+function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const d = phone.replace(/\s/g, '');
+  return d.length >= 7 ? `${d.slice(0, 4)}***${d.slice(-3)}` : null;
 }

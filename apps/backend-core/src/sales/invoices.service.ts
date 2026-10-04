@@ -574,6 +574,13 @@ export class InvoicesService {
     const remaining = invoice.total - invoice.paidAmount;
     if (dto.amount > remaining) throw new BadRequestException('مبلغ پرداخت از باقی‌مانده‌ی فاکتور بیشتر است');
 
+    const paidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+    if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('تاریخ پرداخت نامعتبر است');
+    if (paidAt.getTime() > Date.now() + 24 * 3600 * 1000) throw new BadRequestException('تاریخ پرداخت نمی‌تواند در آینده باشد');
+    if (paidAt.getTime() < invoice.issuedAt.getTime() - 24 * 3600 * 1000) {
+      throw new BadRequestException('تاریخ پرداخت نمی‌تواند قبل از تاریخ صدور فاکتور باشد');
+    }
+
     const method = dto.method ?? 'CASH';
     if (method === 'CHECK' && (!dto.checkSayadId || !dto.checkDueDate)) {
       throw new BadRequestException('برای پرداخت چکی، شماره صیادی و تاریخ سررسید الزامی است');
@@ -588,7 +595,7 @@ export class InvoicesService {
 
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.salesPayment.create({
-        data: { invoiceId: id, amount: dto.amount, method, note: dto.note },
+        data: { invoiceId: id, amount: dto.amount, method, note: dto.note, paidAt },
       }),
       ...(method === 'CHECK'
         ? [
@@ -609,7 +616,7 @@ export class InvoicesService {
         : []),
       ctx.tenantDb.journalEntry.create({
         data: {
-          date: new Date(),
+          date: paidAt,
           description: `دریافت وجه فاکتور فروش شماره ${invoice.invoiceNo}`,
           status: 'POSTED',
           postedAt: new Date(),

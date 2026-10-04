@@ -22,6 +22,14 @@ import {
 import { NewPurchaseReturnModal } from "./NewPurchaseReturnModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 
+
+/** تاریخ امروز به‌صورت YYYY-MM-DD محلی — مقدار پیش‌فرض «تاریخ پرداخت». */
+function todayIsoLocal(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   DRAFT: "پیش‌نویس",
   RECEIVED: "دریافت‌شده",
@@ -64,6 +72,7 @@ export function PurchaseOrderDetailModal({
   const [payMethod, setPayMethod] = useState<SalesPaymentMethod>("CASH");
   const [checkSayadId, setCheckSayadId] = useState("");
   const [checkDueDate, setCheckDueDate] = useState("");
+  const [paidDate, setPaidDate] = useState(() => todayIsoLocal());
   const [checkBankName, setCheckBankName] = useState("");
   const [orderReturns, setOrderReturns] = useState<PurchaseReturn[]>([]);
 
@@ -131,6 +140,7 @@ export function PurchaseOrderDetailModal({
       await recordPurchasePayment(orderId, {
         amount: Number(payAmount),
         method: payMethod,
+        ...(paidDate && paidDate !== todayIsoLocal() ? { paidAt: `${paidDate}T12:00:00` } : {}),
         ...(payMethod === "CHECK"
           ? { checkSayadId: checkSayadId.trim(), checkDueDate, checkBankName: checkBankName.trim() || undefined }
           : {}),
@@ -138,6 +148,7 @@ export function PurchaseOrderDetailModal({
       setCheckSayadId("");
       setCheckDueDate("");
       setCheckBankName("");
+      setPaidDate(todayIsoLocal());
       reload();
       onChanged();
     } catch (err) {
@@ -314,6 +325,14 @@ export function PurchaseOrderDetailModal({
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold text-ink-soft shrink-0">تاریخ پرداخت</span>
+                  <div className="w-[170px]">
+                    <JalaliDateInput value={paidDate} onChange={(v) => setPaidDate(v || todayIsoLocal())} placeholder="تاریخ پرداخت" />
+                  </div>
+                  <span className="text-[11px] text-muted">برای پرداختِ قبلی تاریخ واقعی را انتخاب کنید</span>
                 </div>
 
                 {payMethod === "CHECK" ? (

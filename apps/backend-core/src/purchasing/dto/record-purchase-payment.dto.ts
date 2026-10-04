@@ -15,6 +15,11 @@ export class RecordPurchasePaymentDto {
   @IsString()
   note?: string;
 
+  // تاریخ واقعی پرداخت (ISO) — اگر نیاید «اکنون». آینده و قبل از ثبت سفارش مجاز نیست.
+  @IsOptional()
+  @IsISO8601()
+  paidAt?: string;
+
   // الزامی وقتی method === 'CHECK' — اعتبارسنجی در سرویس انجام می‌شود
   @IsOptional()
   @IsString()

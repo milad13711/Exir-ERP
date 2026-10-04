@@ -126,7 +126,7 @@ export function EditModuleModal({
             inputMode="numeric"
           />
           <div className="text-[11.5px] text-ink-soft leading-6">
-            اگر بیش از صفر باشد، همه‌ی قیمت‌ها از همین عدد مشتق می‌شوند و با نرخ روز دلار خودکار به‌روز می‌شوند: سالانه = لایسنس ÷ ۴، ماهانه = سالانه ÷ ۱۰. صفر یعنی قیمت تومانی دستی (پایین).
+            اگر بیش از صفر باشد، همه‌ی قیمت‌ها از همین عدد مشتق می‌شوند و با نرخ روز دلار خودکار به‌روز می‌شوند: سالانه = لایسنس ÷ ۶، ماهانه = سالانه ÷ ۵. صفر یعنی قیمت تومانی دستی (پایین).
             {Number(licenseUsd) > 0 ? " قیمت‌های دستی زیر نادیده گرفته می‌شود." : ""}
           </div>
         </div>
@@ -151,7 +151,7 @@ export function EditModuleModal({
               className={inputClass}
               dir="ltr"
               inputMode="numeric"
-              placeholder={priceMonthly ? String(Number(priceMonthly) * 12) : "۱۲ برابر ماهانه"}
+              placeholder={priceMonthly ? String(Number(priceMonthly) * 5) : "۵ برابر ماهانه"}
             />
           </div>
           <div>
@@ -160,7 +160,7 @@ export function EditModuleModal({
           </div>
         </div>
         <div className="text-[11px] text-muted -mt-1.5">
-          قیمت لایسنس (خرید یک‌باره، مادام‌العمر) خودکار محاسبه می‌شود: ۴ برابر قیمت سالانه؛ سالانه = ۱۰ برابر ماهانه.
+          قیمت لایسنس (خرید یک‌باره، مادام‌العمر) خودکار محاسبه می‌شود: ۶ برابر قیمت سالانه؛ سالانه = ۵ برابر ماهانه.
         </div>
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft cursor-pointer">
           <input

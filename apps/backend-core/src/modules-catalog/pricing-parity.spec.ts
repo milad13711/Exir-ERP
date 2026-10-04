@@ -12,11 +12,11 @@ describe('module pricing', () => {
     expect(marketing).toEqual(MODULE_LICENSE_USD);
   });
 
-  it('monthly, yearly and license are consistent (×10, ×4) for every module', () => {
+  it('monthly, yearly and license are consistent (×5, ×6) for every module', () => {
     for (const usd of Object.values(MODULE_LICENSE_USD).filter((v) => v > 0)) {
       const p = deriveModulePrices(usd, 231_800);
-      expect(p.yearly).toBe(p.monthly * 10);
-      expect(p.license).toBe(p.yearly * 4);
+      expect(p.yearly).toBe(p.monthly * 5);
+      expect(p.license).toBe(p.yearly * 6);
       expect(moduleYearlyPrice({ priceMonthly: p.monthly, priceYearly: p.yearly })).toBe(p.yearly);
       expect(moduleLicensePrice({ priceMonthly: p.monthly, priceYearly: p.yearly })).toBe(p.license);
     }

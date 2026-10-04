@@ -297,6 +297,13 @@ export class PurchaseOrdersService implements OnModuleInit {
     const remaining = order.total - order.paidAmount;
     if (dto.amount > remaining) throw new BadRequestException('مبلغ پرداخت از باقی‌مانده‌ی سفارش بیشتر است');
 
+    const paidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+    if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('تاریخ پرداخت نامعتبر است');
+    if (paidAt.getTime() > Date.now() + 24 * 3600 * 1000) throw new BadRequestException('تاریخ پرداخت نمی‌تواند در آینده باشد');
+    if (paidAt.getTime() < order.issuedAt.getTime() - 24 * 3600 * 1000) {
+      throw new BadRequestException('تاریخ پرداخت نمی‌تواند قبل از تاریخ ثبت سفارش باشد');
+    }
+
     const method = dto.method ?? 'CASH';
     if (method === 'CHECK' && (!dto.checkSayadId || !dto.checkDueDate)) {
       throw new BadRequestException('برای پرداخت چکی، شماره صیادی و تاریخ سررسید الزامی است');
@@ -311,7 +318,7 @@ export class PurchaseOrdersService implements OnModuleInit {
 
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.purchasePayment.create({
-        data: { orderId: id, amount: dto.amount, method, note: dto.note },
+        data: { orderId: id, amount: dto.amount, method, note: dto.note, paidAt },
       }),
       ...(method === 'CHECK'
         ? [
@@ -331,7 +338,7 @@ export class PurchaseOrdersService implements OnModuleInit {
         : []),
       ctx.tenantDb.journalEntry.create({
         data: {
-          date: new Date(),
+          date: paidAt,
           description: `پرداخت بابت سفارش خرید شماره ${order.orderNo}`,
           status: 'POSTED',
           postedAt: new Date(),

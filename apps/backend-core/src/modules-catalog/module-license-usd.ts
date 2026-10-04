@@ -1,6 +1,6 @@
 /**
  * منبع واحد قیمت پایه‌ی دلاری (لایسنس مادام‌العمر) هر ماژول — همه‌ی قیمت‌ها از همین‌جا مشتق می‌شوند:
- *   سالانه = لایسنس ÷ ۴ ، ماهانه = سالانه ÷ ۱۰ (دو ماه رایگان).
+ *   سالانه = لایسنس ÷ ۶ ، ماهانه = سالانه ÷ ۵ (یعنی لایسنس = ۶ برابر سالانه و سالانه = ۵ برابر ماهانه).
  * تومان = دلار × نرخ لحظه‌ای و گردشده به هزار تومان. مقیاس طوری تنظیم شده که یک ERP کارخانه‌ای با
  * ۱۰ تا ۱۵ ماژول فعال حدود ۱ میلیارد تومان لایسنس شود. سایت بازاریابی (marketing-site/src/lib/pricing.ts)
  * دقیقاً همین جدول را دارد و تست pricing-parity.spec.ts هم‌ارزی‌شان را تضمین می‌کند.
@@ -44,9 +44,9 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "marketing": 415,
 };
 
-/** لایسنس = ۴ برابر اشتراک سالانه؛ اشتراک سالانه = ۱۰ برابر ماهانه. */
-export const LICENSE_TO_YEARLY_DIVISOR = 4;
-export const YEARLY_TO_MONTHLY_DIVISOR = 10;
+/** لایسنس = ۶ برابر اشتراک سالانه؛ اشتراک سالانه = ۵ برابر ماهانه. */
+export const LICENSE_TO_YEARLY_DIVISOR = 6;
+export const YEARLY_TO_MONTHLY_DIVISOR = 5;
 
 export type DerivedModulePrices = { monthly: number; yearly: number; license: number };
 

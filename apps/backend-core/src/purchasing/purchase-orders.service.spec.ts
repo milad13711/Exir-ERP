@@ -176,6 +176,7 @@ describe('PurchaseOrdersService.recordPayment', () => {
       total: 100_000_000,
       paidAmount: 0,
       supplierId: 'sup-1',
+      issuedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000),
       ...overrides,
     };
   }

@@ -28,9 +28,9 @@
 /** جمع دقیق تمام وزن‌های MODULE_LICENSE_WEIGHTS_USD زیر؛ عنوان صفحه‌ی ماژول‌ها همیشه با جمع واقعی قیمت‌ها یکی است. */
 export const FULL_LICENSE_USD = 11775;
 export const ANNUAL_SUPPORT_USD = 199;
-/** همان قاعده‌ی سرور (backend module-license-usd.ts): سالانه = لایسنس ÷ ۴، ماهانه = سالانه ÷ ۱۰. */
-const LICENSE_TO_YEARLY_DIVISOR = 4;
-const MONTHLY_DIVISOR = 10;
+/** همان قاعده‌ی سرور (backend module-license-usd.ts): سالانه = لایسنس ÷ ۶، ماهانه = سالانه ÷ ۵. */
+const LICENSE_TO_YEARLY_DIVISOR = 6;
+const MONTHLY_DIVISOR = 5;
 
 /**
  * سهم هر ماژول از قیمت لایسنس کامل (دلار) — مجموع همه‌ی این وزن‌ها دقیقاً
