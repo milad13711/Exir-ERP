@@ -7863,3 +7863,196 @@ export function replyPlatformTicket(id: string, body: string) {
 export function setPlatformTicketStatus(id: string, status: PlatformTicketStatus, resolutionNote?: string) {
   return apiFetch<PlatformTicket>(`/platform/tickets/${id}/status`, { method: "POST", body: JSON.stringify({ status, resolutionNote }) });
 }
+
+// ── پروپوزال برای مشتری (proposals) ──────────────────────────────────────
+
+export type ProposalStatus = "DRAFT" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "REVISION_REQUESTED" | "EXPIRED";
+
+export type ProposalInvoiceLine = { description: string; quantity: number; unitPrice: number };
+
+export type ProposalListItem = {
+  id: string;
+  proposalNo: number;
+  title: string;
+  status: ProposalStatus;
+  amount: number;
+  contactId: string;
+  contact: { id: string; name: string; company: string | null };
+  assignedUserId: string | null;
+  assignedTo: { id: string; name: string } | null;
+  issuedAt: string;
+  validUntil: string | null;
+  viewCount: number;
+  invoiceId: string | null;
+  invoicedAt: string | null;
+  createdAt: string;
+  _count: { comments: number };
+};
+
+export type ProposalComment = {
+  id: string;
+  authorType: "CUSTOMER" | "STAFF";
+  authorName: string | null;
+  kind: "COMMENT" | "REVISION_REQUEST" | "REJECTION";
+  body: string;
+  createdAt: string;
+};
+
+export type ProposalDetail = Omit<ProposalListItem, "_count"> & {
+  content: string;
+  durationText: string | null;
+  paymentMethodText: string | null;
+  paymentTerms: string | null;
+  paymentDeadline: string | null;
+  paymentDueAt: string | null;
+  bankInfo: string | null;
+  invoiceLines: ProposalInvoiceLine[] | null;
+  internalNote: string | null;
+  statusNote: string | null;
+  dealId: string | null;
+  sentAt: string | null;
+  firstViewedAt: string | null;
+  lastViewedAt: string | null;
+  acceptedByName: string | null;
+  acceptedSignatureDataUrl: string | null;
+  acceptedAt: string | null;
+  acceptedIp: string | null;
+  acceptedManually: boolean;
+  rejectedReason: string | null;
+  contact: { id: string; name: string; company: string | null; phone: string | null; email: string | null };
+  deal: { id: string; title: string } | null;
+  createdBy: { id: string; name: string } | null;
+  comments: ProposalComment[];
+  events: Array<{ id: string; type: string; body: string | null; createdAt: string }>;
+  views: Array<{ id: string; ip: string | null; userAgent: string | null; createdAt: string }>;
+  invoice: { id: string; invoiceNo: number; status: string } | null;
+};
+
+export type ProposalInput = {
+  title?: string;
+  contactId?: string;
+  dealId?: string | null;
+  content?: string;
+  durationText?: string | null;
+  amount?: number;
+  paymentMethodText?: string | null;
+  paymentTerms?: string | null;
+  paymentDeadline?: string | null;
+  paymentDueAt?: string | null;
+  bankInfo?: string | null;
+  validUntil?: string | null;
+  internalNote?: string | null;
+  assignedUserId?: string | null;
+  invoiceLines?: ProposalInvoiceLine[] | null;
+};
+
+export type ProposalTemplate = {
+  id: string;
+  name: string;
+  title: string;
+  content: string;
+  durationText: string | null;
+  amount: number;
+  paymentMethodText: string | null;
+  paymentTerms: string | null;
+  paymentDeadline: string | null;
+  bankInfo: string | null;
+  validDays: number | null;
+  updatedAt: string;
+  createdBy: { name: string } | null;
+};
+
+export function fetchProposals(filters: { q?: string; status?: string; contactId?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.contactId) params.set("contactId", filters.contactId);
+  const qs = params.toString();
+  return apiFetch<ProposalListItem[]>(`/proposals${qs ? `?${qs}` : ""}`);
+}
+export function fetchProposal(id: string) {
+  return apiFetch<ProposalDetail>(`/proposals/${id}`);
+}
+export function createProposal(data: ProposalInput & { title: string; contactId: string }) {
+  return apiFetch<ProposalListItem>("/proposals", { method: "POST", body: JSON.stringify(data) });
+}
+export function updateProposal(id: string, data: ProposalInput) {
+  return apiFetch<ProposalListItem>(`/proposals/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export function deleteProposal(id: string) {
+  return apiFetch<{ success: boolean }>(`/proposals/${id}`, { method: "DELETE" });
+}
+export function setProposalStatus(id: string, status: ProposalStatus, note?: string) {
+  return apiFetch<ProposalListItem>(`/proposals/${id}/status`, { method: "POST", body: JSON.stringify({ status, note }) });
+}
+export function updateProposalStatusNote(id: string, statusNote: string) {
+  return apiFetch<ProposalListItem>(`/proposals/${id}/status-note`, { method: "PATCH", body: JSON.stringify({ statusNote }) });
+}
+export function assignProposal(id: string, userId: string | null, createTask: boolean) {
+  return apiFetch<{ id: string; assignedUserId: string | null }>(`/proposals/${id}/assign`, { method: "POST", body: JSON.stringify({ userId, createTask }) });
+}
+export function addProposalStaffComment(id: string, body: string) {
+  return apiFetch<ProposalComment>(`/proposals/${id}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+}
+export function getProposalLink(id: string) {
+  return apiFetch<{ url: string }>(`/proposals/${id}/link`, { method: "POST" });
+}
+export function fetchProposalSmsPreview(id: string) {
+  return apiFetch<{ phone: string | null; contactName: string; message: string; parts: number; url: string }>(`/proposals/${id}/sms-preview`);
+}
+export function sendProposalSms(id: string) {
+  return apiFetch<{ ok: boolean; url: string }>(`/proposals/${id}/send-sms`, { method: "POST" });
+}
+export function issueProposalInvoice(id: string, data: { dueAt?: string; lines?: ProposalInvoiceLine[] } = {}) {
+  return apiFetch<{ invoiceId: string; invoiceNo: number }>(`/proposals/${id}/issue-invoice`, { method: "POST", body: JSON.stringify(data) });
+}
+export function fetchProposalTemplates() {
+  return apiFetch<ProposalTemplate[]>("/proposals/templates");
+}
+export function createProposalTemplate(data: Record<string, unknown>) {
+  return apiFetch<ProposalTemplate>("/proposals/templates", { method: "POST", body: JSON.stringify(data) });
+}
+export function updateProposalTemplate(id: string, data: Record<string, unknown>) {
+  return apiFetch<ProposalTemplate>(`/proposals/templates/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export function deleteProposalTemplate(id: string) {
+  return apiFetch<{ success: boolean }>(`/proposals/templates/${id}`, { method: "DELETE" });
+}
+
+export type PublicProposalView = {
+  seller: { name: string; logoUrl: string | null; phone: string | null; address: string | null };
+  proposalNo: number;
+  title: string;
+  status: ProposalStatus;
+  content: string;
+  durationText: string | null;
+  amount: number;
+  paymentMethodText: string | null;
+  paymentTerms: string | null;
+  paymentDeadline: string | null;
+  bankInfo: string | null;
+  issuedAt: string;
+  validUntil: string | null;
+  expired: boolean;
+  contact: { name: string; company: string | null; phoneMasked: string | null };
+  acceptedByName: string | null;
+  acceptedAt: string | null;
+  attachments: Array<{ id: string; title: string; mimeType: string | null; sizeBytes: number | null; isImage: boolean; externalUrl: string | null }>;
+  comments: Array<{ id: string; authorType: "CUSTOMER" | "STAFF"; authorName: string | null; kind: string; body: string; createdAt: string }>;
+};
+
+export function fetchPublicProposal(slug: string, token: string, headers?: Record<string, string>) {
+  return apiFetch<PublicProposalView>(`/public/tenants/${slug}/proposals/${token}`, { headers });
+}
+export function publicProposalFileUrl(slug: string, token: string, attachmentId: string) {
+  return `${API_URL}/public/tenants/${slug}/proposals/${token}/files/${attachmentId}`;
+}
+export function acceptPublicProposal(slug: string, token: string, data: { name: string; signatureDataUrl: string; confirmed: boolean }) {
+  return apiFetch<{ success: boolean }>(`/public/tenants/${slug}/proposals/${token}/accept`, { method: "POST", body: JSON.stringify(data) });
+}
+export function rejectPublicProposal(slug: string, token: string, data: { reason?: string; name?: string }) {
+  return apiFetch<{ success: boolean }>(`/public/tenants/${slug}/proposals/${token}/reject`, { method: "POST", body: JSON.stringify(data) });
+}
+export function commentPublicProposal(slug: string, token: string, data: { body: string; name?: string; requestRevision?: boolean }) {
+  return apiFetch<PublicProposalView["comments"][number]>(`/public/tenants/${slug}/proposals/${token}/comments`, { method: "POST", body: JSON.stringify(data) });
+}

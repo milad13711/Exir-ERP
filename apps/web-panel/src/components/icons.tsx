@@ -546,3 +546,13 @@ export function CakeIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ProposalIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 17c1.2-2.2 2.2-3.3 3-3.3.9 0 .4 1.8 1.3 1.8.6 0 1-.6 1.7-1.5" />
+    </svg>
+  );
+}

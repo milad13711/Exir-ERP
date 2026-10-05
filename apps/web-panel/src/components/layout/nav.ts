@@ -32,6 +32,7 @@ import {
   PhoneIcon,
   StarIcon,
   KeyIcon,
+  ProposalIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -56,6 +57,7 @@ export const primaryNav: NavItem[] = [
   { href: "/sales", label: "فروش و فاکتور", icon: ReceiptIcon, moduleCode: "sales", category: "فروش و مشتری" },
   { href: "/booking", label: "رزرو نوبت", icon: CalendarIcon, moduleCode: "booking", category: "فروش و مشتری" },
   { href: "/contracts", label: "مدیریت قرارداد", icon: DocsIcon, moduleCode: "contracts", category: "فروش و مشتری" },
+  { href: "/proposals", label: "پروپوزال", icon: ProposalIcon, moduleCode: "proposals", category: "فروش و مشتری" },
   { href: "/mentoring", label: "منتورینگ و مشاوره", icon: CompassIcon, moduleCode: "mentoring", category: "فروش و مشتری" },
   { href: "/events", label: "رویداد و بلیط‌فروشی", icon: TicketIcon, moduleCode: "events", category: "فروش و مشتری" },
   { href: "/forms", label: "فرم‌ساز", icon: ClipboardCheckIcon, moduleCode: "forms", category: "فروش و مشتری" },

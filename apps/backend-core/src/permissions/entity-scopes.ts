@@ -33,3 +33,18 @@ export async function projectScope(permissions: PermissionsService, ctx: TenantR
     ],
   };
 }
+
+/**
+ * «مشاهده‌ی همه» = همه‌ی پروپوزال‌ها؛ «فقط خودم» = پروپوزال‌هایی که خودش ساخته یا برای پیگیری به او ارجاع شده
+ * (assignedUserId). همین یک تابع هم در کنترلر پروپوزال و هم در دسترسی پیوست‌ها استفاده می‌شود.
+ * کاربر بدون شناسه‌ی کاربری تننت (مثلاً کلید API غیرمدیر) هرگز دامنه‌ی «خودم» ندارد — وگرنه
+ * `createdByUserId: null` با رکوردهای بی‌صاحب یکی می‌شد.
+ */
+export async function proposalScope(permissions: PermissionsService, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+  const matrix = await permissions.getEffective(ctx, 'proposals');
+  if (matrix.canViewAll) return {};
+  if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+  const userId = await resolveTenantUserId(ctx);
+  if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+  return { OR: [{ createdByUserId: userId }, { assignedUserId: userId }] };
+}

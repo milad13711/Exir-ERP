@@ -73,6 +73,7 @@ export const MODULE_LICENSE_WEIGHTS_USD: Record<string, number> = {
   "projects": 400,
   "mentoring": 370,
   "events": 450,
+  "proposals": 350,
   "forms": 240,
   "warranty": 255,
   "after-sales-service": 270,

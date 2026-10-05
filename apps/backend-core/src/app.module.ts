@@ -52,6 +52,7 @@ import { MarketingModule } from './marketing/marketing.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { MentoringModule } from './mentoring/mentoring.module.js';
 import { EventsModule } from './events/events.module.js';
+import { ProposalsModule } from './proposals/proposals.module.js';
 import { BookStoreModule } from './book-store/book-store.module.js';
 import { FormsModule } from './forms/forms.module.js';
 import { WarrantyModule } from './warranty/warranty.module.js';
@@ -87,6 +88,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     OnboardingModule,
     MentoringModule,
     EventsModule,
+    ProposalsModule,
     BookStoreModule,
     FormsModule,
     WarrantyModule,

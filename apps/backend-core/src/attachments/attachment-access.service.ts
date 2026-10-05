@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
-import { contractScope, projectScope } from '../permissions/entity-scopes.js';
+import { contractScope, projectScope, proposalScope } from '../permissions/entity-scopes.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -51,6 +51,12 @@ export class AttachmentAccessService {
   }
 
   async assertAccess(ctx: TenantRequestContext, entityType: string, entityId: string, mode: AttachmentMode): Promise<void> {
+    // پروپوزال پذیرفته‌شده قفل است: برای همه‌ی نقش‌ها (حتی مدیر) افزودن/حذف پیوست ممنوع است.
+    if (entityType === 'Proposal' && mode !== 'read') {
+      const proposal = await ctx.tenantDb.proposal.findUnique({ where: { id: entityId }, select: { status: true } });
+      if (proposal?.status === 'ACCEPTED') throw new ForbiddenException('پروپوزال پذیرفته‌شده قفل است و پیوست‌هایش تغییر نمی‌کند');
+    }
+
     if (this.isManager(ctx)) return;
 
     const owned = OWNED[entityType];
@@ -65,6 +71,13 @@ export class AttachmentAccessService {
       const scope = await contractScope(this.permissions, ctx);
       await this.assertWriteMatrix(ctx, 'contracts', mode);
       await assertInScope(ctx.tenantDb.contract, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
+      return;
+    }
+
+    if (entityType === 'Proposal') {
+      const scope = await proposalScope(this.permissions, ctx);
+      await this.assertWriteMatrix(ctx, 'proposals', mode);
+      await assertInScope(ctx.tenantDb.proposal, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
       return;
     }
 

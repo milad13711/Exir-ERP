@@ -96,6 +96,9 @@ model User {
   createdEvents                 Event[]
   checkedInEventTickets         EventTicket[]              @relation("EventTicketCheckedInBy")
   createdForms                  Form[]
+  createdProposals              Proposal[]                 @relation("ProposalCreatedBy")
+  assignedProposals             Proposal[]                 @relation("ProposalAssignee")
+  createdProposalTemplates      ProposalTemplate[]
   createdWarrantyCodes          WarrantyCode[]
   createdQrCodes                QrCode[]
   createdJobPostings            JobPosting[]
@@ -500,6 +503,7 @@ model CrmContact {
   storeOrders               StoreOrder[]
   mentoringEngagements      MentoringEngagement[]
   eventBookings             EventBooking[]
+  proposals                 Proposal[]
   bookOrders                BookOrder[]
   formSubmissions           FormSubmission[]
   warrantyCodes             WarrantyCode[]
@@ -564,6 +568,7 @@ model CrmDeal {
   activities                CrmActivity[]
   invoices                  SalesInvoice[]
   quotations                SalesQuotation[]
+  proposals                 Proposal[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
 
   @@index([stage])
@@ -3985,4 +3990,159 @@ model ConfidentialArchiveAccess {
   grantedBy User? @relation("ConfidentialAccessGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
 
   @@map("confidential_archive_access")
+}
+
+// ── ماژول پروپوزال برای مشتری (proposals) ─────────────────────────────────
+// متن پروپوزال + شرایط مالی، با لینک عمومی بدون ورود (publicToken) برای مشتری؛
+// مشتری می‌تواند با امضای الکترونیک بپذیرد، رد کند یا درخواست اصلاح بدهد.
+// پیوست فایل/تصویر از همان Attachment عمومی با entityType="Proposal" استفاده می‌کند.
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  REVISION_REQUESTED
+  EXPIRED
+}
+
+model Proposal {
+  id         String         @id @default(uuid())
+  proposalNo Int            @unique @default(autoincrement())
+  title      String
+  contactId  String
+  dealId     String?
+  status     ProposalStatus @default(DRAFT)
+
+  /// متن پروپوزال — متن چندخطی با عنوان‌بندی ساده (خطی که با «# » شروع شود عنوان است)
+  content           String    @default("")
+  /// مدت زمان پیاده‌سازی (متن آزاد، مثلاً «۳ ماه»)
+  durationText      String?
+  /// مبلغ پروژه — تومان
+  amount            Int       @default(0)
+  /// روش پرداخت (مثلاً «انتقال بانکی») و شیوه/زمان‌بندی پرداخت (اقساط، مراحل...)
+  paymentMethodText String?
+  paymentTerms      String?
+  /// مهلت پرداخت (متن آزاد) و تاریخ سررسید — برای فاکتور صادرشده
+  paymentDeadline   String?
+  paymentDueAt      DateTime?
+  /// شماره کارت/حساب برای واریز — در فاکتور به paymentBankInfo می‌رود
+  bankInfo          String?
+  /// ردیف‌های فاکتور، اگر کاربر تعریف کرده باشد: [{description, quantity, unitPrice}]
+  invoiceLines      Json?
+  issuedAt          DateTime  @default(now())
+  validUntil        DateTime?
+
+  /// یادداشت داخلی و یادداشت وضعیت — هرگز در صفحه‌ی عمومی نمایش داده نمی‌شود
+  internalNote String?
+  statusNote   String?
+
+  createdByUserId String?
+  assignedUserId  String?
+
+  publicToken String @unique @default(uuid())
+
+  sentAt             DateTime?
+  firstViewedAt      DateTime?
+  lastViewedAt       DateTime?
+  viewCount          Int       @default(0)
+  /// آخرین بار که برای مشاهده‌ی مشتری اعلان فرستاده شد (محدودکننده‌ی تکرار)
+  lastViewNotifiedAt DateTime?
+  respondedAt        DateTime?
+
+  // پذیرش — امضا + تأیید صریح
+  acceptedByName           String?
+  acceptedSignatureDataUrl String?
+  acceptedAt               DateTime?
+  acceptedIp               String?
+  acceptedConfirmed        Boolean   @default(false)
+  acceptedManually         Boolean   @default(false)
+  rejectedReason           String?
+
+  invoiceId  String?
+  invoicedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact    CrmContact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal       CrmDeal?          @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  createdBy  User?             @relation("ProposalCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  assignedTo User?             @relation("ProposalAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  views      ProposalView[]
+  comments   ProposalComment[]
+  events     ProposalEvent[]
+
+  @@index([contactId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([assignedUserId])
+  @@map("proposals")
+}
+
+model ProposalView {
+  id         String   @id @default(uuid())
+  proposalId String
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, createdAt])
+  @@map("proposal_views")
+}
+
+/// رشته‌ی گفتگو: نظر/درخواست اصلاح مشتری (CUSTOMER) و پاسخ تیم (STAFF)
+model ProposalComment {
+  id         String   @id @default(uuid())
+  proposalId String
+  authorType String // CUSTOMER | STAFF
+  authorName String?
+  kind       String   @default("COMMENT") // COMMENT | REVISION_REQUEST | REJECTION
+  body       String
+  createdAt  DateTime @default(now())
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, createdAt])
+  @@map("proposal_comments")
+}
+
+/// خط زمانی رویدادهای پروپوزال (ایجاد، ارسال، مشاهده، پذیرش، ...) — داخلی
+model ProposalEvent {
+  id         String   @id @default(uuid())
+  proposalId String
+  type       String
+  body       String?
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, createdAt])
+  @@map("proposal_events")
+}
+
+model ProposalTemplate {
+  id                String   @id @default(uuid())
+  name              String
+  title             String
+  content           String   @default("")
+  durationText      String?
+  amount            Int      @default(0)
+  paymentMethodText String?
+  paymentTerms      String?
+  paymentDeadline   String?
+  bankInfo          String?
+  /// مهلت اعتبار پروپوزال به روز (برای محاسبه‌ی validUntil هنگام ساخت از قالب)
+  validDays         Int?
+  createdByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@map("proposal_templates")
 }

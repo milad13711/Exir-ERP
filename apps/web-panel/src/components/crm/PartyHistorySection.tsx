@@ -13,7 +13,9 @@ import {
   StoreIcon,
   ClipboardCheckIcon,
   ShieldIcon,
+  ProposalIcon,
 } from "@/components/icons";
+import { PROPOSAL_STATUS_LABELS, PROPOSAL_STATUS_TONES } from "@/components/proposals/constants";
 import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
 import {
   fetchContracts,
@@ -28,6 +30,8 @@ import {
   fetchStoreOrders,
   fetchFormSubmissionsByContact,
   fetchWarrantyCodes,
+  fetchProposals,
+  type ProposalListItem,
   type Contract,
   type Project,
   type Appointment,
@@ -79,6 +83,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
   const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
   const [formSubmissions, setFormSubmissions] = useState<FormSubmissionByContact[]>([]);
   const [warrantyCodes, setWarrantyCodes] = useState<WarrantyCode[]>([]);
+  const [proposals, setProposals] = useState<ProposalListItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -98,7 +103,8 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       fetchStoreOrders(undefined, contactId),
       fetchFormSubmissionsByContact(contactId),
       fetchWarrantyCodes({ contactId }),
-    ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs, wc]) => {
+      fetchProposals({ contactId }),
+    ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs, wc, pr]) => {
       setContracts(c.status === "fulfilled" ? c.value : []);
       setProjects(p.status === "fulfilled" ? p.value : []);
       setAppointments(a.status === "fulfilled" ? a.value : []);
@@ -111,6 +117,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       setStoreOrders(so.status === "fulfilled" ? so.value : []);
       setFormSubmissions(fs.status === "fulfilled" ? fs.value : []);
       setWarrantyCodes(wc.status === "fulfilled" ? wc.value : []);
+      setProposals(pr.status === "fulfilled" ? pr.value : []);
       setLoaded(true);
     });
   }, [contactId]);
@@ -127,7 +134,8 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
     shipments.length > 0 ||
     storeOrders.length > 0 ||
     formSubmissions.length > 0 ||
-    warrantyCodes.length > 0;
+    warrantyCodes.length > 0 ||
+    proposals.length > 0;
   if (loaded && !hasAny) return null;
 
   return (
@@ -142,6 +150,14 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
               <BuildingIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">پروژه: {p.name}</span>
               <Badge tone="neutral">#{p.projectNo}</Badge>
+            </div>
+          ))}
+          {proposals.map((pr) => (
+            <div key={`proposal-${pr.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
+              <ProposalIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[12px] font-semibold flex-1 truncate">پروپوزال: {pr.title}</span>
+              <Badge tone={PROPOSAL_STATUS_TONES[pr.status]}>{PROPOSAL_STATUS_LABELS[pr.status]}</Badge>
+              <Badge tone="neutral">#{pr.proposalNo}</Badge>
             </div>
           ))}
           {contracts.map((c) => (
