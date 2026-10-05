@@ -104,13 +104,31 @@ describe('PublicProposalsService.accept', () => {
     await expect(c.svc.accept(c.t, TOKEN, accept(), {})).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('a draft or an unknown / malformed token is a 404 (nothing leaks)', async () => {
-    const a = make({ status: 'DRAFT' });
-    await expect(a.svc.accept(a.t, TOKEN, accept(), {})).rejects.toBeInstanceOf(NotFoundException);
+  it('an unknown / malformed token is a 404 (nothing leaks)', async () => {
     const b = make();
     b.db.proposal.findUnique.mockResolvedValueOnce(null as never);
     await expect(b.svc.view(b.t, TOKEN, {})).rejects.toBeInstanceOf(NotFoundException);
     await expect(b.svc.view(b.t, "x'; DROP TABLE", {})).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('PublicProposalsService — draft link is a read-only preview', () => {
+  it('a draft is viewable (flagged isDraft) but logs no view and sends no notification', async () => {
+    const a = make({ status: 'DRAFT' });
+    const v = (await a.svc.view(a.t, TOKEN, { ip: '1.1.1.1' })) as { isDraft: boolean; status: string };
+    expect(v.isDraft).toBe(true);
+    expect(v.status).toBe('DRAFT');
+    expect(a.db.proposalView.create).not.toHaveBeenCalled();
+    expect(a.db.proposal.update).not.toHaveBeenCalled();
+    expect(a.notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('the customer can not accept, reject or comment on a draft', async () => {
+    const a = make({ status: 'DRAFT' });
+    await expect(a.svc.accept(a.t, TOKEN, accept(), {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(a.svc.reject(a.t, TOKEN, { reason: 'x' } as never, {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(a.svc.comment(a.t, TOKEN, { body: 'سلام' } as never, {})).rejects.toBeInstanceOf(NotFoundException);
+    expect(a.db.proposalComment.create).not.toHaveBeenCalled();
   });
 });
 

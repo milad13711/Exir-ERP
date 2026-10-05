@@ -50,11 +50,12 @@ export class PublicProposalsService {
     private readonly automation: AutomationEngineService,
   ) {}
 
-  private async findByToken(t: PublicTenantCtx, token: string) {
+  /** `allowDraft`: فقط برای مشاهده/فایل — پیش‌نمایش لینک پیش‌نویس برای خودِ تننت؛ پاسخ مشتری (قبول/رد/نظر) هرگز روی پیش‌نویس مجاز نیست. */
+  private async findByToken(t: PublicTenantCtx, token: string, allowDraft = false) {
     // توکن باید یک رشته‌ی معقول باشد (UUID)؛ ورودی‌های عجیب هرگز به پایگاه‌داده نمی‌رسند
     if (!/^[0-9a-fA-F-]{20,64}$/.test(token)) throw new NotFoundException('پروپوزال یافت نشد');
     const proposal = await t.tenantDb.proposal.findUnique({ where: { publicToken: token }, include: { contact: { select: { id: true, name: true, company: true, phone: true } } } });
-    if (!proposal || proposal.status === 'DRAFT') throw new NotFoundException('پروپوزال یافت نشد');
+    if (!proposal || (proposal.status === 'DRAFT' && !allowDraft)) throw new NotFoundException('پروپوزال یافت نشد');
     return this.expireIfNeeded(t, proposal);
   }
 
@@ -103,8 +104,9 @@ export class PublicProposalsService {
   // ── مشاهده ────────────────────────────────────────────────────────────
 
   async view(t: PublicTenantCtx, token: string, meta: ClientMeta) {
-    let p = await this.findByToken(t, token);
+    let p = await this.findByToken(t, token, true);
     const now = new Date();
+    const isDraft = p.status === 'DRAFT';
 
     // ثبت مشاهده با حذف تکرارهای سریع (همان IP + مرورگر در بازه‌ی کوتاه)
     const last = await t.tenantDb.proposalView.findFirst({
@@ -112,7 +114,8 @@ export class PublicProposalsService {
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true },
     });
-    const isNewView = !last || now.getTime() - last.createdAt.getTime() > VIEW_DEDUPE_MS;
+    // پیش‌نویس هنوز برای مشتری ارسال نشده: بازدید ثبت نمی‌شود و اعلانی نمی‌رود (پیش‌نمایش تننت).
+    const isNewView = !isDraft && (!last || now.getTime() - last.createdAt.getTime() > VIEW_DEDUPE_MS);
     if (isNewView) {
       const isFirst = !p.firstViewedAt;
       await t.tenantDb.proposalView.create({ data: { proposalId: p.id, ip: meta.ip, userAgent: meta.userAgent?.slice(0, 300) } });
@@ -159,6 +162,7 @@ export class PublicProposalsService {
       proposalNo: p.proposalNo,
       title: p.title,
       status: p.status,
+      isDraft,
       content: p.content,
       durationText: p.durationText,
       amount: p.amount,
@@ -179,7 +183,7 @@ export class PublicProposalsService {
 
   /** فایل پیوست (با توکن + شناسه‌ی پیوست همان پروپوزال) — لینک خارجی برای رندر به صفحه‌ی عمومی داده می‌شود، نه proxy. */
   async getFile(t: PublicTenantCtx, token: string, attachmentId: string) {
-    const p = await this.findByToken(t, token);
+    const p = await this.findByToken(t, token, true);
     const att = await t.tenantDb.attachment.findFirst({ where: { id: attachmentId, entityType: 'Proposal', entityId: p.id } });
     if (!att) throw new NotFoundException('فایل یافت نشد');
     const m = /^data:([^;,]+);base64,(.*)$/s.exec(att.fileUrl);

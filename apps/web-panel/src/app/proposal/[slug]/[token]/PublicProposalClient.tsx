@@ -118,6 +118,11 @@ export function PublicProposalClient({ slug, token }: { slug: string; token: str
               </div>
               <span className="text-[12px] font-bold bg-slate-100 rounded-full px-3 py-1.5 shrink-0">{PROPOSAL_STATUS_LABELS[view.status]}</span>
             </div>
+            {view.isDraft ? (
+              <div className="mt-3 bg-warning-soft text-warning rounded-lg px-3 py-2.5 text-[12.5px] font-semibold leading-6">
+                این پروپوزال هنوز پیش‌نویس است و برای مشتری ارسال نشده؛ آنچه می‌بینید فقط پیش‌نمایش است. برای ارسال، در پنل «کپی لینک» یا «ارسال پیامک» را بزنید.
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4 text-[12px]">
               <div className="bg-slate-50 rounded-lg px-3 py-2">
                 <div className="text-muted">مشتری</div>

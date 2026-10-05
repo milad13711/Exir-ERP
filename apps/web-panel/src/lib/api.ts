@@ -8023,6 +8023,7 @@ export type PublicProposalView = {
   seller: { name: string; logoUrl: string | null; phone: string | null; address: string | null };
   proposalNo: number;
   title: string;
+  isDraft?: boolean;
   status: ProposalStatus;
   content: string;
   durationText: string | null;
