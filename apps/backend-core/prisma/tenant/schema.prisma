@@ -2319,6 +2319,8 @@ model ServiceType {
   requiresFullPayment  Boolean  @default(false) // پرداخت کامل مبلغ خدمت هنگام رزرو (به‌جای بیعانه)
   description          String? // توضیحات جلسه — در لینک عمومی نوبت برای مشتری نمایش داده می‌شود
   location             String? // آدرس/محل برگزاری — خالی یعنی آدرس شرکت در تنظیمات عمومی
+  // محل برگزاری: OFFICE (آدرس شرکت/آدرس بالا) | CUSTOMER_SITE (محل مشتری — آدرس شرکت هرگز در پیام نمی‌آید) | ONLINE (آنلاین/تلفنی — بدون آدرس)
+  locationMode         String   @default("OFFICE")
   linkToMentoring      Boolean  @default(false) // هر نوبت این خدمت خودکار یک جلسه در ماژول مشاوره و منتورینگ می‌سازد
   createdAt            DateTime @default(now())
 

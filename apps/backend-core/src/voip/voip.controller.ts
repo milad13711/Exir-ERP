@@ -37,6 +37,13 @@ export class VoipController {
     }));
   }
 
+  /** وضعیت کلیِ تلفن برای هر کاربرِ ماژول (بدون جزئیات اتصال): آیا ارائه‌دهنده‌ی فعال تنظیم شده؟ دکمه‌ی تلفن هدر با همین پنهان می‌شود. */
+  @Get('status')
+  async status(@Ctx() ctx: TenantRequestContext) {
+    const config = await ctx.tenantDb.voipProviderConfig.findFirst({ where: { isActive: true }, select: { id: true } });
+    return { configured: !!config };
+  }
+
   @Get('config')
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')

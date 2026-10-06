@@ -4049,6 +4049,10 @@ export function saveVoipConfig(data: { providerCode: string; config: Record<stri
   return apiFetch<VoipConfig>("/voip/config", { method: "PUT", body: JSON.stringify(data) });
 }
 
+export function fetchVoipStatus() {
+  return apiFetch<{ configured: boolean }>("/voip/status");
+}
+
 export function fetchVoipExtensions() {
   return apiFetch<VoipExtension[]>("/voip/extensions");
 }
@@ -4190,6 +4194,7 @@ export type ServiceType = {
   requiresFullPayment?: boolean;
   description?: string | null;
   location?: string | null;
+  locationMode?: "OFFICE" | "CUSTOMER_SITE" | "ONLINE";
   linkToMentoring?: boolean;
 };
 
@@ -4251,6 +4256,7 @@ export function createServiceType(data: {
   requiresFullPayment?: boolean;
   description?: string;
   location?: string;
+  locationMode?: "OFFICE" | "CUSTOMER_SITE" | "ONLINE";
   linkToMentoring?: boolean;
 }) {
   return apiFetch<ServiceType>("/booking/service-types", { method: "POST", body: JSON.stringify(data) });
@@ -4269,6 +4275,7 @@ export function updateServiceType(
     requiresFullPayment: boolean;
     description: string;
     location: string;
+    locationMode: "OFFICE" | "CUSTOMER_SITE" | "ONLINE";
     linkToMentoring: boolean;
   }>,
 ) {

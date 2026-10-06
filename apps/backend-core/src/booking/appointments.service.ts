@@ -83,8 +83,25 @@ export class AppointmentsService {
     await ctx.tenantDb.crmActivity.create({ data: { type: 'MEETING', body, contactId, userId: userId ?? undefined } });
   }
 
-  private async resolveLocation(ctx: TenantRequestContext, appointment: { location: string | null }, serviceType: { location: string | null }): Promise<string | null> {
+  /**
+   * آدرسِ درست برای پیام/صفحه‌ی نوبت. اولویت: آدرس اختصاصی خودِ نوبت؛ سپس بر اساس «محل برگزاری» خدمت:
+   *  - ONLINE: بدون آدرس؛
+   *  - CUSTOMER_SITE: آدرس ثبت‌شده‌ی مشتری در CRM (اگر هست) — هرگز آدرس دفتر؛
+   *  - OFFICE: آدرس اختصاصیِ خدمت، وگرنه آدرس شرکت در تنظیمات عمومی.
+   */
+  private async resolveLocation(
+    ctx: TenantRequestContext,
+    appointment: { location: string | null; contactId?: string | null },
+    serviceType: { location: string | null; locationMode?: string | null },
+  ): Promise<string | null> {
     if (appointment.location?.trim()) return appointment.location.trim();
+    const mode = serviceType.locationMode ?? 'OFFICE';
+    if (mode === 'ONLINE') return null;
+    if (mode === 'CUSTOMER_SITE') {
+      if (!appointment.contactId) return null;
+      const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: appointment.contactId }, select: { address: true } });
+      return contact?.address?.trim() || null;
+    }
     if (serviceType.location?.trim()) return serviceType.location.trim();
     const row = await ctx.tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: { moduleCode: 'general', key: 'address' } } });
     const v = row?.value;
@@ -147,12 +164,14 @@ export class AppointmentsService {
   /** پیام کامل جلسه: عنوان وضعیت، خدمت، تاریخ و ساعت، آدرس، لینک عمومی توضیحات و (در صورت نیاز) پرداخت. */
   private async buildMessage(
     ctx: TenantRequestContext,
-    appointment: { serviceType: { name: string; location: string | null }; startAt: Date; location: string | null; publicToken: string; paymentStatus: string; depositAmount: number | null; isFullPayment: boolean },
+    appointment: { serviceType: { name: string; location: string | null; locationMode?: string | null }; contactId?: string | null; startAt: Date; location: string | null; publicToken: string; paymentStatus: string; depositAmount: number | null; isFullPayment: boolean },
     headline: string,
   ): Promise<string> {
     const location = await this.resolveLocation(ctx, appointment, appointment.serviceType);
     const lines = [headline, `خدمت: ${appointment.serviceType.name}`, `تاریخ و ساعت: ${formatWhen(appointment.startAt)}`];
     if (location) lines.push(`آدرس: ${location}`);
+    else if (appointment.serviceType.locationMode === 'CUSTOMER_SITE') lines.push('محل جلسه: در محل شما (طبق هماهنگی)');
+    else if (appointment.serviceType.locationMode === 'ONLINE') lines.push('نحوه‌ی برگزاری: آنلاین / تلفنی');
     lines.push(`جزئیات جلسه${appointment.paymentStatus === 'PENDING' ? ' و پرداخت' : ''}: ${this.publicLink(ctx, appointment.publicToken)}`);
     if (appointment.paymentStatus === 'PENDING' && appointment.depositAmount) {
       lines.push(`${appointment.isFullPayment ? 'مبلغ قابل پرداخت' : 'بیعانه'}: ${appointment.depositAmount.toLocaleString('en-US')} تومان`);
@@ -189,7 +208,7 @@ export class AppointmentsService {
    */
   private async syncMentoringSession(
     ctx: TenantRequestContext,
-    appointment: { id: string; contactId: string | null; providerUserId: string | null; startAt: Date; endAt: Date; status: string; location: string | null; serviceType: { name: string; price: number; durationMinutes: number; linkToMentoring: boolean; location: string | null } },
+    appointment: { id: string; contactId: string | null; providerUserId: string | null; startAt: Date; endAt: Date; status: string; location: string | null; serviceType: { name: string; price: number; durationMinutes: number; linkToMentoring: boolean; location: string | null; locationMode?: string | null } },
   ) {
     if (!appointment.serviceType.linkToMentoring) return;
     const existing = await ctx.tenantDb.mentoringSession.findUnique({ where: { appointmentId: appointment.id } });

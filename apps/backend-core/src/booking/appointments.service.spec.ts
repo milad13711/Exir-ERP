@@ -11,7 +11,7 @@ function setup(existingContact: { id: string } | null, serviceOverrides: Record<
   const tenantDb = {
     serviceType: { findUnique: vi.fn().mockResolvedValue(serviceType) },
     appointment: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...created, paymentStatus: data.paymentStatus, depositAmount: data.depositAmount, isFullPayment: data.isFullPayment })) },
-    crmContact: { findFirst: vi.fn().mockResolvedValue(existingContact), create: vi.fn().mockResolvedValue({ id: 'c-new' }) },
+    crmContact: { findFirst: vi.fn().mockResolvedValue(existingContact), findUnique: vi.fn().mockResolvedValue({ address: 'شیراز، خیابان چمران' }), create: vi.fn().mockResolvedValue({ id: 'c-new' }) },
     crmActivity: { create: vi.fn().mockResolvedValue({}) },
     moduleSetting: { findUnique: vi.fn().mockResolvedValue({ value: 'تهران، خیابان آزادی' }) },
     mentoringSession: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
@@ -44,6 +44,31 @@ describe('AppointmentsService.createPublic — CRM link + confirmation message',
     expect(message).toContain('۱۲:۰۰');
     expect(message).toContain('تهران، خیابان آزادی');
     expect(message).toContain('/book/acme/a/tok-1');
+  });
+
+  it('a customer-site service sends the CUSTOMER address, never the office address', async () => {
+    const { service, ctx, sms } = setup(null, { locationMode: 'CUSTOMER_SITE' });
+    await service.createPublic(ctx, { serviceTypeId: 'svc-1', customerName: 'علی', customerPhone: '09121234567', startAt: '2026-09-25T08:30:00Z' } as never);
+    const message = sms.sendSms.mock.calls[0][2] as string;
+    expect(message).toContain('شیراز، خیابان چمران');
+    expect(message).not.toContain('تهران، خیابان آزادی');
+  });
+
+  it('a customer-site service with no known customer address says so instead of sending the office address', async () => {
+    const { service, ctx, sms, tenantDb } = setup(null, { locationMode: 'CUSTOMER_SITE' });
+    tenantDb.crmContact.findUnique.mockResolvedValue({ address: null });
+    await service.createPublic(ctx, { serviceTypeId: 'svc-1', customerName: 'علی', customerPhone: '09121234567', startAt: '2026-09-25T08:30:00Z' } as never);
+    const message = sms.sendSms.mock.calls[0][2] as string;
+    expect(message).not.toContain('تهران، خیابان آزادی');
+    expect(message).toContain('در محل شما');
+  });
+
+  it('an online service carries no address line at all', async () => {
+    const { service, ctx, sms } = setup(null, { locationMode: 'ONLINE' });
+    await service.createPublic(ctx, { serviceTypeId: 'svc-1', customerName: 'علی', customerPhone: '09121234567', startAt: '2026-09-25T08:30:00Z' } as never);
+    const message = sms.sendSms.mock.calls[0][2] as string;
+    expect(message).not.toContain('آدرس:');
+    expect(message).toContain('آنلاین');
   });
 
   it('a full-payment service creates the appointment as pending payment of the whole price', async () => {

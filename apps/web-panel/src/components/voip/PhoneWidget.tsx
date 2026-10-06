@@ -6,7 +6,7 @@ import { PhoneIcon, SearchIcon, CloseIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getVoipSocket } from "@/lib/voip-socket";
-import { originateCall, fetchCallLogs, fetchCrmContacts, ApiError, type CallLog, type CrmContact } from "@/lib/api";
+import { originateCall, fetchVoipStatus, fetchCallLogs, fetchCrmContacts, ApiError, type CallLog, type CrmContact } from "@/lib/api";
 
 type Tab = "dialpad" | "contacts" | "history";
 const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
@@ -14,8 +14,19 @@ const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 export function PhoneWidget() {
   const { installedModules } = useWorkspace();
   const [open, setOpen] = useState(false);
+  // null = هنوز نمی‌دانیم؛ تا مشخص نشده دکمه نشان داده نمی‌شود (به‌جای چشمک‌زدن).
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const voipInstalled = installedModules.has("voip");
 
-  if (!installedModules.has("voip")) return null;
+  useEffect(() => {
+    if (!voipInstalled) return;
+    fetchVoipStatus()
+      .then((r) => setConfigured(r.configured))
+      .catch(() => setConfigured(false));
+  }, [voipInstalled]);
+
+  // ماژول نصب/فعال نیست، یا ارائه‌دهنده‌ی تلفن تنظیم نشده: دکمه‌ی تماس بی‌فایده است و نباید نشان داده شود.
+  if (!voipInstalled || !configured) return null;
 
   return (
     <div className="relative">

@@ -27,6 +27,7 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
   const [requiresFullPayment, setRequiresFullPayment] = useState(false);
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [locationMode, setLocationMode] = useState<"OFFICE" | "CUSTOMER_SITE" | "ONLINE">("OFFICE");
   const [linkToMentoring, setLinkToMentoring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -46,6 +47,7 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
     setRequiresFullPayment(false);
     setDescription("");
     setLocation("");
+    setLocationMode("OFFICE");
     setLinkToMentoring(false);
   }
 
@@ -60,6 +62,7 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
     setRequiresFullPayment(!!s.requiresFullPayment);
     setDescription(s.description ?? "");
     setLocation(s.location ?? "");
+    setLocationMode(s.locationMode ?? "OFFICE");
     setLinkToMentoring(!!s.linkToMentoring);
     setAddOpen(true);
   }
@@ -84,7 +87,8 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
         requiresCoordination,
         requiresFullPayment,
         description: description.trim() || undefined,
-        location: location.trim() || undefined,
+        location: locationMode === "OFFICE" ? location.trim() || undefined : undefined,
+        locationMode,
         linkToMentoring,
       };
       if (editingId) {
@@ -188,9 +192,22 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
               </div>
             )}
             <div>
-              <label className="text-[11px] font-semibold text-ink-soft mb-1 block">آدرس/محل برگزاری (خالی = آدرس شرکت در تنظیمات عمومی)</label>
-              <input value={location} onChange={(e) => setLocation(e.target.value)} className={`${inputClass} w-full`} />
+              <label className="text-[11px] font-semibold text-ink-soft mb-1 block">محل برگزاری</label>
+              <select value={locationMode} onChange={(e) => setLocationMode(e.target.value as typeof locationMode)} className={`${inputClass} w-full`}>
+                <option value="OFFICE">دفتر / آدرس ثابت</option>
+                <option value="CUSTOMER_SITE">محل مشتری (آدرس دفتر در پیام نمی‌آید)</option>
+                <option value="ONLINE">آنلاین / تلفنی (بدون آدرس)</option>
+              </select>
+              {locationMode === "CUSTOMER_SITE" ? (
+                <p className="text-[11px] text-muted mt-1.5">در پیام، آدرس مشتری (از پروفایل CRM یا «آدرس اختصاصی» همان نوبت) درج می‌شود.</p>
+              ) : null}
             </div>
+            {locationMode === "OFFICE" ? (
+              <div>
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">آدرس دفتر برای این خدمت (خالی = آدرس شرکت در تنظیمات عمومی)</label>
+                <input value={location} onChange={(e) => setLocation(e.target.value)} className={`${inputClass} w-full`} />
+              </div>
+            ) : null}
             <div>
               <label className="text-[11px] font-semibold text-ink-soft mb-1 block">توضیحات جلسه (در لینک عمومی نوبت به مشتری نمایش داده می‌شود)</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={`${inputClass} w-full`} />

@@ -25,6 +25,7 @@ export class ServiceTypesService {
         requiresFullPayment: dto.requiresFullPayment ?? false,
         description: dto.description,
         location: dto.location,
+        locationMode: dto.locationMode ?? 'OFFICE',
         linkToMentoring: dto.linkToMentoring ?? false,
       },
     });

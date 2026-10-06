@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class UpdateServiceTypeDto {
   @IsOptional()
@@ -44,6 +44,10 @@ export class UpdateServiceTypeDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsIn(['OFFICE', 'CUSTOMER_SITE', 'ONLINE'])
+  locationMode?: 'OFFICE' | 'CUSTOMER_SITE' | 'ONLINE';
 
   @IsOptional()
   @IsBoolean()
