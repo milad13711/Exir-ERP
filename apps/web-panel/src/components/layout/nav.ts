@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   CrmIcon,
   ReceiptIcon,
+  TaxIcon,
   OrdersIcon,
   WarehouseIcon,
   AccountingIcon,
@@ -85,6 +86,7 @@ export const primaryNav: NavItem[] = [
   // مالی
   { href: "/accounting", label: "حسابداری", icon: AccountingIcon, moduleCode: "accounting", category: "مالی" },
   { href: "/checks", label: "چک‌ها", icon: BillingIcon, moduleCode: "checks", category: "مالی" },
+  { href: "/tax", label: "مالیات و مودیان", icon: TaxIcon, moduleCode: "tax", category: "مالی" },
 
   // منابع انسانی
   { href: "/hr", label: "منابع انسانی", icon: HrIcon, moduleCode: "hr", category: "منابع انسانی" },

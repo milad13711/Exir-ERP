@@ -556,3 +556,12 @@ export function ProposalIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function TaxIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <path d="M9 9l6 6M9.5 14.5h.01M14.5 9.5h.01" />
+    </svg>
+  );
+}

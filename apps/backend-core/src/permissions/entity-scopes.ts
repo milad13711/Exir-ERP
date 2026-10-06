@@ -48,3 +48,16 @@ export async function proposalScope(permissions: PermissionsService, ctx: Tenant
   if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
   return { OR: [{ createdByUserId: userId }, { assignedUserId: userId }] };
 }
+
+/**
+ * «مشاهده‌ی همه» = همه‌ی صورتحساب‌های مالیاتی؛ «فقط خودم» = آن‌هایی که خودش ساخته یا درخواست تأیید داده.
+ * کاربر بدون شناسه‌ی تننت (کلید API غیرمدیر) دامنه‌ی «خودم» ندارد.
+ */
+export async function taxInvoiceScope(permissions: PermissionsService, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+  const matrix = await permissions.getEffective(ctx, 'tax');
+  if (matrix.canViewAll) return {};
+  if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+  const userId = await resolveTenantUserId(ctx);
+  if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+  return { OR: [{ createdByUserId: userId }, { requestedByUserId: userId }] };
+}

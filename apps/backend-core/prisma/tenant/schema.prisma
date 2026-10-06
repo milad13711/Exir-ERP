@@ -689,6 +689,7 @@ model SalesInvoice {
   bookOrders        BookOrder[]
   warrantyCodes     WarrantyCode[]
   followUps         InvoiceFollowUp[]
+  taxInvoices       TaxInvoice[]
 
   @@index([contactId])
   @@index([status])
@@ -1482,6 +1483,7 @@ model Product {
   publicCompareAtPrice Int? // تومان — قیمت «قبل از تخفیف» برای نمایش نشان تخفیف در فروشگاه عمومی؛ فقط وقتی از salePrice بیشتر باشد اعمال می‌شود
 
   reviews StoreReview[]
+  taxCode TaxProductCode?
 
   // گارانتی و خدمات پس از فروش — وقتی warrantyEnabled باشد، به ازای هر واحد
   // از این کالا در یک فاکتور تسویه‌شده یک کد گارانتی جدا صادر می‌شود.
@@ -4147,4 +4149,147 @@ model ProposalTemplate {
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@map("proposal_templates")
+}
+
+// ── مالیات و صورتحساب الکترونیکی (سامانه مودیان) ─────────────────────────────
+// فاز ۱: تنظیمات اتصال، نگاشت کد کالا/خدمت، پیش‌نویس و تأیید مدیر، صف ارسال و استعلام.
+// همه‌ی نگاشت فیلدها/الگوها در src/tax/mapping/moodian-field-map.ts (نسخه‌دار) است؛ نرخ‌ها در همین جدول‌ها.
+
+enum TaxEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum TaxInvoiceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  QUEUED
+  SENT
+  ACCEPTED
+  REJECTED
+  FAILED
+  CANCELLED
+}
+
+/// موضوع صورتحساب (ins در سند مودیان): ۱ اصلی، ۲ اصلاحی، ۳ ابطالی، ۴ برگشت از فروش
+enum TaxInvoiceSubject {
+  ORIGINAL
+  CORRECTION
+  CANCELLATION
+  RETURN
+}
+
+/// تنظیمات تننت — یک ردیف (id = "default"). کلید خصوصی فقط رمزشده (AES-256-GCM با TAX_SECRETS_KEY) ذخیره می‌شود و هرگز برگردانده نمی‌شود.
+model TaxSettings {
+  id                       String         @id @default("default")
+  economicCode             String? // شماره اقتصادی فروشنده (tins)
+  fiscalId                 String? // شناسه یکتای حافظه مالیاتی (۶ نویسه)
+  taxpayerName             String?
+  postalCode               String?
+  branchCode               String? // کد شعبه فروشنده (sbc)
+  environment              TaxEnvironment @default(SANDBOX)
+  sendingEnabled           Boolean        @default(false)
+  /// آدرس پایه‌ی محیط آزمایشی (https، دامنه‌ی tax.gov.ir) — خالی = ارسال آزمایشی ممکن نیست؛ هرگز به‌طور پیش‌فرض به محیط واقعی نمی‌افتد.
+  sandboxBaseUrl           String?
+  /// نرخ پیش‌فرض ارزش افزوده (درصد) — قابل ویرایش؛ نبودنش ارسال را مسدود می‌کند.
+  defaultVatRate           Float?
+  defaultSstid             String? // شناسه کالا/خدمت پیش‌فرض برای اقلام بدون نگاشت
+  defaultUnitCode          Int? // کد واحد اندازه‌گیری پیش‌فرض (mu)
+  privateKeyEnc            String? // AES-256-GCM
+  keyFingerprint           String? // SHA-256 کلید عمومیِ متناظر (فقط نمایش)
+  certificatePem           String? // گواهی عمومی
+  certFingerprint          String?
+  certValidTo              DateTime?
+  signatureKeyId           String?
+  serverPublicKeyId        String?
+  serverPublicKeyPem       String?
+  serverKeyFetchedAt       DateTime?
+  /// پس از اولین پذیرش موفق در محیط آزمایشی ثبت می‌شود؛ بدون آن محیط واقعی بسته است.
+  verifiedAgainstSandboxAt DateTime?
+  updatedByUserId          String?
+  updatedAt                DateTime       @updatedAt
+
+  @@map("tax_settings")
+}
+
+/// نگاشت کالای انبار → شناسه کالا/خدمت (sstid، ۱۳ رقم) + واحد اندازه‌گیری + نرخ ارزش افزوده‌ی اختصاصی
+model TaxProductCode {
+  id              String   @id @default(uuid())
+  productId       String   @unique
+  sstid           String // ۱۳ رقم
+  unitCode        Int // mu — جدول واحدها در پیوست ۸ دستورالعمل صدور صورتحساب
+  vatRate         Float? // درصد؛ خالی = نرخ فاکتور/پیش‌فرض
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("tax_product_codes")
+}
+
+model TaxInvoice {
+  id                String            @id @default(uuid())
+  salesInvoiceId    String
+  /// زنجیره‌ی ابطال/اصلاح: صورتحساب مرجع (اصلی)
+  refTaxInvoiceId   String?
+  status            TaxInvoiceStatus  @default(DRAFT)
+  subject           TaxInvoiceSubject @default(ORIGINAL)
+  pattern           Int               @default(1) // inp
+  invoiceType       Int               @default(2) // inty
+  taxid             String? // ۲۲ نویسه — فعلاً دستی (قالب رسمی در سند جداگانه؛ NotVerifiedError)
+  inno              String? // سریال ۱۰ نویسه (از taxid)
+  irtaxid           String? // taxid صورتحساب مرجع
+  uid               String            @unique @default(uuid())
+  referenceNumber   String?
+  /// ورودی‌های دستی که در داده‌ی فاکتور فروش/مشتری نیست (کد پستی خریدار، کد اقتصادی و ...)
+  overrides         Json?
+  payloadSnapshot   Json? // نسخه‌ی منجمدشده در لحظه‌ی تأیید مدیر
+  normalizedHash    String? // SHA-256 رشته‌ی نرمال‌شده‌ی منجمد
+  mappingVersion    String?
+  errors            Json?
+  environment       TaxEnvironment?
+  requestedByUserId String?
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  resultAt          DateTime?
+  lastInquiryAt     DateTime?
+  retryCount        Int               @default(0)
+  nextAttemptAt     DateTime?
+  /// ارسال بعدی باید retry=true باشد (ارسال مجدد با همان uid طبق سند)
+  retryFlag         Boolean           @default(false)
+  createdByUserId   String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  salesInvoice  SalesInvoice       @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  refTaxInvoice TaxInvoice?        @relation("TaxInvoiceChain", fields: [refTaxInvoiceId], references: [id], onDelete: SetNull)
+  chain         TaxInvoice[]       @relation("TaxInvoiceChain")
+  logs          TaxSubmissionLog[]
+
+  @@index([salesInvoiceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("tax_invoices")
+}
+
+/// فقط‌افزودنی: هر فراخوانی API و پاسخ آن (بدون توکن/کلید/بدنه‌ی رمزشده)
+model TaxSubmissionLog {
+  id             String   @id @default(uuid())
+  taxInvoiceId   String?
+  kind           String // GET_TOKEN | SEND | INQUIRY_BY_UID | ... | WORKFLOW
+  ok             Boolean
+  requestTraceId String?
+  httpStatus     Int?
+  errorCode      String?
+  summary        Json?
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  taxInvoice TaxInvoice? @relation(fields: [taxInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([taxInvoiceId, createdAt])
+  @@map("tax_submission_logs")
 }

@@ -45,6 +45,7 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "fleet": 520,
   "online-store": 450,
   "marketing": 415,
+  "tax": 450,
 };
 
 /** قیمت ماهانه‌ی دلاری = قیمت پایه ÷ ۴۰ (ثابت؛ همان ماهانه‌ی پیش از تغییر ضریب‌ها). */

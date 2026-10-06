@@ -290,3 +290,34 @@ describe('InvoicesService.recordPayment', () => {
     });
   });
 });
+
+describe('InvoicesService — lock while a Moodian tax invoice is in flight/accepted', () => {
+  function build(lockStatus: string | null) {
+    const approvalsStub = { request: vi.fn(async () => ({})), closeForEntity: vi.fn(async () => {}), registerHandler: () => {}, isManager: () => true, runOrRequest: vi.fn() };
+    const service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, approvalsStub as never, { getStamp: async () => ({}) } as never);
+    const tenantDb = {
+      salesInvoice: { findUnique: vi.fn(async () => ({ id: 'inv-1', status: 'CONFIRMED', paidAmount: 0, invoiceNo: 3 })), delete: vi.fn(), update: vi.fn() },
+      taxInvoice: { findFirst: vi.fn(async (args: { where: { status?: unknown; subject?: unknown } }) => (args.where.status === 'ACCEPTED' ? null : lockStatus ? { id: 't1' } : null)) },
+    };
+    return { service, tenantDb, approvalsStub };
+  }
+
+  it.each([
+    ['cancel', (s: InvoicesService, c: TenantRequestContext) => s.cancel(c, 'inv-1', 'دلیل')],
+    ['removeDraft', (s: InvoicesService, c: TenantRequestContext) => s.removeDraft(c, 'inv-1')],
+    ['updateDraft', (s: InvoicesService, c: TenantRequestContext) => s.updateDraft(c, 'inv-1', { contactId: 'c', lines: [] } as never)],
+  ])('%s is refused with a Persian message and nothing is written', async (_n, call) => {
+    const { service, tenantDb, approvalsStub } = build('ACCEPTED');
+    await expect(call(service, makeCtx(tenantDb))).rejects.toThrow(/مودیان/);
+    expect(tenantDb.salesInvoice.delete).not.toHaveBeenCalled();
+    expect(tenantDb.salesInvoice.update).not.toHaveBeenCalled();
+    expect(approvalsStub.runOrRequest).not.toHaveBeenCalled();
+  });
+
+  it('without a tax invoice the cancel path proceeds to the approvals gate as before', async () => {
+    const { service, tenantDb, approvalsStub } = build(null);
+    approvalsStub.runOrRequest.mockResolvedValue({ executed: false, pendingApproval: true });
+    await expect(service.cancel(makeCtx(tenantDb), 'inv-1', 'دلیل')).resolves.toEqual({ success: true, pendingApproval: true });
+    expect(approvalsStub.runOrRequest).toHaveBeenCalled();
+  });
+});

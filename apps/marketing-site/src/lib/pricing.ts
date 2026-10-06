@@ -80,6 +80,7 @@ export const MODULE_LICENSE_WEIGHTS_USD: Record<string, number> = {
   "fleet": 520,
   "online-store": 450,
   "marketing": 415,
+  "tax": 450,
 };
 
 export type UsdPricing = { licenseUsd: number; yearlyUsd: number; monthlyUsd: number };

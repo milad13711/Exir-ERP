@@ -8064,3 +8064,153 @@ export function rejectPublicProposal(slug: string, token: string, data: { reason
 export function commentPublicProposal(slug: string, token: string, data: { body: string; name?: string; requestRevision?: boolean }) {
   return apiFetch<PublicProposalView["comments"][number]>(`/public/tenants/${slug}/proposals/${token}/comments`, { method: "POST", body: JSON.stringify(data) });
 }
+
+// ── مالیات و صورتحساب الکترونیکی — سامانه مودیان (tax) ───────────────────────
+
+export type TaxInvoiceStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "QUEUED" | "SENT" | "ACCEPTED" | "REJECTED" | "FAILED" | "CANCELLED";
+export type TaxInvoiceSubject = "ORIGINAL" | "CORRECTION" | "CANCELLATION" | "RETURN";
+export type TaxEnvironment = "SANDBOX" | "PRODUCTION";
+
+export type TaxIssue = { code: string; severity: "BLOCKING" | "WARNING"; message: string; field?: string; lineIndex?: number };
+export type TaxMappedError = { code: string | null; detail: string | null; fa: string; transient?: boolean };
+
+export type TaxInvoiceListItem = {
+  id: string;
+  salesInvoiceId: string;
+  status: TaxInvoiceStatus;
+  subject: TaxInvoiceSubject;
+  taxid: string | null;
+  referenceNumber: string | null;
+  errors: TaxMappedError[] | null;
+  retryCount: number;
+  approvedAt: string | null;
+  sentAt: string | null;
+  resultAt: string | null;
+  createdAt: string;
+  salesInvoice: { id: string; invoiceNo: number; officialInvoiceNo: number | null; total: number; issuedAt: string; contact: { id: string; name: string; company: string | null } };
+};
+
+export type TaxPreview = {
+  payload: { header: Record<string, string | number | null>; body: Array<Record<string, string | number | null>>; payments: unknown[] };
+  issues: TaxIssue[];
+  blocking: boolean;
+  mappingVersion: string;
+  frozen: boolean;
+};
+
+export type TaxSubmissionLog = { id: string; kind: string; ok: boolean; errorCode: string | null; httpStatus: number | null; summary: Record<string, unknown> | null; createdAt: string };
+
+export type TaxInvoiceDetail = TaxInvoiceListItem & {
+  pattern: number;
+  invoiceType: number;
+  inno: string | null;
+  irtaxid: string | null;
+  uid: string;
+  overrides: Record<string, string | number> | null;
+  normalizedHash: string | null;
+  mappingVersion: string | null;
+  environment: TaxEnvironment | null;
+  preview: TaxPreview;
+  issues: TaxIssue[];
+  logs: TaxSubmissionLog[];
+  approval: { id: string; status: string; decisionNote: string | null; decidedAt: string | null } | null;
+  chain: Array<{ id: string; subject: TaxInvoiceSubject; status: TaxInvoiceStatus; taxid: string | null }>;
+};
+
+export type TaxSettings = {
+  economicCode: string | null;
+  fiscalId: string | null;
+  taxpayerName: string | null;
+  postalCode: string | null;
+  branchCode: string | null;
+  environment: TaxEnvironment;
+  sendingEnabled: boolean;
+  sandboxBaseUrl: string | null;
+  defaultVatRate: number | null;
+  defaultSstid: string | null;
+  defaultUnitCode: number | null;
+  hasPrivateKey: boolean;
+  keyFingerprint: string | null;
+  hasCertificate: boolean;
+  certFingerprint: string | null;
+  certValidTo: string | null;
+  signatureKeyId: string | null;
+  serverPublicKeyId: string | null;
+  serverKeyFetchedAt: string | null;
+  verifiedAgainstSandboxAt: string | null;
+  secretsKeyConfigured: boolean;
+  realSendingDisabled: boolean;
+  readiness: Array<{ key: string; ok: boolean; label: string }>;
+};
+
+export type TaxStatus = { environment: TaxEnvironment; sendingEnabled: boolean; realSendingDisabled: boolean; verifiedAgainstSandboxAt: string | null };
+
+export type TaxProductRow = { id: string; sku: string; name: string; unit: string; taxCode: { sstid: string; unitCode: number; vatRate: number | null; updatedAt: string } | null };
+
+export type TaxSettingsInput = Partial<{
+  economicCode: string;
+  fiscalId: string;
+  taxpayerName: string;
+  postalCode: string;
+  branchCode: string;
+  environment: TaxEnvironment;
+  sendingEnabled: boolean;
+  sandboxBaseUrl: string;
+  defaultVatRate: number | null;
+  defaultSstid: string;
+  defaultUnitCode: number | null;
+}>;
+
+export function fetchTaxStatus() {
+  return apiFetch<TaxStatus>("/tax/status");
+}
+export function fetchTaxSettings() {
+  return apiFetch<TaxSettings>("/tax/settings");
+}
+export function saveTaxSettings(data: TaxSettingsInput) {
+  return apiFetch<TaxSettings>("/tax/settings", { method: "PUT", body: JSON.stringify(data) });
+}
+export function uploadTaxKey(data: { privateKeyPem: string; certificatePem?: string; signatureKeyId?: string }) {
+  return apiFetch<TaxSettings>("/tax/settings/key", { method: "PUT", body: JSON.stringify(data) });
+}
+export function removeTaxKey() {
+  return apiFetch<TaxSettings>("/tax/settings/key", { method: "DELETE" });
+}
+export function refreshTaxServerKey() {
+  return apiFetch<TaxSettings>("/tax/settings/refresh-server-key", { method: "POST" });
+}
+export function fetchTaxInvoices(filters: { q?: string; status?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.status) params.set("status", filters.status);
+  const qs = params.toString();
+  return apiFetch<TaxInvoiceListItem[]>(`/tax/invoices${qs ? `?${qs}` : ""}`);
+}
+export function fetchTaxInvoice(id: string) {
+  return apiFetch<TaxInvoiceDetail>(`/tax/invoices/${id}`);
+}
+export function createTaxInvoice(salesInvoiceId: string) {
+  return apiFetch<TaxInvoiceDetail>("/tax/invoices", { method: "POST", body: JSON.stringify({ salesInvoiceId }) });
+}
+export function updateTaxInvoice(id: string, data: { taxid?: string; overrides?: Record<string, string | number> }) {
+  return apiFetch<TaxInvoiceDetail>(`/tax/invoices/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export function taxInvoiceAction(id: string, action: "validate" | "request-approval" | "approve" | "reject" | "send" | "inquire" | "resend" | "discard", body?: { note?: string }) {
+  return apiFetch<TaxInvoiceDetail>(`/tax/invoices/${id}/${action}`, { method: "POST", body: JSON.stringify(body ?? {}) });
+}
+export function chainTaxInvoice(id: string, kind: "CANCELLATION" | "CORRECTION", taxid?: string) {
+  return apiFetch<TaxInvoiceDetail>(`/tax/invoices/${id}/chain`, { method: "POST", body: JSON.stringify({ kind, ...(taxid ? { taxid } : {}) }) });
+}
+export function fetchTaxProductCodes(filters: { q?: string; unmapped?: boolean } = {}) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.unmapped) params.set("unmapped", "1");
+  const qs = params.toString();
+  return apiFetch<TaxProductRow[]>(`/tax/product-codes${qs ? `?${qs}` : ""}`);
+}
+export function saveTaxProductCode(data: { productId: string; sstid: string; unitCode: number; vatRate?: number | null }) {
+  return apiFetch<{ id: string }>("/tax/product-codes", { method: "PUT", body: JSON.stringify(data) });
+}
+export function removeTaxProductCode(productId: string) {
+  return apiFetch<{ success: boolean }>(`/tax/product-codes/${productId}`, { method: "DELETE" });
+}

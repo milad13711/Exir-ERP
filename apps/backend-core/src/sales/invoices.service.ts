@@ -1,3 +1,4 @@
+import { assertNotTaxLocked } from './tax-lock.util.js';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
@@ -756,6 +757,7 @@ export class InvoicesService {
   async updateDraft(ctx: TenantRequestContext, id: string, dto: CreateInvoiceDto) {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    await assertNotTaxLocked(ctx.tenantDb, id, 'ویرایش فاکتور');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس قابل ویرایش است؛ فاکتور تأییدشده را باطل و فاکتور تازه صادر کنید');
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
 
@@ -799,6 +801,7 @@ export class InvoicesService {
   async removeDraft(ctx: TenantRequestContext, id: string) {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    await assertNotTaxLocked(ctx.tenantDb, id, 'حذف فاکتور');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس حذف می‌شود؛ فاکتور تأییدشده را باطل کنید');
     await ctx.tenantDb.salesInvoice.delete({ where: { id } });
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
@@ -812,6 +815,7 @@ export class InvoicesService {
   async cancel(ctx: TenantRequestContext, id: string, reason: string) {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    await assertNotTaxLocked(ctx.tenantDb, id, 'ابطال فاکتور');
     this.assertCancellable(invoice);
     const userId = await resolveTenantUserId(ctx).catch(() => null);
     const outcome = await this.approvals.runOrRequest(
@@ -831,6 +835,7 @@ export class InvoicesService {
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { lines: true } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    await assertNotTaxLocked(ctx.tenantDb, id, 'ابطال فاکتور'); // دوباره: ممکن است پس از ثبت درخواست تأیید، صورتحساب مالیاتی ساخته شده باشد
     this.assertCancellable(invoice);
     const returns = await ctx.tenantDb.salesReturn.count({ where: { invoiceId: id } });
     if (returns > 0) throw new BadRequestException('برای این فاکتور مرجوعی ثبت شده است و ابطال کامل ممکن نیست');

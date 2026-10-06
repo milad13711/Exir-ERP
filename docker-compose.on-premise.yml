@@ -87,6 +87,8 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}
       # Where the post-payment success page's "ورود" link points.
       WEB_PANEL_PUBLIC_URL: ${WEB_PANEL_PUBLIC_URL:-}
+      # AES-256-GCM key for Moodian (tax module) private-key storage; empty => key upload refused.
+      TAX_SECRETS_KEY: ${TAX_SECRETS_KEY:-}
     volumes:
       # Daily automated backups (BackupService) land here — a host directory,
       # not the container's own filesystem, so they survive
