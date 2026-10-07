@@ -4,17 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
+import { ActivityLogsView } from "@/components/logs/ActivityLogsView";
 import { WarningIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import { formatActivityAction, MODULE_LABELS_FA } from "@/lib/activity-labels";
-import {
-  fetchActivityLogs,
-  fetchActivityModules,
-  fetchErrorLogs,
-  type ActivityLogEntry,
-  type ErrorLogEntry,
-} from "@/lib/api";
+import { fetchErrorLogs, type ErrorLogEntry } from "@/lib/api";
 
 type Tab = "activity" | "errors";
 const PAGE_SIZE = 20;
@@ -33,7 +26,7 @@ export default function LogsSettingsPage() {
     <div>
       <h1 className="text-xl font-extrabold">لاگ فعالیت‌ها و خطاها</h1>
       <p className="text-[13.5px] text-muted mt-1">
-        تاریخچه‌ی کامل فعالیت کاربران و خطاهای سیستمی، قابل فیلتر بر اساس ماژول و بازه‌ی زمانی
+        تاریخچه‌ی کامل فعالیت‌های دستی و خودکار همه‌ی ماژول‌ها (از جمله ارسال پیامک)، خلاصه‌ی روزانه‌ی افراد و ساعت ثبت گزارش روزانه، و خطاهای سیستمی
       </p>
 
       <div className="flex items-center gap-2 mt-6 border-b border-border">
@@ -56,7 +49,7 @@ export default function LogsSettingsPage() {
         ))}
       </div>
 
-      {tab === "activity" ? <ActivityTab /> : <ErrorsTab />}
+      {tab === "activity" ? <ActivityLogsView /> : <ErrorsTab />}
     </div>
   );
 }
@@ -86,94 +79,6 @@ function Pager({ page, total, onChange }: { page: number; total: number; onChang
         </button>
       </div>
     </div>
-  );
-}
-
-function ActivityTab() {
-  const [items, setItems] = useState<ActivityLogEntry[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [module, setModule] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [modules, setModules] = useState<string[]>([]);
-
-  useEffect(() => {
-    fetchActivityModules().then(setModules).catch(() => setModules([]));
-  }, []);
-
-  useEffect(() => {
-    fetchActivityLogs({ module: module || undefined, from, to, page, pageSize: PAGE_SIZE })
-      .then((res) => {
-        setItems(res.items);
-        setTotal(res.total);
-      })
-      .catch(() => {
-        setItems([]);
-        setTotal(0);
-      });
-  }, [module, from, to, page]);
-
-  return (
-    <>
-      <div className="flex items-center gap-2.5 mt-5 flex-wrap">
-        <select
-          value={module}
-          onChange={(e) => {
-            setModule(e.target.value);
-            setPage(1);
-          }}
-          className="text-[12.5px] bg-surface border border-border rounded-xl px-3 py-2 outline-none"
-        >
-          <option value="">همه‌ی ماژول‌ها</option>
-          {modules.map((m) => (
-            <option key={m} value={m}>
-              {MODULE_LABELS_FA[m] ?? m}
-            </option>
-          ))}
-        </select>
-        <div className="w-[150px]">
-          <JalaliDateInput
-            value={from}
-            onChange={(v) => {
-              setFrom(v);
-              setPage(1);
-            }}
-            placeholder="از تاریخ"
-          />
-        </div>
-        <span className="text-[12px] text-muted">تا</span>
-        <div className="w-[150px]">
-          <JalaliDateInput
-            value={to}
-            onChange={(v) => {
-              setTo(v);
-              setPage(1);
-            }}
-            placeholder="تا تاریخ"
-          />
-        </div>
-      </div>
-
-      <Card className="mt-4 p-2">
-        {items === null ? (
-          <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
-        ) : items.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">رکوردی یافت نشد</div>
-        ) : (
-          items.map((a, i) => (
-            <div
-              key={a.id}
-              className={clsx("flex items-center gap-3 px-4 py-3.5", i < items.length - 1 && "border-b border-border")}
-            >
-              <div className="flex-1 min-w-0 text-[13px]">{formatActivityAction(a.action, a.userName)}</div>
-              <div className="text-xs text-muted whitespace-nowrap">{formatJalaliDate(a.createdAt)}</div>
-            </div>
-          ))
-        )}
-        <Pager page={page} total={total} onChange={setPage} />
-      </Card>
-    </>
   );
 }
 

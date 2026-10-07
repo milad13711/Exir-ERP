@@ -5,8 +5,20 @@ const NOW = new Date('2026-09-25T20:40:00Z'); // ۲۳:۵۰ تهران — امر
 const TODAY = new Date('2026-09-26T00:00:00.000Z');
 const TOMORROW = new Date('2026-09-27T00:00:00.000Z');
 
-function makeDb(opts: { marker?: unknown; items: Array<Record<string, unknown>> }) {
+function makeDb(opts: { marker?: unknown; items: Array<Record<string, unknown>>; attachments?: Array<Record<string, unknown>> }) {
+  const attachments = opts.attachments ?? [];
   return {
+    attachment: {
+      findMany: vi.fn(async ({ where }: any) =>
+        attachments.filter((a) => (where.entityType ? a.entityType === where.entityType : true) && (where.entityId?.in ? where.entityId.in.includes(a.entityId) : where.entityId ? a.entityId === where.entityId : true) && (where.sourceAttachmentId ? a.sourceAttachmentId != null : true)),
+      ),
+      findUnique: vi.fn(async ({ where }: any) => attachments.find((a) => a.id === where.id) ?? null),
+      update: vi.fn().mockResolvedValue({}),
+      createMany: vi.fn(async ({ data }: any) => {
+        for (const d of data) if (!attachments.some((a) => a.entityType === d.entityType && a.entityId === d.entityId && a.sourceAttachmentId === d.sourceAttachmentId)) attachments.push({ id: `c${attachments.length}`, ...d });
+        return { count: data.length };
+      }),
+    },
     dailyChecklistItem: {
       groupBy: vi.fn().mockResolvedValue([{ userId: 'u1', date: TODAY }]),
       findMany: vi.fn(async (args?: { where?: { done?: boolean } }) => (args?.where?.done === false ? opts.items.filter((i) => !i.done) : opts.items)),
@@ -76,5 +88,21 @@ describe('DailyChecklistCronService — end of day', () => {
     await service.closeDays(db as never, false, NOW);
     const where = db.dailyChecklistItem.groupBy.mock.calls[0][0].where.date;
     expect(where.lte.toISOString()).toBe('2026-09-25T00:00:00.000Z');
+  });
+
+  it('archives item files into the report and lists them in the body; closing again does not duplicate them', async () => {
+    const attachments: Array<Record<string, unknown>> = [
+      { id: 'f1', entityType: 'DailyChecklistItem', entityId: 'a', title: 'رسید بانک', fileUrl: 'data:application/pdf;base64,AAAA' },
+    ];
+    const db = makeDb({ items, attachments });
+    const { service } = makeService();
+    await service.closeDays(db as never, true, NOW);
+    expect(db.report.create.mock.calls[0][0].data.body).toContain('- رسید بانک (مربوط به: انجام‌شده)');
+    expect(attachments.filter((a) => a.entityType === 'Report')).toHaveLength(1);
+
+    // بستن دوباره‌ی همان روز با گزارش موجود (مسیر update) → همچنان یک نسخه
+    const db2 = makeDb({ items, attachments, marker: { reportId: 'r1', rolledOver: false } });
+    await service.closeDays(db2 as never, true, NOW);
+    expect(attachments.filter((a) => a.entityType === 'Report')).toHaveLength(1);
   });
 });

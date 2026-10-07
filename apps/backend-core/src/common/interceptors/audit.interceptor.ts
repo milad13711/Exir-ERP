@@ -1,57 +1,100 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { Observable, tap } from 'rxjs';
+import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
+import { ActivityLogService } from '../../activity/activity-log.service.js';
+import { activityActorStorage, type ActivityActor } from '../../activity/activity-context.js';
+import { describeRoute, normalizeRoutePath } from '../../activity/activity-route.util.js';
+import { maskIp } from '../../activity/activity-redact.util.js';
 
-/** مسیرهایی که ثبت‌شان نویز است یا خودشان لاگ اختصاصی دارند. */
-const IGNORED_FIRST_SEGMENTS = new Set(['auth', 'notifications', 'voip', 'me', 'push', 'workspace', 'public', 'admin', 'support', 'offline-sync']);
-const VERBS: Record<string, string> = { POST: 'created', PUT: 'updated', PATCH: 'updated', DELETE: 'deleted' };
-// عمل‌های POST که «ایجاد» نیستند — برچسب دقیق‌تر
-const POST_ACTIONS: Record<string, string> = { approve: 'approved', reject: 'rejected', confirm: 'confirmed', cancel: 'cancelled', void: 'voided', post: 'posted', decision: 'decided', sign: 'signed', receive: 'received', complete: 'completed', hire: 'hired' };
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
- * ثبت خودکار همه‌ی تغییرات کاربران (ایجاد/ویرایش/حذف/تأیید/ابطال) در لاگ فعالیت — تا مدیر
- * بدون تغییر در تک‌تک ماژول‌ها بداند «چه کسی، چه چیزی را، کِی» تغییر داده است.
+ * ثبت خودکار همه‌ی اقدامات دستی کاربران (ایجاد/ویرایش/حذف/تأیید/ارسال/…) در لاگ فعالیت، بدون تغییر در
+ * تک‌تک ماژول‌ها: بعد از موفقیت درخواست، یک ردیف در صف ActivityLogService می‌گذارد (نوشتن async و دسته‌ای —
+ * هیچ کوئری‌ای روی مسیر داغ درخواست نیست). بدنه‌ی درخواست/پاسخ هرگز ثبت نمی‌شود؛ فقط شناسه‌ها و فراداده‌ی ایمن.
+ * همچنین هویت درخواست‌دهنده را در AsyncLocalStorage می‌گذارد تا ارسال پیامک‌های فرعیِ همان درخواست به او نسبت داده شود.
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger('Audit');
 
+  constructor(
+    private readonly activity: ActivityLogService,
+    private readonly reflector: Reflector,
+  ) {}
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (context.getType() !== 'http') return next.handle();
     const req = context.switchToHttp().getRequest<Request>();
-    const verb = VERBS[req.method];
-    if (!verb) return next.handle();
+    if (!req || !MUTATING.has(req.method)) return next.handle();
 
-    return next.handle().pipe(
-      tap(() => {
-        const ctx = req.ctx;
-        if (!ctx) return;
-        const path = (req.path ?? '').replace(/^\/api\//, '').replace(/^\//, '');
-        const segments = path.split('/').filter(Boolean);
-        if (segments.length === 0 || IGNORED_FIRST_SEGMENTS.has(segments[0])) return;
+    let moduleCode: string | undefined;
+    try {
+      moduleCode = this.reflector.getAllAndOverride<string | undefined>(REQUIRE_MODULE_KEY, [context.getHandler(), context.getClass()]);
+    } catch {
+      moduleCode = undefined;
+    }
 
-        const isId = (s: string) => /^[0-9a-f-]{20,}$/i.test(s) || /^\d+$/.test(s);
-        const nameSegments = segments.filter((s) => !isId(s));
-        const last = nameSegments[nameSegments.length - 1];
-        const action = req.method === 'POST' && last && POST_ACTIONS[last] ? POST_ACTIONS[last] : verb;
-        const moduleName = nameSegments[0];
-        const entity = nameSegments.slice(1).filter((s) => !POST_ACTIONS[s]).join('.') || 'record';
-        const entityId = segments.find(isId) ?? null;
+    const routePattern = (req.route?.path as string | undefined) ?? req.path ?? '';
+    const actualPath = req.path ?? req.originalUrl ?? '';
+    const description = safe(() => describeRoute(req.method, routePattern, actualPath, moduleCode));
+    const ctx = req.ctx;
 
-        void ctx.tenantDb.user
-          .findFirst({ where: { globalUserId: ctx.auth.sub }, select: { id: true } })
-          .then((user) =>
-            ctx.tenantDb.activityLog.create({
-              data: {
-                userId: user?.id,
-                action: `${moduleName}.${entity}.${action}`,
-                entityType: entity,
-                entityId,
-                metadata: { method: req.method, path },
+    // هویت برای نسبت‌دادن پیامک‌های فرعی: کاربر واردشده → دستی؛ درخواست عمومی → خودکار با برچسب منشأ
+    const first = normalizeRoutePath(routePattern)[0];
+    let actor: ActivityActor | undefined;
+    if (ctx) {
+      actor = { actorType: 'MANUAL', globalUserId: ctx.auth.sub, viaApiKey: ctx.auth.type === 'api_key', tenantId: ctx.tenantId, moduleCode: description?.moduleCode };
+    } else if (first === 'public') {
+      const sub = normalizeRoutePath(routePattern)[1];
+      actor = { actorType: 'AUTOMATIC', origin: `public:${sub ?? 'form'}`, moduleCode: sub };
+    }
+
+    const run = (): Observable<unknown> =>
+      next.handle().pipe(
+        tap((response) => {
+          if (!ctx || !description) return;
+          try {
+            const res = response as { id?: unknown } | null;
+            const responseId = res && typeof res === 'object' && typeof res.id === 'string' && /^[0-9a-zA-Z_-]{1,64}$/.test(res.id) ? res.id : null;
+            this.activity.enqueueHttp(
+              ctx.tenantDb,
+              { tenantId: ctx.tenantId, globalUserId: ctx.auth.sub, viaApiKey: ctx.auth.type === 'api_key' },
+              {
+                actorType: 'MANUAL',
+                moduleCode: description.moduleCode,
+                actionType: description.actionType,
+                action: description.action,
+                entityType: description.entityType,
+                entityId: description.entityId ?? responseId,
+                summary: description.summary,
+                ip: maskIp(req.ip),
+                metadata: { method: req.method, path: normalizedPathForLog(routePattern) },
               },
-            }),
-          )
-          .catch((err) => this.logger.warn(`audit log failed: ${err instanceof Error ? err.message : err}`));
-      }),
-    );
+            );
+          } catch (err) {
+            this.logger.warn(`audit enqueue failed: ${err instanceof Error ? err.message : err}`);
+          }
+        }),
+      );
+
+    if (!actor) return run();
+    // اجرای کل زنجیره‌ی هندلر داخل ALS تا ادامه‌های async همین درخواست همان هویت را ببینند
+    return new Observable((subscriber) => activityActorStorage.run(actor, () => run().subscribe(subscriber)));
+  }
+}
+
+/** قالب مسیر (با :id) به‌جای مسیر واقعی — تا توکن/شناسه‌ی حساس در متادیتا نیاید. */
+function normalizedPathForLog(routePattern: string): string {
+  return '/' + normalizeRoutePath(routePattern).join('/');
+}
+
+function safe<T>(fn: () => T): T | null {
+  try {
+    return fn();
+  } catch {
+    return null;
   }
 }

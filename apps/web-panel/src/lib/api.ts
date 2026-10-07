@@ -572,6 +572,7 @@ export const PERMISSION_GATED_MODULE_CODES = [
   "qr-code",
   "automation",
   "reports",
+  "logs",
 ] as const;
 
 export type ModulePermissionEntry = {
@@ -848,7 +849,16 @@ export function fetchInvoiceFollowUps(invoiceId: string) {
 
 export type PagedResult<T> = { items: T[]; total: number; page: number; pageSize: number };
 
-export type ActivityLogEntry = ActivityEntry & { entityId: string | null; metadata: unknown };
+export type ActivityLogEntry = ActivityEntry & {
+  entityId: string | null;
+  metadata: unknown;
+  actorType?: "MANUAL" | "AUTOMATIC" | "SYSTEM";
+  moduleCode?: string;
+  actionType?: string | null;
+  summary?: string | null;
+  userId?: string | null;
+  ip?: string | null;
+};
 
 export type ErrorLogEntry = {
   id: string;
@@ -863,6 +873,9 @@ export type ErrorLogEntry = {
 export function fetchActivityLogs(params: {
   module?: string;
   userId?: string;
+  actorType?: string;
+  actionType?: string;
+  q?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -877,6 +890,76 @@ export function fetchActivityLogs(params: {
 
 export function fetchActivityModules() {
   return apiFetch<string[]>("/logs/activity/modules");
+}
+
+export function fetchActivityUsers() {
+  return apiFetch<{ id: string; name: string }[]>("/logs/activity/users");
+}
+
+export type ActivityDailySummary = {
+  date: string;
+  people: {
+    userId: string;
+    userName: string;
+    total: number;
+    manual: number;
+    automatic: number;
+    firstAt: string | null;
+    lastAt: string | null;
+    modules: Record<string, number>;
+    moduleLabels: Record<string, string>;
+    actions: Record<string, number>;
+  }[];
+};
+
+export function fetchActivityDailySummary(date: string, userId?: string) {
+  const qs = new URLSearchParams({ date });
+  if (userId) qs.set("userId", userId);
+  return apiFetch<ActivityDailySummary>(`/logs/activity/daily-summary?${qs.toString()}`);
+}
+
+export type DailyReportSubmissionRow = {
+  userId: string;
+  userName: string;
+  date: string;
+  dateFa: string;
+  submitted: boolean;
+  submittedAt: string | null;
+  submittedTimeFa: string | null;
+  mode: "MANUAL" | "AUTO" | null;
+  status: "ON_TIME" | "LATE" | "MISSING" | "PENDING";
+  itemsTotal: number;
+  itemsDone: number;
+};
+
+export type DailyReportSubmissionSummary = {
+  userId: string;
+  userName: string;
+  days: number;
+  onTime: number;
+  late: number;
+  missing: number;
+  pending: number;
+  manual: number;
+  auto: number;
+  avgManualMinutes: number | null;
+};
+
+export type DailyReportSubmissions = {
+  range: { from: string; to: string };
+  cutoff: { hour: number; minute: number };
+  rows: DailyReportSubmissionRow[];
+  summary: DailyReportSubmissionSummary[];
+};
+
+export function fetchDailyReportSubmissions(params: { from?: string; to?: string; userId?: string }) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
+  return apiFetch<DailyReportSubmissions>(`/logs/daily-reports?${qs.toString()}`);
+}
+
+export function updateDailyReportCutoff(time: string) {
+  return apiFetch<{ cutoff: { hour: number; minute: number } }>("/logs/daily-reports/settings", { method: "PUT", body: JSON.stringify({ time }) });
 }
 
 export function fetchErrorLogs(params: { from?: string; to?: string; page?: number; pageSize?: number }) {
@@ -3868,6 +3951,9 @@ export type Attachment = {
   fileUrl: string;
   createdAt: string;
   createdBy: { name: string } | null;
+  /** اگر این پیوست کپیِ بایگانی‌شده‌ی فایل دیگری است (مثلاً فایل چک‌لیست در گزارش روزانه) */
+  sourceAttachmentId?: string | null;
+  sourceNote?: string | null;
 };
 
 export function fetchAttachments(entityType: string, entityId: string) {
@@ -3876,6 +3962,22 @@ export function fetchAttachments(entityType: string, entityId: string) {
 
 export function createAttachment(data: { entityType: string; entityId: string; title: string; fileUrl: string }) {
   return apiFetch<Attachment>("/attachments", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function renameAttachment(id: string, title: string) {
+  return apiFetch<Attachment>(`/attachments/${id}`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export type ConfidentialCategoryValue = "PASSWORD" | "TECHNICAL_KNOWLEDGE" | "FORMULATION" | "CONFIDENTIAL_CONTRACT" | "SYSTEM_LOG" | "OTHER";
+
+/** تبدیل فایل چک‌لیست (یا نسخه‌ی بایگانی‌شده‌اش در گزارش) به دانش سازمانی */
+export function convertAttachmentToKnowledge(id: string, data: { title?: string } = {}) {
+  return apiFetch<{ target: string; targetId: string; title: string }>(`/attachments/${id}/convert-to-knowledge`, { method: "POST", body: JSON.stringify(data) });
+}
+
+/** بایگانی فایل چک‌لیست در اسناد محرمانه (پیش‌فرض: فقط خودِ شما + مالک/مدیر) */
+export function archiveAttachmentConfidential(id: string, data: { title?: string; category?: ConfidentialCategoryValue } = {}) {
+  return apiFetch<{ target: string; targetId: string; title: string }>(`/attachments/${id}/archive-confidential`, { method: "POST", body: JSON.stringify(data) });
 }
 
 export function deleteAttachment(id: string) {
@@ -3929,6 +4031,11 @@ export function deleteDailyChecklistItem(id: string) {
 
 export function createDailyChecklistTask(id: string, data: { dueAt?: string; priority?: "NORMAL" | "MEDIUM" | "URGENT" } = {}) {
   return apiFetch<DailyChecklistItem>(`/daily-checklist/${id}/task`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function fetchDailyChecklistDayReport(date: string, forUserId?: string) {
+  const qs = new URLSearchParams({ date, ...(forUserId ? { forUserId } : {}) }).toString();
+  return apiFetch<{ reportId: string | null }>(`/daily-checklist/report?${qs}`);
 }
 
 export function generateDailyChecklistReport(date: string, forUserId?: string) {
@@ -6302,18 +6409,23 @@ export type FormItem = {
   closesAt: string | null;
   passScorePercent: number | null;
   thankYouMessage: string | null;
+  allowedOrigins?: string[];
   createdAt: string;
   createdBy: { id: string; name: string } | null;
   fields: FormField[];
   _count?: { submissions: number };
+  /** تعداد پاسخ‌های «جدید» (دیده‌نشده) — فقط در فهرست */
+  newCount?: number;
 };
+
+export type FormSubmissionStatus = "NEW" | "IN_REVIEW" | "DONE";
 
 export type FormAnswer = {
   id: string;
   fieldId: string;
   valueText: string | null;
   valueOptions: string[];
-  field: { label: string; type: FormFieldType };
+  field: { label: string; type: FormFieldType; sortOrder?: number };
 };
 
 export type FormSubmission = {
@@ -6325,8 +6437,32 @@ export type FormSubmission = {
   scorePercent: number | null;
   passed: boolean | null;
   submittedAt: string;
+  status: FormSubmissionStatus;
+  viewedAt: string | null;
+  internalNote: string | null;
+  sourceUrl: string | null;
+  sourceMeta: { utm?: Record<string, string>; referrer?: string | null; origin?: string | null } | null;
+  ipMasked: string | null;
   contact: { id: string; name: string } | null;
   answers: FormAnswer[];
+};
+
+export type FormSubmissionDetail = Omit<FormSubmission, "answers"> & {
+  answers: Array<FormAnswer & { field: FormField }>;
+  form: { id: string; title: string; slug: string; type: FormType; fields: FormField[] };
+  viewedByName: string | null;
+};
+
+export type FormsInboxSummary = {
+  totalNew: number;
+  forms: Array<{
+    formId: string;
+    title: string;
+    slug: string;
+    type: FormType;
+    newCount: number;
+    latest: Array<{ id: string; submittedAt: string; respondentName: string | null; respondentPhone: string | null; preview: string | null }>;
+  }>;
 };
 
 export type FormStats = {
@@ -6373,7 +6509,7 @@ export function createForm(data: {
   return apiFetch<FormItem>("/forms", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateForm(id: string, data: Partial<Omit<Parameters<typeof createForm>[0], "slug" | "type">>) {
+export function updateForm(id: string, data: Partial<Omit<Parameters<typeof createForm>[0], "slug" | "type">> & { allowedOrigins?: string[] }) {
   return apiFetch<FormItem>(`/forms/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
@@ -6393,8 +6529,28 @@ export function deleteForm(id: string) {
   return apiFetch<{ ok: true }>(`/forms/${id}/delete`, { method: "POST" });
 }
 
-export function fetchFormSubmissions(formId: string) {
-  return apiFetch<FormSubmission[]>(`/forms/${formId}/submissions`);
+export function fetchFormSubmissions(formId: string, status?: FormSubmissionStatus) {
+  return apiFetch<FormSubmission[]>(`/forms/${formId}/submissions${status ? `?status=${status}` : ""}`);
+}
+
+export function fetchFormsInboxSummary() {
+  return apiFetch<FormsInboxSummary>("/forms/inbox-summary");
+}
+
+export function fetchFormSubmissionDetail(submissionId: string) {
+  return apiFetch<FormSubmissionDetail>(`/forms/submissions/${submissionId}`);
+}
+
+/** باز شدن پاسخ = دیده شد (NEW → IN_REVIEW). */
+export function markFormSubmissionViewed(submissionId: string) {
+  return apiFetch<{ id: string; status: FormSubmissionStatus; changed: boolean }>(`/forms/submissions/${submissionId}/viewed`, { method: "POST" });
+}
+
+export function updateFormSubmission(submissionId: string, data: { status?: FormSubmissionStatus; internalNote?: string }) {
+  return apiFetch<{ id: string; status: FormSubmissionStatus; internalNote: string | null }>(`/forms/submissions/${submissionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export function fetchFormStats(formId: string) {
@@ -6435,9 +6591,15 @@ export function fetchPublicForm(tenantSlug: string, formSlug: string) {
 export function submitPublicForm(
   tenantSlug: string,
   formSlug: string,
-  data: { respondentName?: string; respondentPhone?: string; answers: Array<{ fieldId: string; valueText?: string; valueOptions?: string[] }> },
+  data: {
+    respondentName?: string;
+    respondentPhone?: string;
+    answers: Array<{ fieldId: string; valueText?: string; valueOptions?: string[] }>;
+    _hp?: string;
+    source?: { url?: string; referrer?: string; utm?: Record<string, string> };
+  },
 ) {
-  return apiFetch<{ submissionId: string; scorePercent: number | null; passed: boolean | null; thankYouMessage: string | null }>(
+  return apiFetch<{ submissionId: string | null; scorePercent: number | null; passed: boolean | null; thankYouMessage: string | null }>(
     `/public/forms/${tenantSlug}/${formSlug}/submit`,
     { method: "POST", body: JSON.stringify(data) },
   );
@@ -7249,6 +7411,7 @@ export type EmployeeKpi = {
   penaltiesCount: number;
   netRewardScore: number;
   moduleActivity: { moduleCode: string; label: string; recordsCreated: number }[];
+  dailyReports?: { cutoff: { hour: number; minute: number }; range: { from: string; to: string }; summary: DailyReportSubmissionSummary | null; rows: DailyReportSubmissionRow[] } | null;
   totalRecordsCreated: number;
   overallScore: number | null;
 };

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ActivityLogService } from '../activity/activity-log.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -24,6 +25,7 @@ export class AutomationEngineService {
     private readonly controlDb: ControlPrismaService,
     private readonly notifications: NotificationsService,
     private readonly sms: TenantSmsService,
+    @Optional() private readonly activity?: ActivityLogService,
   ) {}
 
   /** Fired by a module's own code, right where the real event happens (or via the manual /automation/fire endpoint). A no-op if automation isn't installed or nothing is configured for this trigger — safe to call unconditionally. */
@@ -53,15 +55,31 @@ export class AutomationEngineService {
           await ctx.tenantDb.automationRunLog.create({
             data: { ruleId: rule.id, actionType: action.type, status: 'SUCCESS' },
           });
+          this.logAutomation(ctx, rule, action.type, triggerCode, true);
         } catch (err) {
           const error = err instanceof Error ? err.message : String(err);
           this.logger.error(`Automation rule "${rule.name}" action ${action.type} failed: ${error}`);
           await ctx.tenantDb.automationRunLog.create({
             data: { ruleId: rule.id, actionType: action.type, status: 'FAILED', error },
           });
+          this.logAutomation(ctx, rule, action.type, triggerCode, false, error);
         }
       }
     }
+  }
+
+  /** هر اجرای قانون اتوماسیون (موفق/ناموفق) در لاگ فعالیت‌ها — کنشگر AUTOMATIC؛ فقط شناسه/نام قانون، نه داده‌ی payload. */
+  private logAutomation(ctx: TenantRequestContext, rule: { id: string; name: string }, actionType: string, triggerCode: string, ok: boolean, error?: string): void {
+    this.activity?.logSystem(ctx.tenantDb, {
+      action: ok ? 'automation.rule.executed' : 'automation.rule.failed',
+      moduleCode: 'automation',
+      actionType: 'other',
+      entityType: 'automation-rule',
+      entityId: rule.id,
+      actorType: 'AUTOMATIC',
+      summary: `${ok ? 'اجرای خودکار' : 'خطا در اجرای خودکار'} قانون «${rule.name}» (${actionType})`,
+      metadata: { triggerCode, actionType, ok, ...(error ? { error: error.slice(0, 200) } : {}) },
+    });
   }
 
   private async runAction(ctx: TenantRequestContext, config: AutomationActionConfig, payload: TriggerPayload): Promise<void> {
@@ -81,7 +99,7 @@ export class AutomationEngineService {
     if (config.type === 'SEND_SMS') {
       const phone = resolveFixedOrFieldTarget(config.phoneMode, config.fixedPhone, config.payloadField, payload);
       if (!phone) throw new Error('شماره تلفن مقصد پیامک قابل تشخیص نبود');
-      const result = await this.sms.sendSms(ctx, phone, renderTemplate(config.message, payload));
+      const result = await this.sms.sendSms(ctx, phone, renderTemplate(config.message, payload), { actorType: 'AUTOMATIC', purpose: 'automation' });
       if (!result.success) throw new Error(result.error);
       return;
     }

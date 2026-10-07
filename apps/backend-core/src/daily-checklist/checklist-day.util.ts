@@ -26,11 +26,20 @@ export function buildDailyReportBody(
   userName: string,
   dateFa: string,
   items: Array<{ title: string; description: string | null; done: boolean; carriedOver?: boolean }>,
+  files: Array<{ title: string; itemTitle: string; archived?: boolean }> = [],
 ): string {
   const done = items.filter((i) => i.done);
   const pending = items.filter((i) => !i.done);
   const render = (list: typeof items) =>
     list.length === 0 ? 'موردی نیست' : list.map((i) => `- ${i.title}${i.description ? ` — ${i.description}` : ''}${i.carriedOver ? ' (مانده از قبل)' : ''}`).join('\n');
+  const filesBlock =
+    files.length === 0
+      ? []
+      : [
+          '',
+          `فایل‌های پیوست (${files.length}):`,
+          ...files.map((f) => `- ${f.title}${f.itemTitle ? ` (مربوط به: ${f.itemTitle})` : ''}${f.archived === false ? ' — به‌دلیل حجم بایگانی نشد' : ''}`),
+        ];
   return [
     `گزارش روزانه‌ی ${userName} — ${dateFa}`,
     '',
@@ -39,5 +48,6 @@ export function buildDailyReportBody(
     '',
     'انجام‌نشده:',
     render(pending),
+    ...filesBlock,
   ].join('\n');
 }

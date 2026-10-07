@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { DailyReportSubmissionService } from '../activity/daily-report-submissions.service.js';
 
 /**
  * نگاشت هر ماژول به مدل‌هایی که createdByUserId دارند — برای شمارش «رکوردهای
@@ -38,6 +39,8 @@ function defaultPeriod(from?: string, to?: string): { from: Date; to: Date } {
 
 @Injectable()
 export class KpiService {
+  constructor(private readonly dailyReports: DailyReportSubmissionService) {}
+
   async compute(ctx: TenantRequestContext, employeeId: string, fromParam?: string, toParam?: string) {
     const employee = await ctx.tenantDb.employee.findUnique({ where: { id: employeeId } });
     if (!employee) throw new NotFoundException('این کارمند یافت نشد');
@@ -45,12 +48,13 @@ export class KpiService {
     const { from, to } = defaultPeriod(fromParam, toParam);
     const period = { from: from.toISOString(), to: to.toISOString() };
 
-    const [attendance, tasks, rewards, penalties, moduleActivity] = await Promise.all([
+    const [attendance, tasks, rewards, penalties, moduleActivity, dailyReports] = await Promise.all([
       this.computeAttendance(ctx, employeeId, from, to),
       employee.userId ? this.computeTasks(ctx, employee.userId, from, to) : Promise.resolve(null),
       ctx.tenantDb.personnelReward.count({ where: { employeeId, date: { gte: from, lte: to } } }),
       ctx.tenantDb.personnelPenalty.count({ where: { employeeId, date: { gte: from, lte: to } } }),
       employee.userId ? this.computeModuleActivity(ctx, employee.userId, from, to) : Promise.resolve([]),
+      employee.userId ? this.computeDailyReports(ctx, employee.userId, from, to) : Promise.resolve(null),
     ]);
 
     const netRewardScore = rewards - penalties;
@@ -66,9 +70,16 @@ export class KpiService {
       penaltiesCount: penalties,
       netRewardScore,
       moduleActivity,
+      dailyReports,
       totalRecordsCreated,
       overallScore,
     };
+  }
+
+  /** ساعت دقیق ثبت گزارش کار روزانه‌ی این فرد در بازه — دستی/خودکار و به‌موقع/با تأخیر/ثبت‌نشده. */
+  private async computeDailyReports(ctx: TenantRequestContext, userId: string, from: Date, to: Date) {
+    const result = await this.dailyReports.compute(ctx.tenantDb, { from: from.toISOString(), to: to.toISOString(), userIds: [userId] });
+    return { cutoff: result.cutoff, range: result.range, summary: result.summary[0] ?? null, rows: result.rows.slice(0, 62) };
   }
 
   private async computeAttendance(ctx: TenantRequestContext, employeeId: string, from: Date, to: Date) {

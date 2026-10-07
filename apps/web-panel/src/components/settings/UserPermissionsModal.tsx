@@ -85,8 +85,8 @@ export function UserPermissionsModal({
     return PERMISSION_GATED_MODULE_CODES.filter((code) => {
       const m = byCode.get(code);
       const installed = m && (m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore));
-      return installed || overrides?.[code];
-    }).map((code) => ({ code, label: byCode.get(code)?.name ?? code }));
+      return code === "logs" || installed || overrides?.[code];
+    }).map((code) => ({ code, label: code === "logs" ? "لاگ فعالیت‌ها (مشاهده‌ی همه = دیدن فعالیت همه‌ی افراد)" : (byCode.get(code)?.name ?? code) }));
   }, [catalog, overrides]);
 
   function setCustom(code: string, custom: boolean) {

@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService, type SendSmsResult } from './exir-sms.service.js';
+import { ActivityLogService, type SmsLogInput } from '../activity/activity-log.service.js';
 
 /** هر چیزی که tenantId و tenantDb دارد — TenantRequestContext یا متغیرهای کرون‌ها. */
 export type SmsTenant = { tenantId?: string; tenantDb: TenantPrismaClient };
@@ -11,6 +12,8 @@ export type SmsConnection =
   | { mode: 'SYSTEM'; tenantId?: string }
   | { mode: 'LEGACY' } // تننت قبل از این قابلیت: هنوز رایگان از پنل اصلی، تا پنل خودش را انتخاب کند
   | { mode: 'OWN'; apiKey: string; senderNumber: string };
+
+export type SmsSendOptions = Pick<SmsLogInput, 'purpose' | 'moduleCode' | 'actorType'>;
 
 const SETTING_KEY = { moduleCode: 'sms-panel', key: 'connection' } as const;
 
@@ -35,6 +38,7 @@ export class TenantSmsService {
   constructor(
     private readonly gateway: ExirSmsService,
     private readonly controlDb: ControlPrismaService,
+    @Optional() private readonly activity?: ActivityLogService,
   ) {}
 
   async getConnection(tenantDb: TenantPrismaClient): Promise<SmsConnection> {
@@ -60,8 +64,23 @@ export class TenantSmsService {
     return wallet?.credits ?? 0;
   }
 
-  async sendSms(tenant: SmsTenant, phone: string, message: string): Promise<SendSmsResult> {
+  /**
+   * هر ارسال (موفق/ناموفق) در لاگ فعالیت‌های تننت ثبت می‌شود: چه کسی (کاربر درخواست جاری یا سیستم/خودکار)،
+   * گیرنده‌ی ماسک، هدف، طول/بخش‌ها و نتیجه — هرگز متن کامل. `opts` اختیاری است و فقط هدف/ماژول را دقیق‌تر می‌کند.
+   */
+  async sendSms(tenant: SmsTenant, phone: string, message: string, opts: SmsSendOptions = {}): Promise<SendSmsResult> {
+    const stack = new Error().stack;
     const conn = await this.getConnection(tenant.tenantDb);
+    const result = await this.dispatchSms(tenant, conn, phone, message);
+    this.activity?.logSms(
+      tenant.tenantDb,
+      { phone, message, success: result.success, error: result.success ? undefined : result.error, channel: conn.mode, stack, ...opts },
+      tenant.tenantId,
+    );
+    return result;
+  }
+
+  private async dispatchSms(tenant: SmsTenant, conn: SmsConnection, phone: string, message: string): Promise<SendSmsResult> {
 
     if (conn.mode === 'OWN') {
       return this.gateway.sendWith({ apiKey: conn.apiKey, sender: conn.senderNumber }, phone, message, { tenantId: tenant.tenantId, source: 'TENANT_OWN' });

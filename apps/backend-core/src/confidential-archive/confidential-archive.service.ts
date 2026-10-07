@@ -107,16 +107,24 @@ export class ConfidentialArchiveService {
 
   // ── اسناد آرشیو — همه‌ی این‌ها زیر VaultTicketGuard هستند ────────────────
 
+  /** اسناد «ownerOnly» (مثلاً تبدیل‌شده از پیوست‌ها) فقط برای سازنده و مالک/مدیر دیده می‌شوند. */
+  private async visibleWhere(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    if (this.isManager(ctx)) return {};
+    const me = ctx.auth.type === 'api_key' ? null : (await this.resolveCurrentUser(ctx)).id;
+    return me ? { OR: [{ ownerOnly: false }, { createdByUserId: me }] } : { ownerOnly: false };
+  }
+
   async listDocuments(ctx: TenantRequestContext) {
     return ctx.tenantDb.confidentialDocument.findMany({
+      where: await this.visibleWhere(ctx),
       orderBy: { createdAt: 'desc' },
       include: { createdBy: { select: { id: true, name: true } }, updatedBy: { select: { id: true, name: true } } },
     });
   }
 
   async getDocument(ctx: TenantRequestContext, id: string) {
-    const doc = await ctx.tenantDb.confidentialDocument.findUnique({
-      where: { id },
+    const doc = await ctx.tenantDb.confidentialDocument.findFirst({
+      where: { id, ...(await this.visibleWhere(ctx)) },
       include: { createdBy: { select: { id: true, name: true } }, updatedBy: { select: { id: true, name: true } } },
     });
     if (!doc) throw new NotFoundException('این سند یافت نشد');
@@ -124,7 +132,7 @@ export class ConfidentialArchiveService {
   }
 
   async updateDocument(ctx: TenantRequestContext, id: string, dto: UpdateConfidentialDocumentDto) {
-    const existing = await ctx.tenantDb.confidentialDocument.findUnique({ where: { id } });
+    const existing = await ctx.tenantDb.confidentialDocument.findFirst({ where: { id, ...(await this.visibleWhere(ctx)) } });
     if (!existing) throw new NotFoundException('این سند یافت نشد');
     const userId = ctx.auth.type === 'api_key' ? null : (await this.resolveCurrentUser(ctx)).id;
     return ctx.tenantDb.confidentialDocument.update({
@@ -135,7 +143,7 @@ export class ConfidentialArchiveService {
   }
 
   async deleteDocument(ctx: TenantRequestContext, id: string) {
-    const existing = await ctx.tenantDb.confidentialDocument.findUnique({ where: { id } });
+    const existing = await ctx.tenantDb.confidentialDocument.findFirst({ where: { id, ...(await this.visibleWhere(ctx)) } });
     if (!existing) throw new NotFoundException('این سند یافت نشد');
     await ctx.tenantDb.confidentialDocument.delete({ where: { id } });
     return { ok: true };

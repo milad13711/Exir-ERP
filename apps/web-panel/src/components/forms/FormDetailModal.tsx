@@ -19,10 +19,14 @@ import {
   type FormItem,
   type FormStatus,
   type FormSubmission,
+  type FormSubmissionStatus,
   type FormStats,
   type FormFieldInput,
 } from "@/lib/api";
 import { FormFieldEditor } from "./FormFieldEditor";
+import { EmbedPanel } from "./EmbedPanel";
+import { SubmissionDetailModal } from "./SubmissionDetailModal";
+import { SUBMISSION_STATUS_LABELS, SUBMISSION_STATUS_TONES, timeAgoFa } from "./forms-ui";
 
 const STATUS_LABELS: Record<FormStatus, string> = { DRAFT: "پیش‌نویس", PUBLISHED: "منتشرشده", CLOSED: "بسته‌شده" };
 const STATUS_TONES: Record<FormStatus, "neutral" | "success" | "danger"> = { DRAFT: "neutral", PUBLISHED: "success", CLOSED: "danger" };
@@ -41,16 +45,32 @@ function toFieldInputs(form: FormItem): FormFieldInput[] {
   }));
 }
 
-export function FormDetailModal({ formId, onClose, onChanged }: { formId: string; onClose: () => void; onChanged: () => void }) {
+type DetailTab = "fields" | "submissions" | "connect" | "stats";
+
+export function FormDetailModal({
+  formId,
+  onClose,
+  onChanged,
+  initialTab = "fields",
+  initialSubmissionId = null,
+}: {
+  formId: string;
+  onClose: () => void;
+  onChanged: () => void;
+  initialTab?: DetailTab;
+  /** از ویجت داشبورد/اعلان: مستقیم همین پاسخ باز شود */
+  initialSubmissionId?: string | null;
+}) {
   const { me } = useWorkspace();
   const [form, setForm] = useState<FormItem | null>(null);
-  const [tab, setTab] = useState<"fields" | "submissions" | "stats">("fields");
+  const [tab, setTab] = useState<DetailTab>(initialSubmissionId ? "submissions" : initialTab);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | FormSubmissionStatus>("ALL");
   const [fields, setFields] = useState<FormFieldInput[]>([]);
   const [submissions, setSubmissions] = useState<FormSubmission[] | null>(null);
   const [stats, setStats] = useState<FormStats | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [savingFields, setSavingFields] = useState(false);
-  const [openSubmission, setOpenSubmission] = useState<FormSubmission | null>(null);
+  const [openSubmissionId, setOpenSubmissionId] = useState<string | null>(initialSubmissionId);
 
   function refetch() {
     fetchForm(formId).then((f) => {
@@ -60,10 +80,14 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
   }
   useEffect(refetch, [formId]);
 
+  function reloadSubmissions() {
+    fetchFormSubmissions(formId, statusFilter === "ALL" ? undefined : statusFilter).then(setSubmissions).catch(() => setSubmissions([]));
+  }
   useEffect(() => {
-    if (tab === "submissions") fetchFormSubmissions(formId).then(setSubmissions).catch(() => setSubmissions([]));
+    if (tab === "submissions") reloadSubmissions();
     if (tab === "stats") fetchFormStats(formId).then(setStats).catch(() => setStats(null));
-  }, [tab, formId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, formId, statusFilter]);
 
   function reload() {
     refetch();
@@ -109,7 +133,7 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
   }
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${me?.tenant.publicKey ?? me?.tenant.slug ?? "exir-demo"}/${form.slug}` : "";
-  const embedCode = `<iframe src="${publicUrl}" style="width:100%;height:720px;border:0;border-radius:16px" loading="lazy"></iframe>`;
+  const publicKey = me?.tenant.publicKey ?? me?.tenant.slug ?? "exir-demo";
 
   return (
     <Modal title={form.title} onClose={onClose} width="max-w-[680px]">
@@ -142,47 +166,34 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
         </div>
 
         {form.status !== "DRAFT" && publicUrl && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 bg-primary-soft rounded-xl p-2.5">
-              <input readOnly value={publicUrl} dir="ltr" className="flex-1 bg-transparent text-[11.5px] text-primary outline-none" />
-              <button
-                onClick={async () => {
-                  const ok = await copyToClipboard(publicUrl);
-                  setLinkCopied(ok);
-                  if (ok) setTimeout(() => setLinkCopied(false), 2000);
-                }}
-                title="کپی لینک"
-                className="w-8 h-8 flex items-center justify-center text-primary cursor-pointer shrink-0"
-              >
-                <ShareIcon className="w-4 h-4" />
-              </button>
-              <a href={`https://wa.me/?text=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" title="ارسال در واتس‌اپ" className="w-8 h-8 flex items-center justify-center text-[#25D366] shrink-0">
-                <WhatsAppIcon className="w-4.5 h-4.5" />
-              </a>
-              {linkCopied && <span className="text-[11px] text-success font-semibold shrink-0">کپی شد</span>}
-            </div>
-            <details className="text-[11.5px]">
-              <summary className="cursor-pointer text-primary font-bold">کد embed برای سایت خودتان</summary>
-              <div className="flex items-center gap-2 mt-1.5">
-                <code className="flex-1 bg-slate-100 rounded-lg px-2.5 py-2 text-[11px] overflow-x-auto whitespace-nowrap" dir="ltr">
-                  {embedCode}
-                </code>
-                <button onClick={() => copyToClipboard(embedCode)} className="text-[11px] font-bold text-primary cursor-pointer shrink-0">
-                  کپی
-                </button>
-              </div>
-            </details>
+          <div className="flex items-center gap-2 bg-primary-soft rounded-xl p-2.5">
+            <input readOnly value={publicUrl} dir="ltr" className="flex-1 bg-transparent text-[11.5px] text-primary outline-none" />
+            <button
+              onClick={async () => {
+                const ok = await copyToClipboard(publicUrl);
+                setLinkCopied(ok);
+                if (ok) setTimeout(() => setLinkCopied(false), 2000);
+              }}
+              title="کپی لینک"
+              className="w-8 h-8 flex items-center justify-center text-primary cursor-pointer shrink-0"
+            >
+              <ShareIcon className="w-4 h-4" />
+            </button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" title="ارسال در واتس‌اپ" className="w-8 h-8 flex items-center justify-center text-[#25D366] shrink-0">
+              <WhatsAppIcon className="w-4.5 h-4.5" />
+            </a>
+            {linkCopied && <span className="text-[11px] text-success font-semibold shrink-0">کپی شد</span>}
           </div>
         )}
 
         <div className="flex gap-2">
-          {(["fields", "submissions", "stats"] as const).map((t) => (
+          {(["fields", "submissions", "connect", "stats"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`text-[12px] font-bold px-3.5 py-2 rounded-xl border cursor-pointer ${tab === t ? "bg-primary text-white border-primary" : "border-border text-ink-soft"}`}
             >
-              {t === "fields" ? "سؤالات/فیلدها" : t === "submissions" ? "پاسخ‌ها" : "آمار"}
+              {t === "fields" ? "سؤالات/فیلدها" : t === "submissions" ? "پاسخ‌ها" : t === "connect" ? "اتصال به سایت" : "آمار"}
             </button>
           ))}
         </div>
@@ -198,25 +209,62 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
 
         {tab === "submissions" && (
           <div className="flex flex-col gap-2">
+            <div className="flex gap-1.5 flex-wrap">
+              {(["ALL", "NEW", "IN_REVIEW", "DONE"] as const).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`text-[11.5px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer ${statusFilter === st ? "bg-primary-soft text-primary border-primary" : "border-border text-ink-soft"}`}
+                >
+                  {st === "ALL" ? "همه" : SUBMISSION_STATUS_LABELS[st]}
+                </button>
+              ))}
+            </div>
             {submissions === null ? (
               <div className="text-center text-muted text-sm py-8">در حال بارگذاری...</div>
             ) : submissions.length === 0 ? (
-              <div className="text-center text-muted text-sm py-8">هنوز پاسخی ثبت نشده</div>
+              <div className="text-center text-muted text-sm py-8">{statusFilter === "ALL" ? "هنوز پاسخی ثبت نشده" : "پاسخی با این وضعیت نیست"}</div>
             ) : (
-              submissions.map((s) => (
-                <button key={s.id} onClick={() => setOpenSubmission(s)} className="text-right border border-border rounded-xl px-3.5 py-3 hover:bg-slate-50 cursor-pointer">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-bold">{s.respondentName || s.respondentPhone || "بدون‌نام"}</span>
-                    {s.scorePercent != null && (
-                      <Badge tone={s.passed ? "success" : "danger"}>{toPersianDigits(s.scorePercent)}٪ {s.passed ? "قبول" : "ناموفق"}</Badge>
+              submissions.map((s) => {
+                const isNew = s.status === "NEW";
+                const key = [...s.answers]
+                  .sort((x, y) => (x.field.sortOrder ?? 0) - (y.field.sortOrder ?? 0))
+                  .filter((a) => a.valueText || a.valueOptions.length > 0)
+                  .slice(0, 2);
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setOpenSubmissionId(s.id)}
+                    className={`text-right border rounded-xl px-3.5 py-3 hover:bg-slate-50 cursor-pointer ${isNew ? "border-primary bg-primary-soft/40 border-r-4" : "border-border"}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-[13px] ${isNew ? "font-extrabold" : "font-bold"}`}>{s.respondentName || s.respondentPhone || "بدون‌نام"}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {s.scorePercent != null && <Badge tone={s.passed ? "success" : "danger"}>{toPersianDigits(s.scorePercent)}٪ {s.passed ? "قبول" : "ناموفق"}</Badge>}
+                        <Badge tone={SUBMISSION_STATUS_TONES[s.status]}>{SUBMISSION_STATUS_LABELS[s.status]}</Badge>
+                      </div>
+                    </div>
+                    {key.length > 0 && (
+                      <div className="text-[11.5px] text-ink-soft mt-1 flex flex-col gap-0.5">
+                        {key.map((a) => (
+                          <div key={a.id} className="truncate">
+                            <span className="text-muted">{a.field.label}: </span>
+                            {a.valueOptions.length > 0 ? a.valueOptions.join("، ") : a.valueText}
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  <div className="text-[11px] text-muted mt-1">{formatJalaliDateTime(s.submittedAt)}</div>
-                </button>
-              ))
+                    <div className="text-[11px] text-muted mt-1" title={formatJalaliDateTime(s.submittedAt)}>
+                      {timeAgoFa(s.submittedAt)}
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         )}
+
+        {tab === "connect" && <EmbedPanel form={form} publicKey={publicKey} onChanged={reload} />}
 
         {tab === "stats" && (
           <div className="grid grid-cols-2 gap-3">
@@ -246,20 +294,15 @@ export function FormDetailModal({ formId, onClose, onChanged }: { formId: string
         )}
       </div>
 
-      {openSubmission && (
-        <Modal title="جزئیات پاسخ" onClose={() => setOpenSubmission(null)} width="max-w-[480px]">
-          <div className="flex flex-col gap-2.5">
-            <div className="text-[12.5px] text-muted">
-              {openSubmission.respondentName} {openSubmission.respondentPhone ? `— ${openSubmission.respondentPhone}` : ""}
-            </div>
-            {openSubmission.answers.map((a) => (
-              <div key={a.id} className="border border-border rounded-lg p-2.5">
-                <div className="text-[11.5px] text-muted">{a.field.label}</div>
-                <div className="text-[13px] font-bold mt-0.5">{a.valueOptions.length > 0 ? a.valueOptions.join("، ") : a.valueText || "—"}</div>
-              </div>
-            ))}
-          </div>
-        </Modal>
+      {openSubmissionId && (
+        <SubmissionDetailModal
+          submissionId={openSubmissionId}
+          onClose={() => setOpenSubmissionId(null)}
+          onChanged={() => {
+            reloadSubmissions();
+            onChanged();
+          }}
+        />
       )}
     </Modal>
   );

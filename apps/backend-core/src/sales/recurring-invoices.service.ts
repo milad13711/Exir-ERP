@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ActivityLogService } from '../activity/activity-log.service.js';
 import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -46,6 +47,7 @@ export class RecurringInvoicesService implements OnModuleInit {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly invoices: InvoicesService,
     private readonly jobRegistry: SchedulableJobRegistryService,
+    @Optional() private readonly activity?: ActivityLogService,
   ) {}
 
   /** فقط ثبت در فهرست «زمان‌بندی ارسال خودکار» — سررسید هر قالب از nextRunAt خودش (دوره‌ی هفتگی/ماهانه/...) می‌آید، نه از افستِ روز. */
@@ -174,6 +176,16 @@ export class RecurringInvoicesService implements OnModuleInit {
       await tenantDb.recurringInvoiceTemplate.update({
         where: { id: template.id },
         data: { lastRunAt: new Date(), lastGeneratedInvoiceId: invoice.id, nextRunAt },
+      });
+      this.activity?.logSystem(tenantDb, {
+        action: 'sales.recurring-invoice.generated',
+        moduleCode: 'sales',
+        actionType: 'create',
+        entityType: 'invoice',
+        entityId: invoice.id,
+        actorType: 'AUTOMATIC',
+        summary: `صدور خودکار فاکتور دوره‌ای شماره ${invoice.invoiceNo}`,
+        metadata: { templateId: template.id },
       });
       this.logger.log(`Generated recurring invoice #${invoice.invoiceNo} for tenant ${tenantId} from template ${template.id}`);
     }

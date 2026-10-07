@@ -6,6 +6,7 @@ import { ReportsService } from '../reports/reports.service.js';
 import { faDate } from '../common/persian.js';
 import { assertEditableDay, buildDailyReportBody, todayTehran } from './checklist-day.util.js';
 import { rollPendingToNextDay } from './checklist-rollover.js';
+import { archiveFilesToReport, listChecklistFiles } from './checklist-report-files.js';
 import type { CreateChecklistItemDto } from './dto/create-checklist-item.dto.js';
 import type { UpdateChecklistItemDto } from './dto/update-checklist-item.dto.js';
 import type { CreateChecklistTaskDto } from './dto/create-checklist-task.dto.js';
@@ -196,6 +197,15 @@ export class DailyChecklistService {
     return ctx.tenantDb.dailyChecklistItem.update({ where: { id }, data: { taskId: task.id }, include: ITEM_INCLUDE });
   }
 
+  /** شناسه‌ی گزارشِ ثبت‌شده برای یک روز (برای نمایش فایل‌های بایگانی‌شده) — با همان قاعده‌ی دسترسیِ چک‌لیست. */
+  async getDayReportId(ctx: TenantRequestContext, dateIso: string, forUserId?: string): Promise<{ reportId: string | null }> {
+    const myUserId = await this.requireUserId(ctx);
+    const targetUserId = forUserId || myUserId;
+    await this.assertCanActFor(ctx, targetUserId, myUserId);
+    const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date: dayOnly(dateIso) } } });
+    return { reportId: marker?.reportId ?? null };
+  }
+
   /** تجمیع چک‌لیست یک روز به یک گزارش واقعی در ماژول گزارش‌ها. */
   async generateReport(ctx: TenantRequestContext, dto: GenerateChecklistReportDto) {
     const myUserId = await this.requireUserId(ctx);
@@ -209,7 +219,8 @@ export class DailyChecklistService {
 
     const user = await ctx.tenantDb.user.findUnique({ where: { id: targetUserId }, select: { name: true } });
     const dateFa = faDate(date);
-    const body = buildDailyReportBody(user?.name ?? '', dateFa, items);
+    const files = await listChecklistFiles(ctx.tenantDb, items);
+    const body = buildDailyReportBody(user?.name ?? '', dateFa, items, files);
     const title = `گزارش روزانه — ${dateFa}`;
 
     // یک روز فقط یک گزارش دارد — کلید یکتای (userId, date) روی DailyChecklistDayClose همین را تضمین می‌کند.
@@ -219,6 +230,8 @@ export class DailyChecklistService {
     const report = marker?.reportId
       ? await this.reports.update(ctx, marker.reportId, { title, body, executionAt: date.toISOString() })
       : await this.reports.create(ctx, { title, body, executionAt: date.toISOString() });
+    // فایل‌های پیوست‌شده‌ی آیتم‌های این روز هم در بایگانیِ همین گزارش نگه‌داری می‌شوند (idempotent).
+    await archiveFilesToReport(ctx.tenantDb, report.id, files, targetUserId);
 
     // این روز هنوز تمام نشده (امروز یا فردا) — ثبت دستی فقط یک پیش‌نمایشِ زنده از گزارش است،
     // نه بستن نهایی روز. اگر همین‌جا rolledOver را true کنیم، جاروبِ خودکارِ آخر شب دیگر این

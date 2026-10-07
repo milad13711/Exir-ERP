@@ -14,6 +14,7 @@ import {
   deleteDailyChecklistItem,
   createDailyChecklistTask,
   generateDailyChecklistReport,
+  fetchDailyChecklistDayReport,
   ApiError,
   type DailyChecklistItem,
   type DailyChecklistPriority,
@@ -57,6 +58,7 @@ export function DailyChecklistWidget() {
   const [error, setError] = useState<string | null>(null);
   const [reportMsg, setReportMsg] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [dayReportId, setDayReportId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDailyChecklistSubordinates().then(setSubordinates).catch(() => setSubordinates([]));
@@ -66,6 +68,11 @@ export function DailyChecklistWidget() {
     fetchDailyChecklist(date, viewUserId).then(setItems).catch(() => setItems([]));
   }
   useEffect(reload, [date, viewUserId]);
+
+  // گزارشِ ثبت‌شده‌ی همین روز (اگر هست) — فایل‌های بایگانی‌شده‌ی آن زیر چک‌لیست نمایش داده می‌شود
+  useEffect(() => {
+    fetchDailyChecklistDayReport(date, viewUserId).then((r) => setDayReportId(r.reportId)).catch(() => setDayReportId(null));
+  }, [date, viewUserId, reportMsg]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -325,6 +332,13 @@ export function DailyChecklistWidget() {
 
       {error && <div className="text-[12px] text-danger font-semibold mb-2">{error}</div>}
       {reportMsg && <div className="text-[12px] text-success font-semibold mb-2">{reportMsg}</div>}
+
+      {dayReportId ? (
+        <div className="bg-white/60 rounded-xl border border-[#eddca0] px-3 py-2.5 mb-2">
+          <div className="text-[11.5px] font-bold text-[#5c4a10] mb-1.5">فایل‌های بایگانی‌شده در گزارش {dayLabel}</div>
+          <AttachmentsSection key={dayReportId} entityType="Report" entityId={dayReportId} readOnly />
+        </div>
+      ) : null}
 
       {items && items.length > 0 && (
         <button

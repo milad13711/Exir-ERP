@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
 import { FormFieldDto } from './form-field.dto.js';
 
 export class UpdateFormDto {
@@ -40,6 +40,13 @@ export class UpdateFormDto {
   @IsOptional()
   @IsString()
   thankYouMessage?: string;
+
+  /** مبداهای مجاز برای ارسال از مرورگر (مثلاً https://example.com)؛ آرایه‌ی خالی = همه. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  allowedOrigins?: string[];
 
   /** اگر ارسال شود، کل مجموعه‌ی فیلدها با این لیست جایگزین می‌شود (ساده‌ترین راه برای افزودن/حذف/ترتیب مجدد). */
   @IsOptional()

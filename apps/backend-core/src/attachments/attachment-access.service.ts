@@ -88,6 +88,18 @@ export class AttachmentAccessService {
       return;
     }
 
+    // گزارش روزانه‌ی چک‌لیست: صاحبش (یا مدیرِ بالادستش) فایل‌های بایگانی‌شده‌ی همان گزارش را می‌بیند،
+    // حتی بدون «مشاهده‌ی همه» در ماژول گزارش‌ها؛ هر گزارش دیگری فقط با view-all. نوشتن/حذف فقط با ماتریس گزارش‌ها.
+    if (entityType === 'Report' && mode === 'read') {
+      const m = await this.permissions.getEffective(ctx, 'reports');
+      if (!m.canViewAll) {
+        const close = await ctx.tenantDb.dailyChecklistDayClose.findFirst({ where: { reportId: entityId }, select: { userId: true } });
+        if (!close) throw new ForbiddenException('اجازه‌ی دسترسی به پیوست‌های این بخش را ندارید');
+        await this.assertChecklistOwnerVisible(ctx, close.userId);
+        return;
+      }
+    }
+
     const viewAllModule = VIEW_ALL_ONLY[entityType];
     if (viewAllModule) {
       await this.permissions.assertViewAll(ctx, viewAllModule);
@@ -111,15 +123,8 @@ export class AttachmentAccessService {
     if (entityType === 'DailyChecklistItem') {
       const item = await ctx.tenantDb.dailyChecklistItem.findUnique({ where: { id: entityId }, select: { userId: true } });
       if (!item) throw new ForbiddenException('رکورد یافت نشد');
-      const me = await resolveTenantUserId(ctx);
-      if (me && item.userId === me) return;
-      const myEmployee = me ? await ctx.tenantDb.employee.findUnique({ where: { userId: me }, select: { id: true } }) : null;
-      if (myEmployee) {
-        const visible = await getVisibleEmployeeIds(ctx.tenantDb, myEmployee.id);
-        const owner = await ctx.tenantDb.employee.findFirst({ where: { id: { in: [...visible] }, userId: item.userId }, select: { id: true } });
-        if (owner) return;
-      }
-      throw new ForbiddenException('فقط چک‌لیست خودتان یا زیردستان‌تان');
+      await this.assertChecklistOwnerVisible(ctx, item.userId);
+      return;
     }
 
     if (entityType === 'SupportTicket') {
@@ -130,5 +135,18 @@ export class AttachmentAccessService {
     }
 
     throw new ForbiddenException('اجازه‌ی دسترسی به پیوست‌های این بخش را ندارید');
+  }
+
+  /** فقط خودِ صاحب چک‌لیست یا مدیرانِ بالادستش (زنجیره‌ی سازمانی). */
+  private async assertChecklistOwnerVisible(ctx: TenantRequestContext, ownerUserId: string): Promise<void> {
+    const me = await resolveTenantUserId(ctx);
+    if (me && ownerUserId === me) return;
+    const myEmployee = me ? await ctx.tenantDb.employee.findUnique({ where: { userId: me }, select: { id: true } }) : null;
+    if (myEmployee) {
+      const visible = await getVisibleEmployeeIds(ctx.tenantDb, myEmployee.id);
+      const owner = await ctx.tenantDb.employee.findFirst({ where: { id: { in: [...visible] }, userId: ownerUserId }, select: { id: true } });
+      if (owner) return;
+    }
+    throw new ForbiddenException('فقط چک‌لیست خودتان یا زیردستان‌تان');
   }
 }

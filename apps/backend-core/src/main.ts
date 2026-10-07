@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { TenantPublicKeyService } from './common/tenant-public-key.js';
+import { globalCorsDelegate, publicFormsCorsMiddleware } from './public/public-forms-cors.js';
 
 // A few monetary columns (CrmDeal.value, JournalLine.debit/credit) are
 // BigInt in Postgres/Prisma so a single deal or entry can exceed 2.1B
@@ -27,16 +28,19 @@ async function bootstrap() {
   // photo with a bare 413 (no JSON body, so the frontend's generic
   // "server error" message is all that ever surfaces) — this raises it
   // tenant-wide instead of per-route.
+  // CORS اختصاصی + سقف اندازه‌ی بدنه‌ی endpointهای عمومی فرم‌ساز — حتماً قبل از body parser (وگرنه ۲۰MB پیش از رد شدن پارس می‌شود)
+  app.use(publicFormsCorsMiddleware);
   app.useBodyParser('json', { limit: '20mb' });
   app.useBodyParser('urlencoded', { limit: '20mb', extended: true });
 
-  app.enableCors({
-    // `|| ` (not `??`) so an accidentally-empty CORS_ORIGINS in .env (e.g.
-    // `CORS_ORIGINS=` with nothing after it) falls back too, instead of
-    // resolving to `['']` and rejecting every origin.
-    origin: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
-    credentials: true,
-  });
+  app.enableCors(
+    globalCorsDelegate(
+      // `|| ` (not `??`) so an accidentally-empty CORS_ORIGINS in .env (e.g.
+      // `CORS_ORIGINS=` with nothing after it) falls back too, instead of
+      // resolving to `['']` and rejecting every origin.
+      (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
+    ) as never,
+  );
 
   // لینک‌های عمومی با شناسه‌ی هش‌شده‌ی تننت (publicKey) ساخته می‌شوند؛ این میدلور آن را قبل از مسیریابی به slug برمی‌گرداند
   app.use(app.get(TenantPublicKeyService).middleware);

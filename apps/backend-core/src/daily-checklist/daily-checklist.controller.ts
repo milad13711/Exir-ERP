@@ -37,6 +37,12 @@ export class DailyChecklistController {
     return this.checklist.list(ctx, date, forUserId);
   }
 
+  @Get('report')
+  async dayReport(@Query('date') date: string, @Query('forUserId') forUserId: string | undefined, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'daily-checklist');
+    return this.checklist.getDayReportId(ctx, date, forUserId);
+  }
+
   @Post()
   async create(@Body() dto: CreateChecklistItemDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertCreate(ctx, 'daily-checklist');

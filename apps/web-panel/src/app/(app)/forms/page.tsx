@@ -15,7 +15,7 @@ const STATUS_LABELS: Record<FormStatus, string> = { DRAFT: "پیش‌نویس", 
 const STATUS_TONES: Record<FormStatus, "neutral" | "success" | "danger"> = { DRAFT: "neutral", PUBLISHED: "success", CLOSED: "danger" };
 const TYPE_LABELS: Record<FormType, string> = { SURVEY: "نظرسنجی", QUIZ: "آزمون آنلاین", QUESTIONNAIRE: "پرسش‌نامه", REGISTRATION: "فرم ثبت‌نام" };
 
-type StatusFilter = "همه" | FormStatus;
+type StatusFilter = "همه" | "NEW_SUBMISSIONS" | FormStatus;
 
 export default function FormsPage() {
   const [forms, setForms] = useState<FormItem[] | null>(null);
@@ -23,16 +23,35 @@ export default function FormsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("همه");
   const [newOpen, setNewOpen] = useState(false);
   const [openFormId, setOpenFormId] = useState<string | null>(null);
+  const [openSubmissionId, setOpenSubmissionId] = useState<string | null>(null);
 
   function reload() {
     fetchForms().then(setForms).catch(() => setForms([]));
   }
   useEffect(reload, []);
 
+  // لینک از ویجت داشبورد/اعلان: /forms?filter=new  یا  /forms?formId=…&submissionId=…
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("filter") === "new") setStatusFilter("NEW_SUBMISSIONS");
+    const fid = q.get("formId");
+    if (fid) {
+      setOpenFormId(fid);
+      setOpenSubmissionId(q.get("submissionId"));
+    }
+  }, []);
+
+  // تازه‌سازی هنگام برگشت به تب (پاسخ جدید ممکن است در این فاصله آمده باشد)
+  useEffect(() => {
+    const onFocus = () => reload();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   const filtered = useMemo(() => {
     if (!forms) return [];
     return forms.filter((f) => {
-      const matchesStatus = statusFilter === "همه" || f.status === statusFilter;
+      const matchesStatus = statusFilter === "همه" || (statusFilter === "NEW_SUBMISSIONS" ? (f.newCount ?? 0) > 0 : f.status === statusFilter);
       const matchesSearch = !search.trim() || f.title.includes(search);
       return matchesStatus && matchesSearch;
     });
@@ -65,7 +84,7 @@ export default function FormsPage() {
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(["همه", "DRAFT", "PUBLISHED", "CLOSED"] as StatusFilter[]).map((s) => (
+          {(["همه", "NEW_SUBMISSIONS", "DRAFT", "PUBLISHED", "CLOSED"] as StatusFilter[]).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -74,7 +93,7 @@ export default function FormsPage() {
                 statusFilter === s ? "bg-primary text-white border-primary" : "bg-surface border-border text-ink-soft",
               )}
             >
-              {s === "همه" ? "همه" : STATUS_LABELS[s]}
+              {s === "همه" ? "همه" : s === "NEW_SUBMISSIONS" ? "دارای درخواست جدید" : STATUS_LABELS[s]}
             </button>
           ))}
         </div>
@@ -104,6 +123,11 @@ export default function FormsPage() {
                   {TYPE_LABELS[f.type]} · {toPersianDigits(f._count?.submissions ?? 0)} پاسخ
                 </div>
               </div>
+              {(f.newCount ?? 0) > 0 && (
+                <span className="text-[11px] font-extrabold bg-primary text-white rounded-full min-w-6 h-6 px-1.5 flex items-center justify-center shrink-0" title="درخواست‌های جدید">
+                  {toPersianDigits(f.newCount ?? 0)}
+                </span>
+              )}
               <Badge tone={STATUS_TONES[f.status]}>{STATUS_LABELS[f.status]}</Badge>
             </button>
           ))
@@ -111,7 +135,18 @@ export default function FormsPage() {
       </Card>
 
       {newOpen && <NewFormModal onClose={() => setNewOpen(false)} onCreated={reload} />}
-      {openFormId && <FormDetailModal formId={openFormId} onClose={() => setOpenFormId(null)} onChanged={reload} />}
+      {openFormId && (
+        <FormDetailModal
+          formId={openFormId}
+          initialSubmissionId={openSubmissionId}
+          onClose={() => {
+            setOpenFormId(null);
+            setOpenSubmissionId(null);
+            if (window.location.search) window.history.replaceState(null, "", "/forms");
+          }}
+          onChanged={reload}
+        />
+      )}
     </div>
   );
 }

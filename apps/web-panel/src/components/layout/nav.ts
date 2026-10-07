@@ -105,6 +105,7 @@ export const primaryNav: NavItem[] = [
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation", category: "عمومی" },
   { href: "/qr-code", label: "کد QR", icon: QrCodeIcon, moduleCode: "qr-code", category: "عمومی" },
   { href: "/reports", label: "گزارش‌ها", icon: LogIcon, moduleCode: "reports", category: "عمومی" },
+  { href: "/logs", label: "لاگ‌ها", icon: LogIcon, category: "عمومی" },
   { href: "/confidential-archive", label: "بایگانی اسناد محرمانه", icon: KeyIcon, moduleCode: "confidential-archive", category: "عمومی" },
 ];
 

@@ -10,6 +10,7 @@ export const WEBHOOK_EVENTS = [
   'crm.deal.stage_changed',
   'task.created',
   'warehouse.movement.created',
+  'forms.submission.created',
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

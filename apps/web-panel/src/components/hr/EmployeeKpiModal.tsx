@@ -106,6 +106,39 @@ export function EmployeeKpiModal({ employeeId, onClose }: { employeeId: string; 
               />
             </div>
 
+            {kpi.dailyReports ? (
+              <div>
+                <div className="text-[12px] text-muted mb-2">
+                  ساعت ثبت گزارش کار روزانه (به وقت تهران) · مهلت «به‌موقع»: {toPersianDigits(`${String(kpi.dailyReports.cutoff.hour).padStart(2, "0")}:${String(kpi.dailyReports.cutoff.minute).padStart(2, "0")}`)}
+                </div>
+                {kpi.dailyReports.summary ? (
+                  <div className="text-[12px] mb-2 flex flex-wrap gap-2">
+                    <span className="text-success font-bold">به‌موقع {toPersianDigits(kpi.dailyReports.summary.onTime)}</span>
+                    <span className="text-warning font-bold">با تأخیر {toPersianDigits(kpi.dailyReports.summary.late)}</span>
+                    <span className="text-danger font-bold">ثبت‌نشده {toPersianDigits(kpi.dailyReports.summary.missing)}</span>
+                    <span className="text-muted">دستی {toPersianDigits(kpi.dailyReports.summary.manual)} · خودکار {toPersianDigits(kpi.dailyReports.summary.auto)}</span>
+                  </div>
+                ) : null}
+                {kpi.dailyReports.rows.length === 0 ? (
+                  <div className="text-[12.5px] text-muted text-center py-4 bg-slate-50 rounded-xl border border-border">گزارش یا چک‌لیستی در این بازه نیست</div>
+                ) : (
+                  <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto">
+                    {kpi.dailyReports.rows.map((r) => (
+                      <div key={r.date} className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2">
+                        <span className="text-[12.5px] font-semibold">{toPersianDigits(r.dateFa)}</span>
+                        <span className="text-[12px] text-ink-soft">
+                          {r.submitted ? `ساعت ${toPersianDigits(r.submittedTimeFa ?? "")} · ${r.mode === "AUTO" ? "خودکار" : "دستی"}` : "ثبت نشده"}
+                        </span>
+                        <span className={`text-[11.5px] font-bold ${r.status === "ON_TIME" ? "text-success" : r.status === "LATE" ? "text-warning" : r.status === "MISSING" ? "text-danger" : "text-muted"}`}>
+                          {r.status === "ON_TIME" ? "به‌موقع" : r.status === "LATE" ? "با تأخیر" : r.status === "MISSING" ? "ثبت‌نشده" : "در انتظار"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <div>
               <div className="text-[12px] text-muted mb-2">فعالیت به تفکیک ماژول (بر اساس دسترسی‌های این فرد)</div>
               {kpi.moduleActivity.length === 0 ? (

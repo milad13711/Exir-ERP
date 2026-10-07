@@ -66,6 +66,7 @@ import { PublicRationResultService } from '../ration-lab/public/public-ration-re
 import { PublicRationResultController } from '../ration-lab/public/public-ration-result.controller.js';
 import { SmsModule } from '../sms/sms.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
+import { WebhooksModule } from '../webhooks/webhooks.module.js';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
     SettingsModule,
     SmsModule,
     NotificationsModule,
+    WebhooksModule,
   ],
   controllers: [
     PublicSignupController,

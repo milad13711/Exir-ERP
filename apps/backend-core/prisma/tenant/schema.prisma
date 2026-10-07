@@ -326,10 +326,19 @@ model ActivityLog {
   entityId   String?
   metadata   Json?
   createdAt  DateTime @default(now())
+  // ── لاگ جامع فعالیت‌ها (افزودنی؛ ردیف‌های قدیمی null/پیش‌فرض می‌مانند) ──
+  actorType  String   @default("MANUAL") // MANUAL (کاربر) | AUTOMATIC (اتوماسیون/کرون/پیامک خودکار) | SYSTEM
+  moduleCode String? // کد ماژول (crm، sales، daily-checklist، sms، ...)
+  actionType String? // create | update | delete | approve | reject | cancel | send | status | other
+  summary    String? // خلاصه‌ی فارسی کوتاه برای نمایش
+  ip         String? // IP ماسک‌شده
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([moduleCode, createdAt])
+  @@index([actorType, createdAt])
   @@map("activity_logs")
 }
 
@@ -1785,11 +1794,31 @@ model Attachment {
   fileUrl         String
   createdByUserId String?
   createdAt       DateTime @default(now())
+  /// اگر این پیوست کپیِ بایگانی‌شده‌ی پیوستِ دیگری است (مثلاً فایل آیتم چک‌لیست در گزارش روزانه)، شناسه‌ی پیوست مبدأ
+  sourceAttachmentId String?
+  /// توضیح مبدأ (مثلاً عنوان آیتم چک‌لیست)
+  sourceNote         String?
 
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([entityType, entityId, sourceAttachmentId])
   @@index([entityType, entityId])
   @@map("generic_attachments")
+}
+
+/// سابقه‌ی تبدیل یک پیوست به «دانش سازمانی» (گزارشِ isKnowledge) یا «سند محرمانه» — فایل مبدأ دست‌نخورده می‌ماند.
+model AttachmentConversion {
+  id                String   @id @default(uuid())
+  attachmentId      String
+  target            String // KNOWLEDGE | CONFIDENTIAL
+  targetId          String
+  sourceTitle       String
+  convertedByUserId String?
+  convertedByName   String?
+  createdAt         DateTime @default(now())
+
+  @@index([attachmentId])
+  @@map("attachment_conversions")
 }
 
 // ── ماژول تولید (production) ────────────────────────────────────────────
@@ -3360,6 +3389,13 @@ enum FormStatus {
   CLOSED
 }
 
+// وضعیت پردازش یک پاسخ ثبت‌شده — NEW تا زمانی که کسی آن را باز نکرده (صندوق «درخواست‌های جدید»).
+enum FormSubmissionStatus {
+  NEW
+  IN_REVIEW
+  DONE
+}
+
 enum FormFieldType {
   SHORT_TEXT
   LONG_TEXT
@@ -3387,6 +3423,7 @@ model Form {
   closesAt         DateTime?
   passScorePercent Int? // فقط برای QUIZ — درصد قبولی
   thankYouMessage  String?
+  allowedOrigins   String[]   @default([]) // مبداهای مجاز برای ارسال از مرورگر (جاسازی در سایت‌های دیگر)؛ خالی = همه
   createdByUserId  String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
@@ -3428,12 +3465,23 @@ model FormSubmission {
   passed          Boolean? // فقط برای QUIZ
   submittedAt     DateTime @default(now())
 
+  // صندوق ورودی: وضعیت پردازش + اولین مشاهده + یادداشت داخلی (هرگز در API عمومی برنمی‌گردد)
+  status         FormSubmissionStatus @default(NEW)
+  viewedAt       DateTime?
+  viewedByUserId String?
+  internalNote   String?
+  // منبع ثبت: آدرس صفحه‌ای که فرم در آن بود، utm و referrer، و IP ماسک‌شده (آخرین بخش حذف می‌شود)
+  sourceUrl  String?
+  sourceMeta Json?
+  ipMasked   String?
+
   form    Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
   contact CrmContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
   answers FormAnswer[]
 
   @@index([formId])
   @@index([contactId])
+  @@index([formId, status])
   @@map("form_submissions")
 }
 
@@ -3969,6 +4017,7 @@ model ConfidentialDocument {
   content         String? // متن آزاد
   fileName        String?
   fileData        String? // data URL به‌صورت base64 — همان قرارداد CompanyStampService، بدون فضای ذخیره‌سازی فایل جداگانه
+  ownerOnly       Boolean                       @default(false) // فقط سازنده + مالک/مدیر ببینند (مثلاً سندهای تبدیل‌شده از پیوست‌ها)
   createdByUserId String?
   createdAt       DateTime                      @default(now())
   updatedByUserId String?

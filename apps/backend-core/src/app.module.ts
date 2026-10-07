@@ -20,6 +20,7 @@ import { TasksModule } from './tasks/tasks.module.js';
 import { DailyChecklistModule } from './daily-checklist/daily-checklist.module.js';
 import { SupportModule } from './support/support.module.js';
 import { ActivityModule } from './activity/activity.module.js';
+import { ActivityLogModule } from './activity/activity-log.module.js';
 import { CrmModule } from './crm/crm.module.js';
 import { AccountingModule } from './accounting/accounting.module.js';
 import { WarehouseModule } from './warehouse/warehouse.module.js';
@@ -115,6 +116,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     TasksModule,
     DailyChecklistModule,
     SupportModule,
+    ActivityLogModule,
     ActivityModule,
     CrmModule,
     AccountingModule,

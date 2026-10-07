@@ -8,6 +8,7 @@ import { faDate } from '../common/persian.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { addDays, buildDailyReportBody, todayTehran } from './checklist-day.util.js';
 import { rollPendingToNextDay } from './checklist-rollover.js';
+import { archiveFilesToReport, listChecklistFiles } from './checklist-report-files.js';
 import { SchedulableJobRegistryService, offsetPreset } from '../scheduling/schedulable-job-registry.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { isConfiguredHour } from '../scheduling/schedule-match.util.js';
@@ -137,7 +138,8 @@ export class DailyChecklistCronService implements OnApplicationBootstrap, OnModu
     const user = await tenantDb.user.findUnique({ where: { id: userId }, select: { name: true } });
     const dateFa = faDate(date);
     const title = `گزارش روزانه — ${dateFa}`;
-    const body = buildDailyReportBody(user?.name ?? '', dateFa, items);
+    const files = await listChecklistFiles(tenantDb, items);
+    const body = buildDailyReportBody(user?.name ?? '', dateFa, items, files);
 
     let reportId = existingReportId;
     if (reportId) {
@@ -146,6 +148,7 @@ export class DailyChecklistCronService implements OnApplicationBootstrap, OnModu
       const report = await tenantDb.report.create({ data: { title, body, executionAt: date, createdByUserId: userId } });
       reportId = report.id;
     }
+    await archiveFilesToReport(tenantDb, reportId, files, userId);
 
     const pendingCount = await rollPendingToNextDay(tenantDb, userId, date);
 

@@ -4,6 +4,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { CreateFormDto } from './dto/create-form.dto.js';
 import type { UpdateFormDto } from './dto/update-form.dto.js';
 import type { FormFieldDto } from './dto/form-field.dto.js';
+import { normalizeOrigins } from './embed-origins.js';
 
 const FORM_INCLUDE = {
   fields: { orderBy: { sortOrder: 'asc' as const } },
@@ -12,19 +13,23 @@ const FORM_INCLUDE = {
 
 @Injectable()
 export class FormsService {
-  list(ctx: TenantRequestContext, filters: { status?: string; type?: string } = {}) {
-    return ctx.tenantDb.form.findMany({
+  async list(ctx: TenantRequestContext, filters: { status?: string; type?: string } = {}, scope: Record<string, unknown> = {}) {
+    const forms = await ctx.tenantDb.form.findMany({
       where: {
+        ...scope,
         ...(filters.status ? { status: filters.status as never } : {}),
         ...(filters.type ? { type: filters.type as never } : {}),
       },
       include: { ...FORM_INCLUDE, _count: { select: { submissions: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const grouped = await ctx.tenantDb.formSubmission.groupBy({ by: ['formId'], where: { formId: { in: forms.map((f) => f.id) }, status: 'NEW' }, _count: { _all: true } });
+    const newCounts = new Map(grouped.map((g) => [g.formId, g._count._all]));
+    return forms.map((f) => ({ ...f, newCount: newCounts.get(f.id) ?? 0 }));
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const form = await ctx.tenantDb.form.findUnique({ where: { id }, include: { ...FORM_INCLUDE, _count: { select: { submissions: true } } } });
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const form = await ctx.tenantDb.form.findFirst({ where: { id, ...scope }, include: { ...FORM_INCLUDE, _count: { select: { submissions: true } } } });
     if (!form) throw new NotFoundException('این فرم یافت نشد');
     return form;
   }
@@ -128,6 +133,7 @@ export class FormsService {
         closesAt: dto.closesAt ? new Date(dto.closesAt) : undefined,
         passScorePercent: dto.passScorePercent,
         thankYouMessage: dto.thankYouMessage,
+        allowedOrigins: dto.allowedOrigins ? normalizeOrigins(dto.allowedOrigins) : undefined,
       },
       include: FORM_INCLUDE,
     });
@@ -146,35 +152,18 @@ export class FormsService {
     return { ok: true };
   }
 
-  listSubmissions(ctx: TenantRequestContext, formId: string) {
-    return ctx.tenantDb.formSubmission.findMany({
-      where: { formId },
-      include: { answers: { include: { field: { select: { label: true, type: true } } } }, contact: { select: { id: true, name: true } } },
-      orderBy: { submittedAt: 'desc' },
-    });
-  }
-
   /** برای نمایش تاریخچه‌ی پاسخ‌های یک مخاطب در پروفایل CRM — همه‌ی فرم‌ها، نه فقط یکی. */
-  listSubmissionsByContact(ctx: TenantRequestContext, contactId: string) {
+  listSubmissionsByContact(ctx: TenantRequestContext, contactId: string, scope: Record<string, unknown> = {}) {
     return ctx.tenantDb.formSubmission.findMany({
-      where: { contactId },
+      where: { contactId, form: { ...scope } },
       include: { form: { select: { id: true, title: true, slug: true, type: true } } },
       orderBy: { submittedAt: 'desc' },
     });
   }
 
-  async submissionDetail(ctx: TenantRequestContext, submissionId: string) {
-    const submission = await ctx.tenantDb.formSubmission.findUnique({
-      where: { id: submissionId },
-      include: { answers: { include: { field: true } }, contact: { select: { id: true, name: true } }, form: { select: { title: true } } },
-    });
-    if (!submission) throw new NotFoundException('این پاسخ یافت نشد');
-    return submission;
-  }
-
   /** خلاصه‌ی آمار — تعداد پاسخ، میانگین امتیاز رتبه‌ای (survey)، توزیع نمره و نرخ قبولی (quiz). */
-  async stats(ctx: TenantRequestContext, formId: string) {
-    const form = await ctx.tenantDb.form.findUnique({ where: { id: formId }, include: { fields: true } });
+  async stats(ctx: TenantRequestContext, formId: string, scope: Record<string, unknown> = {}) {
+    const form = await ctx.tenantDb.form.findFirst({ where: { id: formId, ...scope }, include: { fields: true } });
     if (!form) throw new NotFoundException('این فرم یافت نشد');
     const submissions = await ctx.tenantDb.formSubmission.findMany({
       where: { formId },

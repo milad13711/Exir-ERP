@@ -56,8 +56,8 @@ export function RolePermissionsModal({
     return PERMISSION_GATED_MODULE_CODES.filter((code) => {
       const m = byCode.get(code);
       const installed = m && (m.installStatus === "INSTALLED" || m.installStatus === "TRIAL" || (m.installStatus === null && m.isCore));
-      return installed || role.modulePermissions.some((p) => p.moduleCode === code);
-    }).map((code) => ({ code, label: byCode.get(code)?.name ?? code }));
+      return code === "logs" || installed || role.modulePermissions.some((p) => p.moduleCode === code);
+    }).map((code) => ({ code, label: code === "logs" ? "لاگ فعالیت‌ها (مشاهده‌ی همه = دیدن فعالیت همه‌ی افراد)" : (byCode.get(code)?.name ?? code) }));
   }, [catalog, role.modulePermissions]);
 
   const entryOf = (code: string) => matrix[code] ?? emptyEntry(code);

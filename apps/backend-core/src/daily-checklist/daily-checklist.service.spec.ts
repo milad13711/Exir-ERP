@@ -27,6 +27,7 @@ function setup(opts: { role?: 'OWNER' | 'ADMIN' | 'MEMBER'; myEmployee?: { id: s
       update: vi.fn((args: { where: { id: string }; data: Record<string, unknown> }) => Promise.resolve({ ...items.get(args.where.id), ...args.data })),
       delete: vi.fn().mockResolvedValue({}),
     },
+    attachment: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     dailyChecklistDayClose: {
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
