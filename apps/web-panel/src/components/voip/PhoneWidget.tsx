@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { PhoneIcon, SearchIcon, CloseIcon } from "@/components/icons";
 import { formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
@@ -279,7 +280,7 @@ function HistoryTab({ logs, onCall, calling }: { logs: CallLog[] | null; onCall:
               ) : null}
               {log.recordingUrl ? (
                 <a
-                  href={log.recordingUrl}
+                  href={safeHref(log.recordingUrl)}
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}

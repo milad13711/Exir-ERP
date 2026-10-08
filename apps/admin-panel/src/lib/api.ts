@@ -52,15 +52,36 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 
+export type AdminLoginSuccess = { accessToken: string; admin: { id: string; name: string; team: string } };
+export type AdminLoginResult = AdminLoginSuccess | { requiresTotp: true; challengeToken: string };
+
 export function adminLogin(email: string, password: string) {
-  return apiFetch<{
-    accessToken: string;
-    admin: { id: string; name: string; team: string };
-  }>("/admin/auth/login", {
+  return apiFetch<AdminLoginResult>("/admin/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
 }
+
+/** گام دوم ورود وقتی 2FA فعال است: کد ۶ رقمی برنامه‌ی احراز هویت یا یک کد بازیابی. */
+export function adminLoginTotp(challengeToken: string, code: string) {
+  return apiFetch<AdminLoginSuccess>("/admin/auth/login/totp", {
+    method: "POST",
+    body: JSON.stringify({ challengeToken, code }),
+  });
+}
+
+// ── 2FA و امنیت ───────────────────────────────────────────────────────────
+
+export const fetchTwoFaStatus = () => apiFetch<{ enabled: boolean; recoveryCodesLeft: number; required: boolean }>("/admin/auth/2fa/status");
+export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string }>("/admin/auth/2fa/setup", { method: "POST" });
+export const enableTwoFa = (code: string) => apiFetch<{ recoveryCodes: string[] }>("/admin/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
+export const disableTwoFa = (password: string, code: string) => apiFetch<{ enabled: boolean }>("/admin/auth/2fa/disable", { method: "POST", body: JSON.stringify({ password, code }) });
+
+export type SecurityEventRow = { id: string; level: "INFO" | "WARNING" | "ERROR" | "FATAL"; message: string; createdAt: string; tenantId: string | null; context: Record<string, unknown> | null };
+export const fetchSecurityEvents = (limit = 100) => apiFetch<SecurityEventRow[]>(`/admin/security/events?limit=${limit}`);
+export const invalidateAllSessions = () => apiFetch<{ sessionEpoch: number }>("/admin/security/sessions/invalidate-all", { method: "POST" });
+export const invalidateTenantSessions = (tenantId: string) => apiFetch<{ tokenVersion: number }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/sessions/invalidate`, { method: "POST" });
+export const revokeTenantApiKeys = (tenantId: string) => apiFetch<{ revoked: number }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/api-keys/revoke-all`, { method: "POST" });
 
 // ── Tenants ──────────────────────────────────────────────────────────────
 
@@ -725,4 +746,49 @@ export function deleteSmsPackage(code: string) {
 export type ModuleBillingChoice = "MONTHLY" | "YEARLY" | "LICENSE";
 export function createTenantModuleInvoice(tenantId: string, data: { items: Array<{ code: string; billingMode: ModuleBillingChoice }>; dueAt?: string; note?: string }) {
   return apiFetch<TenantInvoice>(`/admin/tenants/${tenantId}/module-invoice`, { method: "POST", body: JSON.stringify(data) });
+}
+
+
+// ── بکاپ و بازیابی ─────────────────────────────────────────────────────────
+
+export type BackupTargetStatus = {
+  name: string;
+  kind: "control" | "tenant";
+  lastSuccessAt?: string;
+  lastFile?: string;
+  lastSize?: number;
+  encrypted?: boolean;
+  offsite?: boolean;
+  lastError?: string;
+  lastErrorAt?: string;
+  fileCount: number;
+  bytes: number;
+  plaintextFiles: number;
+};
+
+export type RestoreTestEntry = { at: string; target: string; file: string; ok: boolean; durationMs: number; detail: string };
+
+export type BackupStatusResponse = {
+  generatedAt: string;
+  running: "backup" | "restore-test" | null;
+  encryption: { keyConfigured: boolean; required: boolean };
+  offsite: { configured: boolean; destination: string | null; prefix: string | null; lastOkAt: string | null; lastError: string | null };
+  retention: { daily: number; weekly: number; monthly: number; maxFilesPerDatabase: number };
+  disk: { backupBytes: number; freeBytes: number | null; totalBytes: number | null };
+  lastRunStartedAt: string | null;
+  lastRunFinishedAt: string | null;
+  targets: BackupTargetStatus[];
+  lastRestoreTest: RestoreTestEntry | null;
+  restoreTests: RestoreTestEntry[];
+  warnings: string[];
+};
+
+export function fetchBackupStatus() {
+  return apiFetch<BackupStatusResponse>("/admin/backups/status");
+}
+export function runBackupNow() {
+  return apiFetch<{ started: boolean }>("/admin/backups/run", { method: "POST" });
+}
+export function runRestoreTestNow() {
+  return apiFetch<{ started: boolean }>("/admin/backups/restore-test", { method: "POST" });
 }

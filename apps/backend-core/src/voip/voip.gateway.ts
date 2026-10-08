@@ -1,10 +1,9 @@
 import { Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { OnGatewayConnection, OnGatewayDisconnect, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import type { TenantJwtPayload } from '../auth/jwt-payload.type.js';
+import { SessionVerifierService } from '../security/session-verifier.service.js';
 
 /**
  * Live transport for the incoming-call popup — same shape as
@@ -24,7 +23,7 @@ export class VoipGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(VoipGateway.name);
 
   constructor(
-    private readonly jwt: JwtService,
+    private readonly sessions: SessionVerifierService,
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
   ) {}
@@ -36,8 +35,7 @@ export class VoipGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
     try {
-      const payload = await this.jwt.verifyAsync<TenantJwtPayload>(token);
-      if (payload.type !== 'tenant_user' || !payload.tenantId) throw new Error('توکن نامعتبر است');
+      const { payload } = await this.sessions.verifyTenantToken(token);
 
       const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: payload.tenantId } });
       const tenantDb = this.tenantPrisma.forTenant(tenant);

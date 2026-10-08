@@ -1,4 +1,5 @@
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsHttpUrl } from '../../common/validators/is-http-url.js';
 
 const TIERS = ['A_PLUS', 'A', 'B'] as const;
 
@@ -22,6 +23,7 @@ export class UpdateResellerDto {
 
   @IsOptional()
   @IsString()
+  @IsHttpUrl()
   websiteUrl?: string;
 
   @IsOptional()

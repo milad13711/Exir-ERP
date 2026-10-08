@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -9,6 +9,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { CreateWebhookDto } from './dto/create-webhook.dto.js';
+import { assertPublicHttpUrl, SsrfBlockedError } from '../security/ssrf.js';
 import { WEBHOOK_EVENTS } from './webhook-events.js';
 
 @Controller('settings/webhooks')
@@ -32,7 +33,13 @@ export class WebhooksController {
   }
 
   @Post()
-  create(@Body() dto: CreateWebhookDto, @Ctx() ctx: TenantRequestContext) {
+  async create(@Body() dto: CreateWebhookDto, @Ctx() ctx: TenantRequestContext) {
+    try {
+      await assertPublicHttpUrl(dto.url); // SSRF: آدرس داخلی/متادیتا/localhost پذیرفته نمی‌شود
+    } catch (err) {
+      if (err instanceof SsrfBlockedError) throw new BadRequestException(err.message);
+      throw err;
+    }
     return this.controlDb.webhookSubscription.create({
       data: {
         tenantId: ctx.tenantId,

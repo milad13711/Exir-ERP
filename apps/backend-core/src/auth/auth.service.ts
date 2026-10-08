@@ -1,5 +1,8 @@
+import { randomInt } from 'node:crypto';
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -10,15 +13,34 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { OtpPurpose, Tenant } from '../../generated/control-client/index.js';
-import type { TenantJwtPayload, TenantSelectionTicketPayload } from './jwt-payload.type.js';
+import type { TenantJwtPayload, TenantSelectionTicketPayload, TenantTotpChallengePayload } from './jwt-payload.type.js';
+import { SecurityEventsService } from '../security/security-events.service.js';
+import { SessionEpochService } from '../security/session-epoch.service.js';
+import { maskPhone } from '../security/mask.js';
+import { TenantTwoFactorService } from './tenant-two-factor.service.js';
 
 const OTP_TTL_MS = 2 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const TENANT_SELECTION_TOKEN_TTL_SECONDS = 15 * 60;
 
-function generateOtpCode(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
+/** کد OTP با CSPRNG (قبلاً Math.random که قابل پیش‌بینی است). طول: ۴ رقم (سازگار با کلاینت‌ها) یا LOGIN_OTP_DIGITS=6 فقط برای ورود. */
+export function generateOtpCode(digits = 4): string {
+  const lo = 10 ** (digits - 1);
+  return String(randomInt(lo, lo * 10));
 }
+
+/** طول کد ورود (LOGIN). پیش‌فرض ۴ تا فرانت‌اندهای فعلی نشکنند؛ ۶ با LOGIN_OTP_DIGITS=6 (ورودی DTO هر دو را می‌پذیرد). */
+export function loginOtpDigits(): 4 | 6 {
+  return process.env.LOGIN_OTP_DIGITS === '6' ? 6 : 4;
+}
+
+// سقف‌های OTP (قابل‌تنظیم با env). شمارش در DB است، پس با ری‌استارت/چندنمونه‌ای ریست نمی‌شود.
+const OTP_COOLDOWN_MS = 30_000; // حداقل فاصله‌ی دو ارسال برای یک شماره و یک هدف
+const OTP_PER_PHONE_15M = 5;
+const OTP_PER_PHONE_24H = 15;
+const LOGIN_FAILED_GUESSES_1H = 10;
+const LOGIN_FAILED_GUESSES_24H = 20;
+const GLOBAL_CACHE_MS = 60_000;
 
 export type TenantCard = {
   slug: string;
@@ -39,13 +61,57 @@ export class AuthService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly jwt: JwtService,
     private readonly sms: ExirSmsService,
+    private readonly events: SecurityEventsService,
+    private readonly epoch: SessionEpochService,
+    private readonly twoFactor: TenantTwoFactorService,
   ) {}
+
+  private globalOtpCount: { value: number; at: number } | null = null;
+  private readonly totpFailures = new Map<string, { n: number; resetAt: number }>();
+
+  private tooMany(message: string): HttpException {
+    return new HttpException({ statusCode: HttpStatus.TOO_MANY_REQUESTS, message }, HttpStatus.TOO_MANY_REQUESTS);
+  }
+
+  /**
+   * ضد SMS-pumping و brute-force: سقف ارسال به‌ازای شماره (همه‌ی هدف‌ها) + فاصله‌ی حداقلی + سقف سراسری روزانه.
+   * همه‌ی فلوهای OTP (ورود و صفحات عمومی) از همین requestOtp می‌گذرند، پس یک نقطه‌ی کنترل دارند.
+   */
+  private async enforceOtpRequestLimits(phone: string, purpose: OtpPurpose): Promise<void> {
+    const now = Date.now();
+    const rows = await this.controlDb.otpCode.findMany({
+      where: { phone, createdAt: { gte: new Date(now - 24 * 3600_000) } },
+      select: { createdAt: true, purpose: true },
+      orderBy: { createdAt: 'desc' },
+      take: OTP_PER_PHONE_24H + 1,
+    });
+    const last = rows.find((r) => r.purpose === purpose);
+    if (last && now - last.createdAt.getTime() < OTP_COOLDOWN_MS) {
+      throw this.tooMany('کد تأیید به‌تازگی ارسال شده است؛ چند ثانیه بعد دوباره درخواست دهید');
+    }
+    const in15 = rows.filter((r) => now - r.createdAt.getTime() < 15 * 60_000).length;
+    if (in15 >= OTP_PER_PHONE_15M || rows.length >= OTP_PER_PHONE_24H) {
+      this.events.record({ type: 'OTP_LOCKED', severity: 'WARNING', message: 'OTP request cap per phone', context: { phone: maskPhone(phone), purpose }, dedupeKey: phone });
+      throw this.tooMany('تعداد درخواست کد برای این شماره زیاد است؛ بعداً دوباره تلاش کنید');
+    }
+    const cap = Number(process.env.OTP_GLOBAL_DAILY_CAP) || 20_000;
+    if (!this.globalOtpCount || now - this.globalOtpCount.at > GLOBAL_CACHE_MS) {
+      this.globalOtpCount = { value: await this.controlDb.otpCode.count({ where: { createdAt: { gte: new Date(now - 24 * 3600_000) } } }), at: now };
+    }
+    if (this.globalOtpCount.value >= cap) {
+      this.events.record({ type: 'OTP_CAP_REACHED', severity: 'FATAL', message: `global OTP daily cap (${cap}) reached — possible SMS pumping`, dedupeKey: 'global' });
+      throw this.tooMany('سرویس ارسال کد موقتاً محدود شده است؛ بعداً تلاش کنید');
+    }
+    this.globalOtpCount.value += 1;
+  }
 
   async requestOtp(
     phone: string,
     purpose: OtpPurpose = 'LOGIN',
-  ): Promise<{ expiresInSeconds: number; devCode?: string }> {
-    const code = generateOtpCode();
+  ): Promise<{ expiresInSeconds: number; codeLength: number; devCode?: string }> {
+    await this.enforceOtpRequestLimits(phone, purpose);
+    const digits = purpose === 'LOGIN' ? loginOtpDigits() : 4;
+    const code = generateOtpCode(digits);
     const codeHash = await bcrypt.hash(code, 10);
 
     await this.controlDb.otpCode.create({
@@ -82,7 +148,7 @@ export class AuthService {
             service: 'backend-core',
             level: 'ERROR',
             message: `ارسال پیامک کد ورود ناموفق بود: ${result.error}`,
-            context: { phone },
+            context: { phone: maskPhone(phone) },
           },
         });
       }
@@ -93,9 +159,13 @@ export class AuthService {
     // alongside a successful send, even with OTP_DEV_ECHO=true, so a real
     // deployment's logs/responses don't casually leak a code SMS already
     // delivered to the user's phone.
+    // امنیتی: ریختن کد در پاسخ فقط وقتی پنل پیامک اصلاً پیکربندی نشده (dev/on-premise بدون پیامک). اگر پنل
+    // پیکربندی است ولی ارسال شکست خورد (قطعی سرویس)، کد هرگز به درخواست‌کننده برنمی‌گردد — وگرنه هر کسی با زدن
+    // «ارسال کد» روی شماره‌ی دیگری و منتظر قطعی ماندن، حساب او را تصاحب می‌کرد.
     return {
       expiresInSeconds: OTP_TTL_MS / 1000,
-      ...(devEcho && !smsSent ? { devCode: code } : {}),
+      codeLength: digits,
+      ...(devEcho && !smsSent && !this.sms.isConfigured() ? { devCode: code } : {}),
     };
   }
 
@@ -107,6 +177,7 @@ export class AuthService {
    * to do with which one they're logging into.
    */
   private async consumeLoginOtp(phone: string, code: string): Promise<void> {
+    await this.assertLoginNotLocked(phone);
     const otp = await this.controlDb.otpCode.findFirst({
       where: { phone, purpose: 'LOGIN', consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
@@ -122,12 +193,29 @@ export class AuthService {
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
       });
+      this.events.record({ type: 'LOGIN_FAILED', severity: 'WARNING', message: 'wrong login OTP', context: { phone: maskPhone(phone) }, dedupeKey: phone });
       throw new UnauthorizedException('کد تأیید نادرست است');
     }
     await this.controlDb.otpCode.update({
       where: { id: otp.id },
       data: { consumedAt: new Date() },
     });
+  }
+
+  /**
+   * قفل جمعی حدس‌های غلط ورود به‌ازای شماره (جمع attempts همه‌ی کدهای LOGIN اخیر)؛ حدس‌زدن کد ۴ رقمی با درخواست
+   * کد جدید پشت‌سرهم دیگر ممکن نیست. حداکثر ۱۰ حدس در ساعت و ۲۰ حدس در روز برای هر شماره.
+   */
+  private async assertLoginNotLocked(phone: string): Promise<void> {
+    const now = Date.now();
+    const [h, d] = await Promise.all([
+      this.controlDb.otpCode.aggregate({ _sum: { attempts: true }, where: { phone, purpose: 'LOGIN', createdAt: { gte: new Date(now - 3600_000) } } }),
+      this.controlDb.otpCode.aggregate({ _sum: { attempts: true }, where: { phone, purpose: 'LOGIN', createdAt: { gte: new Date(now - 24 * 3600_000) } } }),
+    ]);
+    if ((h._sum.attempts ?? 0) >= LOGIN_FAILED_GUESSES_1H || (d._sum.attempts ?? 0) >= LOGIN_FAILED_GUESSES_24H) {
+      this.events.record({ type: 'OTP_LOCKED', severity: 'ERROR', message: 'login locked: too many wrong OTP guesses', context: { phone: maskPhone(phone) }, dedupeKey: phone });
+      throw this.tooMany('تلاش‌های ناموفق زیاد بود؛ ورود این شماره موقتاً قفل است. بعداً دوباره تلاش کنید.');
+    }
   }
 
   /**
@@ -197,6 +285,7 @@ export class AuthService {
         outstandingInvoiceId?: string | null;
       }
     | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] }
+    | { requiresTotp: true; totpToken: string }
   > {
     await this.consumeLoginOtp(phone, code);
 
@@ -232,6 +321,28 @@ export class AuthService {
     const verificationToken = await this.jwt.signAsync(ticketPayload, { expiresIn: TENANT_SELECTION_TOKEN_TTL_SECONDS });
     const tenants = await Promise.all(memberships.map((m) => this.buildTenantCard(m.tenant, globalUser.id)));
     return { requiresTenantSelection: true, verificationToken, tenants };
+  }
+
+  /** گام دوم ورود وقتی verify/select-tenant مقدار requiresTotp برگردانده است. */
+  async completeTotpLogin(totpToken: string, code: string, ip?: string) {
+    let payload: TenantTotpChallengePayload;
+    try {
+      payload = await this.jwt.verifyAsync<TenantTotpChallengePayload>(totpToken, { algorithms: ['HS256'] });
+    } catch {
+      throw new UnauthorizedException('مهلت تأیید دومرحله‌ای تمام شد، دوباره وارد شوید');
+    }
+    if (payload.type !== 'tenant_totp_challenge') throw new UnauthorizedException('درخواست نامعتبر است');
+    const user = await this.controlDb.globalUser.findUnique({ where: { phone: payload.phone } });
+    if (!user || !user.totpEnabledAt) throw new UnauthorizedException('درخواست نامعتبر است');
+    const now = Date.now();
+    const f = this.totpFailures.get(user.id);
+    if (f && f.resetAt > now && f.n >= 8) throw this.tooMany('تلاش‌های ناموفق زیاد بود؛ چند دقیقه بعد دوباره تلاش کنید');
+    if (!(await this.twoFactor.checkCode(user.id, code, ip))) {
+      this.totpFailures.set(user.id, { n: (f && f.resetAt > now ? f.n : 0) + 1, resetAt: f && f.resetAt > now ? f.resetAt : now + 15 * 60_000 });
+      throw new UnauthorizedException('کد تأیید نادرست است');
+    }
+    this.totpFailures.delete(user.id);
+    return this.resolveTenantLogin(payload.phone, payload.tenantSlug, true);
   }
 
   /** برای گام دوم انتخاب محیط کاری — کد OTP دوباره لازم نیست، چون همین الان مصرف شده است. */
@@ -278,6 +389,7 @@ export class AuthService {
       tenantId: tenant.id,
       membershipId: membership.id,
       role: membership.role,
+      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
     };
     const accessToken = await this.jwt.signAsync(payload);
 
@@ -301,7 +413,7 @@ export class AuthService {
     };
   }
 
-  private async resolveTenantLogin(phone: string, tenantSlug: string) {
+  private async resolveTenantLogin(phone: string, tenantSlug: string, mfaDone = false) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
     // یک تننت PENDING_PAYMENT (تریال تمام‌شده) هم اجازه‌ی ورود می‌گیرد — فقط
     // با یک نشست قفل‌شده که JwtAuthGuard آن را به دیدن/پرداخت فاکتور محدود
@@ -323,6 +435,12 @@ export class AuthService {
     }
     if (membership.status === 'DISABLED') {
       throw new UnauthorizedException('دسترسی شما به این محیط کاری غیرفعال شده است');
+    }
+    if (!mfaDone && globalUser.totpEnabledAt) {
+      // 2FA اختیاری (TOTP) فعال است: OTP پیامکی کافی نیست؛ گام دوم لازم است.
+      const challenge: TenantTotpChallengePayload = { type: 'tenant_totp_challenge', phone, tenantSlug };
+      const totpToken = await this.jwt.signAsync(challenge, { expiresIn: 5 * 60 });
+      return { requiresTotp: true as const, totpToken };
     }
     if (membership.status === 'INVITED') {
       membership = await this.controlDb.tenantMembership.update({
@@ -351,6 +469,7 @@ export class AuthService {
       tenantId: tenant.id,
       membershipId: membership.id,
       role: membership.role,
+      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
     };
     const accessToken = await this.jwt.signAsync(payload);
 

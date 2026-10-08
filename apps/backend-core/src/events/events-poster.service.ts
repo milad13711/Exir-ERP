@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
 import { formatJalaliDate } from '../common/persian.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 export type PosterTemplateCode = 'post-square' | 'story';
 
@@ -43,7 +44,7 @@ function buildHtml(
 </head>
 <body>
   <div class="frame">
-    ${opts.coverImage ? `<img class="cover" src="${opts.coverImage}" />` : ""}
+    ${opts.coverImage ? `<img class="cover" src="${safeImgSrc(opts.coverImage)}" />` : ""}
     <div class="content">
       <div class="title">${escapeHtml(opts.title)}</div>
       <div class="meta">${escapeHtml(opts.dateLabel)}</div>
@@ -81,6 +82,7 @@ export class EventsPosterService implements OnModuleDestroy {
     const { width, height } = DIMENSIONS[code];
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setViewport({ width, height });
       await page.setContent(

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import QRCode from 'qrcode';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 type LabelItem = { code: string; itemDescription: string | null };
 
@@ -10,7 +11,7 @@ function buildHtml(items: { code: string; itemDescription: string; qrDataUrl: st
     .map(
       (it) => `
       <div class="label">
-        <img class="qr" src="${it.qrDataUrl}" />
+        <img class="qr" src="${safeImgSrc(it.qrDataUrl)}" />
         <div class="col">
           <div class="org">${escapeHtml(orgName)}</div>
           <div class="desc">${escapeHtml(it.itemDescription)}</div>
@@ -71,6 +72,7 @@ export class WarrantyLabelPdfService implements OnModuleDestroy {
 
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(withQr, orgName, Math.max(1, Math.min(8, columns))), { waitUntil: 'load' });
       const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '6mm', bottom: '6mm', right: '6mm', left: '6mm' } });

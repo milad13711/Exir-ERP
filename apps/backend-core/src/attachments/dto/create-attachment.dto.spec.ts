@@ -27,6 +27,12 @@ describe('CreateAttachmentDto — fileUrl (آپلود فایل واقعی یا �
     expect(errors[0].constraints?.isFileUrlOrDataUri).toContain('۱۵ مگابایت');
   });
 
+  it('rejects active-content data URIs (HTML/SVG/JS) so a stored attachment can never execute script', async () => {
+    for (const mime of ['text/html', 'image/svg+xml', 'application/javascript', 'application/xhtml+xml', 'text/xml']) {
+      expect(await errorsFor(`data:${mime};base64,${PNG_HEADER}`), mime).toHaveLength(1);
+    }
+  });
+
   it('rejects garbage that is neither a data URI nor a URL', async () => {
     expect(await errorsFor('not a link at all')).toHaveLength(1);
   });

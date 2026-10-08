@@ -6,6 +6,7 @@ import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-
 import { bodyTextToHtml, distributeItemsIntoColumns, substituteBodyText } from './certificate-text.util.js';
 import { getDataUrlImageDimensions } from './image-dimensions.util.js';
 import type { CertificateFieldKey, CertificateTemplateSettings, FieldPosition } from './certificate-template-settings.service.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 export type CertificateLang = 'fa' | 'en';
 
@@ -214,13 +215,13 @@ function buildFixedLayoutHtml(
     ${meta ? `<div class="meta">${meta}</div>` : ''}
     <div class="footer">
       <div class="qr-box">
-        <img src="${qrDataUrl}" />
+        <img src="${safeImgSrc(qrDataUrl)}" />
         <div class="code">${localizeCode(cert.code, lang)}</div>
         <div class="code">${issuedAt}</div>
       </div>
       <div class="sig">
-        ${seal.stampImage ? `<img src="${seal.stampImage}" />` : ''}
-        ${seal.signatureImage ? `<img src="${seal.signatureImage}" />` : ''}
+        ${seal.stampImage ? `<img src="${safeImgSrc(seal.stampImage)}" />` : ''}
+        ${seal.signatureImage ? `<img src="${safeImgSrc(seal.signatureImage)}" />` : ''}
         <div class="sig-label">${strings.sigLabel}</div>
         ${strings.issuedBy ? `<div class="issuedBy">${escapeHtml(strings.issuedBy)}</div>` : ''}
       </div>
@@ -270,12 +271,12 @@ function buildTemplateHtml(
   text('code', 'color:#6b7280; direction:ltr;', localizeCode(cert.code, lang));
   text('issueDate', 'color:#6b7280;', issuedAt);
   const qrPos = get('qr');
-  if (isVisible(qrPos)) nodes.push(`<img src="${qrDataUrl}" style="${fieldStyle(qrPos, 'height:auto;')}" />`);
+  if (isVisible(qrPos)) nodes.push(`<img src="${safeImgSrc(qrDataUrl)}" style="${fieldStyle(qrPos, 'height:auto;')}" />`);
   if (seal.stampImage && isVisible(get('stamp'))) {
-    nodes.push(`<img src="${seal.stampImage}" style="${fieldStyle(get('stamp'), 'height:auto;')}" />`);
+    nodes.push(`<img src="${safeImgSrc(seal.stampImage)}" style="${fieldStyle(get('stamp'), 'height:auto;')}" />`);
   }
   if (seal.signatureImage && isVisible(get('signature'))) {
-    nodes.push(`<img src="${seal.signatureImage}" style="${fieldStyle(get('signature'), 'height:auto;')}" />`);
+    nodes.push(`<img src="${safeImgSrc(seal.signatureImage)}" style="${fieldStyle(get('signature'), 'height:auto;')}" />`);
   }
 
   return `<!doctype html>
@@ -294,7 +295,7 @@ function buildTemplateHtml(
 </head>
 <body>
   <div class="canvas">
-    <img class="bg" src="${settings.backgroundImage}" />
+    <img class="bg" src="${safeImgSrc(settings.backgroundImage)}" />
     ${nodes.join('\n    ')}
   </div>
 </body>
@@ -364,6 +365,7 @@ export class CertificateRenderService implements OnModuleDestroy {
     const { html, widthMm, heightMm } = await this.buildHtmlAndSize(cert, lang, orgName, verifyUrl, settings, seal);
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setViewport({ width: pxFromMm(widthMm), height: pxFromMm(heightMm) });
       await page.setContent(html, { waitUntil: 'load' });
@@ -385,6 +387,7 @@ export class CertificateRenderService implements OnModuleDestroy {
     const { html, widthMm, heightMm } = await this.buildHtmlAndSize(cert, lang, orgName, verifyUrl, settings, seal);
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(html, { waitUntil: 'load' });
       const pdf = await page.pdf({

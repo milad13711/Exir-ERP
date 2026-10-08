@@ -27,6 +27,12 @@ model GlobalUser {
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
+  /// 2FA اختیاری (TOTP) برای OWNER/ADMIN — راز به‌صورت AES-256-GCM (APP_SECRETS_KEY) ذخیره می‌شود، هرگز متن ساده.
+  totpSecretEnc      String?
+  totpEnabledAt      DateTime?
+  totpLastStep       Int?
+  recoveryCodeHashes String[] @default([])
+
   memberships    TenantMembership[]
   supportTickets SupportTicket[]
 
@@ -93,6 +99,9 @@ model Tenant {
   // logoUrl lives in the tenant DB's ModuleSetting store (settings/general),
   // not here — see GeneralSettingsController. themeColor has no other home.
   themeColor String?
+
+  /// افزایش آن همه‌ی توکن‌های ورودِ این تننت را باطل می‌کند (پاسخ به نفوذ/اخراج گروهی).
+  tokenVersion Int @default(0)
 
   createdAt     DateTime  @default(now())
   provisionedAt DateTime?
@@ -198,6 +207,8 @@ model TenantMembership {
   status       MembershipStatus @default(INVITED)
   invitedAt    DateTime         @default(now())
   joinedAt     DateTime?
+  /// افزایش آن فقط نشست‌های همین عضو را باطل می‌کند.
+  tokenVersion Int          @default(0)
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   globalUser GlobalUser @relation(fields: [globalUserId], references: [id], onDelete: Cascade)
@@ -380,6 +391,17 @@ model AdminUser {
   team         StaffTeam @default(SUPPORT)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
+
+  /// قفل موقت پس از چند ورود ناموفق پیاپی
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  /// افزایش آن همه‌ی توکن‌های این کارشناس را باطل می‌کند
+  tokenVersion     Int       @default(0)
+  /// 2FA (TOTP) — راز رمزشده با APP_SECRETS_KEY؛ کدهای بازیابی فقط به‌صورت هش
+  totpSecretEnc      String?
+  totpEnabledAt      DateTime?
+  totpLastStep       Int?
+  recoveryCodeHashes String[] @default([])
 
   assignedTickets SupportTicket[]
   issuedLicenses  License[]
@@ -733,4 +755,14 @@ model TenantSmsWallet {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("tenant_sms_wallets")
+}
+
+/// وضعیت امنیتی سراسری پلتفرم (یک ردیف: id = "global"). sessionEpoch با «خروج اجباری همه» بالا می‌رود
+/// و هر توکن صادرشده با نسخه‌ی کمتر (tenant یا admin) نامعتبر می‌شود.
+model SecurityState {
+  id           String   @id
+  sessionEpoch Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@map("security_state")
 }

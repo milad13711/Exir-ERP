@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -245,7 +246,7 @@ export function SubmissionDetailModal({
             {data.sourceUrl && (
               <div>
                 صفحه‌ی ثبت:{" "}
-                <a href={data.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" dir="ltr" className="text-primary break-all">
+                <a href={safeHref(data.sourceUrl)} target="_blank" rel="noopener noreferrer nofollow" dir="ltr" className="text-primary break-all">
                   {data.sourceUrl}
                 </a>
               </div>

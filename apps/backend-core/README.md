@@ -37,8 +37,8 @@ Demo credentials after `npm run seed`:
 
 | Role | Login |
 |---|---|
-| Super admin (management backoffice) | `admin@exir.co` / `ExirAdmin123!` |
-| Support staff | `support@exir.co` / `ExirSupport123!` |
+| Super admin (management backoffice) — **DEV ONLY**, never created in production | `admin@exir.co` / `ExirAdmin123!` |
+| Support staff — **DEV ONLY** | `support@exir.co` / `ExirSupport123!` |
 
 OTP codes are **echoed in the API response** in dev (`OTP_DEV_ECHO=true`) —
 no SMS provider is wired up yet, so there's nothing to configure to test the

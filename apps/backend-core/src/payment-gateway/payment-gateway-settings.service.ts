@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { AppSecretsKeyMissingError, gatewayAad, isAppSecretsKeyConfigured, openSecret, sealSecret } from '../security/app-secrets.js';
 
 const MODULE_CODE = 'payment-gateway';
 const SETTINGS_KEY = 'settings';
@@ -60,11 +61,33 @@ export class PaymentGatewaySettingsService {
     if (!row) return defaultSettings();
     const stored = row.value as Partial<PaymentGatewaySettings>;
     const defaults = defaultSettings();
-    return {
+    const merged: PaymentGatewaySettings = {
       activeProvider: stored.activeProvider ?? null,
       zarinpal: { ...defaults.zarinpal, ...(stored.zarinpal ?? {}) },
       bitpay: { ...defaults.bitpay, ...(stored.bitpay ?? {}) },
     };
+    // رازها در DB رمزشده‌اند (AES-256-GCM)؛ ردیف قدیمیِ متن‌ساده همچنان خوانده و در همین خواندن رمزشده بازنویسی می‌شود.
+    const m = openSecret(merged.zarinpal.merchantId, gatewayAad(ctx.tenantId, 'zarinpal.merchantId'));
+    const b = openSecret(merged.bitpay.apiKey, gatewayAad(ctx.tenantId, 'bitpay.apiKey'));
+    merged.zarinpal.merchantId = m.value;
+    merged.bitpay.apiKey = b.value;
+    if ((m.legacy && m.value) || (b.legacy && b.value)) {
+      if (isAppSecretsKeyConfigured()) await this.persist(ctx, merged).catch(() => {});
+    }
+    return merged;
+  }
+
+  private async persist(ctx: TenantRequestContext, plain: PaymentGatewaySettings): Promise<void> {
+    const value = {
+      ...plain,
+      zarinpal: { ...plain.zarinpal, merchantId: sealSecret(plain.zarinpal.merchantId, gatewayAad(ctx.tenantId, 'zarinpal.merchantId')) },
+      bitpay: { ...plain.bitpay, apiKey: sealSecret(plain.bitpay.apiKey, gatewayAad(ctx.tenantId, 'bitpay.apiKey')) },
+    };
+    await ctx.tenantDb.moduleSetting.upsert({
+      where: { moduleCode_key: { moduleCode: MODULE_CODE, key: SETTINGS_KEY } },
+      create: { moduleCode: MODULE_CODE, key: SETTINGS_KEY, value },
+      update: { value },
+    });
   }
 
   /** برای نمایش در UI — کلیدها/مرچنت‌ها ماسک‌شده. */
@@ -102,11 +125,15 @@ export class PaymentGatewaySettingsService {
     if (next.activeProvider === 'BITPAY' && !next.bitpay.apiKey) {
       throw new ForbiddenException('برای فعال‌سازی بیت‌پی ابتدا کلید API را وارد کنید');
     }
-    await ctx.tenantDb.moduleSetting.upsert({
-      where: { moduleCode_key: { moduleCode: MODULE_CODE, key: SETTINGS_KEY } },
-      create: { moduleCode: MODULE_CODE, key: SETTINGS_KEY, value: next },
-      update: { value: next },
-    });
+    try {
+      await this.persist(ctx, next);
+    } catch (err) {
+      if (err instanceof AppSecretsKeyMissingError) {
+        throw new ServiceUnavailableException('رمزنگاری رازها روی سرور پیکربندی نشده است (APP_SECRETS_KEY)؛ با پشتیبانی تماس بگیرید');
+      }
+      throw err;
+    }
+    // بدون APP_SECRETS_KEY خطا می‌دهد (fail-closed) — متن ساده هرگز ذخیره نمی‌شود
     return this.getView(ctx);
   }
 }

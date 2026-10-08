@@ -1,0 +1,18 @@
+# /etc/systemd/system/exir-docker-guard.service
+# sudo install -m0755 docker-user-guard.sh /usr/local/sbin/exir-docker-user-guard && sudo install -m0755 lib.sh /usr/local/sbin/lib.sh
+# (the script sources lib.sh from its own directory)
+# sudo cp exir-docker-guard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now exir-docker-guard
+[Unit]
+Description=Exir DOCKER-USER guard (block external access to internal published ports)
+After=docker.service network-online.target
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/exir-docker-user-guard --apply
+ExecStop=/usr/local/sbin/exir-docker-user-guard --remove
+
+[Install]
+WantedBy=multi-user.target

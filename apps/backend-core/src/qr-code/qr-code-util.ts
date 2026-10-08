@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
 
 // حروف کوچک+عدد، بدون کاراکترهای مشابه‌ساز (0,1,l,o) — چون این کد داخل خودِ
@@ -10,7 +11,7 @@ export async function generateQrCode(ctx: TenantRequestContext): Promise<string>
   for (;;) {
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) {
-      code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+      code += ALPHABET[randomInt(ALPHABET.length)];
     }
     const exists = await ctx.tenantDb.qrCode.findUnique({ where: { code } });
     if (!exists) return code;

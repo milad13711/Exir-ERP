@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
 
 // همان الفبای ماژول گارانتی (warranty-code.util.ts) — عدد+حروف بزرگ انگلیسی،
@@ -9,7 +10,7 @@ export async function generateCertificateCode(ctx: TenantRequestContext): Promis
   for (;;) {
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) {
-      code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+      code += ALPHABET[randomInt(ALPHABET.length)];
     }
     const exists = await ctx.tenantDb.certificate.findUnique({ where: { code } });
     if (!exists) return code;

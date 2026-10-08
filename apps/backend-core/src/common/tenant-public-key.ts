@@ -7,6 +7,10 @@ export const PUBLIC_KEY_PATTERN = /^t[0-9a-f]{11}$/;
 
 const keyBySlug = new Map<string, string>();
 const slugByKey = new Map<string, string>();
+// کش منفی کوتاه‌مدت: مسیرهای عمومی با کلید ساختگی («t» + ۱۱ هگز) هر بار DB را نزنند (DoS ارزان)
+const unknownKeys = new Map<string, number>();
+const UNKNOWN_TTL_MS = 60_000;
+const UNKNOWN_MAX = 10_000;
 
 function remember(slug: string, publicKey: string) {
   keyBySlug.set(slug, publicKey);
@@ -49,8 +53,15 @@ export class TenantPublicKeyService implements OnModuleInit {
   async slugFor(key: string): Promise<string | null> {
     const cached = slugByKey.get(key);
     if (cached) return cached;
+    const missAt = unknownKeys.get(key);
+    if (missAt && Date.now() - missAt < UNKNOWN_TTL_MS) return null;
     const row = await this.controlDb.tenant.findUnique({ where: { publicKey: key }, select: { slug: true, publicKey: true } });
-    if (!row) return null;
+    if (!row) {
+      if (unknownKeys.size >= UNKNOWN_MAX) unknownKeys.clear();
+      unknownKeys.set(key, Date.now());
+      return null;
+    }
+    unknownKeys.delete(key);
     remember(row.slug, row.publicKey);
     return row.slug;
   }

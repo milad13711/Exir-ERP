@@ -1,4 +1,5 @@
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsHttpUrl } from '../../common/validators/is-http-url.js';
 
 export class UpdateEventDto {
   @IsOptional()
@@ -24,6 +25,7 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsString()
+  @IsHttpUrl()
   onlineUrl?: string;
 
   @IsOptional()

@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
+import { SessionEpochService } from '../security/session-epoch.service.js';
 import type { SignupTicketPayload, TenantJwtPayload } from '../auth/jwt-payload.type.js';
 
 const SIGNUP_TOKEN_TTL_SECONDS = 15 * 60;
@@ -23,6 +24,7 @@ export class PublicSignupService {
     private readonly auth: AuthService,
     private readonly tenants: TenantsService,
     private readonly jwt: JwtService,
+    private readonly epoch: SessionEpochService,
   ) {}
 
   requestOtp(phone: string) {
@@ -117,6 +119,7 @@ export class PublicSignupService {
       tenantId: tenant.id,
       membershipId: membership.id,
       role: membership.role,
+      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
     };
     const accessToken = await this.jwt.signAsync(payload);
 

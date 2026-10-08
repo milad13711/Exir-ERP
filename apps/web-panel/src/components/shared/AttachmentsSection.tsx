@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import { DocsIcon, TrashIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -298,7 +299,7 @@ export function AttachmentsSection({ entityType, entityId, readOnly = false }: {
                   ) : (
                     <>
                       <a
-                        href={a.fileUrl}
+                        href={safeHref(a.fileUrl, { allowData: true })}
                         target={isUploadedFile ? undefined : "_blank"}
                         rel={isUploadedFile ? undefined : "noreferrer"}
                         download={isUploadedFile ? downloadName(a.title, a.fileUrl) : undefined}

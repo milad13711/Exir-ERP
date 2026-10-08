@@ -41,6 +41,7 @@ import {
   BuildingIcon,
   SealCheckIcon,
 } from "@/components/icons";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const revalidate = 0;
 
@@ -201,7 +202,7 @@ export default async function HomePage() {
 
   return (
     <main className="flex-1 bg-white">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }} />
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden text-white" style={{ background: ZEUS_BG }}>

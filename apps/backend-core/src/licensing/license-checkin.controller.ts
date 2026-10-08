@@ -1,19 +1,13 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { IsString, MinLength } from 'class-validator';
+import { clientIp } from '../security/client-ip.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 
 class CheckInDto {
   @IsString()
   @MinLength(10)
   licenseKey!: string;
-}
-
-/** پشت nginx، X-Forwarded-For اولین مقدارش IP واقعی کلاینت است — پیکربندی nginx.conf همین هدر را با proxy_set_header ست می‌کند. */
-function realClientIp(req: Request): string | undefined {
-  const forwarded = req.headers['x-forwarded-for'];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim();
-  return first || req.socket.remoteAddress || undefined;
 }
 
 /**
@@ -42,7 +36,7 @@ export class LicenseCheckinController {
 
     await this.controlDb.license.update({
       where: { id: license.id },
-      data: { lastCheckInAt: new Date(), lastCheckInIp: realClientIp(req) },
+      data: { lastCheckInAt: new Date(), lastCheckInIp: clientIp(req) },
     });
 
     if (license.status === 'REVOKED') {

@@ -123,7 +123,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 // ── Auth ─────────────────────────────────────────────────────────────────
 
 export function requestOtp(phone: string) {
-  return apiFetch<{ expiresInSeconds: number; devCode?: string }>("/auth/otp/request", {
+  return apiFetch<{ expiresInSeconds: number; codeLength?: number; devCode?: string }>("/auth/otp/request", {
     method: "POST",
     body: JSON.stringify({ phone }),
   });
@@ -139,7 +139,11 @@ export type VerifyOtpResult =
       billingLocked?: boolean;
       outstandingInvoiceId?: string | null;
     }
-  | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] };
+  | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] }
+  /** کاربر 2FA (TOTP) فعال کرده: گام دوم با verifyTotpLogin. */
+  | { requiresTotp: true; totpToken: string };
+
+export type LoginSuccess = Extract<VerifyOtpResult, { accessToken: string }>;
 
 export type TenantCard = {
   slug: string;
@@ -167,18 +171,27 @@ export function verifyOtp(phone: string, code: string) {
 }
 
 export function selectTenant(verificationToken: string, tenantSlug: string) {
-  return apiFetch<{
-    accessToken: string;
-    user: { name: string | null; phone: string };
-    tenant: { name: string; slug: string };
-    role: string;
-    billingLocked?: boolean;
-    outstandingInvoiceId?: string | null;
-  }>("/auth/otp/select-tenant", {
+  return apiFetch<LoginSuccess | { requiresTotp: true; totpToken: string }>("/auth/otp/select-tenant", {
     method: "POST",
     body: JSON.stringify({ verificationToken, tenantSlug }),
   });
 }
+
+/** گام دوم ورود با 2FA: کد ۶ رقمی برنامه‌ی احراز هویت یا کد بازیابی. */
+export function verifyTotpLogin(totpToken: string, code: string) {
+  return apiFetch<LoginSuccess>("/auth/otp/verify-totp", {
+    method: "POST",
+    body: JSON.stringify({ totpToken, code }),
+  });
+}
+
+// ── 2FA اختیاری مالک/مدیر ────────────────────────────────────────────────
+export const fetchTwoFaStatus = () => apiFetch<{ enabled: boolean; recoveryCodesLeft: number }>("/auth/2fa/status");
+export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string }>("/auth/2fa/setup", { method: "POST" });
+export const enableTwoFa = (code: string) =>
+  apiFetch<{ recoveryCodes: string[] }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
+export const disableTwoFa = (code: string) =>
+  apiFetch<{ enabled: boolean }>("/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) });
 
 // ── Public signup (unauthenticated — no existing tenant/membership yet) ───
 

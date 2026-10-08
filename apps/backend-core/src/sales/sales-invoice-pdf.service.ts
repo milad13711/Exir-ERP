@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatJalaliDate, formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'پیش‌نویس',
@@ -85,6 +86,7 @@ export class SalesInvoicePdfService implements OnModuleDestroy {
   async render(invoice: InvoiceForPdf, seller: SellerInfo): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(invoice, seller), { waitUntil: 'load' });
       const pdf = await page.pdf({
@@ -251,7 +253,7 @@ function buildHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
       invoice.signatureDataUrl
         ? `<div class="sig-box">
       <div class="sig-title">امضای فروشنده</div>
-      <img src="${invoice.signatureDataUrl}" />
+      <img src="${safeImgSrc(invoice.signatureDataUrl)}" />
       <div class="sig-name">${escapeHtml(invoice.signedByName ?? '')}</div>
       ${invoice.signedAt ? `<div class="sig-date">${formatJalaliDate(invoice.signedAt)}</div>` : ''}
     </div>`
@@ -261,7 +263,7 @@ function buildHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
       invoice.deliveryConfirmedName
         ? `<div class="sig-box">
       <div class="sig-title">تأیید دریافت توسط مشتری</div>
-      ${invoice.deliverySignatureDataUrl ? `<img src="${invoice.deliverySignatureDataUrl}" />` : ''}
+      ${invoice.deliverySignatureDataUrl ? `<img src="${safeImgSrc(invoice.deliverySignatureDataUrl)}" />` : ''}
       <div class="sig-name">${escapeHtml(invoice.deliveryConfirmedName)}</div>
       ${invoice.deliveryConfirmedAt ? `<div class="sig-date">${formatJalaliDate(invoice.deliveryConfirmedAt)}</div>` : ''}
     </div>`

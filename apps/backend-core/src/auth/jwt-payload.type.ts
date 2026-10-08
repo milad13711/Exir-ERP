@@ -7,6 +7,8 @@ export type TenantJwtPayload = {
   tenantId: string;
   membershipId: string;
   role: TenantRole;
+  /** نسخه‌ی مؤثر نشست (epoch سراسری + tokenVersion تننت + tokenVersion عضو) هنگام صدور؛ نبودنش یعنی ۰ (توکن قدیمی). */
+  tv?: number;
 };
 
 /** Issued after internal staff (management team) login — never scoped to a tenant. */
@@ -14,6 +16,8 @@ export type AdminJwtPayload = {
   sub: string; // AdminUser.id
   team: string;
   isAdmin: true;
+  /** epoch سراسری + tokenVersion کارشناس هنگام صدور */
+  tv?: number;
 };
 
 /**
@@ -182,4 +186,14 @@ export type VaultTicketPayload = {
   sub: string; // GlobalUser.id — must match the caller's normal session ctx.auth.sub
   tenantId: string;
   canEdit: boolean;
+};
+
+/**
+ * گام میانی ورود وقتی کاربر 2FA (TOTP) فعال کرده است: OTP پیامکی تأیید و مصرف شده، منتظر کد TOTP.
+ * ۵ دقیقه اعتبار؛ فقط به AuthService.completeTotpLogin داده می‌شود و هرگز به‌عنوان توکن نشست پذیرفته نمی‌شود.
+ */
+export type TenantTotpChallengePayload = {
+  type: 'tenant_totp_challenge';
+  phone: string;
+  tenantSlug: string;
 };

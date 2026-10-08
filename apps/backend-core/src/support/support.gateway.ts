@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
@@ -11,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import type { AdminJwtPayload, TenantJwtPayload } from '../auth/jwt-payload.type.js';
+import { SessionVerifierService } from '../security/session-verifier.service.js';
 import type { SupportMessage, SupportTicket } from '../../generated/control-client/index.js';
 
 type SocketAuth =
@@ -38,8 +37,8 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private readonly authBySocket = new Map<string, SocketAuth>();
 
   constructor(
-    private readonly jwt: JwtService,
     private readonly controlDb: ControlPrismaService,
+    private readonly sessions: SessionVerifierService,
   ) {}
 
   async handleConnection(socket: Socket) {
@@ -87,17 +86,12 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
     // JwtAuthGuard/AdminJwtAuthGuard verify, without re-implementing their
     // full request-context resolution (this gateway only needs identity).
     try {
-      const payload = await this.jwt.verifyAsync<TenantJwtPayload>(token);
-      if (payload.type === 'tenant_user' && payload.tenantId) {
-        return { kind: 'tenant', tenantId: payload.tenantId, globalUserId: payload.sub };
-      }
+      const { payload } = await this.sessions.verifyTenantToken(token);
+      return { kind: 'tenant', tenantId: payload.tenantId, globalUserId: payload.sub };
     } catch {
       // fall through to admin verification
     }
-    const adminPayload = await this.jwt.verifyAsync<AdminJwtPayload>(token);
-    if (!adminPayload.isAdmin) throw new Error('توکن نامعتبر است');
-    const admin = await this.controlDb.adminUser.findUnique({ where: { id: adminPayload.sub } });
-    if (!admin || !admin.isActive) throw new Error('حساب کارشناسی غیرفعال است');
+    const { payload: adminPayload } = await this.sessions.verifyAdminToken(token);
     return { kind: 'admin', adminId: adminPayload.sub };
   }
 

@@ -8,14 +8,14 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import { phonesMatch } from './phone-match.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import { safeEqual } from '../security/safe-compare.js';
 import type { CallEndedEvent, IncomingCallEvent } from './types.js';
 
 /**
  * Where a tenant's PBX actually points its webhook. No JWT here — a PBX
  * can't carry our Bearer tokens — auth is a per-tenant secret in the URL,
  * generated when the provider is configured (see VoipController.saveConfig)
- * and compared with a timing-safe-ish plain equality (short-lived, low-
- * value secret; not worth the extra dependency for a real HMAC compare).
+ * and compared in constant time (safeEqual).
  */
 @Controller('public/voip')
 export class VoipWebhookController {
@@ -40,7 +40,7 @@ export class VoipWebhookController {
     const tenantDb = this.tenantPrisma.forTenant(tenant);
 
     const providerConfig = await tenantDb.voipProviderConfig.findFirst({ where: { providerCode, isActive: true } });
-    if (!providerConfig || !secret || providerConfig.webhookSecret !== secret) {
+    if (!providerConfig || !safeEqual(providerConfig.webhookSecret, secret)) {
       throw new ForbiddenException('وب‌هوک نامعتبر است');
     }
 
@@ -70,7 +70,7 @@ export class VoipWebhookController {
     if (!tenant) throw new NotFoundException('تننت یافت نشد');
     const tenantDb = this.tenantPrisma.forTenant(tenant);
     const providerConfig = await tenantDb.voipProviderConfig.findFirst({ where: { providerCode: 'novatel', isActive: true } });
-    if (!providerConfig || !apiKey || providerConfig.webhookSecret !== apiKey) throw new ForbiddenException('وب‌هوک نامعتبر است');
+    if (!providerConfig || !safeEqual(providerConfig.webhookSecret, apiKey)) throw new ForbiddenException('وب‌هوک نامعتبر است');
 
     const adapter = this.registry.get('novatel');
     const kind = action.toLowerCase();

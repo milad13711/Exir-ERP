@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { fetchPublicStoreProduct, fetchPublicStoreInfo, fetchPublicStoreProducts } from "@/lib/api";
 import { ProductClient } from "./ProductClient";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const revalidate = 0;
 
@@ -70,7 +71,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <ProductClient
         slug={slug}
         storeName={info?.name ?? "فروشگاه"}

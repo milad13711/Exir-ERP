@@ -61,12 +61,15 @@ import { WarrantyModule } from './warranty/warranty.module.js';
 import { AfterSalesModule } from './after-sales/after-sales.module.js';
 import { QrCodeModule } from './qr-code/qr-code.module.js';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { SecurityModule } from './security/security.module.js';
+import { RateLimitGuard } from './security/rate-limit.guard.js';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor.js';
 import { ApprovalsModule } from './approvals/approvals.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
+import { BackupDrModule } from './backup-dr/backup-dr.module.js';
 
 @Module({
   imports: [
@@ -75,9 +78,12 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 604800) },
+      // الگوریتم پین‌شده: فقط HS256 امضا و پذیرفته می‌شود (alg=none یا الگوریتم‌های دیگر رد)
+      signOptions: { expiresIn: Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 604800), algorithm: 'HS256' },
+      verifyOptions: { algorithms: ['HS256'] },
     }),
     PrismaModule,
+    SecurityModule,
     AuthModule,
     TenantsModule,
     PublicModule,
@@ -99,6 +105,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     QrCodeModule,
     ApprovalsModule,
     SchedulingModule,
+    BackupDrModule,
     RecruitmentModule,
     ReportsModule,
     ReferralMarketingModule,
@@ -140,6 +147,8 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // نرخ‌سنج پیش از همه‌ی گاردها (ترتیب ثبت APP_GUARD) تا هجوم بدون احراز هویت به DB نرسد
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: LicenseGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],

@@ -4,6 +4,7 @@ import { formatJalaliDate, formatJalaliFull, formatToman } from '../common/persi
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import type { Invoice, Tenant, Plan } from '../../generated/control-client/index.js';
+import { hardenPage } from '../security/puppeteer-hardening.js';
 
 const GENERAL_SETTINGS_MODULE = 'general';
 
@@ -73,6 +74,7 @@ export class InvoicePdfService implements OnModuleDestroy {
     const billingInfo = await this.getTenantBillingInfo(tenant);
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildInvoiceHtml(invoice, tenant, plan, billingInfo), { waitUntil: 'load' });
       const pdf = await page.pdf({

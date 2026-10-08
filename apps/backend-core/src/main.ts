@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json as expressJson } from 'express';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { TenantPublicKeyService } from './common/tenant-public-key.js';
 import { globalCorsDelegate, publicFormsCorsMiddleware } from './public/public-forms-cors.js';
+import { assertSecureConfig } from './security/boot-checks.js';
+import { publicBodyLimitMiddleware, securityHeadersMiddleware } from './security/headers.js';
 
 // A few monetary columns (CrmDeal.value, JournalLine.debit/credit) are
 // BigInt in Postgres/Prisma so a single deal or entry can exceed 2.1B
@@ -17,7 +20,16 @@ import { globalCorsDelegate, publicFormsCorsMiddleware } from './public/public-f
 };
 
 async function bootstrap() {
+  // Fail-closed: بدون JWT_SECRET معتبر راه‌اندازی نمی‌شود؛ هشدارهای پیکربندی ناامن (production) در لاگ می‌آیند.
+  for (const w of assertSecureConfig()) console.warn(`[security] ${w}`);
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.disable('x-powered-by');
+  // req.ip از X-Forwarded-For فقط وقتی همتای TCP پروکسی داخلی (loopback/خصوصی) باشد — برای لاگ فعالیت درست؛ جعل از اینترنت بی‌اثر است
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+  // هدرهای امنیتی + X-Request-Id + سقف بدنه‌ی مسیرهای بدون ورود (پیش از پارس JSON)
+  app.use(securityHeadersMiddleware);
+  app.use(publicBodyLimitMiddleware);
 
   // Every image this app handles (profile avatar, e-signature/stamp,
   // employee documents, product photos, campaign/QR/certificate images...)
@@ -30,6 +42,8 @@ async function bootstrap() {
   // tenant-wide instead of per-route.
   // CORS اختصاصی + سقف اندازه‌ی بدنه‌ی endpointهای عمومی فرم‌ساز — حتماً قبل از body parser (وگرنه ۲۰MB پیش از رد شدن پارس می‌شود)
   app.use(publicFormsCorsMiddleware);
+  // گزارش‌های CSP با Content-Type مخصوص می‌آیند و کوچک‌اند — پارسر جداگانه‌ی ۱۶KB (پیش از پارسر ۲۰MB)
+  app.use('/api/security/csp-report', expressJson({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '16kb' }));
   app.useBodyParser('json', { limit: '20mb' });
   app.useBodyParser('urlencoded', { limit: '20mb', extended: true });
 
@@ -54,6 +68,11 @@ async function bootstrap() {
     }),
   );
 
+  // SWAGGER_ENABLED=false مستندات API را در production خاموش می‌کند (پیش‌فرض: روشن، برای مشتریان ماژول api-access).
+  if (process.env.SWAGGER_ENABLED === 'false') {
+    await app.listen(process.env.PORT ?? 3001);
+    return;
+  }
   const swaggerDoc = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()

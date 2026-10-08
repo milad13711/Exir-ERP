@@ -10,6 +10,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { CreateApiKeyDto } from './dto/create-api-key.dto.js';
+import { invalidateApiKeyCache } from './api-key-verifier.js';
 import { API_KEY_PREFIX, API_KEY_LOOKUP_PREFIX_LENGTH } from './api-key.constants.js';
 
 /**
@@ -68,10 +69,12 @@ export class ApiKeysController {
   async revoke(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     const key = await this.controlDb.apiKey.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!key) throw new NotFoundException('کلید API یافت نشد');
-    return this.controlDb.apiKey.update({
+    const updated = await this.controlDb.apiKey.update({
       where: { id },
       data: { revokedAt: new Date() },
       select: { id: true, name: true, keyPrefix: true, createdAt: true, lastUsedAt: true, revokedAt: true },
     });
+    invalidateApiKeyCache();
+    return updated;
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage } from '../security/puppeteer-hardening.js';
 
 const JALALI_MONTH_NAMES = [
   'فروردین',
@@ -68,6 +69,7 @@ export class PayrollPdfService implements OnModuleDestroy {
   async render(slip: PayrollSlipForPdf, employer: EmployerInfo): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(slip, employer), { waitUntil: 'load' });
       const pdf = await page.pdf({

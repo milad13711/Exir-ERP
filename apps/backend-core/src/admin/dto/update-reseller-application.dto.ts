@@ -1,4 +1,5 @@
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsHttpUrl } from '../../common/validators/is-http-url.js';
 
 export class UpdateResellerApplicationDto {
   @IsOptional()
@@ -25,6 +26,7 @@ export class UpdateResellerApplicationDto {
 
   @IsOptional()
   @IsString()
+  @IsHttpUrl()
   websiteUrl?: string;
 
   @IsOptional()

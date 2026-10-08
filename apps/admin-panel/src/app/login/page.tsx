@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogoMark } from "@/components/icons";
-import { adminLogin, setToken, ApiError } from "@/lib/api";
+import { adminLogin, adminLoginTotp, setToken, ApiError } from "@/lib/api";
 import { persistAdmin } from "@/lib/admin-context";
 
 export default function AdminLoginPage() {
@@ -12,17 +12,29 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // گام دوم (2FA): پس از رمز درست، اگر حساب TOTP دارد سرور challengeToken می‌دهد
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const { accessToken, admin } = await adminLogin(email.trim(), password);
+      const res = challengeToken
+        ? await adminLoginTotp(challengeToken, code.trim())
+        : await adminLogin(email.trim(), password);
+      if ("requiresTotp" in res) {
+        setChallengeToken(res.challengeToken);
+        setPassword("");
+        return;
+      }
+      const { accessToken, admin } = res;
       setToken(accessToken);
       persistAdmin(admin);
       router.replace("/tenants");
     } catch (err) {
+      if (challengeToken && err instanceof ApiError && err.status === 401 && /مهلت/.test(err.message)) setChallengeToken(null);
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
     } finally {
       setSubmitting(false);
@@ -57,6 +69,21 @@ export default function AdminLoginPage() {
             <p className="text-[12.5px] text-muted mb-6">فقط برای اعضای تیم مدیریت اکسیر ERP</p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {challengeToken ? (
+                <div>
+                  <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">کد تأیید دومرحله‌ای</label>
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="۶ رقم برنامه‌ی احراز هویت یا کد بازیابی"
+                    className="w-full text-[14px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-4 py-3 focus:border-primary focus:bg-white transition-colors"
+                    dir="ltr"
+                  />
+                </div>
+              ) : (<>
               <div>
                 <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">ایمیل</label>
                 <input
@@ -81,10 +108,11 @@ export default function AdminLoginPage() {
                   dir="ltr"
                 />
               </div>
+              </>)}
               {error ? <div className="text-[12.5px] text-danger bg-danger-soft rounded-xl px-3.5 py-2.5">{error}</div> : null}
               <button
                 type="submit"
-                disabled={submitting || !email.trim() || !password}
+                disabled={submitting || (challengeToken ? code.trim().length < 6 : !email.trim() || !password)}
                 className="mt-1 w-full py-3 rounded-xl bg-primary hover:bg-primary-dark transition-colors text-white text-[14px] font-bold cursor-pointer disabled:opacity-50 shadow-[0_6px_16px_-6px_rgba(26,69,200,0.6)]"
               >
                 {submitting ? "در حال ورود..." : "ورود"}

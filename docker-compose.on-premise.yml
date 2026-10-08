@@ -76,6 +76,16 @@ services:
       BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
       BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
       BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      # رمزنگاری بکاپ‌ها (AES-256-GCM) — کلید ۳۲ بایتی (۶۴ کاراکتر hex). حتماً نسخه‌ای از آن را جدا از سرور
+      # (password manager / آفلاین) نگه دار؛ بدون آن بکاپ‌ها غیرقابل‌خواندن‌اند. docs/disaster-recovery.md
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_REQUIRE_ENCRYPTION: ${BACKUP_REQUIRE_ENCRYPTION:-false}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-6}
+      BACKUP_ENV_NAME: ${BACKUP_ENV_NAME:-prod}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
+      BACKUP_ALERT_PHONE: ${BACKUP_ALERT_PHONE:-}
       # Zarinpal — real online payment for invoices (see ZarinpalService).
       # Empty ZARINPAL_MERCHANT_ID means the gateway is simply unavailable
       # (public pay page shows "contact support" instead of a pay button).
@@ -89,6 +99,20 @@ services:
       WEB_PANEL_PUBLIC_URL: ${WEB_PANEL_PUBLIC_URL:-}
       # AES-256-GCM key for Moodian (tax module) private-key storage; empty => key upload refused.
       TAX_SECRETS_KEY: ${TAX_SECRETS_KEY:-}
+      # ── امنیت (docs/security/audit-2026-10.md) ────────────────────────────────
+      # AES-256-GCM key (64 hex) for secrets at rest: payment-gateway/SMS-panel keys + 2FA secrets. Empty => saving them is refused (fail-closed).
+      APP_SECRETS_KEY: ${APP_SECRETS_KEY:-}
+      # true => every admin-panel user must enrol TOTP 2FA before using the console.
+      ADMIN_REQUIRE_TOTP: ${ADMIN_REQUIRE_TOTP:-false}
+      ADMIN_JWT_EXPIRES_IN_SECONDS: ${ADMIN_JWT_EXPIRES_IN_SECONDS:-43200}
+      # First super-admin for a fresh install (production never creates the repo-default admin). Empty => a random password is printed once in the logs.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      LOGIN_OTP_DIGITS: ${LOGIN_OTP_DIGITS:-4}
+      OTP_GLOBAL_DAILY_CAP: ${OTP_GLOBAL_DAILY_CAP:-20000}
+      RATE_LIMIT_REPORT_ONLY: ${RATE_LIMIT_REPORT_ONLY:-false}
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
     volumes:
       # Daily automated backups (BackupService) land here — a host directory,
       # not the container's own filesystem, so they survive

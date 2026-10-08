@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatJalaliDate, formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage } from '../security/puppeteer-hardening.js';
 
 type RationLineForPdf = { ingredientName: string; quantityPerAnimalKg: number | string; unitCostSnapshot: number; lineCost: number };
 
@@ -39,6 +40,7 @@ export class RationReportPdfService implements OnModuleDestroy {
   async render(report: RationReportForPdf, orgName: string): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(report, orgName), { waitUntil: 'load' });
       const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '18mm', bottom: '18mm', right: '16mm', left: '16mm' } });

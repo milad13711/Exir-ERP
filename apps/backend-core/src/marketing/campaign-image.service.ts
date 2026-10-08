@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage } from '../security/puppeteer-hardening.js';
 
 export type TemplateCode = 'post-square' | 'story';
 
@@ -89,6 +90,7 @@ export class CampaignImageService implements OnModuleDestroy {
     const { width, height } = DIMENSIONS[code];
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setViewport({ width, height });
       await page.setContent(

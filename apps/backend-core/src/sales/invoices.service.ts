@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { assertNotTaxLocked } from './tax-lock.util.js';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
@@ -31,7 +32,7 @@ const PAYMENT_REMINDER_DAYS_KEY = 'paymentReminderDaysBefore';
 const DEFAULT_PAYMENT_REMINDER_DAYS = 3;
 
 function generateDeliveryCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 function renderDeliverySmsTemplate(template: string, vars: { code: string; invoiceNo: number }): string {

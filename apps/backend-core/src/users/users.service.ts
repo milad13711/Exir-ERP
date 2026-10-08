@@ -182,8 +182,23 @@ export class UsersService implements OnModuleInit {
     id: string,
     data: { name?: string; email?: string | null; status?: 'INVITED' | 'ACTIVE' | 'DISABLED'; roleIds?: string[] },
   ) {
-    await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    const existing = await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
 
+    if ((data.status !== undefined && data.status !== existing.status) || data.roleIds !== undefined) {
+      const target = await this.assertCanManageTarget(ctx, id, { allowSelf: true });
+      if (data.status === 'DISABLED' && target.globalUserId === (ctx.auth.type === 'tenant_user' ? ctx.auth.sub : null)) {
+        throw new ForbiddenException('نمی‌توانید حساب خودتان را غیرفعال کنید');
+      }
+      // «غیرفعال‌کردن» باید واقعاً دسترسی را ببندد: JwtAuthGuard فقط وضعیت عضویت کنترل‌پلین را می‌خواند (نه User محلی)،
+      // پس بدون همگام‌سازی، کاربر غیرفعال با توکن فعلی و حتی ورود دوباره همچنان کار می‌کرد.
+      if (data.status && target.membershipId) {
+        if (data.status === 'DISABLED') {
+          await this.controlDb.tenantMembership.update({ where: { id: target.membershipId }, data: { status: 'DISABLED', tokenVersion: { increment: 1 } } });
+        } else if (data.status === 'ACTIVE') {
+          await this.controlDb.tenantMembership.updateMany({ where: { id: target.membershipId, status: 'DISABLED' }, data: { status: 'ACTIVE' } });
+        }
+      }
+    }
     if (data.roleIds) {
       await ctx.tenantDb.userRole.deleteMany({ where: { userId: id } });
     }
@@ -199,6 +214,21 @@ export class UsersService implements OnModuleInit {
     });
   }
 
+  /**
+   * سلسله‌مراتب: ADMIN نمی‌تواند وضعیت/نقش/دسترسی OWNER یا ADMIN دیگر را عوض کند؛ هیچ‌کس وضعیت خودش را DISABLED نمی‌کند
+   * (قفل‌شدن از خود). OWNER بر همه اختیار دارد. نقش عضویت هدف را برمی‌گرداند.
+   */
+  private async assertCanManageTarget(ctx: TenantRequestContext, targetUserId: string, opts: { allowSelf?: boolean } = {}) {
+    const target = await this.membershipRoleOf(ctx, targetUserId);
+    const actorUserId = ctx.auth.type === 'tenant_user' ? await resolveTenantUserId(ctx).catch(() => null) : null;
+    const isSelf = !!actorUserId && actorUserId === targetUserId;
+    if (isSelf && !opts.allowSelf) throw new ForbiddenException('تغییر وضعیت/نقش حساب خودتان مجاز نیست');
+    if (ctx.auth.role !== 'OWNER' && (ROLE_RANK[ctx.auth.role as MembershipRole] ?? 0) <= ROLE_RANK[target.role]) {
+      throw new ForbiddenException('فقط مدیر بالادستی می‌تواند وضعیت/دسترسی این کاربر را تغییر دهد');
+    }
+    return target;
+  }
+
   async getUserPermissionOverrides(ctx: TenantRequestContext, id: string) {
     await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
     return ctx.tenantDb.userModulePermission.findMany({ where: { userId: id } });
@@ -211,6 +241,7 @@ export class UsersService implements OnModuleInit {
     entries: Array<{ moduleCode: string; canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>,
   ) {
     await ctx.tenantDb.user.findUniqueOrThrow({ where: { id } });
+    await this.assertCanManageTarget(ctx, id, { allowSelf: true });
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.userModulePermission.deleteMany({ where: { userId: id } }),
       ...entries.map((e) => ctx.tenantDb.userModulePermission.create({ data: { userId: id, ...e } })),

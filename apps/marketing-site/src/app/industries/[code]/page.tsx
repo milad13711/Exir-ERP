@@ -8,6 +8,7 @@ import { licenseWeightOf, usdPricingFromLicense, sumUsdPricing, bundleUsdPricing
 import { PricingTable } from "@/components/PricingTable";
 import { IndustryIllustration } from "@/components/IndustryIllustration";
 import { CategoryVisual } from "@/components/CategoryVisual";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const revalidate = 0;
 
@@ -75,9 +76,9 @@ export default async function IndustryDetailPage({ params }: { params: Promise<{
 
   return (
     <main className="flex-1">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
       {content && content.faqs.length > 0 ? (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       ) : null}
 
       <HeroBand>

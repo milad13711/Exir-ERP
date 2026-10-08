@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
 
 // همان الفبای ۳۲ کاراکتری ماژول گارانتی قدیمی (پرفکس) — حروف بزرگ+عدد، بدون
@@ -13,7 +14,7 @@ export async function generateWarrantyCode(ctx: TenantRequestContext): Promise<s
   for (;;) {
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) {
-      code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+      code += ALPHABET[randomInt(ALPHABET.length)];
     }
     const exists = await ctx.tenantDb.warrantyCode.findUnique({ where: { code } });
     if (!exists) return code;

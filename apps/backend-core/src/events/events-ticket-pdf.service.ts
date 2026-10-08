@@ -4,6 +4,7 @@ import puppeteer, { type Browser } from 'puppeteer';
 import QRCode from 'qrcode';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
 import { formatJalaliDate } from '../common/persian.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 function formatWhenFa(date: Date): string {
   const time = faTime(date);
@@ -51,7 +52,7 @@ function buildHtml(ticket: TicketForPdf, orgName: string, qrDataUrl: string): st
     </div>
     <div class="divider"></div>
     <div class="body">
-      <img class="qr" src="${qrDataUrl}" />
+      <img class="qr" src="${safeImgSrc(qrDataUrl)}" />
       <div class="code">${escapeHtml(ticket.ticketCode)}</div>
       <div class="rows">
         <div class="row"><span>شرکت‌کننده</span><span>${escapeHtml(ticket.attendeeName)}</span></div>
@@ -85,6 +86,7 @@ export class EventsTicketPdfService implements OnModuleDestroy {
     const qrDataUrl = await QRCode.toDataURL(ticket.qrToken, { errorCorrectionLevel: 'M', margin: 1, width: 360 });
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(ticket, orgName, qrDataUrl), { waitUntil: 'load' });
       const pdf = await page.pdf({ format: 'A5', printBackground: true, margin: { top: '10mm', bottom: '10mm', right: '8mm', left: '8mm' } });

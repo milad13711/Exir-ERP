@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { BuildingIcon, PackageIcon, ChatIcon, CheckIcon, TargetIcon, ReceiptIcon, UsersIcon, KeyIcon, LogIcon } from "@/components/icons";
+import { BuildingIcon, PackageIcon, ChatIcon, CheckIcon, TargetIcon, ReceiptIcon, UsersIcon, KeyIcon, LogIcon, ShieldIcon } from "@/components/icons";
 
 export type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> };
 
@@ -14,6 +14,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/sms-packages", label: "بسته‌های پیامک", icon: PackageIcon },
   { href: "/licenses", label: "لایسنس‌ها", icon: KeyIcon },
   { href: "/logs", label: "لاگ‌ها", icon: LogIcon },
+  { href: "/security", label: "امنیت", icon: ShieldIcon },
+  { href: "/backups", label: "بکاپ و بازیابی", icon: ShieldIcon },
 ];
 
 /** چهار مورد پرکاربرد که در نوار پایین موبایل می‌مانند؛ بقیه پشت «بیشتر». */

@@ -31,13 +31,20 @@ async function main() {
     process.exit(1);
   }
 
+  // سیاست رمز: حداقل ۱۲ نویسه و ترکیب حرف/عدد (ورود کارشناسان دسترسی کامل پلتفرم می‌دهد)
+  if (password.length < 12 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    console.error('ADMIN_PASSWORD باید حداقل ۱۲ نویسه و شامل حرف و عدد باشد.');
+    process.exit(1);
+  }
+
   const db = new PrismaClient({ datasources: { db: { url: process.env.CONTROL_DATABASE_URL } } });
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const admin = await db.adminUser.upsert({
       where: { email },
       create: { name, email, passwordHash, team, isActive: true },
-      update: { name, passwordHash, team, isActive: true },
+      // تغییر رمز: نشست‌های قبلی این کارشناس باطل و قفل ورود برداشته می‌شود
+      update: { name, passwordHash, team, isActive: true, tokenVersion: { increment: 1 }, failedLoginCount: 0, lockedUntil: null },
     });
     console.log(`OK: ${admin.email} (${admin.team}) — id ${admin.id}`);
   } finally {

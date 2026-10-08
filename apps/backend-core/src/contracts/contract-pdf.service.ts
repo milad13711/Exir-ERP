@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatJalaliDate, formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'پیش‌نویس',
@@ -55,6 +56,7 @@ export class ContractPdfService implements OnModuleDestroy {
   async render(contract: ContractForPdf, orgName: string, stamp?: CompanyStamp): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(contract, orgName, stamp), { waitUntil: 'load' });
       const pdf = await page.pdf({
@@ -95,8 +97,8 @@ function signatureBox(
   <div class="sig-box">
     <div class="sig-title">${escapeHtml(title)}</div>
     <div class="sig-images">
-      ${signatureDataUrl ? `<img class="sig-img" src="${signatureDataUrl}" />` : ''}
-      ${stampImageUrl ? `<img class="stamp-img" src="${stampImageUrl}" />` : ''}
+      ${signatureDataUrl ? `<img class="sig-img" src="${safeImgSrc(signatureDataUrl)}" />` : ''}
+      ${stampImageUrl ? `<img class="stamp-img" src="${safeImgSrc(stampImageUrl)}" />` : ''}
       ${!signatureDataUrl && !stampImageUrl ? '<div class="sig-empty">امضا نشده</div>' : ''}
     </div>
     ${signerName ? `<div class="sig-name">${escapeHtml(signerName)}</div>` : ''}

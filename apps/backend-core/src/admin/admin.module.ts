@@ -17,6 +17,7 @@ import { PushNotificationsModule } from '../notifications/push-notifications.mod
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { PublicModule } from '../public/public.module.js';
 import { ReferralMarketingModule } from '../referral-marketing/referral-marketing.module.js';
+import { AdminSecurityController } from './admin-security.controller.js';
 import { AdminResellersController } from './admin-resellers.controller.js';
 import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
 import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
@@ -36,6 +37,7 @@ import { ResellerApplicationsService } from './reseller-applications.service.js'
     AdminResellerApplicationsController,
     AdminSmsPackagesController,
     AdminResellersController,
+    AdminSecurityController,
   ],
   providers: [AdminAuthService, AdminSupportService, ResellerApplicationsService],
 })

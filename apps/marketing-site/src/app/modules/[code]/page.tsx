@@ -7,6 +7,7 @@ import { moduleContentOf, BRAND } from "@/lib/content";
 import { moduleTomanPricing, annualSupportPricing } from "@/lib/pricing";
 import { PricingTable } from "@/components/PricingTable";
 import { CategoryVisual } from "@/components/CategoryVisual";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const revalidate = 0;
 
@@ -70,8 +71,8 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ c
 
   return (
     <main className="flex-1">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
 
       <HeroBand>
         <div className="max-w-[900px] mx-auto px-6 py-16">

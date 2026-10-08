@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import { CheckIcon, TicketIcon, ShareIcon, WhatsAppIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -78,7 +79,7 @@ export function TicketViewClient({ tenantSlug, ticket, shareUrl }: { tenantSlug:
             {ticket.event.isOnline && ticket.event.onlineUrl && (
               <div className="flex justify-between">
                 <span className="text-muted">لینک آنلاین</span>
-                <a href={ticket.event.onlineUrl} target="_blank" rel="noreferrer" className="font-bold text-primary">
+                <a href={safeHref(ticket.event.onlineUrl)} target="_blank" rel="noreferrer" className="font-bold text-primary">
                   ورود به جلسه
                 </a>
               </div>

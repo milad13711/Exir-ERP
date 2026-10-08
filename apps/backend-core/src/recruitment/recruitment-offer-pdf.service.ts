@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatJalaliDate, formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
+import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 type OfferForPdf = {
   applicantName: string;
@@ -60,12 +61,12 @@ function buildHtml(offer: OfferForPdf, orgName: string, seal: { signatureImage?:
   </div>
   <div class="signatures">
     <div class="sig-box">
-      ${offer.candidateSignature ? `<img src="${offer.candidateSignature}" />` : ''}
+      ${offer.candidateSignature ? `<img src="${safeImgSrc(offer.candidateSignature)}" />` : ''}
       <div class="sig-label">امضای متقاضی — ${escapeHtml(offer.applicantName)}</div>
     </div>
     <div class="sig-box">
-      ${seal.stampImage ? `<img src="${seal.stampImage}" />` : ''}
-      ${seal.signatureImage ? `<img src="${seal.signatureImage}" />` : ''}
+      ${seal.stampImage ? `<img src="${safeImgSrc(seal.stampImage)}" />` : ''}
+      ${seal.signatureImage ? `<img src="${safeImgSrc(seal.signatureImage)}" />` : ''}
       <div class="sig-label">امضا و مهر شرکت${offer.signedByName ? ` — ${escapeHtml(offer.signedByName)}` : ''}${offer.signedAt ? ` — ${formatJalaliDate(offer.signedAt)}` : ''}</div>
     </div>
   </div>
@@ -93,6 +94,7 @@ export class RecruitmentOfferPdfService implements OnModuleDestroy {
   async render(offer: OfferForPdf, orgName: string, seal: { signatureImage?: string; stampImage?: string }): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    await hardenPage(page);
     try {
       await page.setContent(buildHtml(offer, orgName, seal), { waitUntil: 'load' });
       const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '18mm', bottom: '18mm', right: '16mm', left: '16mm' } });

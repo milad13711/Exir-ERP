@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { LogoMark, DocsIcon } from "@/components/icons";
 import { ProposalText } from "@/components/proposals/ProposalText";
@@ -186,7 +187,7 @@ export function PublicProposalClient({ slug, token }: { slug: string; token: str
                 {files.map((a) => (
                   <a
                     key={a.id}
-                    href={a.externalUrl ?? publicProposalFileUrl(slug, token, a.id)}
+                    href={a.externalUrl ? safeHref(a.externalUrl) : publicProposalFileUrl(slug, token, a.id)}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                     download={a.externalUrl ? undefined : a.title}

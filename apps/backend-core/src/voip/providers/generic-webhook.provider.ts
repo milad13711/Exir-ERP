@@ -1,3 +1,4 @@
+import { safeHttpRequest } from '../../security/ssrf.js';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { VoipProviderRegistryService } from '../voip-provider-registry.service.js';
 import type { CallEndedEvent, IncomingCallEvent, OriginateResult } from '../types.js';
@@ -65,13 +66,21 @@ export class GenericWebhookVoipProvider implements OnModuleInit {
           return { success: false, error: 'آدرس تریگر تماس خروجی برای این سرویس تنظیم نشده است' };
         }
         try {
-          const res = await fetch(originateUrl, {
+          // ضد SSRF: آدرس را تننت تعیین می‌کند
+          const res = await safeHttpRequest(originateUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fromExtension, toNumber }),
+            timeoutMs: 10_000,
           });
           if (!res.ok) return { success: false, error: `تریگر تماس خروجی خطا داد (HTTP ${res.status})` };
-          const data = (await res.json().catch(() => null)) as { callId?: string } | null;
+          const data = (() => {
+            try {
+              return JSON.parse(res.text) as { callId?: string };
+            } catch {
+              return null;
+            }
+          })();
           return { success: true, callId: data?.callId };
         } catch (err) {
           this.logger.error(`originateCall failed: ${err instanceof Error ? err.message : err}`);

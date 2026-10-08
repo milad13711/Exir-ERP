@@ -1,10 +1,9 @@
 import { Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { OnGatewayConnection, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
-import type { TenantJwtPayload } from '../auth/jwt-payload.type.js';
+import { SessionVerifierService } from '../security/session-verifier.service.js';
 
 /**
  * Live delivery for "the AI agent wants to do X — approve?" — same per-user
@@ -25,7 +24,7 @@ export class AiApprovalGateway implements OnGatewayConnection {
   private readonly logger = new Logger(AiApprovalGateway.name);
 
   constructor(
-    private readonly jwt: JwtService,
+    private readonly sessions: SessionVerifierService,
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
   ) {}
@@ -37,8 +36,7 @@ export class AiApprovalGateway implements OnGatewayConnection {
       return;
     }
     try {
-      const payload = await this.jwt.verifyAsync<TenantJwtPayload>(token);
-      if (payload.type !== 'tenant_user' || !payload.tenantId) throw new Error('توکن نامعتبر است');
+      const { payload } = await this.sessions.verifyTenantToken(token);
 
       const tenant = await this.controlDb.tenant.findUniqueOrThrow({ where: { id: payload.tenantId } });
       const tenantDb = this.tenantPrisma.forTenant(tenant);

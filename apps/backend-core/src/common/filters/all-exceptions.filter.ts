@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
+import { SecurityEventsService } from '../../security/security-events.service.js';
+import { clientIp } from '../../security/client-ip.js';
 
 /**
  * Every unhandled error in the API passes through here exactly once, so it
@@ -20,7 +22,10 @@ import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
-  constructor(private readonly controlDb: ControlPrismaService) {}
+  constructor(
+    private readonly controlDb: ControlPrismaService,
+    private readonly events: SecurityEventsService,
+  ) {}
 
   async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const ctx = host.switchToHttp();
@@ -33,6 +38,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ? exception.getResponse()
       : 'خطای داخلی سرور رخ داد. تیم فنی مطلع شد.';
 
+    // مسیر بدون query-string: ?secret=/توکن‌های داخل URL نه به کلاینت برگردانده می‌شوند و نه در لاگ می‌مانند.
+    const safePath = (req.originalUrl ?? '').split('?')[0];
+    const requestId = (req as Request & { requestId?: string }).requestId;
+
+    if (status === 403 && req.ctx) {
+      this.events.record({
+        type: 'PERMISSION_DENIED',
+        severity: 'INFO',
+        tenantId: req.ctx.tenantId,
+        actor: req.ctx.auth.sub,
+        ip: clientIp(req),
+        message: `403 ${req.method} ${safePath.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, ':id')}`,
+        dedupeKey: `${req.ctx.auth.sub}:${req.method}:${safePath}`,
+      });
+    }
+
     if (status >= 500) {
       const err = exception instanceof Error ? exception : new Error(String(exception));
       this.logger.error(err.message, err.stack);
@@ -44,7 +65,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             level: 'ERROR',
             message: err.message,
             stackTrace: err.stack,
-            context: { path: req.originalUrl, method: req.method },
+            context: { path: safePath, method: req.method, requestId },
           },
         });
       } catch (logErr) {
@@ -55,7 +76,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     res.status(status).json({
       statusCode: status,
-      path: req.originalUrl,
+      path: safePath,
+      ...(requestId ? { requestId } : {}),
       message: typeof message === 'string' ? message : (message as { message?: string }).message,
     });
   }

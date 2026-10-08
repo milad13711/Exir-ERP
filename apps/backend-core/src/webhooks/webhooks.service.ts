@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '../../generated/control-client/index.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { safeHttpRequest } from '../security/ssrf.js';
 import type { WebhookEvent } from './webhook-events.js';
 
 @Injectable()
@@ -38,11 +39,12 @@ export class WebhooksService {
   ): Promise<void> {
     const signature = createHmac('sha256', secret).update(body).digest('hex');
     try {
-      const res = await fetch(url, {
+      // safeHttpRequest: بدون ریدایرکت، ضد SSRF/DNS-rebinding (آدرس خصوصی/متادیتا در لحظه‌ی اتصال مسدود می‌شود)
+      const res = await safeHttpRequest(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Exir-Signature': `sha256=${signature}` },
         body,
-        signal: AbortSignal.timeout(8_000),
+        timeoutMs: 8_000,
       });
       await this.controlDb.webhookDelivery.create({
         data: {

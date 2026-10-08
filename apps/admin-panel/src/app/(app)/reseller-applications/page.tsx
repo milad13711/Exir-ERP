@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -129,7 +130,7 @@ export default function ResellerApplicationsPage() {
 
               {app.message ? <div className="text-[12px] text-ink-soft mt-2 leading-relaxed">{app.message}</div> : null}
               {app.websiteUrl ? (
-                <a href={app.websiteUrl} target="_blank" rel="noreferrer" className="text-[11.5px] text-primary mt-1 inline-block" dir="ltr">
+                <a href={safeHref(app.websiteUrl)} target="_blank" rel="noreferrer" className="text-[11.5px] text-primary mt-1 inline-block" dir="ltr">
                   {app.websiteUrl}
                 </a>
               ) : null}

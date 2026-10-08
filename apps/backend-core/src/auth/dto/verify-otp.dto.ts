@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
 
 export class VerifyOtpDto {
   @IsString()
@@ -6,7 +6,7 @@ export class VerifyOtpDto {
   phone!: string;
 
   @IsString()
-  @Length(4, 4, { message: 'کد تأیید باید ۴ رقم باشد' })
+  @Matches(/^(\d{4}|\d{6})$/, { message: 'کد تأیید باید ۴ یا ۶ رقم باشد' })
   code!: string;
 
   // اختیاری: وقتی حذف شود و این شماره عضو بیش از یک محیط کاری فعال باشد،

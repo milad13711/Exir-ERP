@@ -1,3 +1,4 @@
+import { isAppSecretsKeyConfigured, openSecret, sealSecret, smsAad } from '../security/app-secrets.js';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -44,14 +45,23 @@ export class TenantSmsService {
   async getConnection(tenantDb: TenantPrismaClient): Promise<SmsConnection> {
     const row = await tenantDb.moduleSetting.findUnique({ where: { moduleCode_key: SETTING_KEY } });
     const v = row?.value as { mode?: string; apiKey?: string; senderNumber?: string } | undefined;
-    if (v?.mode === 'OWN' && v.apiKey && v.senderNumber) return { mode: 'OWN', apiKey: v.apiKey, senderNumber: v.senderNumber };
+    if (v?.mode === 'OWN' && v.apiKey && v.senderNumber) {
+      const { value: apiKey, legacy } = openSecret(v.apiKey, smsAad());
+      if (legacy && isAppSecretsKeyConfigured()) {
+        // مهاجرت تنبل: کلید متن‌ساده‌ی قدیمی در اولین خواندن رمزشده بازنویسی می‌شود (best-effort).
+        await tenantDb.moduleSetting
+          .update({ where: { moduleCode_key: SETTING_KEY }, data: { value: { ...v, apiKey: sealSecret(apiKey, smsAad()) } } })
+          .catch(() => {});
+      }
+      return { mode: 'OWN', apiKey, senderNumber: v.senderNumber };
+    }
     if (v?.mode === 'LEGACY') return { mode: 'LEGACY' };
     if (v?.mode === 'SYSTEM') return { mode: 'SYSTEM', tenantId: (v as { tenantId?: string }).tenantId };
     return { mode: 'NONE' };
   }
 
   async setConnection(tenantDb: TenantPrismaClient, conn: SmsConnection): Promise<void> {
-    const value = conn as unknown as object;
+    const value = (conn.mode === 'OWN' ? { ...conn, apiKey: sealSecret(conn.apiKey, smsAad()) } : conn) as unknown as object;
     await tenantDb.moduleSetting.upsert({
       where: { moduleCode_key: SETTING_KEY },
       create: { ...SETTING_KEY, value },

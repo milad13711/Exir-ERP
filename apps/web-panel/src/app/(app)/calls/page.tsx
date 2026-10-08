@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -148,7 +149,7 @@ export default function CallHistoryPage() {
                         {missed ? "از دست رفته" : STATUS_LABEL[log.status]}
                       </Badge>
                       {log.recordingUrl ? (
-                        <a href={log.recordingUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-primary" title="پخش ضبط مکالمه">
+                        <a href={safeHref(log.recordingUrl)} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-primary" title="پخش ضبط مکالمه">
                           ▶
                         </a>
                       ) : null}

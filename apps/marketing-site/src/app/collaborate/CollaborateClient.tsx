@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { CheckIcon } from "@/components/icons";
 import { HeroBand } from "@/components/Ornaments";
@@ -233,7 +234,7 @@ function ResellerMap() {
             {selected.productCode ? <div className="text-[11.5px] font-bold text-primary mt-1">{PRODUCT_LABELS[selected.productCode]}</div> : null}
             {selected.bio ? <p className="text-[12px] text-ink-soft leading-relaxed mt-1.5">{selected.bio}</p> : null}
             {selected.websiteUrl ? (
-              <a href={selected.websiteUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[12px] font-bold text-primary underline underline-offset-2" dir="ltr">
+              <a href={safeHref(selected.websiteUrl)} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[12px] font-bold text-primary underline underline-offset-2" dir="ltr">
                 {selected.websiteUrl.replace(/^https?:\/\//, "")}
               </a>
             ) : null}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { safeHref } from "@/lib/safe-url";
 import { deleteEmployee } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
@@ -562,7 +563,7 @@ export function EmployeeModal({
                     key={d.id}
                     className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
                   >
-                    <a href={d.fileUrl} target="_blank" rel="noreferrer" className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                    <a href={safeHref(d.fileUrl, { allowData: true })} target="_blank" rel="noreferrer" className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
                       <div className="text-[12.5px] font-bold">{d.title}</div>
                       <div className="text-[11px] text-muted mt-0.5">
                         {DOC_TYPE_LABELS[d.type]} · {formatJalaliDate(d.uploadedAt)}

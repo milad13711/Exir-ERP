@@ -1,4 +1,8 @@
 import ExcelJS from 'exceljs';
+import { assertSafeZip, UnsafeArchiveError } from '../security/zip-guard.js';
+
+export { UnsafeArchiveError };
+const MAX_IMPORT_ROWS = 50_000;
 
 /**
  * Shared read/write core for every module's bulk Excel import/export —
@@ -21,10 +25,12 @@ export async function buildExcelBuffer(headers: string[], rows: Array<Record<str
 
 /** Reads the first sheet's rows as plain objects keyed by header text (row 1). Blank rows are skipped. */
 export async function parseExcelBuffer(buffer: Buffer): Promise<Array<Record<string, string | number | null>>> {
+  assertSafeZip(buffer); // zip-bomb: اندازه‌ی باز‌شده را از فهرست مرکزی می‌سنجد، پیش از decompress
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as never);
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
+  if (sheet.rowCount > MAX_IMPORT_ROWS) throw new UnsafeArchiveError('تعداد ردیف‌های فایل بیش از حد مجاز است');
 
   const headers: string[] = [];
   sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {

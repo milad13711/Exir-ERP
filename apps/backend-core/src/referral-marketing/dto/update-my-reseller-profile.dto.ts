@@ -1,4 +1,5 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsHttpUrl } from '../../common/validators/is-http-url.js';
 
 export class UpdateMyResellerProfileDto {
   /** عکس/لوگو به‌صورت data URI (فرانت قبل از ارسال کوچکش می‌کند) */
@@ -14,6 +15,7 @@ export class UpdateMyResellerProfileDto {
 
   @IsOptional()
   @IsString()
+  @IsHttpUrl()
   websiteUrl?: string;
 
   @IsOptional()

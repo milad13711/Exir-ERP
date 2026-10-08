@@ -16,3 +16,6 @@ keys/
 # macOS
 .DS_Store
 .claude/skills/
+
+# transient output of apps/backend-core/scripts/di-boot-check.sh
+.di-check/

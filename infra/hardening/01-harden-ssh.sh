@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# SSH hardening via drop-in. DRY-RUN by default.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+. "$HERE/lib.sh"
+
+DROPIN="/etc/ssh/sshd_config.d/99-exir-hardening.conf"
+MODE="dry"
+usage() {
+  cat <<USAGE
+Usage: sudo $0 [--apply | --rollback] [--help]
+  (default)   dry-run: validate and print the drop-in + diff, change nothing
+  --apply     write $DROPIN, run 'sshd -t', reload sshd (NOT restart)
+  --rollback  remove the drop-in (or restore latest backup) and reload sshd
+Pre-flight refuses to continue unless root/invoking user has an authorized_keys
+entry and 'sshd -t' passes on the new config. KEEP YOUR CURRENT SESSION OPEN and
+test a second login before closing it.
+USAGE
+}
+for a in "$@"; do
+  case "$a" in
+    --apply) MODE="apply";; --rollback) MODE="rollback";; -h|--help) usage; exit 0;;
+    *) usage; die "unknown arg: $a";;
+  esac
+done
+
+render() {
+cat <<CONF
+# Managed by Exir hardening kit (01-harden-ssh.sh). Remove file to roll back.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+MaxAuthTries 3
+MaxSessions 6
+LoginGraceTime 20
+X11Forwarding no
+AllowAgentForwarding no
+# AllowTcpForwarding left at default on purpose (owner may tunnel to Postgres etc.); set 'no' if not needed.
+ClientAliveInterval 300
+ClientAliveCountMax 2
+# Modern algorithms (OpenSSH 9.6 on Ubuntu 24.04)
+KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+CONF
+}
+
+have_keys() {
+  local f n=0 home
+  for f in /root/.ssh/authorized_keys ${SUDO_USER:+"$(getent passwd "$SUDO_USER" | cut -d: -f6)/.ssh/authorized_keys"}; do
+    [ -r "$f" ] || continue
+    home="$(grep -Ecv '^[[:space:]]*(#|$)' "$f" || true)"
+    n=$((n + home))
+    log "authorized_keys: $f has $home key line(s)"
+  done
+  [ "$n" -gt 0 ]
+}
+
+if [ "$MODE" = "rollback" ]; then
+  need_root
+  latest="$(ls -1t "$DROPIN".bak.* 2>/dev/null | head -n1 || true)"
+  if [ -n "$latest" ]; then cp -a -- "$latest" "$DROPIN"; log "restored $latest"
+  else rm -f -- "$DROPIN"; log "removed $DROPIN"; fi
+  sshd -t || die "sshd -t failed after rollback; fix manually"
+  systemctl reload ssh 2>/dev/null || systemctl reload sshd
+  log "sshd reloaded"; exit 0
+fi
+
+have sshd || die "sshd not found (run on the server)"
+tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+render >"$tmp"
+
+echo "---- diff vs current $DROPIN ----"
+diff -u "${DROPIN}" "$tmp" 2>/dev/null || [ -e "$DROPIN" ] || cat "$tmp"
+echo "---- end ----"
+echo "Effective values that would be overridden today:"
+sshd -T 2>/dev/null | grep -Ei '^(passwordauthentication|permitrootlogin|maxauthtries|x11forwarding)' || true
+
+if [ "$MODE" = "dry" ]; then
+  log "DRY-RUN only. Re-run with --apply (as root) to apply."
+  exit 0
+fi
+
+need_root
+have_keys || die "no authorized_keys entries for root/invoking user - refusing (you would lock yourself out)"
+# Warn if main config has Include missing: drop-ins are ignored then.
+grep -Eq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/' /etc/ssh/sshd_config \
+  || die "/etc/ssh/sshd_config lacks 'Include /etc/ssh/sshd_config.d/*.conf'; drop-in would be ignored"
+# Note: first-value-wins in sshd; 50-cloud-init.conf may set PasswordAuthentication yes and sorts BEFORE 99.
+for f in /etc/ssh/sshd_config.d/*.conf; do
+  [ "$f" = "$DROPIN" ] && continue
+  if grep -Eqi '^[[:space:]]*PasswordAuthentication[[:space:]]+yes' "$f" 2>/dev/null; then
+    warn "$f sets PasswordAuthentication yes and is read before ours (first value wins)."
+    warn "  Our file would be ineffective. Edit it, or rename ours to 00-exir-hardening.conf. Aborting."
+    die "conflicting drop-in: $f"
+  fi
+done
+
+backup_file "$DROPIN"
+install -m 0644 -o root -g root "$tmp" "$DROPIN"
+if ! sshd -t; then
+  warn "sshd -t FAILED, reverting"
+  latest="$(ls -1t "$DROPIN".bak.* 2>/dev/null | head -n1 || true)"
+  if [ -n "$latest" ]; then cp -a -- "$latest" "$DROPIN"; else rm -f -- "$DROPIN"; fi
+  die "config invalid; reverted"
+fi
+systemctl reload ssh 2>/dev/null || systemctl reload sshd
+log "sshd reloaded with $DROPIN"
+echo "!!! DO NOT CLOSE THIS SESSION !!!"
+echo "Open a SECOND terminal now and verify:  ssh -o PreferredAuthentications=publickey root@<server>"
+echo "Only if it works, close the old one. If not:  sudo $0 --rollback"

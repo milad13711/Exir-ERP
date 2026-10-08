@@ -1,0 +1,55 @@
+# /etc/fail2ban/jail.d/exir.local
+[DEFAULT]
+# NEVER ban: localhost, the owner's static IPs, and CDN edge ranges.
+# Replace OWNER_IP_PLACEHOLDER (space separated). ArvanCloud/Cloudflare ranges:
+# refresh via nginx/refresh-cdn-ranges.sh and paste here if nginx logs show CDN IPs
+# (but with real-ip.conf in place nginx logs the real client IP, which is what we want to ban).
+ignoreip = 127.0.0.1/8 ::1 OWNER_IP_PLACEHOLDER
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+backend  = auto
+# Escalate repeat offenders
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1w
+# Use nftables if ufw uses iptables-nft (Ubuntu 24.04 default). 'ufw' action keeps ufw rules coherent.
+banaction = ufw
+banaction_allports = ufw
+
+[sshd]
+enabled  = true
+port     = ssh
+mode     = aggressive
+maxretry = 4
+findtime = 10m
+bantime  = 2h
+
+# --- nginx jails: REQUIRE the host nginx to log the REAL client IP (see nginx/real-ip.conf).
+# Otherwise CDN-fronted vhosts would log the CDN IP and we would ban the edge. ---
+[exir-nginx-auth]
+enabled  = false   # set true ONLY after nginx real-ip.conf is active (README step 5)
+port     = http,https
+filter   = exir-nginx-auth
+logpath  = /var/log/nginx/*access.log
+maxretry = 15
+findtime = 5m
+bantime  = 1h
+
+[exir-nginx-limit]
+enabled  = false   # set true ONLY after nginx real-ip.conf is active (README step 5)
+port     = http,https
+filter   = exir-nginx-limit
+logpath  = /var/log/nginx/*access.log
+maxretry = 30
+findtime = 5m
+bantime  = 30m
+
+[exir-nginx-probe]
+enabled  = false   # set true ONLY after nginx real-ip.conf is active (README step 5)
+port     = http,https
+filter   = exir-nginx-probe
+logpath  = /var/log/nginx/*access.log
+maxretry = 3
+findtime = 10m
+bantime  = 1d

@@ -18,6 +18,7 @@ import {
   requestOtp,
   verifyOtp,
   selectTenant,
+  verifyTotpLogin,
   setToken,
   ApiError,
   fetchPublicIndustryTemplates,
@@ -34,14 +35,18 @@ const TEMPLATE_ICONS: Record<string, typeof StoreIcon> = {
   "wholesale-distribution": WarehouseIcon,
 };
 
-const OTP_LENGTH = 4;
+const DEFAULT_OTP_LENGTH = 4; // سرور در پاسخ requestOtp طول واقعی (۴ یا ۶) را می‌فرستد
 const RESEND_SECONDS = 48;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"phone" | "otp" | "tenant">("phone");
+  const [step, setStep] = useState<"phone" | "otp" | "tenant" | "totp">("phone");
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
+  const [otpLength, setOtpLength] = useState(DEFAULT_OTP_LENGTH);
+  const OTP_LENGTH = otpLength;
+  const [otp, setOtp] = useState<string[]>(Array(DEFAULT_OTP_LENGTH).fill(""));
+  const [totpToken, setTotpToken] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +71,12 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await requestOtp(phone.trim());
+      const len = res.codeLength === 6 ? 6 : DEFAULT_OTP_LENGTH;
       setDevCode(res.devCode ?? null);
+      setOtpLength(len);
       setStep("otp");
       setSecondsLeft(RESEND_SECONDS);
-      setOtp(Array(OTP_LENGTH).fill(""));
+      setOtp(Array(len).fill(""));
       setTimeout(() => inputsRef.current[0]?.focus(), 0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ارسال کد با خطا مواجه شد");
@@ -108,6 +115,12 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await verifyOtp(phone.trim(), otp.join(""));
+      if ("requiresTotp" in res) {
+        setTotpToken(res.totpToken);
+        setTotpCode("");
+        setStep("totp");
+        return;
+      }
       if ("requiresTenantSelection" in res) {
         setTenantOptions(res.tenants);
         setVerificationToken(res.verificationToken);
@@ -128,6 +141,27 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await selectTenant(verificationToken, slug);
+      if ("requiresTotp" in res) {
+        setTotpToken(res.totpToken);
+        setTotpCode("");
+        setStep("totp");
+        return;
+      }
+      setToken(res.accessToken);
+      router.push(res.billingLocked ? "/billing-locked" : "/dashboard");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ورود با خطا مواجه شد");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTotpSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await verifyTotpLogin(totpToken, totpCode.trim());
       setToken(res.accessToken);
       router.push(res.billingLocked ? "/billing-locked" : "/dashboard");
     } catch (err) {
@@ -202,7 +236,32 @@ export default function LoginPage() {
             <LogoMark className="w-12 h-12 shadow-md" />
             <span className="text-xl font-extrabold">اکسیر ERP</span>
           </div>
-          {step === "tenant" ? (
+          {step === "totp" ? (
+            <form onSubmit={handleTotpSubmit}>
+              <div className="text-[13px] text-muted mb-2">ورود به حساب کاربری</div>
+              <div className="text-2xl font-extrabold mb-1.5">تأیید دومرحله‌ای</div>
+              <div className="text-sm text-ink-soft leading-relaxed mb-6">
+                کد ۶ رقمی برنامه‌ی احراز هویت (یا یکی از کدهای بازیابی) را وارد کنید.
+              </div>
+              <input
+                autoFocus
+                dir="ltr"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                className="w-full rounded-2xl border-2 border-border px-4 py-4 text-xl text-center font-bold outline-none focus:border-primary mb-3"
+              />
+              {error ? <div className="text-[13px] text-danger font-semibold mb-3">{error}</div> : null}
+              <button
+                type="submit"
+                disabled={totpCode.trim().length < 6 || submitting}
+                className="w-full py-4 rounded-2xl bg-primary text-white text-base font-bold disabled:opacity-40"
+              >
+                {submitting ? "در حال بررسی..." : "تأیید و ورود"}
+              </button>
+            </form>
+          ) : step === "tenant" ? (
             <div>
               <div className="text-[13px] text-muted mb-2">ورود به حساب کاربری</div>
               <div className="text-2xl font-extrabold mb-1.5">محیط کاری را انتخاب کنید</div>

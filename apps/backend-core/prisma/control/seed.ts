@@ -1220,32 +1220,56 @@ async function main() {
     });
   }
 
-  const superAdminEmail = 'admin@exir.co';
-  const superAdminPassword = 'ExirAdmin123!';
-  await db.adminUser.upsert({
-    where: { email: superAdminEmail },
-    create: {
-      name: 'مدیر ارشد اکسیر',
-      email: superAdminEmail,
-      passwordHash: await bcrypt.hash(superAdminPassword, 10),
-      team: 'SUPER_ADMIN',
-    },
-    update: {},
-  });
-  await db.adminUser.upsert({
-    where: { email: 'support@exir.co' },
-    create: {
-      name: 'علیرضا کاظمی',
-      email: 'support@exir.co',
-      passwordHash: await bcrypt.hash('ExirSupport123!', 10),
-      team: 'SUPPORT',
-    },
-    update: {},
-  });
-
-  console.log('Seed complete.');
-  console.log(`  super admin: ${superAdminEmail} / ${superAdminPassword}`);
-  console.log('  support staff: support@exir.co / ExirSupport123!');
+  // ── حساب‌های کارشناسی ────────────────────────────────────────────────────
+  // امنیتی: این seed روی هر استارت کانتینر اجرا می‌شود. حساب‌های پیش‌فرض با رمز شناخته‌شده‌ی داخل مخزن
+  // (admin@exir.co / support@exir.co) فقط در توسعه ساخته می‌شوند — در production هرگز.
+  //   production + SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD(≥۱۲ نویسه) → همان یک مدیر ارشد (فقط اگر وجود ندارد؛ update خالی)
+  //   production + هیچ ادمینی نیست و env داده نشده → مدیر ارشد bootstrap با رمز تصادفی که فقط یک‌بار در لاگ چاپ می‌شود
+  //   production + ادمینی هست → هیچ کاری (حساب موجود دست نمی‌خورد)
+  const isProd = process.env.NODE_ENV === 'production' && process.env.SEED_DEFAULT_ADMINS !== 'true';
+  if (!isProd) {
+    const superAdminPassword = 'ExirAdmin123!';
+    await db.adminUser.upsert({
+      where: { email: 'admin@exir.co' },
+      create: { name: 'مدیر ارشد اکسیر', email: 'admin@exir.co', passwordHash: await bcrypt.hash(superAdminPassword, 10), team: 'SUPER_ADMIN' },
+      update: {},
+    });
+    await db.adminUser.upsert({
+      where: { email: 'support@exir.co' },
+      create: { name: 'علیرضا کاظمی', email: 'support@exir.co', passwordHash: await bcrypt.hash('ExirSupport123!', 10), team: 'SUPPORT' },
+      update: {},
+    });
+    console.log('Seed complete (DEV accounts: see apps/backend-core/README.md — never use these in production).');
+  } else {
+    const email = process.env.SEED_ADMIN_EMAIL?.trim();
+    const password = process.env.SEED_ADMIN_PASSWORD;
+    const existing = await db.adminUser.count();
+    if (email && password) {
+      if (password.length < 12 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+        console.error('SEED_ADMIN_PASSWORD باید حداقل ۱۲ نویسه و شامل حرف و عدد باشد؛ ادمین ساخته نشد.');
+      } else {
+        await db.adminUser.upsert({
+          where: { email },
+          create: { name: 'مدیر ارشد', email, passwordHash: await bcrypt.hash(password, 12), team: 'SUPER_ADMIN' },
+          update: {},
+        });
+        console.log(`Seed complete (super admin ${email} ensured).`);
+      }
+    } else if (existing === 0) {
+      const { randomBytes } = await import('node:crypto');
+      const bootstrapPassword = randomBytes(18).toString('base64url');
+      await db.adminUser.create({
+        data: { name: 'مدیر ارشد (bootstrap)', email: 'admin@exir.co', passwordHash: await bcrypt.hash(bootstrapPassword, 12), team: 'SUPER_ADMIN' },
+      });
+      console.log('==========================================================================');
+      console.log(' هیچ ادمینی وجود نداشت؛ مدیر ارشد bootstrap ساخته شد (فقط همین یک‌بار نمایش داده می‌شود):');
+      console.log(`   email: admin@exir.co   password: ${bootstrapPassword}`);
+      console.log(' فوراً با create-admin-user.js رمز را عوض کنید و 2FA فعال کنید.');
+      console.log('==========================================================================');
+    } else {
+      console.log('Seed complete (admin accounts untouched).');
+    }
+  }
 }
 
 main()
