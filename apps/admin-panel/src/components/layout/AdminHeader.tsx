@@ -11,7 +11,7 @@ import { PushNotificationsButton } from "./PushNotificationsButton";
 import { NAV_ITEMS } from "./nav-items";
 
 export function AdminHeader() {
-  const { admin, logout } = useAdmin();
+  const { admin, logout, mustChangePassword } = useAdmin();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -27,7 +27,7 @@ export function AdminHeader() {
             </div>
           </Link>
           <nav className="hidden lg:flex items-center gap-0.5">
-            {NAV_ITEMS.map((item) => {
+            {(mustChangePassword ? [] : NAV_ITEMS.filter((i) => !i.superOnly || admin?.team === "SUPER_ADMIN")).map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
@@ -70,6 +70,13 @@ export function AdminHeader() {
                     <div className="text-[13px] font-bold">{admin?.name}</div>
                     <div className="text-[11px] text-muted">{admin?.team}</div>
                   </div>
+                  <Link
+                    href="/account"
+                    onClick={() => setMenuOpen(false)}
+                    className="block w-full text-start px-3.5 py-2.5 text-[13px] font-semibold text-ink-soft hover:bg-slate-100"
+                  >
+                    حساب من
+                  </Link>
                   <button
                     type="button"
                     onClick={logout}

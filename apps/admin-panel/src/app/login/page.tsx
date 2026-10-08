@@ -29,10 +29,11 @@ export default function AdminLoginPage() {
         setPassword("");
         return;
       }
-      const { accessToken, admin } = res;
+      const { accessToken, admin, mustChangePassword } = res;
       setToken(accessToken);
-      persistAdmin(admin);
-      router.replace("/tenants");
+      persistAdmin(admin, !!mustChangePassword);
+      // رمز پیش‌فرض/یک‌بارمصرف: نشست محدود است و فقط صفحه‌ی تغییر رمز کار می‌کند
+      router.replace(mustChangePassword ? "/account" : "/tenants");
     } catch (err) {
       if (challengeToken && err instanceof ApiError && err.status === 401 && /مهلت/.test(err.message)) setChallengeToken(null);
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");

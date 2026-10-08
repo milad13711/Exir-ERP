@@ -1,11 +1,13 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import QRCode from 'qrcode';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import type { AdminJwtPayload } from '../auth/jwt-payload.type.js';
 import { SecurityEventsService } from '../security/security-events.service.js';
 import { SessionEpochService } from '../security/session-epoch.service.js';
 import { AppSecretsKeyMissingError, openSecret, sealSecret, totpAad } from '../security/app-secrets.js';
+import { isKnownDefaultPassword, validateAdminPassword } from './admin-password-policy.js';
 import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, otpauthUrl, verifyTotp } from '../security/totp.js';
 
 const MAX_FAILED = 5;
@@ -13,11 +15,11 @@ const LOCK_MS = 15 * 60 * 1000;
 const CHALLENGE_TTL_S = 5 * 60;
 // هش ساختگی برای مقایسه‌ی هم‌زمان وقتی ایمیل وجود ندارد → زمان پاسخ، وجود ایمیل را لو نمی‌دهد
 const DUMMY_HASH = bcrypt.hashSync('exir-dummy-password-for-timing', 10);
-// رمزهای پیش‌فرضِ داخل مخزن (seed/README قدیمی) — در production حتی با ورودِ درست پذیرفته نمی‌شوند.
-const KNOWN_DEFAULT_PASSWORDS = new Set(['ExirAdmin123!', 'ExirSupport123!']);
+const BCRYPT_COST = 12;
+const RESTRICTED_TOKEN_TTL_S = 30 * 60;
 const GENERIC_FAIL = 'ایمیل یا رمز عبور اشتباه است';
 
-type LoginOk = { accessToken: string; admin: { id: string; name: string; team: string } };
+type LoginOk = { accessToken: string; mustChangePassword: boolean; admin: { id: string; name: string; team: string } };
 export type AdminLoginResult = LoginOk | { requiresTotp: true; challengeToken: string };
 
 type ChallengePayload = { type: 'admin_totp_challenge'; sub: string };
@@ -35,15 +37,18 @@ export class AdminAuthService {
     return Number(process.env.ADMIN_JWT_EXPIRES_IN_SECONDS) || 12 * 3600;
   }
 
-  private async issueToken(admin: { id: string; name: string; team: string; tokenVersion: number }): Promise<LoginOk> {
+  /** نشستِ محدود (mcp) برای حساب‌های دارای رمز پیش‌فرض/یک‌بارمصرف: عمر کوتاه‌تر و فقط مسیرهای تغییر رمز. */
+  private async issueToken(admin: { id: string; name: string; team: string; tokenVersion: number; mustChangePassword?: boolean }): Promise<LoginOk> {
+    const restricted = admin.mustChangePassword === true;
     const payload: AdminJwtPayload = {
       sub: admin.id,
       team: admin.team,
       isAdmin: true,
       tv: await this.epoch.effective(admin.tokenVersion),
+      ...(restricted ? { mcp: true as const } : {}),
     };
-    const accessToken = await this.jwt.signAsync(payload, { expiresIn: this.adminTokenTtl() });
-    return { accessToken, admin: { id: admin.id, name: admin.name, team: admin.team } };
+    const accessToken = await this.jwt.signAsync(payload, { expiresIn: restricted ? Math.min(RESTRICTED_TOKEN_TTL_S, this.adminTokenTtl()) : this.adminTokenTtl() });
+    return { accessToken, mustChangePassword: restricted, admin: { id: admin.id, name: admin.name, team: admin.team } };
   }
 
   private assertNotLocked(admin: { lockedUntil: Date | null }): void {
@@ -81,16 +86,18 @@ export class AdminAuthService {
       await this.registerFailure(admin, ip, 'password');
       throw new UnauthorizedException(GENERIC_FAIL);
     }
-    if (process.env.NODE_ENV === 'production' && process.env.ADMIN_ALLOW_DEFAULT_PASSWORDS !== 'true' && KNOWN_DEFAULT_PASSWORDS.has(password)) {
-      this.events.record({ type: 'CONFIG_INSECURE', severity: 'FATAL', ip, actor: admin.id, message: 'admin login blocked: account still uses a repository-default password — rotate with create-admin-user' });
-      throw new ForbiddenException('این حساب هنوز رمز پیش‌فرض دارد و ورود مسدود شد. روی سرور با create-admin-user رمز را عوض کنید (docs/security/runbook-incident.md).');
+    // رمز پیش‌فرضِ منتشرشده در production: ورود مجاز است اما فقط با نشست محدود تا رمز عوض شود (قفل‌شدن مالک جلوگیری می‌شود).
+    if (process.env.NODE_ENV === 'production' && isKnownDefaultPassword(password) && !admin.mustChangePassword) {
+      await this.controlDb.adminUser.update({ where: { id: admin.id }, data: { mustChangePassword: true } });
+      admin.mustChangePassword = true;
+      this.events.record({ type: 'CONFIG_INSECURE', severity: 'FATAL', ip, actor: admin.id, message: 'admin logged in with a repository-default password — session restricted until the password is changed' });
     }
     if (admin.totpEnabledAt && admin.totpSecretEnc) {
       const challengePayload: ChallengePayload = { type: 'admin_totp_challenge', sub: admin.id };
       const challengeToken = await this.jwt.signAsync(challengePayload, { expiresIn: CHALLENGE_TTL_S });
       return { requiresTotp: true, challengeToken };
     }
-    await this.controlDb.adminUser.update({ where: { id: admin.id }, data: { failedLoginCount: 0, lockedUntil: null } });
+    await this.controlDb.adminUser.update({ where: { id: admin.id }, data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } });
     this.events.record({ type: 'LOGIN_SUCCESS', severity: 'INFO', ip, actor: admin.id, message: 'admin login (no 2FA)' });
     return this.issueToken(admin);
   }
@@ -115,7 +122,7 @@ export class AdminAuthService {
       // به‌روزرسانی شرطی: دو درخواست هم‌زمان با یک کد، فقط یکی موفق می‌شود
       const upd = await this.controlDb.adminUser.updateMany({
         where: { id: admin.id, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
-        data: { totpLastStep: step, failedLoginCount: 0, lockedUntil: null },
+        data: { totpLastStep: step, failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
       });
       ok = upd.count === 1;
     } else {
@@ -123,7 +130,7 @@ export class AdminAuthService {
       if (admin.recoveryCodeHashes.includes(h)) {
         const upd = await this.controlDb.adminUser.updateMany({
           where: { id: admin.id, recoveryCodeHashes: { has: h } },
-          data: { recoveryCodeHashes: admin.recoveryCodeHashes.filter((x) => x !== h), failedLoginCount: 0, lockedUntil: null },
+          data: { recoveryCodeHashes: admin.recoveryCodeHashes.filter((x) => x !== h), failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
         });
         ok = upd.count === 1;
         if (ok) this.events.record({ type: 'LOGIN_SUCCESS', severity: 'WARNING', ip, actor: admin.id, message: 'admin login with RECOVERY code', context: { remaining: admin.recoveryCodeHashes.length - 1 } });
@@ -136,6 +143,75 @@ export class AdminAuthService {
     }
     this.events.record({ type: 'LOGIN_SUCCESS', severity: 'INFO', ip, actor: admin.id, message: 'admin login (2FA)' });
     return this.issueToken(admin);
+  }
+
+  // ── حساب من: پروفایل و رمز عبور ────────────────────────────────────────
+
+  async me(adminId: string) {
+    const a = await this.controlDb.adminUser.findUniqueOrThrow({ where: { id: adminId } });
+    return {
+      id: a.id,
+      name: a.name,
+      email: a.email,
+      team: a.team,
+      totpEnabled: !!a.totpEnabledAt,
+      mustChangePassword: a.mustChangePassword,
+      lastLoginAt: a.lastLoginAt ?? null,
+    };
+  }
+
+  /** بررسی رمز فعلی با همان شمارنده/قفل ورود (۵ شکست → ۱۵ دقیقه قفل). */
+  private async verifyCurrentPassword(admin: { id: string; email: string; passwordHash: string; failedLoginCount: number; lockedUntil: Date | null }, password: string, ip: string | undefined): Promise<void> {
+    this.assertNotLocked(admin);
+    if (!(await bcrypt.compare(password, admin.passwordHash))) {
+      await this.registerFailure(admin, ip, 'current-password');
+      throw new UnauthorizedException('رمز عبور فعلی اشتباه است');
+    }
+  }
+
+  private audit(adminId: string, action: string, metadata: Record<string, unknown>) {
+    return this.controlDb.auditLog.create({
+      data: { actorType: 'admin_user', actorId: adminId, action, entityType: 'AdminUser', entityId: adminId, metadata: metadata as never },
+    });
+  }
+
+  async changePassword(adminId: string, currentPassword: string, newPassword: string, ip?: string): Promise<LoginOk> {
+    const a = await this.controlDb.adminUser.findUniqueOrThrow({ where: { id: adminId } });
+    await this.verifyCurrentPassword(a, currentPassword, ip);
+    const problem = validateAdminPassword(newPassword, { email: a.email, currentPassword });
+    if (problem) throw new BadRequestException(problem);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+    // افزایش tokenVersion = ابطال همه‌ی نشست‌ها (از جمله نشست محدود)؛ توکن تازه فقط برای همین نشست برگردانده می‌شود
+    const updated = await this.controlDb.adminUser.update({
+      where: { id: a.id },
+      data: { passwordHash, mustChangePassword: false, tokenVersion: { increment: 1 }, failedLoginCount: 0, lockedUntil: null },
+    });
+    await this.audit(a.id, 'admin_user.password_changed', { wasForced: a.mustChangePassword });
+    this.events.record({ type: 'PASSWORD_CHANGED', severity: 'INFO', ip, actor: a.id, message: 'admin changed own password; other sessions revoked' });
+    return this.issueToken(updated);
+  }
+
+  async updateProfile(adminId: string, dto: { name?: string; email?: string; currentPassword?: string }, ip?: string) {
+    const a = await this.controlDb.adminUser.findUniqueOrThrow({ where: { id: adminId } });
+    const data: { name?: string; email?: string } = {};
+    const changed: string[] = [];
+    if (dto.name !== undefined && dto.name.trim() && dto.name.trim() !== a.name) {
+      data.name = dto.name.trim();
+      changed.push('name');
+    }
+    const newEmail = dto.email?.trim().toLowerCase();
+    if (newEmail && newEmail !== a.email.toLowerCase()) {
+      if (!dto.currentPassword) throw new BadRequestException('برای تغییر ایمیل، رمز عبور فعلی را وارد کنید');
+      await this.verifyCurrentPassword(a, dto.currentPassword, ip);
+      const clash = await this.controlDb.adminUser.findFirst({ where: { email: { equals: newEmail, mode: 'insensitive' }, NOT: { id: a.id } }, select: { id: true } });
+      if (clash) throw new ConflictException('این ایمیل برای کاربر دیگری ثبت شده است');
+      data.email = newEmail;
+      changed.push('email');
+    }
+    if (!changed.length) return this.me(a.id);
+    await this.controlDb.adminUser.update({ where: { id: a.id }, data });
+    await this.audit(a.id, 'admin_user.profile_updated', { fields: changed, ...(data.email ? { previousEmail: a.email, newEmail: data.email } : {}) });
+    return this.me(a.id);
   }
 
   // ── مدیریت 2FA (کارشناس واردشده) ─────────────────────────────────────────
@@ -155,7 +231,10 @@ export class AdminAuthService {
       if (err instanceof AppSecretsKeyMissingError) throw new HttpException('APP_SECRETS_KEY روی سرور تنظیم نشده است', HttpStatus.SERVICE_UNAVAILABLE);
       throw err;
     }
-    return { secret, otpauthUrl: otpauthUrl(a.email, secret) };
+    const url = otpauthUrl(a.email, secret);
+    // QR سمت سرور و بدون شبکه ساخته می‌شود؛ فقط مسیرهای SVG دارد (بدون متن/اسکریپت)
+    const qrSvg = await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
+    return { secret, otpauthUrl: url, qrSvg };
   }
 
   async enable(adminId: string, code: string) {

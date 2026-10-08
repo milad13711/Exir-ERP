@@ -18,6 +18,8 @@ export type AdminJwtPayload = {
   isAdmin: true;
   /** epoch سراسری + tokenVersion کارشناس هنگام صدور */
   tv?: number;
+  /** نشست محدود: رمز پیش‌فرض/یک‌بارمصرف؛ فقط /admin/auth/me و /admin/auth/change-password پذیرفته می‌شود */
+  mcp?: true;
 };
 
 /**

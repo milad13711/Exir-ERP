@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 import { BuildingIcon, PackageIcon, ChatIcon, CheckIcon, TargetIcon, ReceiptIcon, UsersIcon, KeyIcon, LogIcon, ShieldIcon } from "@/components/icons";
 
-export type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> };
+export type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>>; superOnly?: boolean };
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/tenants", label: "تننت‌ها", icon: BuildingIcon },
@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/licenses", label: "لایسنس‌ها", icon: KeyIcon },
   { href: "/logs", label: "لاگ‌ها", icon: LogIcon },
   { href: "/security", label: "امنیت", icon: ShieldIcon },
+  { href: "/team", label: "کاربران پلتفرم", icon: UsersIcon, superOnly: true },
   { href: "/backups", label: "بکاپ و بازیابی", icon: ShieldIcon },
 ];
 

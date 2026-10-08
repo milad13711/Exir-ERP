@@ -128,6 +128,32 @@ describe('AdminJwtAuthGuard', () => {
   }
   const adminToken = (extra: Record<string, unknown> = {}) => jwt.signAsync({ sub: 'a1', team: 'SUPER_ADMIN', isAdmin: true, ...extra });
 
+  it('restricted (mcp / mustChangePassword) sessions: only me, change-password, logout; everything else is 403 PASSWORD_CHANGE_REQUIRED', async () => {
+    const call = async (guard: AdminJwtAuthGuard, token: string, method: string, path: string) => {
+      const c = ctxFor(token, path);
+      c.req.method = method;
+      return guard.canActivate(c.context);
+    };
+    const tok = await adminToken({ tv: 0, mcp: true });
+    const g = make();
+    await expect(call(g, tok, 'GET', '/api/admin/auth/me')).resolves.toBe(true);
+    await expect(call(g, tok, 'POST', '/api/admin/auth/change-password')).resolves.toBe(true);
+    for (const [m, p] of [['GET', '/api/admin/tenants'], ['POST', '/api/admin/auth/2fa/setup'], ['PATCH', '/api/admin/auth/profile'], ['GET', '/api/admin/users'], ['GET', '/api/admin/auth/me/../tenants']] as const) {
+      await expect(call(g, tok, m, p)).rejects.toMatchObject({ status: 403, response: expect.objectContaining({ code: 'PASSWORD_CHANGE_REQUIRED' }) });
+    }
+    // DB flag alone (e.g. an old unrestricted token after a reset that did not bump) also restricts
+    const flagged = make({ admin: { id: 'a1', isActive: true, tokenVersion: 0, totpEnabledAt: null, mustChangePassword: true } });
+    await expect(call(flagged, await adminToken({ tv: 0 }), 'GET', '/api/admin/tenants')).rejects.toMatchObject({ status: 403 });
+    // a normal session is unaffected
+    await expect(call(g, await adminToken({ tv: 0 }), 'GET', '/api/admin/tenants')).resolves.toBe(true);
+  });
+
+  it('tokens issued before a password change (lower tv) are revoked', async () => {
+    const bumped = make({ admin: { id: 'a1', isActive: true, tokenVersion: 1, totpEnabledAt: null } });
+    await expect(bumped.canActivate(ctxFor(await adminToken({ tv: 0 })).context)).rejects.toMatchObject({ status: 401 });
+    await expect(bumped.canActivate(ctxFor(await adminToken({ tv: 1 })).context)).resolves.toBe(true);
+  });
+
   it('accepts a valid admin token; rejects tenant tokens, alg none, revoked epoch and inactive admins', async () => {
     await expect(make().canActivate(ctxFor(await adminToken({ tv: 0 })).context)).resolves.toBe(true);
     await expect(make().canActivate(ctxFor(await jwt.signAsync({ type: 'tenant_user', sub: 'u', tenantId: 't1', membershipId: 'm1' })).context)).rejects.toMatchObject({ status: 401 });

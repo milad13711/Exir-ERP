@@ -36,6 +36,8 @@ export class SessionVerifierService {
     const admin = await this.controlDb.adminUser.findUnique({ where: { id: payload.sub } });
     if (!admin || !admin.isActive) throw new Error('حساب کارشناسی غیرفعال است');
     if ((payload.tv ?? 0) < (await this.epoch.effective(admin.tokenVersion))) throw new Error('نشست باطل شده است');
+    // نشست محدود (تغییر رمز اجباری) به کانال‌های زنده (سوکت) دسترسی ندارد
+    if (payload.mcp === true || admin.mustChangePassword) throw new Error('ابتدا رمز عبور را تغییر دهید');
     return { payload };
   }
 }

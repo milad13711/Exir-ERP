@@ -5,16 +5,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { MenuIcon, CloseIcon } from "@/components/icons";
+import { useAdmin } from "@/lib/admin-context";
 import { NAV_ITEMS, PRIMARY_NAV_HREFS } from "./nav-items";
 
 /** نوار پایین موبایل: چهار بخش اصلی + «بیشتر» برای بقیه. روی دسکتاپ نمایش داده نمی‌شود. */
 export function AdminBottomNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const primary = NAV_ITEMS.filter((i) => PRIMARY_NAV_HREFS.includes(i.href));
-  const rest = NAV_ITEMS.filter((i) => !PRIMARY_NAV_HREFS.includes(i.href));
+  const { admin, mustChangePassword } = useAdmin();
+  const visible = NAV_ITEMS.filter((i) => !i.superOnly || admin?.team === "SUPER_ADMIN");
+  const primary = visible.filter((i) => PRIMARY_NAV_HREFS.includes(i.href));
+  const rest = visible.filter((i) => !PRIMARY_NAV_HREFS.includes(i.href));
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const moreActive = rest.some((i) => isActive(i.href));
+
+  if (mustChangePassword) return null;
 
   return (
     <>

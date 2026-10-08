@@ -402,6 +402,9 @@ model AdminUser {
   totpEnabledAt      DateTime?
   totpLastStep       Int?
   recoveryCodeHashes String[] @default([])
+  /// رمز پیش‌فرض/یک‌بارمصرف: تا تغییر رمز فقط /admin/auth/me و /admin/auth/change-password مجازند
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
 
   assignedTickets SupportTicket[]
   issuedLicenses  License[]

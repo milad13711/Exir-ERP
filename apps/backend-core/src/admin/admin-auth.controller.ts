@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminAuthService } from './admin-auth.service.js';
 import { AdminLoginDto } from './dto/admin-login.dto.js';
 import { AdminTotpDisableDto, AdminTotpEnableDto, AdminTotpLoginDto } from './dto/admin-totp.dto.js';
+import { AdminChangePasswordDto, AdminUpdateProfileDto } from './dto/admin-account.dto.js';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { clientIp } from '../security/client-ip.js';
 
@@ -19,6 +20,25 @@ export class AdminAuthController {
   @Post('login/totp')
   loginTotp(@Body() dto: AdminTotpLoginDto, @Req() req: Request) {
     return this.adminAuth.loginWithTotp(dto.challengeToken, dto.code, clientIp(req));
+  }
+
+  @Get('me')
+  @UseGuards(AdminJwtAuthGuard)
+  me(@Req() req: Request) {
+    return this.adminAuth.me(req.adminCtx!.auth.sub);
+  }
+
+  /** تنها مسیر (کنار me) که نشست محدودِ «تغییر رمز اجباری» می‌تواند صدا بزند. توکن تازه برمی‌گرداند. */
+  @Post('change-password')
+  @UseGuards(AdminJwtAuthGuard)
+  changePassword(@Body() dto: AdminChangePasswordDto, @Req() req: Request) {
+    return this.adminAuth.changePassword(req.adminCtx!.auth.sub, dto.currentPassword, dto.newPassword, clientIp(req));
+  }
+
+  @Patch('profile')
+  @UseGuards(AdminJwtAuthGuard)
+  profile(@Body() dto: AdminUpdateProfileDto, @Req() req: Request) {
+    return this.adminAuth.updateProfile(req.adminCtx!.auth.sub, dto, clientIp(req));
   }
 
   @Get('2fa/status')

@@ -17,6 +17,8 @@ import { PushNotificationsModule } from '../notifications/push-notifications.mod
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { PublicModule } from '../public/public.module.js';
 import { ReferralMarketingModule } from '../referral-marketing/referral-marketing.module.js';
+import { AdminUsersController } from './admin-users.controller.js';
+import { AdminUsersService } from './admin-users.service.js';
 import { AdminSecurityController } from './admin-security.controller.js';
 import { AdminResellersController } from './admin-resellers.controller.js';
 import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
@@ -38,7 +40,8 @@ import { ResellerApplicationsService } from './reseller-applications.service.js'
     AdminSmsPackagesController,
     AdminResellersController,
     AdminSecurityController,
+    AdminUsersController,
   ],
-  providers: [AdminAuthService, AdminSupportService, ResellerApplicationsService],
+  providers: [AdminAuthService, AdminUsersService, AdminSupportService, ResellerApplicationsService],
 })
 export class AdminModule {}

@@ -1,5 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 const TOKEN_KEY = "exir_admin_token";
+export const MUST_CHANGE_KEY = "exir_admin_must_change";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -12,12 +13,14 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(MUST_CHANGE_KEY);
 }
 
 export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
@@ -36,14 +39,21 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
   if (!res.ok) {
     let message = "خطایی رخ داد، دوباره تلاش کنید";
+    let code: string | undefined;
     try {
       const body = await res.json();
       if (typeof body.message === "string") message = body.message;
+      if (typeof body.code === "string") code = body.code;
     } catch {
       // no JSON body — keep the default message
     }
     if (res.status === 401 && typeof window !== "undefined") clearToken();
-    throw new ApiError(message, res.status);
+    // نشست محدود (رمز پیش‌فرض/یک‌بارمصرف): هر مسیر دیگری ما را به «حساب من» برمی‌گرداند
+    if (res.status === 403 && code === "PASSWORD_CHANGE_REQUIRED" && typeof window !== "undefined") {
+      window.localStorage.setItem(MUST_CHANGE_KEY, "1");
+      if (!window.location.pathname.startsWith("/account")) window.location.replace("/account");
+    }
+    throw new ApiError(message, res.status, code);
   }
 
   if (res.status === 204) return undefined as T;
@@ -52,7 +62,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 
-export type AdminLoginSuccess = { accessToken: string; admin: { id: string; name: string; team: string } };
+export type AdminLoginSuccess = { accessToken: string; mustChangePassword?: boolean; admin: { id: string; name: string; team: string } };
 export type AdminLoginResult = AdminLoginSuccess | { requiresTotp: true; challengeToken: string };
 
 export function adminLogin(email: string, password: string) {
@@ -70,10 +80,32 @@ export function adminLoginTotp(challengeToken: string, code: string) {
   });
 }
 
+// ── حساب من ──────────────────────────────────────────────────────────────
+
+export type AdminMe = { id: string; name: string; email: string; team: string; totpEnabled: boolean; mustChangePassword: boolean; lastLoginAt: string | null };
+export const fetchMe = () => apiFetch<AdminMe>("/admin/auth/me");
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  apiFetch<AdminLoginSuccess>("/admin/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) });
+export const updateProfile = (data: { name?: string; email?: string; currentPassword?: string }) =>
+  apiFetch<AdminMe>("/admin/auth/profile", { method: "PATCH", body: JSON.stringify(data) });
+
+// ── کاربران پلتفرم (SUPER_ADMIN) ─────────────────────────────────────────
+
+export type PlatformUser = { id: string; name: string; email: string; team: string; totpEnabled: boolean; lastLoginAt: string | null; disabled: boolean; mustChangePassword: boolean };
+export const fetchPlatformUsers = () => apiFetch<PlatformUser[]>("/admin/users");
+export const createPlatformUser = (data: { name: string; email: string; team: string }) =>
+  apiFetch<{ id: string; email: string; team: string; oneTimePassword: string }>("/admin/users", { method: "POST", body: JSON.stringify(data) });
+export const resetPlatformUserPassword = (id: string) =>
+  apiFetch<{ id: string; oneTimePassword: string }>(`/admin/users/${encodeURIComponent(id)}/reset-password`, { method: "POST" });
+export const setPlatformUserActive = (id: string, active: boolean) =>
+  apiFetch<{ id: string; disabled: boolean }>(`/admin/users/${encodeURIComponent(id)}/${active ? "enable" : "disable"}`, { method: "POST" });
+export const setPlatformUserTeam = (id: string, team: string) =>
+  apiFetch<{ id: string; team: string }>(`/admin/users/${encodeURIComponent(id)}/team`, { method: "PATCH", body: JSON.stringify({ team }) });
+
 // ── 2FA و امنیت ───────────────────────────────────────────────────────────
 
 export const fetchTwoFaStatus = () => apiFetch<{ enabled: boolean; recoveryCodesLeft: number; required: boolean }>("/admin/auth/2fa/status");
-export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string }>("/admin/auth/2fa/setup", { method: "POST" });
+export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string; qrSvg?: string }>("/admin/auth/2fa/setup", { method: "POST" });
 export const enableTwoFa = (code: string) => apiFetch<{ recoveryCodes: string[] }>("/admin/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
 export const disableTwoFa = (password: string, code: string) => apiFetch<{ enabled: boolean }>("/admin/auth/2fa/disable", { method: "POST", body: JSON.stringify({ password, code }) });
 

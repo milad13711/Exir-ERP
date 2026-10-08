@@ -68,7 +68,7 @@ export function buildRouteRules(): RouteRuleSet[] {
   return [
     { match: (m, p) => m === 'POST' && OTP_REQUEST.test(p), rules: [{ name: 'otp-request-ip', limit: otpReqIp, windowSec: 900, by: 'ip' }, { name: 'otp-request-phone', limit: 8, windowSec: 900, by: 'phone' }] },
     { match: (m, p) => m === 'POST' && OTP_VERIFY.test(p), rules: [{ name: 'otp-verify-ip', limit: otpVerifyIp, windowSec: 900, by: 'ip' }, { name: 'otp-verify-phone', limit: otpVerifyPhone, windowSec: 900, by: 'phone' }] },
-    { match: (m, p) => m === 'POST' && p.startsWith('/api/admin/auth/'), rules: [{ name: 'admin-auth-ip', limit: adminLoginIp, windowSec: 900, by: 'ip' }] },
+    { match: (m, p) => (m === 'POST' || m === 'PATCH') && p.startsWith('/api/admin/auth/'), rules: [{ name: 'admin-auth-ip', limit: adminLoginIp, windowSec: 900, by: 'ip' }] },
     { match: (m, p) => m === 'POST' && p.startsWith('/api/auth/'), rules: [{ name: 'auth-ip', limit: 60, windowSec: 900, by: 'ip' }] },
     { match: (m, p) => m === 'POST' && p.startsWith('/api/licenses/check-in'), rules: [{ name: 'license-checkin-ip', limit: 120, windowSec: 3600, by: 'ip' }] },
     { match: (m, p) => m === 'POST' && p.startsWith('/api/security/csp-report'), rules: [{ name: 'csp-report-ip', limit: 60, windowSec: 60, by: 'ip' }] },
