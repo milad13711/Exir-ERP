@@ -17,6 +17,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/security", label: "امنیت", icon: ShieldIcon },
   { href: "/team", label: "کاربران پلتفرم", icon: UsersIcon, superOnly: true },
   { href: "/backups", label: "بکاپ و بازیابی", icon: ShieldIcon },
+  { href: "/monitoring", label: "پایش و هشدار", icon: ShieldIcon },
 ];
 
 /** چهار مورد پرکاربرد که در نوار پایین موبایل می‌مانند؛ بقیه پشت «بیشتر». */

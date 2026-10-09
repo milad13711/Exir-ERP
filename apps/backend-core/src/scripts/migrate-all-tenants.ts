@@ -31,7 +31,7 @@ async function main() {
     const dbAdmin = app.get(TenantDbAdminService);
 
     const tenants = await controlDb.tenant.findMany({
-      select: { id: true, slug: true, dbHost: true, dbPort: true, dbName: true },
+      select: { id: true, slug: true, dbHost: true, dbPort: true, dbName: true, dbUser: true },
     });
     if (tenants.length === 0) {
       logger.log('No tenants yet — nothing to migrate.');
@@ -42,7 +42,7 @@ async function main() {
     let failed = 0;
     for (const tenant of tenants) {
       try {
-        await dbAdmin.applyTenantSchema(tenant.dbHost, tenant.dbPort, tenant.dbName);
+        await dbAdmin.applyTenantSchema(tenant.dbHost, tenant.dbPort, tenant.dbName, tenant.dbUser);
       } catch (err) {
         failed += 1;
         // One tenant's DB being unreachable/broken must not block the rest,

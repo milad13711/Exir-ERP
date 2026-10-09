@@ -12,6 +12,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { CreateApiKeyDto } from './dto/create-api-key.dto.js';
 import { invalidateApiKeyCache } from './api-key-verifier.js';
 import { API_KEY_PREFIX, API_KEY_LOOKUP_PREFIX_LENGTH } from './api-key.constants.js';
+import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 /**
  * API keys are the credential for everything under "API، وب‌هوک و MCP":
@@ -46,6 +47,7 @@ export class ApiKeysController {
 
   @Post()
   async create(@Body() dto: CreateApiKeyDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     const rawKey = API_KEY_PREFIX + randomBytes(16).toString('hex');
     const keyPrefix = rawKey.slice(0, API_KEY_LOOKUP_PREFIX_LENGTH);
     const keyHash = await bcrypt.hash(rawKey, 10);
@@ -67,6 +69,7 @@ export class ApiKeysController {
 
   @Post(':id/revoke')
   async revoke(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     const key = await this.controlDb.apiKey.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!key) throw new NotFoundException('کلید API یافت نشد');
     const updated = await this.controlDb.apiKey.update({

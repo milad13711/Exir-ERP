@@ -10,6 +10,7 @@ import { UpdateModulePermissionsDto } from './dto/update-module-permissions.dto.
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { SetManagementRoleDto } from './dto/set-management-role.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -32,6 +33,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   invite(@Body() dto: InviteUserDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.inviteUser(ctx, dto.name, dto.phone, dto.roleId);
   }
 
@@ -39,6 +41,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.updateUser(ctx, id, dto);
   }
 
@@ -53,6 +56,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   setPermissions(@Param('id') id: string, @Body() dto: UpdateModulePermissionsDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.setUserPermissionOverrides(ctx, id, dto.entries);
   }
 
@@ -60,6 +64,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER')
   setManagementRole(@Param('id') id: string, @Body() dto: SetManagementRoleDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.setManagementRole(ctx, id, dto.role, dto.transfer ?? false);
   }
 
@@ -67,6 +72,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.deleteUser(ctx, id);
   }
 
@@ -78,6 +84,7 @@ export class UsersController {
     @Body() dto: UpdateModulePermissionsDto,
     @Ctx() ctx: TenantRequestContext,
   ) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.updateModulePermissions(ctx, id, dto.entries);
   }
 
@@ -85,6 +92,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   createRole(@Body() dto: CreateRoleDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.createRole(ctx, dto.name);
   }
 
@@ -92,6 +100,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   deleteRole(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.users.deleteRole(ctx, id);
   }
 }

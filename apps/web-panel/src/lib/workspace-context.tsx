@@ -11,6 +11,7 @@ import {
   fetchModules,
   fetchPlatformMe,
   setOfflineModuleInstalled,
+  ApiError,
   type Me,
   type Subscription,
   type LicenseStatus,
@@ -95,6 +96,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     fetchPlatformMe().then((r) => setIsPlatformOwner(r.isPlatformOwner)).catch(() => setIsPlatformOwner(false));
     Promise.all([fetchMe(), fetchSubscription(), fetchLicenseStatus(), fetchModules().catch(() => [])])
       .then(([meData, subData, licenseData, modules]) => {
+        if (meData.twoFactor?.restricted) {
+          // الزام 2FA مالک/مدیر: تا ثبت کامل، فقط صفحه‌ی ثبت کار می‌کند.
+          router.replace("/two-factor-setup");
+          return;
+        }
         setMe(meData);
         setSubscription(subData);
         setLicense(licenseData);
@@ -107,7 +113,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setOfflineModuleInstalled(installed.has("offline-sync"));
         applyTenantBranding(meData.tenant);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err instanceof ApiError && err.code === "TWO_FACTOR_ENROLLMENT_REQUIRED") {
+          router.replace("/two-factor-setup"); // نشست محدود (الزام 2FA) — نه توکن نامعتبر
+          return;
+        }
         router.replace("/login");
       })
       .finally(() => setLoading(false));

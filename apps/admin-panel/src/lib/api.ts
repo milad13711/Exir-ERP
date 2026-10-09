@@ -115,6 +115,17 @@ export const invalidateAllSessions = () => apiFetch<{ sessionEpoch: number }>("/
 export const invalidateTenantSessions = (tenantId: string) => apiFetch<{ tokenVersion: number }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/sessions/invalidate`, { method: "POST" });
 export const revokeTenantApiKeys = (tenantId: string) => apiFetch<{ revoked: number }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/api-keys/revoke-all`, { method: "POST" });
 
+export type TenantTwoFactorOverview = {
+  policy: "off" | "grace" | "enforce" | null;
+  effectiveMode: "off" | "grace" | "enforce";
+  users: { userId: string; membershipId: string; name: string | null; phone: string; role: string; enrolled: boolean; graceEndsAt: string | null; restricted: boolean }[];
+};
+export const fetchTenantTwoFactor = (tenantId: string) => apiFetch<TenantTwoFactorOverview>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/two-factor`);
+export const setTenantTwoFactorPolicy = (tenantId: string, policy: "off" | "grace" | "enforce" | null) =>
+  apiFetch<{ policy: string | null }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/two-factor-policy`, { method: "PUT", body: JSON.stringify({ policy }) });
+export const resetTenantUserTwoFactor = (tenantId: string, userId: string, reason: string) =>
+  apiFetch<{ success: boolean; sessionsRevoked: number }>(`/admin/security/tenants/${encodeURIComponent(tenantId)}/users/${encodeURIComponent(userId)}/reset-2fa`, { method: "POST", body: JSON.stringify({ reason }) });
+
 // ── Tenants ──────────────────────────────────────────────────────────────
 
 export type AdminTenant = {
@@ -795,6 +806,8 @@ export type BackupTargetStatus = {
   offsite?: boolean;
   lastError?: string;
   lastErrorAt?: string;
+  /** آخرین آزمون بازیابی موفق این دیتابیس */
+  restoreVerifiedAt?: string | null;
   fileCount: number;
   bytes: number;
   plaintextFiles: number;
@@ -814,6 +827,7 @@ export type BackupStatusResponse = {
   targets: BackupTargetStatus[];
   lastRestoreTest: RestoreTestEntry | null;
   restoreTests: RestoreTestEntry[];
+  restoreVerification?: { thresholdDays: number; tracked: number; verified: number; stale: { slug: string; ageDays: number | null; neverVerified: boolean }[] };
   warnings: string[];
 };
 
@@ -825,4 +839,39 @@ export function runBackupNow() {
 }
 export function runRestoreTestNow() {
   return apiFetch<{ started: boolean }>("/admin/backups/restore-test", { method: "POST" });
+}
+
+
+// ── پایش و هشدار ───────────────────────────────────────────────────────────
+
+export type MonitorLevel = "ok" | "warn" | "crit" | "unknown";
+export type MonitorCheck = { key: string; label: string; level: MonitorLevel; detail: string; metric: number | null; since: string; lastCheckedAt: string; consecutive: number };
+export type MonitorStatusResponse = {
+  generatedAt: string;
+  config: {
+    alertPhoneConfigured: boolean;
+    alertPhoneMasked: string | null;
+    smsConfigured: boolean;
+    urls: string[];
+    tlsHosts: string[];
+    maxSmsPerDay: number;
+    smsSentToday: number;
+    internalAlertEnabled: boolean;
+  };
+  checks: MonitorCheck[];
+  history: { at: string; levels: Record<string, MonitorLevel> }[];
+  lastAlert: { at: string; kind: string; message: string; delivered: boolean; reason?: string } | null;
+  recent: { at: string; kind: string; message: string; source: "checker" | "host" | "test"; delivered: boolean; reason?: string }[];
+  hostHeartbeatAt: string | null;
+  backup: { level: "ok" | "warn"; warnings: string[]; lastRestoreTest: RestoreTestEntry | null } | null;
+};
+
+export function fetchMonitorStatus() {
+  return apiFetch<MonitorStatusResponse>("/admin/monitoring/status");
+}
+export function runMonitorNow() {
+  return apiFetch<{ started: boolean }>("/admin/monitoring/run", { method: "POST" });
+}
+export function sendMonitorTestAlert() {
+  return apiFetch<{ sent: boolean; reason?: string }>("/admin/monitoring/test-alert", { method: "POST" });
 }

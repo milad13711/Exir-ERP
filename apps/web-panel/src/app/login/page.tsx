@@ -128,7 +128,7 @@ export default function LoginPage() {
         return;
       }
       setToken(res.accessToken);
-      router.push(res.billingLocked ? "/billing-locked" : "/dashboard");
+      router.push(res.twoFactor?.restricted ? "/two-factor-setup" : res.billingLocked ? "/billing-locked" : "/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ورود با خطا مواجه شد");
     } finally {
@@ -148,7 +148,7 @@ export default function LoginPage() {
         return;
       }
       setToken(res.accessToken);
-      router.push(res.billingLocked ? "/billing-locked" : "/dashboard");
+      router.push(res.twoFactor?.restricted ? "/two-factor-setup" : res.billingLocked ? "/billing-locked" : "/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ورود با خطا مواجه شد");
     } finally {
@@ -163,7 +163,7 @@ export default function LoginPage() {
     try {
       const res = await verifyTotpLogin(totpToken, totpCode.trim());
       setToken(res.accessToken);
-      router.push(res.billingLocked ? "/billing-locked" : "/dashboard");
+      router.push(res.twoFactor?.restricted ? "/two-factor-setup" : res.billingLocked ? "/billing-locked" : "/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ورود با خطا مواجه شد");
     } finally {

@@ -86,6 +86,13 @@ services:
       BACKUP_ENV_NAME: ${BACKUP_ENV_NAME:-prod}
       BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
       BACKUP_ALERT_PHONE: ${BACKUP_ALERT_PHONE:-}
+      # پایش و هشدار (src/monitoring): گیرنده‌ی پیامک (fallback: BACKUP_ALERT_PHONE ← ON_PREM_OWNER_PHONE)، آدرس‌های پایش‌شده (جداشده با ویرگول)،
+      # میزبان‌های TLS، و توکن هشدار داخلی برای infra/hardening/monitoring/host-watch.sh (≥۳۲ نویسه؛ خالی = غیرفعال).
+      MONITOR_ALERT_PHONE: ${MONITOR_ALERT_PHONE:-}
+      MONITOR_URLS: ${MONITOR_URLS:-}
+      MONITOR_TLS_HOSTS: ${MONITOR_TLS_HOSTS:-}
+      MONITOR_DISABLED: ${MONITOR_DISABLED:-}
+      INTERNAL_ALERT_TOKEN: ${INTERNAL_ALERT_TOKEN:-}
       # Zarinpal — real online payment for invoices (see ZarinpalService).
       # Empty ZARINPAL_MERCHANT_ID means the gateway is simply unavailable
       # (public pay page shows "contact support" instead of a pay button).

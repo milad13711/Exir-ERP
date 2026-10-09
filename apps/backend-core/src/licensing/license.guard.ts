@@ -5,7 +5,7 @@ import { LicenseRuntimeService } from './license-runtime.service.js';
 // Always reachable even while blocked, so the UI can show *why* it's blocked,
 // and so the management team's own control-plane endpoints (which this same
 // codebase also serves in cloud mode) are never gated by a tenant's license.
-const EXEMPT_PREFIXES = ['/api/license/status', '/api/licenses/check-in', '/api/admin', '/api/auth'];
+const EXEMPT_PREFIXES = ['/api/license/status', '/api/licenses/check-in', '/api/admin', '/api/auth', '/api/internal/alert', '/api/health'];
 
 /**
  * Applied globally (see AppModule). A no-op in cloud mode. On an on-premise

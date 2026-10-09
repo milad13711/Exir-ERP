@@ -31,6 +31,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
@@ -98,9 +99,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
   if (!res.ok) {
     let message = "خطایی رخ داد، دوباره تلاش کنید";
+    let code: string | undefined;
     try {
       const body = await res.json();
       if (typeof body.message === "string") message = body.message;
+      if (typeof body.code === "string") code = body.code;
     } catch {
       // response had no JSON body — keep the default message
     }
@@ -113,7 +116,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     if (res.status === 402 && typeof window !== "undefined" && !window.location.pathname.startsWith("/billing-locked")) {
       window.location.href = "/billing-locked";
     }
-    throw new ApiError(message, res.status);
+    // الزام 2FA مالک/مدیر: نشست محدود است، فقط صفحه‌ی ثبت 2FA کار می‌کند.
+    if (res.status === 403 && code === "TWO_FACTOR_ENROLLMENT_REQUIRED" && typeof window !== "undefined" && !window.location.pathname.startsWith("/two-factor-setup")) {
+      window.location.href = "/two-factor-setup";
+    }
+    throw new ApiError(message, res.status, code);
   }
 
   if (res.status === 204) return undefined as T;
@@ -138,10 +145,20 @@ export type VerifyOtpResult =
       /** تننت روی PENDING_PAYMENT است — ورود مجاز است اما فرانت باید مستقیم به /billing-locked ببرد. */
       billingLocked?: boolean;
       outstandingInvoiceId?: string | null;
+      /** وضعیت 2FA اجباری مالک/مدیر؛ restricted=true یعنی باید اول 2FA ثبت شود (/two-factor-setup). */
+      twoFactor?: TwoFactorPolicyState;
     }
   | { requiresTenantSelection: true; verificationToken: string; tenants: TenantCard[] }
   /** کاربر 2FA (TOTP) فعال کرده: گام دوم با verifyTotpLogin. */
   | { requiresTotp: true; totpToken: string };
+
+export type TwoFactorPolicyState = {
+  mode: "off" | "grace" | "enforce";
+  required: boolean;
+  enrolled: boolean;
+  graceEndsAt: string | null;
+  restricted: boolean;
+};
 
 export type LoginSuccess = Extract<VerifyOtpResult, { accessToken: string }>;
 
@@ -186,10 +203,11 @@ export function verifyTotpLogin(totpToken: string, code: string) {
 }
 
 // ── 2FA اختیاری مالک/مدیر ────────────────────────────────────────────────
-export const fetchTwoFaStatus = () => apiFetch<{ enabled: boolean; recoveryCodesLeft: number }>("/auth/2fa/status");
-export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string }>("/auth/2fa/setup", { method: "POST" });
+export const fetchTwoFaStatus = () => apiFetch<{ enabled: boolean; recoveryCodesLeft: number; policy?: TwoFactorPolicyState | null }>("/auth/2fa/status");
+export const beginTwoFaSetup = () => apiFetch<{ secret: string; otpauthUrl: string; qrDataUrl?: string }>("/auth/2fa/setup", { method: "POST" });
+/** accessToken: توکن عادی جایگزین (نشست محدود را آزاد می‌کند) — فراخواننده باید setToken کند. */
 export const enableTwoFa = (code: string) =>
-  apiFetch<{ recoveryCodes: string[] }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
+  apiFetch<{ recoveryCodes: string[]; accessToken?: string; twoFactor?: TwoFactorPolicyState }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
 export const disableTwoFa = (code: string) =>
   apiFetch<{ enabled: boolean }>("/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) });
 
@@ -288,6 +306,7 @@ export type Me = {
   };
   tenant: { name: string; slug: string; publicKey?: string; themeColor: string | null };
   navOrder: string[];
+  twoFactor?: TwoFactorPolicyState;
   permissions?: { manager: boolean; modules: Record<string, { canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }> };
 };
 

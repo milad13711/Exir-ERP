@@ -1,0 +1,15 @@
+[Unit]
+Description=Exir host-watch (host-level alerting)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/host-watch.sh
+# runs as root (needs journal, fail2ban socket, docker socket). Keep the unit boxed in:
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/exir-host-watch
+TimeoutStartSec=120
+Nice=10

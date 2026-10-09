@@ -20,6 +20,7 @@
 | `nginx/` | snippetهای nginx میزبان + `install-nginx-snippets.sh` + نمونهٔ `app.eta.co.ir` |
 | `04-…md`, `05-…md`, `06-…md` | آپدیت خودکار، حساب‌ها/فایل‌ها/Docker، مانیتورینگ |
 | `check-certs.sh` | بررسی انقضای گواهی (cron-able) |
+| `monitoring/` | `host-watch.sh` (تایمر systemd: ورود SSH ناشناخته، fail2ban، 5xx، docker، دیسک، reboot، گواهی، unitهای failed) + هشدار از طریق بک‌اند + راهنمای پایش بیرونی (`EXTERNAL-UPTIME.md`) |
 
 ## ترتیب پیشنهادی اجرا
 | # | گام | ریسک | علت ترتیب |

@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { BackupService, stringifyWithBigInt } from './backup.service.js';
+import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
@@ -52,6 +53,7 @@ export class BackupController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   async export(@Query('format') format: string | undefined, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
+    assertTwoFactorForSensitiveAction(ctx);
     const day = new Date().toISOString().slice(0, 10);
     if (format === 'json') {
       const payload = await this.backup.buildExportPayload(ctx.tenantDb, ctx.tenantId);
@@ -83,6 +85,7 @@ export class BackupController {
   @UseGuards(RolesGuard)
   @Roles('OWNER')
   async import(@Body() body: { data?: Record<string, unknown[]> }, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     if (!body?.data || typeof body.data !== 'object') {
       throw new BadRequestException('ساختار فایل پشتیبان نامعتبر است');
     }

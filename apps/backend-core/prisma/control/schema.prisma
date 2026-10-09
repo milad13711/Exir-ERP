@@ -96,12 +96,21 @@ model Tenant {
   dbPort Int    @default(5433)
   dbName String @unique
 
+  /// Per-tenant Postgres LOGIN role (least privilege, finding S-14). Null on both = legacy shared
+  /// superuser credentials (TENANT_DB_ADMIN_USER). The password is AES-256-GCM sealed
+  /// (APP_SECRETS_KEY) and is omitted from every default query result (see ControlPrismaService).
+  dbUser        String?
+  dbPasswordEnc String?
+
   // logoUrl lives in the tenant DB's ModuleSetting store (settings/general),
   // not here — see GeneralSettingsController. themeColor has no other home.
   themeColor String?
 
   /// افزایش آن همه‌ی توکن‌های ورودِ این تننت را باطل می‌کند (پاسخ به نفوذ/اخراج گروهی).
   tokenVersion Int @default(0)
+
+  /// جایگزین سیاست 2FA مالک/مدیر برای همین تننت: "off" | "grace" | "enforce"؛ null = پیروی از env (TENANT_REQUIRE_2FA_FOR_ADMINS).
+  twoFactorPolicy String?
 
   createdAt     DateTime  @default(now())
   provisionedAt DateTime?
@@ -209,6 +218,8 @@ model TenantMembership {
   joinedAt     DateTime?
   /// افزایش آن فقط نشست‌های همین عضو را باطل می‌کند.
   tokenVersion Int          @default(0)
+  /// آغاز مهلت (grace) الزام 2FA برای مالک/مدیر — اولین باری که این عضو پس از انتشار قابلیت دیده شد. تاریخ epoch (1970) = بازنشانی اجباری توسط ادمین پلتفرم (مهلت تمام‌شده).
+  twoFactorGraceStartedAt DateTime?
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   globalUser GlobalUser @relation(fields: [globalUserId], references: [id], onDelete: Cascade)

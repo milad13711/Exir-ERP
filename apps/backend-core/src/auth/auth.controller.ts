@@ -5,6 +5,7 @@ import { RequestOtpDto } from './dto/request-otp.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import { SelectTenantDto } from './dto/select-tenant.dto.js';
 import { TotpCodeDto, VerifyTotpLoginDto } from './dto/totp.dto.js';
+import { twoFactorRequiredError, wouldBeRestrictedWithout2FA } from './tenant-two-factor-policy.js';
 import { TenantTwoFactorService } from './tenant-two-factor.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { clientIp } from '../security/client-ip.js';
@@ -40,7 +41,10 @@ export class AuthController {
 @Controller('auth/2fa')
 @UseGuards(JwtAuthGuard)
 export class TwoFactorController {
-  constructor(private readonly twoFactor: TenantTwoFactorService) {}
+  constructor(
+    private readonly twoFactor: TenantTwoFactorService,
+    private readonly auth: AuthService,
+  ) {}
 
   private who(req: Request) {
     const a = req.ctx!.auth;
@@ -49,8 +53,9 @@ export class TwoFactorController {
   }
 
   @Get('status')
-  status(@Req() req: Request) {
-    return this.twoFactor.status(this.who(req));
+  async status(@Req() req: Request) {
+    const st = await this.twoFactor.status(this.who(req));
+    return { ...st, policy: req.ctx!.twoFactor ?? null };
   }
 
   @Post('setup')
@@ -59,12 +64,21 @@ export class TwoFactorController {
   }
 
   @Post('enable')
-  enable(@Body() dto: TotpCodeDto, @Req() req: Request) {
-    return this.twoFactor.enable(this.who(req), dto.code);
+  async enable(@Body() dto: TotpCodeDto, @Req() req: Request) {
+    const a = req.ctx!.auth;
+    const res = await this.twoFactor.enable(this.who(req), dto.code);
+    // ثبت کامل شد: توکن عادی (بدون محدودیت t2fa) برای همین نشست؛ کلاینت توکن قبلی را جایگزین می‌کند.
+    if (a.type !== 'tenant_user') return res;
+    const session = await this.auth.reissueSession({ sub: a.sub, tenantId: a.tenantId, membershipId: a.membershipId });
+    return { ...res, accessToken: session.accessToken, twoFactor: session.twoFactor };
   }
 
   @Post('disable')
   disable(@Body() dto: TotpCodeDto, @Req() req: Request) {
-    return this.twoFactor.disable(this.who(req), dto.code);
+    const sub = this.who(req);
+    const t = req.ctx!.twoFactor;
+    // وقتی سیاست الزام اعمال می‌شود (یا مهلت تمام شده) خاموش‌کردن 2FA معنایی ندارد و نشست را فوراً قفل می‌کند.
+    if (t && wouldBeRestrictedWithout2FA(t)) throw twoFactorRequiredError();
+    return this.twoFactor.disable(sub, dto.code);
   }
 }

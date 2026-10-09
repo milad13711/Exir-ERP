@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantDbAdminService } from './tenant-db-admin.service.js';
+import { sealTenantDbPassword } from '../prisma/tenant-db-credentials.js';
 import { seedDefaultTenantData, getSystemRoleId, type IndustryTemplateSeed } from './default-tenant-data.seed.js';
 import { ReferralSyncService } from './referral-sync.service.js';
 import { addBillingPeriod } from '../modules-catalog/module-pricing.js';
@@ -96,8 +97,21 @@ export class TenantsService {
     });
 
     try {
-      await this.dbAdmin.createDatabase(dbHost, dbPort, dbName);
-      await this.dbAdmin.applyTenantSchema(dbHost, dbPort, dbName);
+      // S-14: a new tenant gets its own least-privilege Postgres role (when APP_SECRETS_KEY is configured);
+      // migrations still run privileged, then ownership is handed to that role.
+      let dbRole: string | null = null;
+      if (this.dbAdmin.wantsRole()) {
+        const { user, password } = await this.dbAdmin.createDatabaseWithRole(dbHost, dbPort, dbName, input.slug);
+        dbRole = user;
+        await this.controlDb.tenant.update({
+          where: { id: tenant.id },
+          data: { dbUser: user, dbPasswordEnc: sealTenantDbPassword(password, dbName) },
+        });
+        await this.tenantPrisma.refreshCredentials();
+      } else {
+        await this.dbAdmin.createDatabase(dbHost, dbPort, dbName);
+      }
+      await this.dbAdmin.applyTenantSchema(dbHost, dbPort, dbName, dbRole);
 
       const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
       await seedDefaultTenantData(
@@ -353,7 +367,7 @@ export class TenantsService {
     if (!tenant) throw new NotFoundException('تننت یافت نشد');
 
     await this.tenantPrisma.evict(tenant.dbName);
-    await this.dbAdmin.dropDatabase(tenant.dbHost, tenant.dbPort, tenant.dbName);
+    await this.dbAdmin.dropDatabase(tenant.dbHost, tenant.dbPort, tenant.dbName, tenant.dbUser);
 
     await this.controlDb.auditLog.create({
       data: {

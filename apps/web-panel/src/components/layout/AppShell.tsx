@@ -10,6 +10,7 @@ import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { PushPrompt } from "./PushPrompt";
+import { TwoFactorGraceBanner } from "./TwoFactorGraceBanner";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon, LogoMark } from "@/components/icons";
 import { usePathname } from "next/navigation";
@@ -60,6 +61,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           onOpenMobileNav={() => setMobileNavOpen(true)}
           supportUnread={supportUnread}
         />
+        <TwoFactorGraceBanner />
         <main className="flex-1 overflow-auto">
           {noAccess ? (
             <div className="p-10 text-center">

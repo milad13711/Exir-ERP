@@ -1,0 +1,51 @@
+# Replacement for .github/workflows/deploy.yml in the milad13711/tirdad repo.
+# WHY: the old workflow logged in as ROOT with a PASSWORD (secret DEPLOY_PASSWORD). SSH password login is now disabled
+# on the server (key-only) and root no longer needs to be used. This version connects as the unprivileged
+# `tirdad-app` user (owner of the app and its pm2 process, no sudo, no docker) with an SSH KEY.
+#
+# GitHub repo secrets to set (Settings > Secrets and variables > Actions):
+#   DEPLOY_HOST     = 45.94.215.22
+#   DEPLOY_SSH_KEY  = the PRIVATE key of the dedicated CI keypair (ed25519, comment "tirdad-ci-github")
+# and DELETE the old secret DEPLOY_PASSWORD (it is the root password — rotate that password too).
+name: Deploy to production server
+on:
+  push:
+    branches:
+      - claude/continue-kqlumj
+  workflow_dispatch: {}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH (as tirdad-app, key auth)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: tirdad-app
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            BRANCH="claude/continue-kqlumj"
+            APP_DIR="$HOME/tirdad"
+            echo "== Fetching latest ${BRANCH} =="
+            curl -4 -fsSL --connect-timeout 20 --max-time 180 "https://github.com/milad13711/tirdad/archive/refs/heads/${BRANCH}.tar.gz" -o /tmp/tirdad.tar.gz
+            [ -f "${APP_DIR}/.env" ] && cp "${APP_DIR}/.env" /tmp/tirdad.env.bak
+            if [ -d "${APP_DIR}/uploads" ]; then rm -rf /tmp/tirdad.uploads.bak; cp -r "${APP_DIR}/uploads" /tmp/tirdad.uploads.bak; fi
+            if [ -d "${APP_DIR}/.data" ]; then rm -rf /tmp/tirdad.data.bak; cp -r "${APP_DIR}/.data" /tmp/tirdad.data.bak; fi
+            rm -rf "${APP_DIR}"
+            mkdir -p "${APP_DIR}"
+            tar -xzf /tmp/tirdad.tar.gz -C "${APP_DIR}" --strip-components=1
+            [ -f /tmp/tirdad.env.bak ] && mv /tmp/tirdad.env.bak "${APP_DIR}/.env"
+            if [ -d /tmp/tirdad.uploads.bak ]; then rm -rf "${APP_DIR}/uploads"; mv /tmp/tirdad.uploads.bak "${APP_DIR}/uploads"; fi
+            if [ -d /tmp/tirdad.data.bak ]; then rm -rf "${APP_DIR}/.data"; mv /tmp/tirdad.data.bak "${APP_DIR}/.data"; fi
+            rm -f /tmp/tirdad.tar.gz
+            cd "${APP_DIR}"
+            echo "== Installing dependencies =="
+            npm install
+            echo "== Running migrations =="
+            npx prisma migrate deploy
+            echo "== Building =="
+            npm run build
+            echo "== Restarting app =="
+            pm2 restart tirdad

@@ -150,6 +150,16 @@ export default function BackupsPage() {
         )}
       </Card>
 
+      {data.restoreVerification && (
+        <Card className="p-4 mt-5">
+          <div className="text-[13px] font-extrabold mb-1">پوشش آزمون بازیابی تننت‌ها</div>
+          <p className="text-[12.5px] text-muted">
+            {toPersianDigits(data.restoreVerification.verified)} از {toPersianDigits(data.restoreVerification.tracked)} تننت فعال بازیابی‌شده‌اند؛ هر هفته زیرمجموعه‌ای نوبتی آزمون می‌شود تا همه حدود یک‌ماهه پوشش یابند.
+            {data.restoreVerification.stale.length > 0 && ` ${toPersianDigits(data.restoreVerification.stale.length)} تننت بیش از ${toPersianDigits(data.restoreVerification.thresholdDays)} روز آزمون نشده‌اند.`}
+          </p>
+        </Card>
+      )}
+
       <div className="text-[13px] font-extrabold mt-6 mb-2">دیتابیس‌ها</div>
       <div className="flex flex-col gap-2">
         {data.targets.map((x) => {
@@ -172,6 +182,13 @@ export default function BackupsPage() {
                   )}
                 </div>
               </div>
+              {!inactive && (
+                <div className="text-[11.5px] mt-1.5">
+                  <Badge tone={x.restoreVerifiedAt ? (ageHours(x.restoreVerifiedAt)! > 35 * 24 ? "danger" : "success") : "warning"}>
+                    {x.restoreVerifiedAt ? `آخرین آزمون بازیابی: ${formatJalaliDateTime(x.restoreVerifiedAt)}` : "آزمون بازیابی نشده"}
+                  </Badge>
+                </div>
+              )}
               <div className="text-[11.5px] text-muted mt-1.5">
                 {toPersianDigits(x.fileCount)} فایل · {formatBytes(x.bytes)} · آخرین حجم {formatBytes(x.lastSize)}
               </div>

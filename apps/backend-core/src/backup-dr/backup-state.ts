@@ -45,6 +45,8 @@ export type BackupStatus = {
   offsiteLastError?: string;
   /** restore-check databases this job created and has not yet dropped */
   tempDbs?: string[];
+  /** slug (یا _control) -> زمان آخرین آزمون بازیابی موفق */
+  restoreVerified?: Record<string, string>;
 };
 
 export const emptyStatus = (): BackupStatus => ({ version: 1, targets: {}, restoreTests: [], alertsSent: {} });

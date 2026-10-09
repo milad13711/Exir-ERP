@@ -15,6 +15,9 @@ export class ControlPrismaService
       datasources: {
         db: { url: process.env.CONTROL_DATABASE_URL },
       },
+      // S-14: the sealed per-tenant DB password never leaves the data layer by accident (admin
+      // list/detail endpoints return Tenant rows). TenantPrismaService reads it via an explicit `select`.
+      omit: { tenant: { dbPasswordEnc: true } },
     });
   }
 

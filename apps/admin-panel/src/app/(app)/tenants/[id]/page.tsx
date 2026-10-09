@@ -28,6 +28,7 @@ import { DeleteTenantModal } from "@/components/tenants/DeleteTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
 import { ModuleInvoiceModal } from "@/components/tenants/ModuleInvoiceModal";
 import { SubscriptionSmsCard } from "@/components/tenants/SubscriptionSmsCard";
+import { TenantTwoFactorCard } from "@/components/tenants/TenantTwoFactorCard";
 import { IssueInvoiceModal } from "@/components/tenants/IssueInvoiceModal";
 import { SaveAsTemplateModal } from "@/components/tenants/SaveAsTemplateModal";
 
@@ -244,6 +245,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           onChanged={reload}
         />
       ) : null}
+      <TenantTwoFactorCard tenantId={id} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
         <StatTile icon={<UsersIcon className="w-4 h-4" />} label="کاربران فعال" value={stats ? toPersianDigits(stats.userCount) : "..."} />

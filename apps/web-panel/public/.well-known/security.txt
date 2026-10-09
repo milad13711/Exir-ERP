@@ -1,0 +1,10 @@
+# Security contact for Exir ERP (RFC 9116).  Served at /.well-known/security.txt
+#
+# TODO(owner): replace the Contact line with a real, monitored mailbox BEFORE publishing/deploying,
+#              e.g. Contact: mailto:security@yourcompany.ir  (a placeholder here is NOT a working contact).
+# TODO(owner): refresh Expires at least every 6-12 months (keep it < 1 year ahead).
+# TODO(owner): set the Policy URL to the page where docs/security/vulnerability-disclosure-policy.md is published.
+Contact: mailto:security@<owner-domain>
+Expires: 2027-04-01T00:00:00.000Z
+Preferred-Languages: fa, en
+Policy: https://<owner-domain>/security-policy

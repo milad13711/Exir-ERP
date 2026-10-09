@@ -47,8 +47,16 @@ export class WorkspaceController {
       },
       tenant: { name: tenant.name, slug: tenant.slug, publicKey: tenant.publicKey, themeColor: tenant.themeColor },
       navOrder: tenantUser?.navOrder ?? [],
+      twoFactor: await this.twoFactorFor(ctx, globalUser, tenant),
       permissions: await this.permissions.effectiveMatrix(ctx),
     };
+  }
+
+  /** وضعیت 2FA اجباری مالک/مدیر برای بنر/صفحه‌ی ثبت: {required, enrolled, graceEndsAt, mode, restricted}. */
+  private async twoFactorFor(ctx: TenantRequestContext, globalUser: { totpEnabledAt: Date | null }, tenant: { twoFactorPolicy: string | null }) {
+    if (ctx.auth.type !== 'tenant_user') return { required: false, enrolled: false, graceEndsAt: null, mode: 'off', restricted: false };
+    const membership = await this.controlDb.tenantMembership.findUniqueOrThrow({ where: { id: ctx.auth.membershipId } });
+    return this.auth.twoFactorState(tenant, membership, globalUser);
   }
 
   /** ترتیب دستی آیتم‌های منوی کناری — خالی یعنی چیدمان پیش‌فرض دسته‌بندی‌شده استفاده شود. */

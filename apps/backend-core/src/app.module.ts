@@ -70,6 +70,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { BackupDrModule } from './backup-dr/backup-dr.module.js';
+import { MonitoringModule } from './monitoring/monitoring.module.js';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { BackupDrModule } from './backup-dr/backup-dr.module.js';
     ApprovalsModule,
     SchedulingModule,
     BackupDrModule,
+    MonitoringModule,
     RecruitmentModule,
     ReportsModule,
     ReferralMarketingModule,

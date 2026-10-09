@@ -11,6 +11,7 @@ export type SecurityEventType =
   | 'TOTP_FAILED'
   | 'TOTP_ENABLED'
   | 'TOTP_DISABLED'
+  | 'TOTP_RESET'
   | 'PASSWORD_CHANGED'
   | 'PERMISSION_DENIED'
   | 'TOKEN_REVOKED'

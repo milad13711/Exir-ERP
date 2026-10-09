@@ -8,6 +8,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from './exir-sms.service.js';
 import { TenantSmsService } from './tenant-sms.service.js';
 import { SetSmsConnectionDto } from './dto/set-sms-connection.dto.js';
+import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 /** اتصال پنل پیامکی تننت، مانده‌ی اعتبار (هدر) و خرید بسته‌ی پیامکی پنل سیستمی. */
 @Controller('sms-panel')
@@ -43,6 +44,7 @@ export class SmsPanelController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   async setConnection(@Body() dto: SetSmsConnectionDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     if (dto.mode === 'OWN') {
       if (!dto.apiKey?.trim() || !dto.senderNumber?.trim()) {
         throw new BadRequestException('کلید API و شماره‌ی ارسال پنل را وارد کنید');

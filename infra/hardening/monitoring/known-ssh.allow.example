@@ -1,0 +1,9 @@
+# /etc/exir/known-ssh.allow  (root:root, chmod 600)
+# One entry per line. host-watch alerts on a successful SSH login whose source IP or key fingerprint is NOT listed,
+# and on ANY login that used a password instead of a key.
+# `ip` entries accept shell globs (203.0.113.* ). Get your fingerprints with: ssh-keygen -lf ~/.ssh/id_ed25519.pub
+# Bootstrap from the last 30 days of logins (then REVIEW and delete anything that is not you):
+#   sudo ./host-watch.sh --learn-ssh
+ip 203.0.113.10
+ip 198.51.100.*
+fp SHA256:REPLACE_WITH_YOUR_KEY_FINGERPRINT

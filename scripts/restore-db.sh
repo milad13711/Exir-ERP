@@ -116,9 +116,20 @@ if [ "$EXISTS" = "1" ] && [ "$TABLES" != "0" ]; then
 fi
 
 # 4) create if needed, restore atomically
+# S-14: a tenant DB that already belongs to its own least-privilege role (exir_t_*) must still belong to it afterwards.
+# Dumps are taken with --no-owner, so everything restored here is owned by the restoring (admin) account; the
+# post-restore step below hands it back to the DB owner recorded BEFORE the restore.
+OWNER=""
+if [ "$EXISTS" = "1" ] && [ "$MODE" = "tenant" ]; then
+  OWNER="$(PSQL -d postgres -tAc "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='${DB}'" | tr -d ' ')"
+fi
 [ "$EXISTS" = "1" ] || PSQL -d postgres -c "CREATE DATABASE \"${DB}\""
 set -o pipefail
 emit_sql | PSQL -d "$DB" -v ON_ERROR_STOP=1 --single-transaction >/dev/null
+if [[ "$OWNER" =~ ^exir_t_[a-z0-9_]+$ ]]; then
+  PSQL -d "$DB" -v ON_ERROR_STOP=1 -v owner="$OWNER" <"$HERE/sql/tenant-reown.sql" >/dev/null
+  echo "ownership: objects handed back to tenant role $OWNER"
+fi
 
 # 5) post-check
 AFTER="$(PSQL -d "$DB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" | tr -d ' ')"

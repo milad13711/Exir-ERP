@@ -26,6 +26,7 @@
     "prisma:control:deploy": "prisma migrate deploy --schema prisma/control/schema.prisma",
     "prisma:tenant:generate": "prisma generate --schema prisma/tenant/schema.prisma",
     "seed": "tsx prisma/control/seed.ts",
+    "tenant-db-roles": "tsx src/scripts/tenant-db-roles.ts",
     "license:keygen": "tsx scripts/generate-license-keypair.ts",
     "bootstrap:on-premise": "node dist/scripts/bootstrap-on-premise.js"
   },

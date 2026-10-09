@@ -18,6 +18,8 @@ import { SecurityEventsService } from '../security/security-events.service.js';
 import { SessionEpochService } from '../security/session-epoch.service.js';
 import { maskPhone } from '../security/mask.js';
 import { TenantTwoFactorService } from './tenant-two-factor.service.js';
+import { RESTRICTED_TOKEN_TTL_SECONDS, effectiveMode, evaluateTwoFactor, graceDays, type TwoFactorState } from './tenant-two-factor-policy.js';
+import type { GlobalUser, TenantMembership } from '../../generated/control-client/index.js';
 
 const OTP_TTL_MS = 2 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -383,15 +385,7 @@ export class AuthService {
     }
 
     const globalUser = await this.controlDb.globalUser.findUniqueOrThrow({ where: { id: globalUserId } });
-    const payload: TenantJwtPayload = {
-      type: 'tenant_user',
-      sub: globalUser.id,
-      tenantId: tenant.id,
-      membershipId: membership.id,
-      role: membership.role,
-      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
-    };
-    const accessToken = await this.jwt.signAsync(payload);
+    const { accessToken, twoFactor } = await this.issueSession(tenant, membership, globalUser);
 
     let billingLocked: boolean | undefined;
     let outstandingInvoiceId: string | null = null;
@@ -409,8 +403,58 @@ export class AuthService {
       user: { name: globalUser.name, phone: globalUser.phone },
       tenant: { name: tenant.name, slug: tenant.slug },
       role: membership.role,
+      twoFactor,
       ...(billingLocked ? { billingLocked, outstandingInvoiceId } : {}),
     };
+  }
+
+  /**
+   * وضعیت 2FA اجباری مالک/مدیر برای یک عضویت. ساعت مهلت (grace) در اولین دیده‌شدنِ مالک/مدیرِ بدون 2FA شروع می‌شود
+   * و دیگر جابه‌جا نمی‌شود (updateMany فقط روی null).
+   */
+  async twoFactorState(
+    tenant: Pick<Tenant, 'twoFactorPolicy'>,
+    membership: Pick<TenantMembership, 'id' | 'role' | 'twoFactorGraceStartedAt'>,
+    globalUser: Pick<GlobalUser, 'totpEnabledAt'>,
+  ): Promise<TwoFactorState> {
+    const mode = effectiveMode(tenant.twoFactorPolicy);
+    const enrolled = !!globalUser.totpEnabledAt;
+    let graceStartedAt = membership.twoFactorGraceStartedAt ?? null;
+    const base = { mode, role: membership.role, authType: 'tenant_user', enrolled, graceDays: graceDays() };
+    if (mode === 'grace' && !enrolled && !graceStartedAt && evaluateTwoFactor({ ...base, graceStartedAt: new Date() }).required) {
+      graceStartedAt = new Date();
+      await this.controlDb.tenantMembership.updateMany({ where: { id: membership.id, twoFactorGraceStartedAt: null }, data: { twoFactorGraceStartedAt: graceStartedAt } });
+    }
+    return evaluateTwoFactor({ ...base, graceStartedAt });
+  }
+
+  /** توکن نشست: برای مالک/مدیر بدون 2FA در حالت الزام، توکن کوتاه‌عمر و محدود (claim t2fa) صادر می‌شود. */
+  private async issueSession(tenant: Tenant, membership: TenantMembership, globalUser: GlobalUser) {
+    const twoFactor = await this.twoFactorState(tenant, membership, globalUser);
+    const payload: TenantJwtPayload = {
+      type: 'tenant_user',
+      sub: globalUser.id,
+      tenantId: tenant.id,
+      membershipId: membership.id,
+      role: membership.role,
+      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
+      ...(twoFactor.restricted ? { t2fa: true as const } : {}),
+    };
+    const accessToken = await (twoFactor.restricted ? this.jwt.signAsync(payload, { expiresIn: RESTRICTED_TOKEN_TTL_SECONDS }) : this.jwt.signAsync(payload));
+    return { accessToken, twoFactor };
+  }
+
+  /** پس از ثبت موفق 2FA: توکن عادی (بدون claim محدودیت) برای همان نشست. هیچ نسخه‌ای افزایش نمی‌یابد. */
+  async reissueSession(auth: { sub: string; tenantId: string; membershipId: string }) {
+    const [tenant, membership, globalUser] = await Promise.all([
+      this.controlDb.tenant.findUniqueOrThrow({ where: { id: auth.tenantId } }),
+      this.controlDb.tenantMembership.findUniqueOrThrow({ where: { id: auth.membershipId } }),
+      this.controlDb.globalUser.findUniqueOrThrow({ where: { id: auth.sub } }),
+    ]);
+    if (membership.status !== 'ACTIVE' || membership.globalUserId !== globalUser.id || membership.tenantId !== tenant.id) {
+      throw new UnauthorizedException('دسترسی شما به این محیط کاری حذف یا غیرفعال شده است');
+    }
+    return this.issueSession(tenant, membership, globalUser);
   }
 
   private async resolveTenantLogin(phone: string, tenantSlug: string, mfaDone = false) {
@@ -463,15 +507,7 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const payload: TenantJwtPayload = {
-      type: 'tenant_user',
-      sub: globalUser.id,
-      tenantId: tenant.id,
-      membershipId: membership.id,
-      role: membership.role,
-      tv: await this.epoch.effective(tenant.tokenVersion, membership.tokenVersion),
-    };
-    const accessToken = await this.jwt.signAsync(payload);
+    const { accessToken, twoFactor } = await this.issueSession(tenant, membership, globalUser);
 
     let billingLocked: boolean | undefined;
     let outstandingInvoiceId: string | null = null;
@@ -489,6 +525,7 @@ export class AuthService {
       user: { name: globalUser.name, phone: globalUser.phone },
       tenant: { name: tenant.name, slug: tenant.slug },
       role: membership.role,
+      twoFactor,
       ...(billingLocked ? { billingLocked, outstandingInvoiceId } : {}),
     };
   }

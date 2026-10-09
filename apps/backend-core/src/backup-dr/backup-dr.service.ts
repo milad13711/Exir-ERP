@@ -14,6 +14,7 @@ import { buildPgDumpInvocation, type DumpConnection } from '../settings/backup.s
 import { SqlCompatTransform } from './backup-sql-compat.js';
 import { DecryptStream, EncryptStream, looksEncrypted, parseEncryptionKey } from './backup-crypto.js';
 import { S3ObjectStore, offsiteConfigFromEnv, sanitizeError, withRetry, type ObjectStore } from './backup-offsite.js';
+import { STALE_VERIFY_DAYS, pickRotatingTenants, staleVerifications, type RestoreCandidate } from './restore-schedule.js';
 import { BACKUP_FILE_RE, maxFilesKept, retentionFromEnv, selectDeleteDates, selectKeepDates, type RetentionPolicy } from './backup-retention.js';
 import {
   DIR_MODE,
@@ -146,6 +147,7 @@ export class BackupDrService implements OnModuleInit {
       const status = await readStatus(this.root);
       const warnings = this.staleWarnings(status);
       for (const w of warnings) await this.alert(`stale:${w.target}`, w.message);
+      await this.alertStaleRestoreVerification(status);
     } catch (err) {
       this.logger.error(`staleness check failed: ${sanitizeError(err)}`);
     }
@@ -689,16 +691,60 @@ export class BackupDrService implements OnModuleInit {
         .filter(([n]) => n !== CONTROL_TARGET)
         .sort(([, a], [, b]) => (b.lastSize ?? 0) - (a.lastSize ?? 0))[0];
       if (biggest) targets.push({ name: biggest[0], kind: 'tenant', conn: { dbHost: '', dbPort: 0, dbName: '' } });
+      // چرخش: تننت‌هایی که نوبتشان رسیده (قدیمی‌ترین تأییدنشده‌ها) — ترتیبی و کم‌بار، تا همه‌ی تننت‌های فعال ~ماهانه پوشش یابند
+      try {
+        const cands = await this.restoreCandidates(status);
+        const exclude = new Set(targets.map((t) => t.name));
+        for (const slug of pickRotatingTenants(cands, Date.now(), exclude)) {
+          targets.push({ name: slug, kind: 'tenant', conn: { dbHost: '', dbPort: 0, dbName: '' } });
+        }
+      } catch (err) {
+        this.logger.warn(`rotating restore selection failed: ${sanitizeError(err)}`);
+      }
       for (const t of targets) {
         const r = await this.restoreCheck(t, key);
         results.push(r);
         this.logger.log(`Restore test ${r.target}: ${r.ok ? 'OK' : 'FAILED'} (${r.detail})`);
-        if (!r.ok) await this.alert(`restore-fail:${r.target}`, `آزمون بازیابی بکاپ ${r.target} ناموفق بود: ${r.detail}`);
+        if (r.ok) await this.patchStatus((s) => void ((s.restoreVerified ??= {})[r.target] = r.at));
+        else await this.alert(`restore-fail:${r.target}`, `آزمون بازیابی بکاپ ${r.target} ناموفق بود: ${r.detail}`);
+        await this.sleepFn(2000); // فاصله بین تننت‌ها تا فشار پیوسته روی Postgres نباشد
       }
-      await this.patchStatus((s) => void (s.restoreTests = [...results, ...s.restoreTests].slice(0, 20)));
+      await this.patchStatus((s) => void (s.restoreTests = [...results, ...s.restoreTests].slice(0, 60)));
+      await this.alertStaleRestoreVerification(await readStatus(this.root));
       return results;
     } finally {
       this.running = null;
+    }
+  }
+
+  /** تننت‌های فعالی که بکاپ موفق دارند + آخرین تأیید بازیابی‌شان. */
+  protected async restoreCandidates(status: BackupStatus): Promise<RestoreCandidate[]> {
+    const tenants = await this.controlDb.tenant.findMany({ where: { status: 'ACTIVE' } });
+    const fallback = new Date(this.bootedAt).toISOString();
+    const out: RestoreCandidate[] = [];
+    for (const t of tenants) {
+      if (!SLUG_RE.test(t.slug) || !status.targets[t.slug]?.lastSuccessAt) continue;
+      // تننت تازه‌ساخته تا ۳۵ روز مهلت دارد؛ از زمان ساخت (یا بوت سرویس) حساب می‌شود
+      const created = (t as { createdAt?: Date }).createdAt;
+      const since = created && new Date(created).getTime() > this.bootedAt - 400 * 86_400_000 ? new Date(created).toISOString() : fallback;
+      out.push({ slug: t.slug, verifiedAt: status.restoreVerified?.[t.slug], sinceIso: since });
+    }
+    return out;
+  }
+
+  protected async alertStaleRestoreVerification(status: BackupStatus): Promise<void> {
+    try {
+      const stale = staleVerifications(await this.restoreCandidates(status), Date.now());
+      for (const s of stale) {
+        await this.alert(
+          `restore-unverified:${s.slug}`,
+          s.neverVerified
+            ? `بکاپ تننت ${s.slug} هرگز با آزمون بازیابی تأیید نشده (بیش از ${STALE_VERIFY_DAYS} روز از ساخت)`
+            : `بکاپ تننت ${s.slug} بیش از ${STALE_VERIFY_DAYS} روز است آزمون بازیابی نشده (${s.ageDays} روز)`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`restore-verification staleness check failed: ${sanitizeError(err)}`);
     }
   }
 
@@ -774,7 +820,7 @@ export class BackupDrService implements OnModuleInit {
       }
       total += bytes;
       const t = status.targets[e.name] ?? {};
-      targets.push({ name: e.name, kind: e.name === CONTROL_TARGET ? 'control' : 'tenant', active: activeNames.has(e.name) || e.name === CONTROL_TARGET, ...t, fileCount: files.length, bytes, plaintextFiles: plaintext });
+      targets.push({ name: e.name, kind: e.name === CONTROL_TARGET ? 'control' : 'tenant', active: activeNames.has(e.name) || e.name === CONTROL_TARGET, ...t, restoreVerifiedAt: status.restoreVerified?.[e.name] ?? null, fileCount: files.length, bytes, plaintextFiles: plaintext });
     }
     let freeBytes: number | null = null;
     let totalDisk: number | null = null;
@@ -804,6 +850,9 @@ export class BackupDrService implements OnModuleInit {
     if (!lastTest) warnings.push('هنوز آزمون بازیابی انجام نشده است');
     else if (!lastTest.ok) warnings.push(`آخرین آزمون بازیابی (${lastTest.target}) ناموفق بود`);
     else if (Date.now() - new Date(lastTest.at).getTime() > 10 * 86_400_000) warnings.push('آخرین آزمون بازیابی بیش از ۱۰ روز پیش بوده است');
+    const cands = await this.restoreCandidates(status).catch(() => [] as RestoreCandidate[]);
+    const staleVerified = staleVerifications(cands, Date.now());
+    for (const s of staleVerified) warnings.push(s.neverVerified ? `بکاپ تننت ${s.slug} هرگز آزمون بازیابی نشده` : `بکاپ تننت ${s.slug} ${s.ageDays} روز است آزمون بازیابی نشده`);
     if (freeBytes !== null && totalDisk && freeBytes / totalDisk < 0.15) warnings.push('کمتر از ۱۵٪ فضای دیسک آزاد است');
 
     return {
@@ -816,6 +865,7 @@ export class BackupDrService implements OnModuleInit {
       lastRunStartedAt: status.lastRunStartedAt ?? null,
       lastRunFinishedAt: status.lastRunFinishedAt ?? null,
       targets: targets.sort((a, b) => (a.kind === 'control' ? -1 : b.kind === 'control' ? 1 : a.name.localeCompare(b.name))),
+      restoreVerification: { thresholdDays: STALE_VERIFY_DAYS, tracked: cands.length, verified: cands.filter((c) => c.verifiedAt).length, stale: staleVerified },
       lastRestoreTest: lastTest ?? null,
       restoreTests: status.restoreTests.slice(0, 5),
       warnings,

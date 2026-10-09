@@ -9,6 +9,8 @@ export type TenantJwtPayload = {
   role: TenantRole;
   /** نسخه‌ی مؤثر نشست (epoch سراسری + tokenVersion تننت + tokenVersion عضو) هنگام صدور؛ نبودنش یعنی ۰ (توکن قدیمی). */
   tv?: number;
+  /** نشست محدود: مالک/مدیر بدون 2FA در حالت الزام؛ فقط ثبت 2FA مجاز است (راهنمای کلاینت؛ مرجع واقعی وضعیت DB است). */
+  t2fa?: true;
 };
 
 /** Issued after internal staff (management team) login — never scoped to a tenant. */

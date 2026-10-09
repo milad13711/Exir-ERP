@@ -7,6 +7,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PaymentGatewaySettingsService, type UpdatePaymentGatewaySettingsDto } from './payment-gateway-settings.service.js';
+import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 @Controller('payment-gateway')
 @UseGuards(JwtAuthGuard, ModuleGuard)
@@ -23,6 +24,7 @@ export class PaymentGatewayController {
   @UseGuards(RolesGuard)
   @Roles('OWNER', 'ADMIN')
   async updateSettings(@Body() dto: UpdatePaymentGatewaySettingsDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
     return this.settings.update(ctx, dto);
   }
 }

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import QRCode from 'qrcode';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { SecurityEventsService } from '../security/security-events.service.js';
 import { AppSecretsKeyMissingError, openSecret, sealSecret, totpAad } from '../security/app-secrets.js';
@@ -31,7 +32,8 @@ export class TenantTwoFactorService {
       if (err instanceof AppSecretsKeyMissingError) throw new HttpException('رمزنگاری رازها روی سرور پیکربندی نشده است (APP_SECRETS_KEY)', HttpStatus.SERVICE_UNAVAILABLE);
       throw err;
     }
-    return { secret, otpauthUrl: otpauthUrl(u.phone, secret) };
+    const url = otpauthUrl(u.phone, secret);
+    return { secret, otpauthUrl: url, qrDataUrl: await QRCode.toDataURL(url, { margin: 1, width: 220 }) };
   }
 
   async enable(globalUserId: string, code: string) {
