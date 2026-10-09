@@ -786,6 +786,8 @@ export function createTenantModuleInvoice(tenantId: string, data: { items: Array
 export type BackupTargetStatus = {
   name: string;
   kind: "control" | "tenant";
+  /** false = تننت غیرفعال/منتظر پرداخت؛ بکاپ نمی‌شود و فقط آرشیو قدیمی دارد. */
+  active?: boolean;
   lastSuccessAt?: string;
   lastFile?: string;
   lastSize?: number;

@@ -11,6 +11,7 @@ import { createGunzip, createGzip } from 'node:zlib';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { buildPgDumpInvocation, type DumpConnection } from '../settings/backup.service.js';
+import { SqlCompatTransform } from './backup-sql-compat.js';
 import { DecryptStream, EncryptStream, looksEncrypted, parseEncryptionKey } from './backup-crypto.js';
 import { S3ObjectStore, offsiteConfigFromEnv, sanitizeError, withRetry, type ObjectStore } from './backup-offsite.js';
 import { BACKUP_FILE_RE, maxFilesKept, retentionFromEnv, selectDeleteDates, selectKeepDates, type RetentionPolicy } from './backup-retention.js';
@@ -250,7 +251,7 @@ export class BackupDrService implements OnModuleInit {
     const counter = new HashCounter();
     const dump = this.openDump(target);
     const out = createWriteStream(tmpPath, { mode: FILE_MODE });
-    const stages: any[] = [dump.stream, createGzip({ level: 9 })];
+    const stages: any[] = [dump.stream, new SqlCompatTransform(), createGzip({ level: 9 })];
     if (key) stages.push(new EncryptStream(key));
     stages.push(counter, out);
     // wait for BOTH to settle before touching the file, so a late write can't resurrect a partial
@@ -609,7 +610,7 @@ export class BackupDrService implements OnModuleInit {
 
       const stages: any[] = [createReadStream(path)];
       if (file.endsWith('.enc')) stages.push(new DecryptStream(key!));
-      stages.push(createGunzip());
+      stages.push(createGunzip(), new SqlCompatTransform()); // فایل‌های قدیمی هم همان خط ناسازگار را دارند
       const sqlStream = new PassThrough();
       stages.push(sqlStream);
       (pipeline as any)(...stages).catch(() => {}); // pipeline destroys sqlStream with the error, which fails the feed below
@@ -751,6 +752,8 @@ export class BackupDrService implements OnModuleInit {
     const status = await readStatus(this.root);
     const targets: any[] = [];
     let total = 0;
+    // فقط تننت‌های ACTIVE بکاپ می‌شوند؛ پوشه‌ی بقیه (منتظر پرداخت/معلق) فقط آرشیو قدیمی است و نباید قرمز دیده شود.
+    const activeNames = new Set((await this.listTargets().catch(() => [])).map((t) => t.name));
     const entries = await readdir(this.root, { withFileTypes: true }).catch(() => []);
     for (const e of entries.filter((x) => x.isDirectory())) {
       const dir = join(this.root, e.name);
@@ -763,7 +766,7 @@ export class BackupDrService implements OnModuleInit {
       }
       total += bytes;
       const t = status.targets[e.name] ?? {};
-      targets.push({ name: e.name, kind: e.name === CONTROL_TARGET ? 'control' : 'tenant', ...t, fileCount: files.length, bytes, plaintextFiles: plaintext });
+      targets.push({ name: e.name, kind: e.name === CONTROL_TARGET ? 'control' : 'tenant', active: activeNames.has(e.name) || e.name === CONTROL_TARGET, ...t, fileCount: files.length, bytes, plaintextFiles: plaintext });
     }
     let freeBytes: number | null = null;
     let totalDisk: number | null = null;
@@ -788,7 +791,7 @@ export class BackupDrService implements OnModuleInit {
     if (status.offsiteLastError) warnings.push(`آخرین ارسال خارج از سرور ناموفق بود: ${status.offsiteLastError}`);
     if (!targets.some((t) => t.name === CONTROL_TARGET && t.lastSuccessAt)) warnings.push('هنوز هیچ بکاپ موفقی از دیتابیس کنترل ثبت نشده است');
     for (const w of this.staleWarnings(status)) warnings.push(w.message);
-    for (const t of targets) if (t.plaintextFiles > 0) warnings.push(`${t.plaintextFiles} فایل بکاپ بدون رمزنگاری در ${t.name} وجود دارد`);
+    for (const t of targets) if (t.active && t.plaintextFiles > 0) warnings.push(`${t.plaintextFiles} فایل بکاپ بدون رمزنگاری در ${t.name} وجود دارد`);
     const lastTest = status.restoreTests[0];
     if (!lastTest) warnings.push('هنوز آزمون بازیابی انجام نشده است');
     else if (!lastTest.ok) warnings.push(`آخرین آزمون بازیابی (${lastTest.target}) ناموفق بود`);

@@ -154,15 +154,22 @@ export default function BackupsPage() {
       <div className="flex flex-col gap-2">
         {data.targets.map((x) => {
           const age = ageHours(x.lastSuccessAt);
-          const stale = age === null || age > 26;
+          const inactive = x.active === false;
+          const stale = !inactive && (age === null || age > 26);
           return (
-            <Card key={x.name} className="p-3.5">
+            <Card key={x.name} className={`p-3.5 ${inactive ? "opacity-70" : ""}`}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="text-[13px] font-bold">{x.kind === "control" ? "دیتابیس کنترل (پلتفرم)" : x.name}</div>
                 <div className="flex gap-1.5 flex-wrap">
-                  <Badge tone={stale ? "danger" : "success"}>{x.lastSuccessAt ? formatJalaliDateTime(x.lastSuccessAt) : "بدون بکاپ موفق"}</Badge>
-                  <Badge tone={x.encrypted ? "success" : "danger"}>{x.encrypted ? "رمزنگاری‌شده" : "بدون رمزنگاری"}</Badge>
-                  <Badge tone={x.offsite ? "success" : "warning"}>{x.offsite ? "خارج از سرور ✓" : "فقط محلی"}</Badge>
+                  {inactive ? (
+                    <Badge tone="neutral">تننت غیرفعال — بکاپ نمی‌شود</Badge>
+                  ) : (
+                    <>
+                      <Badge tone={stale ? "danger" : "success"}>{x.lastSuccessAt ? formatJalaliDateTime(x.lastSuccessAt) : "بدون بکاپ موفق"}</Badge>
+                      <Badge tone={x.encrypted ? "success" : "danger"}>{x.encrypted ? "رمزنگاری‌شده" : "بدون رمزنگاری"}</Badge>
+                      <Badge tone={x.offsite ? "success" : "warning"}>{x.offsite ? "خارج از سرور ✓" : "فقط محلی"}</Badge>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="text-[11.5px] text-muted mt-1.5">

@@ -65,8 +65,9 @@ else
 fi
 
 emit_sql() {  # decrypt (if needed) | gunzip
-  if [ "$ENC" = 1 ]; then node "$HERE/backup-decrypt.mjs" ${DECRYPT_ARGS[@]+"${DECRYPT_ARGS[@]}"} "$FILE" | gunzip
-  else gunzip -c "$FILE"; fi
+  # `SET transaction_timeout` (PG17+) را از سرآیند حذف می‌کنیم: dump با pg_dump 18 گرفته شده ولی سرور Postgres 16 است.
+  if [ "$ENC" = 1 ]; then node "$HERE/backup-decrypt.mjs" ${DECRYPT_ARGS[@]+"${DECRYPT_ARGS[@]}"} "$FILE" | gunzip | sed '/^SET transaction_timeout = /d'
+  else gunzip -c "$FILE" | sed '/^SET transaction_timeout = /d'; fi
 }
 
 echo "== Exir restore ($MODE) =="
