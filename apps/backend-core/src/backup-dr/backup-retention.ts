@@ -13,7 +13,7 @@ export type RetentionPolicy = { daily: number; weekly: number; monthly: number }
 
 export const DEFAULT_RETENTION: RetentionPolicy = { daily: 7, weekly: 4, monthly: 6 };
 
-export const BACKUP_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.(json|sql\.gz|sql\.gz\.enc)$/;
+export const BACKUP_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.(json|json\.gz\.enc|sql\.gz|sql\.gz\.enc)$/;
 
 function intEnv(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw.trim() === '') return fallback;

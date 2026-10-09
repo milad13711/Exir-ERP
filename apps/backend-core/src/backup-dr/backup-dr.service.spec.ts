@@ -275,6 +275,19 @@ describe('retention, permissions and legacy migration', () => {
     expect(files).not.toContain('2026-10-02.sql.gz.enc');
     expect(await decryptFile(join(dir, '2026-10-01.sql.gz.enc'))).toBe('SELECT 1;\n');
   });
+
+  it('also encrypts legacy plaintext JSON exports (gzip + AES-GCM) and removes the plaintext', async () => {
+    const svc = make();
+    const dir = join(root, 'acme');
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, '2026-09-26.json'), Buffer.from('{"secret":"tenant data"}'));
+    expect(await svc.encryptLegacyBackups()).toBe(1);
+    const files = await readdir(dir);
+    expect(files).toContain('2026-09-26.json.gz.enc');
+    expect(files).not.toContain('2026-09-26.json');
+    const key = parseEncryptionKey(KEY_HEX);
+    expect(await svc.fullyVerify(join(dir, '2026-09-26.json.gz.enc'), key)).toBeGreaterThan(5);
+  });
 });
 
 describe('verification & guards', () => {

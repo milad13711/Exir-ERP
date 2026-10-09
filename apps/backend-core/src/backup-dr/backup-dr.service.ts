@@ -498,7 +498,11 @@ export class BackupDrService implements OnModuleInit {
     return { fixed };
   }
 
-  /** Re-wraps pre-existing plaintext `<date>.sql.gz` files as encrypted `.sql.gz.enc`, then removes the plaintext. */
+  /**
+   * فایل‌های متنیِ قدیمی را رمز می‌کند و نسخه‌ی ساده را حذف می‌کند:
+   *  - `<date>.sql.gz` → `<date>.sql.gz.enc`
+   *  - `<date>.json` (خروجی قدیمیِ پیش از pg_dump، شامل داده‌ی کامل تننت) → gzip + رمز → `<date>.json.gz.enc`
+   */
   async encryptLegacyBackups(): Promise<number> {
     const key = this.getKey();
     if (!key) return 0;
@@ -508,14 +512,18 @@ export class BackupDrService implements OnModuleInit {
       const dir = join(this.root, d.name);
       const files = await readdir(dir);
       for (const f of files) {
-        const m = /^(\d{4}-\d{2}-\d{2})\.sql\.gz$/.exec(f);
+        const m = /^(\d{4}-\d{2}-\d{2})\.(sql\.gz|json)$/.exec(f);
         if (!m) continue;
-        const encName = `${f}.enc`;
+        const isJson = m[2] === 'json';
+        const encName = isJson ? `${m[1]}.json.gz.enc` : `${f}.enc`;
         const src = join(dir, f);
         const tmp = join(dir, `${encName}.partial`);
         try {
           const counter = new HashCounter();
-          await pipeline(createReadStream(src), new EncryptStream(key), counter, createWriteStream(tmp, { mode: FILE_MODE }));
+          const legacyStages: any[] = [createReadStream(src)];
+          if (isJson) legacyStages.push(createGzip({ level: 9 })); // JSON خام فشرده نبود؛ قبل از رمز فشرده می‌شود
+          legacyStages.push(new EncryptStream(key), counter, createWriteStream(tmp, { mode: FILE_MODE }));
+          await (pipeline as any)(...legacyStages);
           const finalPath = join(dir, encName);
           await rename(tmp, finalPath);
           await chmod(finalPath, FILE_MODE);
@@ -591,7 +599,7 @@ export class BackupDrService implements OnModuleInit {
     const created = new Set<string>();
     const dbName = `${RESTORE_DB_PREFIX}${randomBytes(6).toString('hex')}`;
     try {
-      const files = (await readdir(dir)).filter((f) => BACKUP_FILE_RE.test(f) && !f.endsWith('.json')).sort();
+      const files = (await readdir(dir)).filter((f) => BACKUP_FILE_RE.test(f) && !f.endsWith('.json') && !f.endsWith('.json.gz.enc')).sort();
       const file = files.reverse().find((f) => f.endsWith('.enc') === !!key) ?? files[0];
       if (!file) throw new Error('هیچ فایل بکاپی برای آزمون بازیابی پیدا نشد');
       base.file = file;
