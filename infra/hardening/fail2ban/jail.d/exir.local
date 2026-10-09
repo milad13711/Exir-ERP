@@ -4,7 +4,7 @@
 # Replace OWNER_IP_PLACEHOLDER (space separated). ArvanCloud/Cloudflare ranges:
 # refresh via nginx/refresh-cdn-ranges.sh and paste here if nginx logs show CDN IPs
 # (but with real-ip.conf in place nginx logs the real client IP, which is what we want to ban).
-ignoreip = 127.0.0.1/8 ::1 OWNER_IP_PLACEHOLDER
+ignoreip = 127.0.0.1/8 ::1 141.98.84.104
 bantime  = 1h
 findtime = 10m
 maxretry = 5
@@ -20,7 +20,7 @@ banaction_allports = ufw
 [sshd]
 enabled  = true
 port     = ssh
-mode     = aggressive
+mode     = normal
 maxretry = 4
 findtime = 10m
 bantime  = 2h

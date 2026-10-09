@@ -5,7 +5,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 . "$HERE/lib.sh"
 
-DROPIN="/etc/ssh/sshd_config.d/99-exir-hardening.conf"
+# پیشوند 00: sshd «اولین مقدار» را برنده می‌داند و 50-cloud-init.conf روی اوبونتو PasswordAuthentication yes می‌گذارد؛
+# با 99 فایل ما هرگز اثر نمی‌کرد. پس باید قبل از همه خوانده شود.
+DROPIN="/etc/ssh/sshd_config.d/00-exir-hardening.conf"
 MODE="dry"
 usage() {
   cat <<USAGE
@@ -33,7 +35,7 @@ KbdInteractiveAuthentication no
 PermitEmptyPasswords no
 PermitRootLogin prohibit-password
 PubkeyAuthentication yes
-MaxAuthTries 3
+MaxAuthTries 6
 MaxSessions 6
 LoginGraceTime 20
 X11Forwarding no
@@ -41,10 +43,11 @@ AllowAgentForwarding no
 # AllowTcpForwarding left at default on purpose (owner may tunnel to Postgres etc.); set 'no' if not needed.
 ClientAliveInterval 300
 ClientAliveCountMax 2
-# Modern algorithms (OpenSSH 9.6 on Ubuntu 24.04)
-KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
-Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
-MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+# اتصال‌های نیمه‌باز (احراز نشده): سیل حمله‌ی حدسی (بیش از یک میلیون تلاش) پیش‌فرض 10:30:100 را پر می‌کرد و
+# اتصال‌های قانونیِ ما (rsync/deploy) را قطع می‌کرد. start:rate:full
+MaxStartups 30:30:120
+# الگوریتم‌ها عمداً دست‌نخورده‌اند: پیش‌فرض‌های OpenSSH 9.6 اوبونتو ۲۴٫۰۴ مدرن‌اند و محدودکردن دستی فقط
+# ریسک ناسازگاری با کلاینت‌های قدیمی (و قفل‌شدن) دارد.
 CONF
 }
 
@@ -89,15 +92,7 @@ have_keys || die "no authorized_keys entries for root/invoking user - refusing (
 # Warn if main config has Include missing: drop-ins are ignored then.
 grep -Eq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/' /etc/ssh/sshd_config \
   || die "/etc/ssh/sshd_config lacks 'Include /etc/ssh/sshd_config.d/*.conf'; drop-in would be ignored"
-# Note: first-value-wins in sshd; 50-cloud-init.conf may set PasswordAuthentication yes and sorts BEFORE 99.
-for f in /etc/ssh/sshd_config.d/*.conf; do
-  [ "$f" = "$DROPIN" ] && continue
-  if grep -Eqi '^[[:space:]]*PasswordAuthentication[[:space:]]+yes' "$f" 2>/dev/null; then
-    warn "$f sets PasswordAuthentication yes and is read before ours (first value wins)."
-    warn "  Our file would be ineffective. Edit it, or rename ours to 00-exir-hardening.conf. Aborting."
-    die "conflicting drop-in: $f"
-  fi
-done
+# فایل ما 00- است و قبل از هر drop-in دیگر (مثل 50-cloud-init.conf) خوانده می‌شود؛ پس مقدارهای ما برنده‌اند.
 
 backup_file "$DROPIN"
 install -m 0644 -o root -g root "$tmp" "$DROPIN"
@@ -109,6 +104,8 @@ if ! sshd -t; then
 fi
 systemctl reload ssh 2>/dev/null || systemctl reload sshd
 log "sshd reloaded with $DROPIN"
+log "effective values now:"
+sshd -T 2>/dev/null | grep -Ei '^(passwordauthentication|permitrootlogin|kbdinteractiveauthentication|maxauthtries|maxstartups)' || true
 echo "!!! DO NOT CLOSE THIS SESSION !!!"
 echo "Open a SECOND terminal now and verify:  ssh -o PreferredAuthentications=publickey root@<server>"
 echo "Only if it works, close the old one. If not:  sudo $0 --rollback"
