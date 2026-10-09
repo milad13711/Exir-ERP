@@ -111,6 +111,12 @@ services:
       APP_SECRETS_KEY: ${APP_SECRETS_KEY:-}
       # true => every admin-panel user must enrol TOTP 2FA before using the console.
       ADMIN_REQUIRE_TOTP: ${ADMIN_REQUIRE_TOTP:-false}
+      # ایزولاسیون دیتابیس تننت‌ها (نقش Postgres جدا برای هر تننت): auto | required | off
+      TENANT_DB_ISOLATION: ${TENANT_DB_ISOLATION:-auto}
+      TENANT_DB_ROLE_CONN_LIMIT: ${TENANT_DB_ROLE_CONN_LIMIT:-40}
+      # ۲FA اجباری مالک/ادمین تننت‌ها: off | grace | enforce
+      TENANT_REQUIRE_2FA_FOR_ADMINS: ${TENANT_REQUIRE_2FA_FOR_ADMINS:-grace}
+      TENANT_2FA_GRACE_DAYS: ${TENANT_2FA_GRACE_DAYS:-14}
       ADMIN_JWT_EXPIRES_IN_SECONDS: ${ADMIN_JWT_EXPIRES_IN_SECONDS:-43200}
       # First super-admin for a fresh install (production never creates the repo-default admin). Empty => a random password is printed once in the logs.
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
