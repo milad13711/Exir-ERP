@@ -15,8 +15,9 @@ import 'dotenv/config';
 import { PrismaClient } from '../../generated/control-client/index.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 
-const MARKER = 'ورود دو مرحله‌ای (Google Authenticator) برای مالک و مدیران اجباری می‌شود';
-export const ANNOUNCE_2FA_MESSAGE = `اکسیر ERP: ${MARKER}. از تنظیمات > پروفایل در ۲ دقیقه فعال کنید؛ مهلت ۱۴ روز.`;
+const MARKER = 'ورود دو مرحله‌ای (Google Authenticator)';
+const SUPPORT_PHONE = '09908008011';
+export const ANNOUNCE_2FA_MESSAGE = `اکسیر ERP: برای افزایش امنیت اطلاعات شما، ${MARKER} برای مالک و مدیران اجباری می‌شود. از تنظیمات > پروفایل فعال کنید؛ مهلت ۱۴ روز. نیاز به راهنما؟ پشتیبانی: ${SUPPORT_PHONE}`;
 const DEDUPE_DAYS = 14;
 
 function normalizeMobile(raw: string | null | undefined): string | null {
