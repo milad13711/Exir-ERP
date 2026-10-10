@@ -148,3 +148,19 @@ describe('PublicTrackingService.listMyProjects', () => {
     await expect(svc.listMyProjects('acme', forged)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
+
+describe('PublicTrackingService.listProjects (legacy stage list) — same visibility rule as «پروژه‌های من»', () => {
+  it('never lists a project whose public link is off', async () => {
+    const { svc, token } = setup({
+      projects: [
+        project({ id: 'p1', name: 'PUBLIC-PROJECT', publicEnabled: true }),
+        project({ id: 'p2', name: 'PRIVATE-PROJECT-SENTINEL', publicEnabled: false, contactId: 'c1' }),
+      ],
+    });
+    const list = (await svc.listProjects('acme', await token())) as Array<{ name: string }>;
+    const names = list.map((p) => p.name);
+    expect(names).toContain('PUBLIC-PROJECT');
+    expect(names).not.toContain('PRIVATE-PROJECT-SENTINEL');
+    expect(JSON.stringify(list)).not.toContain('PRIVATE-PROJECT-SENTINEL');
+  });
+});

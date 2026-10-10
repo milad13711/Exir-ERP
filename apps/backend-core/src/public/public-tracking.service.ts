@@ -115,7 +115,8 @@ export class PublicTrackingService {
     if (contacts.length === 0) return [];
 
     const projects = await tenantDb.project.findMany({
-      where: { contactId: { in: contacts.map((c) => c.id) } },
+      // فقط پروژه‌هایی که لینک عمومی‌شان روشن است — با کلید «نمایش به مشتری» یکدست؛ پروژه‌ی خصوصی هرگز نمایش داده نمی‌شود.
+      where: { contactId: { in: contacts.map((c) => c.id) }, publicEnabled: true },
       select: {
         projectNo: true,
         name: true,
