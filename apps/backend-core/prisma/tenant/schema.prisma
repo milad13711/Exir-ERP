@@ -2648,6 +2648,8 @@ model Project {
   publicEnabled                 Boolean   @default(false)
   /// محدودکننده‌ی تکرار اعلان «کامنت جدید مشتری»
   lastCustomerCommentNotifiedAt DateTime?
+  /// پیامک خودکار وضعیت/پیشرفت به مشتری: null = پیروی از پیش‌فرض ماژول (تنظیمات پیامک پروژه)، true/false = اختصاصی این پروژه
+  notifyCustomerBySms           Boolean?
 
   contact              CrmContact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
   manager              User?                 @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
@@ -2658,10 +2660,33 @@ model Project {
   mentoringEngagements MentoringEngagement[]
   notes                ProjectNote[]
   proposals            Proposal[]
+  smsLogs              ProjectSmsLog[]
 
   @@index([status])
   @@index([endDate])
   @@map("projects")
+}
+
+/// ثبت هر پیامک وضعیت پروژه (خودکار/دستی) — برای حذف تکراری (۱۰ دقیقه)، سقف روزانه و نمایش «پیامک ارسال شد»؛ متن کامل ذخیره نمی‌شود.
+model ProjectSmsLog {
+  id        String   @id @default(uuid())
+  projectId String
+  stageId   String?
+  /// STAGE_STARTED | STAGE_COMPLETED | PROJECT_COMPLETED | PROJECT_ON_HOLD | PROJECT_CANCELLED | PROJECT_RESUMED | MANUAL
+  event     String
+  mode      String // AUTO | MANUAL
+  status    String // SENT | FAILED
+  error     String?
+  userId    String?
+  /// کلید یکتای پنجره‌ی ۱۰دقیقه‌ای (پروژه+مرحله+رویداد) تا دوبار-کلیک/تلاش مجدد هم‌زمان فقط یک پیامک بسازد
+  dedupeKey String?  @unique
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([createdAt])
+  @@map("project_sms_logs")
 }
 
 /// عضو تیم اجرایی پروژه — جدا از مدیر پروژه (managerUserId)؛ چند نفر می‌توانند به یک پروژه اضافه شوند.

@@ -4987,6 +4987,8 @@ export type Project = {
   progressPercent: number;
   stageProgress: { done: number; total: number };
   publicEnabled: boolean;
+  /** پیامک خودکار وضعیت: null = پیروی از پیش‌فرض ماژول */
+  notifyCustomerBySms: boolean | null;
   stages: ProjectStage[];
 };
 
@@ -5128,11 +5130,29 @@ export const setProjectPublicLink = (id: string, enabled: boolean) =>
   apiFetch<ProjectPublicLink>(`/projects/${id}/public-link`, { method: "POST", body: JSON.stringify({ enabled }) });
 export const regenerateProjectPublicLink = (id: string) => apiFetch<ProjectPublicLink>(`/projects/${id}/public-link/regenerate`, { method: "POST" });
 
+export type ProjectSmsEventKey = "stageStarted" | "stageCompleted" | "projectCompleted" | "projectOnHold" | "projectCancelled" | "projectResumed";
+export type ProjectSmsSettings = {
+  enabled: boolean;
+  maxPerProjectPerDay: number;
+  maxPerTenantPerDay: number;
+  events: Record<ProjectSmsEventKey, { enabled: boolean; template: string }>;
+  manualTemplate: string;
+};
+export const fetchProjectSmsSettings = () => apiFetch<ProjectSmsSettings>("/projects/sms-settings");
+export const saveProjectSmsSettings = (data: ProjectSmsSettings) => apiFetch<ProjectSmsSettings>("/projects/sms-settings", { method: "PUT", body: JSON.stringify(data) });
+export const previewProjectSmsTemplate = (template: string, withLink = true) =>
+  apiFetch<{ message: string; length: number; parts: number }>("/projects/sms-settings/preview", { method: "POST", body: JSON.stringify({ template, withLink }) });
+export const setProjectSmsNotify = (id: string, enabled: boolean | null) =>
+  apiFetch<{ id: string; notifyCustomerBySms: boolean | null }>(`/projects/${id}/sms-notify`, { method: "PATCH", body: JSON.stringify({ enabled }) });
+export type ProjectSmsPreview = { contactName: string | null; phoneMasked: string | null; canSend: boolean; hasLink: boolean; message: string; length: number; parts: number };
+export const fetchProjectSmsPreview = (id: string) => apiFetch<ProjectSmsPreview>(`/projects/${id}/sms-preview`);
+export const sendProjectSms = (id: string, message: string) => apiFetch<{ ok: boolean; parts: number }>(`/projects/${id}/send-sms`, { method: "POST", body: JSON.stringify({ message }) });
+
 export type ProjectNote = {
   id: string;
   stageId: string | null;
   parentId: string | null;
-  source: "STAFF" | "CUSTOMER";
+  source: "STAFF" | "CUSTOMER" | "SMS";
   authorName: string | null;
   body: string;
   visibleToCustomer: boolean;

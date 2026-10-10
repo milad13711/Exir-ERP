@@ -77,11 +77,12 @@ export function ProjectNotesSection({ projectId, refreshKey }: { projectId: stri
           {top.map((n) => {
             const replies = (notes ?? []).filter((r) => r.parentId === n.id);
             const isCustomer = n.source === "CUSTOMER";
+            const isSms = n.source === "SMS";
             return (
               <div key={n.id} className={`rounded-xl border p-3 ${isCustomer ? "border-primary/30 bg-primary-soft" : "border-border bg-slate-50"}`}>
                 <div className="flex items-center justify-between gap-2 text-[11px] text-muted mb-1">
                   <span className="flex items-center gap-1.5">
-                    {isCustomer ? <Badge tone="primary">کامنت مشتری</Badge> : <Badge tone="neutral">داخلی</Badge>}
+                    {isCustomer ? <Badge tone="primary">کامنت مشتری</Badge> : isSms ? <Badge tone="success">پیامک</Badge> : <Badge tone="neutral">داخلی</Badge>}
                     <span className="font-semibold text-ink-soft">{n.authorName ?? "—"}</span>
                   </span>
                   <span className="flex items-center gap-2">
@@ -138,7 +139,7 @@ export function ProjectNotesSection({ projectId, refreshKey }: { projectId: stri
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : isSms ? null : (
                   <button type="button" onClick={() => { setReplyTo(n.id); setReplyBody(""); setReplyVisible(false); }} className="mt-1.5 text-[11px] font-bold text-primary cursor-pointer">
                     پاسخ
                   </button>

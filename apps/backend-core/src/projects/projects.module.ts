@@ -3,6 +3,8 @@ import { PermissionsModule } from '../permissions/permissions.module.js';
 import { ModuleGuardModule } from '../common/guards/module-guard.module.js';
 import { AutomationModule } from '../automation/automation.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
+import { SmsModule } from '../sms/sms.module.js';
+import { ProjectSmsService } from './project-sms.service.js';
 import { ProjectsController } from './projects.controller.js';
 import { ProjectsService } from './projects.service.js';
 import { StageTemplatesService } from './stage-templates.service.js';
@@ -13,9 +15,9 @@ import { PublicProjectsService } from './public-projects.service.js';
 import { ProjectsAutomationTriggers } from './projects-automation.triggers.js';
 
 @Module({
-  imports: [PermissionsModule, ModuleGuardModule, AutomationModule, NotificationsModule],
+  imports: [PermissionsModule, ModuleGuardModule, AutomationModule, NotificationsModule, SmsModule],
   controllers: [ProjectsController, PublicProjectsController],
-  providers: [ProjectsService, ProjectCollabService, PublicProjectsService, StageTemplatesService, ProjectsReminderService, ProjectsAutomationTriggers],
+  providers: [ProjectsService, ProjectCollabService, ProjectSmsService, PublicProjectsService, StageTemplatesService, ProjectsReminderService, ProjectsAutomationTriggers],
   exports: [ProjectsService],
 })
 export class ProjectsModule {}

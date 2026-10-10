@@ -1,5 +1,5 @@
 import { ApprovalsService } from '../approvals/approvals.service.js';
-import { ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
@@ -8,6 +8,8 @@ import type { UpdateProjectDto } from './dto/update-project.dto.js';
 import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { computeProjectProgress } from './project-progress.js';
+import { ProjectSmsService } from './project-sms.service.js';
+import type { SmsEventKey } from './project-sms.template.js';
 
 const STAGE_INCLUDE = {
   requestedBy: { select: { id: true, name: true } },
@@ -47,7 +49,27 @@ export class ProjectsService implements OnModuleInit {
     private readonly automation: AutomationEngineService,
     private readonly approvals: ApprovalsService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly projectSms?: ProjectSmsService,
   ) {}
+
+  /** پیامک‌های در حال ارسال (برای تست/خاموشی تمیز) */
+  readonly pendingSms = new Set<Promise<unknown>>();
+
+  /**
+   * پیامک خودکار به مشتری — بعد از کامیت و بدون انتظار؛ هر خطا بلعیده می‌شود و هیچ‌وقت تغییر وضعیت را نمی‌شکند.
+   * (فیلترهای فعال/غیرفعال، سقف و حذف تکراری داخل ProjectSmsService است.)
+   */
+  private fireSms(ctx: TenantRequestContext, projectId: string, event: SmsEventKey, stageId?: string): void {
+    if (!this.projectSms) return;
+    let p: Promise<unknown>;
+    try {
+      p = this.projectSms.notifyEvent(ctx, projectId, event, stageId).catch(() => undefined);
+    } catch {
+      return;
+    }
+    this.pendingSms.add(p);
+    void p.finally(() => this.pendingSms.delete(p));
+  }
 
   onModuleInit(): void {
     this.approvals.registerHandler('PROJECT_STAGE', {
@@ -187,25 +209,28 @@ export class ProjectsService implements OnModuleInit {
     return presentProject(updated);
   }
 
-  private async transition(ctx: TenantRequestContext, id: string, allowedFrom: readonly string[], status: string) {
+  private async transition(ctx: TenantRequestContext, id: string, allowedFrom: readonly string[], status: string, smsEvent?: (from: string) => SmsEventKey | null) {
     const existing = await ctx.tenantDb.project.findUnique({ where: { id }, include: PROJECT_INCLUDE });
     if (!existing) throw new NotFoundException('پروژه یافت نشد');
     if (!allowedFrom.includes(existing.status)) {
       throw new ConflictException('این تغییر وضعیت برای پروژه با وضعیت فعلی مجاز نیست');
     }
-    return presentProject(await ctx.tenantDb.project.update({ where: { id }, data: { status: status as never }, include: PROJECT_INCLUDE }));
+    const result = presentProject(await ctx.tenantDb.project.update({ where: { id }, data: { status: status as never }, include: PROJECT_INCLUDE }));
+    const ev = smsEvent?.(existing.status);
+    if (ev) this.fireSms(ctx, id, ev);
+    return result;
   }
 
   start(ctx: TenantRequestContext, id: string) {
-    return this.transition(ctx, id, ['PLANNING', 'ON_HOLD'], 'ACTIVE');
+    return this.transition(ctx, id, ['PLANNING', 'ON_HOLD'], 'ACTIVE', (from) => (from === 'ON_HOLD' ? 'projectResumed' : null));
   }
 
   hold(ctx: TenantRequestContext, id: string) {
-    return this.transition(ctx, id, ['ACTIVE'], 'ON_HOLD');
+    return this.transition(ctx, id, ['ACTIVE'], 'ON_HOLD', () => 'projectOnHold');
   }
 
   async complete(ctx: TenantRequestContext, id: string) {
-    const project = await this.transition(ctx, id, [...ACTIVE_STATUSES], 'COMPLETED');
+    const project = await this.transition(ctx, id, [...ACTIVE_STATUSES], 'COMPLETED', () => 'projectCompleted');
     await this.automation.emit(ctx, 'projects.project.completed', {
       projectNo: project.projectNo,
       name: project.name,
@@ -215,7 +240,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   cancel(ctx: TenantRequestContext, id: string) {
-    return this.transition(ctx, id, [...ACTIVE_STATUSES], 'CANCELLED');
+    return this.transition(ctx, id, [...ACTIVE_STATUSES], 'CANCELLED', () => 'projectCancelled');
   }
 
   // ── مراحل پروژه ──────────────────────────────────────────────────────
@@ -323,6 +348,7 @@ export class ProjectsService implements OnModuleInit {
         include: STAGE_FULL_INCLUDE,
       });
       await this.notifyManager(ctx, projectId, requestedByUserId, 'projects.stage.started', `مرحله‌ی «${stage.title}» بدون نیاز به تأیید شروع شد`);
+      this.fireSms(ctx, projectId, 'stageStarted', stageId);
       return updated;
     }
     await this.approvals.request(ctx, {
@@ -360,11 +386,13 @@ export class ProjectsService implements OnModuleInit {
     }
     const approvedByUserId = await resolveTenantUserId(ctx);
     if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'PROJECT_STAGE', stageId, 'APPROVED');
-    return ctx.tenantDb.projectStage.update({
+    const approved = await ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'IN_PROGRESS', approvedAt: new Date(), approvedByUserId },
       include: STAGE_FULL_INCLUDE,
     });
+    this.fireSms(ctx, projectId, 'stageStarted', stageId);
+    return approved;
   }
 
   async rejectStage(ctx: TenantRequestContext, projectId: string, stageId: string, reason: string | undefined, fromApprovals = false) {
@@ -399,6 +427,7 @@ export class ProjectsService implements OnModuleInit {
     if (directAllowed) {
       await this.notifyManager(ctx, projectId, actor, 'projects.stage.completed', `مرحله‌ی «${stage.title}» بدون نیاز به تأیید تکمیل شد`);
     }
+    this.fireSms(ctx, projectId, 'stageCompleted', stageId);
     return updated;
   }
 

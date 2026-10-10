@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -9,6 +9,8 @@ import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ProjectsService } from './projects.service.js';
 import { ProjectCollabService } from './project-collab.service.js';
+import { ProjectSmsService } from './project-sms.service.js';
+import { ManualSmsDto, PreviewSmsTemplateDto, SetProjectSmsNotifyDto } from './dto/project-sms.dto.js';
 import { CreateProjectNoteDto, CreateStageLinkDto, LinkDocumentDto, SetPublicLinkDto, SetShowOnPublicDto, SetVisibilityDto } from './dto/project-collab.dto.js';
 import { StageTemplatesService } from './stage-templates.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
@@ -40,6 +42,7 @@ export class ProjectsController {
     private readonly stageTemplates: StageTemplatesService,
     private readonly permissions: PermissionsService,
     private readonly collab: ProjectCollabService,
+    private readonly projectSms: ProjectSmsService,
   ) {}
 
   /**
@@ -81,6 +84,31 @@ export class ProjectsController {
   async removeStageTemplate(@Param('templateId') templateId: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'projects');
     return this.stageTemplates.remove(ctx, templateId);
+  }
+
+  // ── پیامک وضعیت پروژه — تنظیمات (ویرایش + مشاهده‌ی همه) ─────────────
+
+  private async assertSmsSettingsAccess(ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.permissions.assertViewAll(ctx, 'projects');
+  }
+
+  @Get('sms-settings')
+  async getSmsSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.assertSmsSettingsAccess(ctx);
+    return this.projectSms.getSettings(ctx);
+  }
+
+  @Put('sms-settings')
+  async setSmsSettings(@Body() body: Record<string, unknown>, @Ctx() ctx: TenantRequestContext) {
+    await this.assertSmsSettingsAccess(ctx);
+    return this.projectSms.setSettings(ctx, body);
+  }
+
+  @Post('sms-settings/preview')
+  async previewSmsTemplate(@Body() dto: PreviewSmsTemplateDto, @Ctx() ctx: TenantRequestContext) {
+    await this.assertSmsSettingsAccess(ctx);
+    return this.projectSms.previewTemplate(dto.template, dto.withLink !== false);
   }
 
   @Get()
@@ -144,6 +172,29 @@ export class ProjectsController {
     await this.permissions.assertDelete(ctx, 'projects');
     await this.requireAccess(ctx, id);
     return this.projects.cancel(ctx, id);
+  }
+
+  // ── پیامک وضعیت پروژه — هر پروژه ────────────────────────────────────
+
+  @Patch(':id/sms-notify')
+  async setSmsNotify(@Param('id') id: string, @Body() dto: SetProjectSmsNotifyDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projectSms.setProjectNotify(ctx, id, dto.enabled ?? null);
+  }
+
+  @Get(':id/sms-preview')
+  async smsPreview(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projectSms.manualPreview(ctx, id);
+  }
+
+  @Post(':id/send-sms')
+  async sendSms(@Param('id') id: string, @Body() dto: ManualSmsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.projectSms.manualSend(ctx, id, dto.message);
   }
 
   @Get(':id/invoices')

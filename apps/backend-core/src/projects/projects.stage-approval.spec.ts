@@ -117,7 +117,7 @@ describe('ProjectsController — permissions and scope on the new routes', () =>
       auth: { role: 'MEMBER', sub: 'g' },
       tenantDb: { user: { findUnique: vi.fn(async () => ({ id: 'me' })) }, project: { findFirst: vi.fn(async () => (inScope ? { id: 'p1' } : null)) } },
     } as never;
-    return { c: new ProjectsController(projects as never, {} as never, permissions as never, collab as never), projects, collab, permissions, ctx };
+    return { c: new ProjectsController(projects as never, {} as never, permissions as never, collab as never, {} as never), projects, collab, permissions, ctx };
   }
 
   it('every new by-id route 404s (service untouched) when the project is outside the caller scope', async () => {

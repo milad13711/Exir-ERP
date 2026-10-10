@@ -5,6 +5,7 @@ import { CheckIcon, PlusIcon } from "@/components/icons";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
 import { ProjectShareSection } from "@/components/projects/ProjectShareSection";
+import { ProjectSmsSection } from "@/components/projects/ProjectSmsSection";
 import { ProjectNotesSection } from "@/components/projects/ProjectNotesSection";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { StageDetailsPanel } from "@/components/projects/StageDetailsPanel";
@@ -83,6 +84,7 @@ export function ProjectDetailModal({
   const [openDetailsId, setOpenDetailsId] = useState<string | null>(null);
   const [progress, setProgress] = useState({ percent: project.progressPercent, done: project.stageProgress.done, total: project.stageProgress.total });
   const [docsVersion, setDocsVersion] = useState(0);
+  const [notesKey, setNotesKey] = useState(0);
   const [rejectingStageId, setRejectingStageId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
@@ -608,9 +610,11 @@ export function ProjectDetailModal({
 
         <ProjectShareSection projectId={project.id} />
 
+        <ProjectSmsSection projectId={project.id} initial={project.notifyCustomerBySms ?? null} onSent={() => setNotesKey((k) => k + 1)} />
+
         <ProjectDocumentsSection projectId={project.id} version={docsVersion} onCreateInvoice={() => setNewInvoiceOpen(true)} />
 
-        <ProjectNotesSection projectId={project.id} />
+        <ProjectNotesSection projectId={project.id} refreshKey={notesKey} />
 
         <TasksSection relatedModule="project" relatedEntityId={project.id} />
         <AttachmentsSection entityType="Project" entityId={project.id} />

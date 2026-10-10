@@ -13,6 +13,7 @@ import { fetchProjects, type Project, type ProjectStatus } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { NewProjectModal } from "@/components/projects/NewProjectModal";
 import { ProjectDetailModal } from "@/components/projects/ProjectDetailModal";
+import { ProjectSmsSettingsModal } from "@/components/projects/ProjectSmsSettingsModal";
 import { StageTemplatesModal } from "@/components/projects/StageTemplatesModal";
 import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
 
@@ -65,9 +66,12 @@ export default function ProjectsPage() {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [newOpen, setNewOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
   const [openProject, setOpenProject] = useState<Project | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const { me } = useWorkspace();
+  const projPerm = me?.permissions?.modules?.projects;
+  const canSmsSettings = !!me && (!me.permissions || me.permissions.manager || (!!projPerm?.canEdit && !!projPerm?.canViewAll));
 
   const debouncedSearch = useDebouncedValue(search, 300);
   const beginRequest = useRequestGuard();
@@ -145,6 +149,15 @@ export default function ProjectsPage() {
             <SettingsIcon className="w-4 h-4" />
             قالب‌های مراحل
           </button>
+          {canSmsSettings ? (
+            <button
+              onClick={() => setSmsOpen(true)}
+              className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+            >
+              <SettingsIcon className="w-4 h-4" />
+              تنظیمات پیامک پروژه
+            </button>
+          ) : null}
           <button
             onClick={copyTrackingLink}
             disabled={!me}
@@ -262,6 +275,7 @@ export default function ProjectsPage() {
       )}
 
       {newOpen ? <NewProjectModal onClose={() => setNewOpen(false)} onCreated={reload} /> : null}
+      {smsOpen ? <ProjectSmsSettingsModal onClose={() => setSmsOpen(false)} /> : null}
       {templatesOpen ? <StageTemplatesModal onClose={() => setTemplatesOpen(false)} onChanged={reload} /> : null}
       {openProject ? (
         <ProjectDetailModal project={openProject} onClose={() => setOpenProject(null)} onChanged={reload} />
