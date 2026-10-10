@@ -14,6 +14,7 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { NewProjectModal } from "@/components/projects/NewProjectModal";
 import { ProjectDetailModal } from "@/components/projects/ProjectDetailModal";
 import { StageTemplatesModal } from "@/components/projects/StageTemplatesModal";
+import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -107,7 +108,6 @@ export default function ProjectsPage() {
   }, [projects, statusFilter]);
 
   function ProjectCard({ p }: { p: Project }) {
-    const pct = p.progress.total > 0 ? Math.round((p.progress.done / p.progress.total) * 100) : 0;
     return (
       <button
         onClick={() => setOpenProject(p)}
@@ -121,11 +121,7 @@ export default function ProjectsPage() {
           #{p.projectNo}
           {p.contact ? ` · ${p.contact.name}` : ""}
         </div>
-        {p.progress.total > 0 && (
-          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-            <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
-          </div>
-        )}
+        <ProjectProgressBar percent={p.progressPercent} done={p.stageProgress.done} total={p.stageProgress.total} size="sm" />
         {p.budget != null && <div className="text-[12px] font-extrabold">{formatToman(p.budget)}</div>}
       </button>
     );
@@ -139,7 +135,7 @@ export default function ProjectsPage() {
             <h1 className="text-xl font-extrabold">مدیریت پروژه</h1>
             <ModuleHelp code="projects" />
           </div>
-          <p className="text-[13.5px] text-muted mt-1">پروژه‌ها، پیشرفت بر اساس وظایف، بودجه و مهلت</p>
+          <p className="text-[13.5px] text-muted mt-1">پروژه‌ها، درصد پیشرفت مراحل، بودجه و مهلت</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -208,7 +204,6 @@ export default function ProjectsPage() {
       ) : view === "list" ? (
         <Card className="p-2">
           {filtered.map((p, i) => {
-            const pct = p.progress.total > 0 ? Math.round((p.progress.done / p.progress.total) * 100) : 0;
             return (
               <button
                 key={p.id}
@@ -226,8 +221,8 @@ export default function ProjectsPage() {
                   <div className="text-[11.5px] text-muted mt-0.5">
                     #{p.projectNo}
                     {p.contact ? ` · ${p.contact.name}` : ""}
-                    {p.progress.total > 0 ? ` · ${p.progress.done}/${p.progress.total} وظیفه (${pct}%)` : ""}
                   </div>
+                  <ProjectProgressBar className="mt-1.5 max-w-[320px]" percent={p.progressPercent} done={p.stageProgress.done} total={p.stageProgress.total} size="sm" />
                 </div>
                 <DeadlineBadge project={p} />
                 {p.endDate && (

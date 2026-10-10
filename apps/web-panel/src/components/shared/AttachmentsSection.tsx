@@ -3,6 +3,7 @@ import { safeHref } from "@/lib/safe-url";
 import { DocsIcon, TrashIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
+import { VisibilityToggle } from "@/components/projects/VisibilityToggle";
 import {
   fetchAttachments,
   createAttachment,
@@ -57,7 +58,18 @@ function formatBytes(bytes: number): string {
 }
 
 /** پیوست فایل عمومی روی هر رکورد — یا با آپلود واقعی فایل از دستگاه، یا با چسباندن یک لینک خارجی. */
-export function AttachmentsSection({ entityType, entityId, readOnly = false }: { entityType: string; entityId: string; readOnly?: boolean }) {
+export function AttachmentsSection({
+  entityType,
+  entityId,
+  readOnly = false,
+  onToggleCustomerVisibility,
+}: {
+  entityType: string;
+  entityId: string;
+  readOnly?: boolean;
+  /** اگر داده شود، کنار هر پیوست کلید «نمایش به مشتری» نشان داده می‌شود (فقط پیوست‌های مرحله‌ی پروژه) */
+  onToggleCustomerVisibility?: (attachmentId: string, visible: boolean) => Promise<unknown>;
+}) {
   const { installedModules } = useWorkspace();
   // نام انتخابیِ کاربر برای فایل‌های چک‌لیست اجباری است (فایلِ در انتظارِ نام‌گذاری)
   const mustName = entityType === CHECKLIST_ENTITY;
@@ -308,6 +320,25 @@ export function AttachmentsSection({ entityType, entityId, readOnly = false }: {
                         {a.title}
                       </a>
                       <span className="text-[10.5px] text-muted shrink-0">{formatJalaliDate(a.createdAt)}</span>
+                      {onToggleCustomerVisibility && !readOnly ? (
+                        <VisibilityToggle
+                          compact
+                          visible={a.visibleToCustomer === true}
+                          disabled={busyId === a.id}
+                          onChange={async (v) => {
+                            setBusyId(a.id);
+                            setError(null);
+                            try {
+                              await onToggleCustomerVisibility(a.id, v);
+                              reload();
+                            } catch (err) {
+                              setError(err instanceof ApiError ? err.message : "تغییر نمایش ناموفق بود");
+                            } finally {
+                              setBusyId(null);
+                            }
+                          }}
+                        />
+                      ) : null}
                       {readOnly ? null : (
                         <>
                           <button

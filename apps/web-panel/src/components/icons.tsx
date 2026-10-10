@@ -234,6 +234,25 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
+export function EyeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M17.9 17.9A10.9 10.9 0 0112 19c-6.4 0-10-7-10-7a18.5 18.5 0 015.1-5.9M9.9 5.2A10 10 0 0112 5c6.4 0 10 7 10 7a18.5 18.5 0 01-2.2 3.2" />
+      <path d="M14.1 14.1a3 3 0 01-4.2-4.2" />
+      <path d="M2 2l20 20" />
+    </svg>
+  );
+}
+
 export function CheckIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

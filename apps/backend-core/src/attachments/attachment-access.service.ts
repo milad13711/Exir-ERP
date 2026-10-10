@@ -88,6 +88,14 @@ export class AttachmentAccessService {
       return;
     }
 
+    // پیوست مرحله‌ی پروژه: دسترسی = دسترسی به پروژه‌ی صاحب مرحله (همان دامنه‌ی «فقط خودم»)
+    if (entityType === 'ProjectStage') {
+      const scope = await projectScope(this.permissions, ctx);
+      await this.assertWriteMatrix(ctx, 'projects', mode);
+      await assertInScope(ctx.tenantDb.projectStage, scope, { id: entityId }, { wrap: (sc) => ({ project: sc }), message: 'رکورد یافت نشد' });
+      return;
+    }
+
     // گزارش روزانه‌ی چک‌لیست: صاحبش (یا مدیرِ بالادستش) فایل‌های بایگانی‌شده‌ی همان گزارش را می‌بیند،
     // حتی بدون «مشاهده‌ی همه» در ماژول گزارش‌ها؛ هر گزارش دیگری فقط با view-all. نوشتن/حذف فقط با ماتریس گزارش‌ها.
     if (entityType === 'Report' && mode === 'read') {

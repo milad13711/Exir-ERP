@@ -87,6 +87,7 @@ model User {
   requestedStages               ProjectStage[]             @relation("ProjectStageRequestedBy")
   approvedStages                ProjectStage[]             @relation("ProjectStageApprovedBy")
   responsibleForStages          ProjectStage[]             @relation("ProjectStageResponsible")
+  projectNotes                  ProjectNote[]              @relation("ProjectNoteAuthor")
   projectMemberships            ProjectMember[]            @relation("ProjectMemberUser")
   createdShipments              Shipment[]
   createdCampaigns              MarketingCampaign[]
@@ -633,6 +634,8 @@ model SalesInvoice {
   contactId       String
   dealId          String?
   projectId       String?
+  /// نمایش در «اسناد پروژه»ی لینک عمومی پروژه (پیش‌فرض خیر)
+  projectShowOnPublicLink Boolean    @default(false)
   status          SalesInvoiceStatus @default(DRAFT)
   issuedAt        DateTime           @default(now())
   dueAt           DateTime?
@@ -1798,6 +1801,8 @@ model Attachment {
   sourceAttachmentId String?
   /// توضیح مبدأ (مثلاً عنوان آیتم چک‌لیست)
   sourceNote         String?
+  /// فقط برای ProjectStage: آیا در لینک عمومی پروژه به مشتری نشان داده شود؟ (پیش‌فرض خصوصی)
+  visibleToCustomer  Boolean  @default(false)
 
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
@@ -2638,6 +2643,11 @@ model Project {
   createdByUserId   String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  /// لینک عمومی پیگیری برای مشتری — با توکن غیرقابل‌حدس؛ تا مالک روشنش نکند (publicEnabled) هیچ صفحه‌ای باز نمی‌شود
+  publicToken                   String    @unique @default(uuid())
+  publicEnabled                 Boolean   @default(false)
+  /// محدودکننده‌ی تکرار اعلان «کامنت جدید مشتری»
+  lastCustomerCommentNotifiedAt DateTime?
 
   contact              CrmContact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
   manager              User?                 @relation("ProjectManager", fields: [managerUserId], references: [id], onDelete: SetNull)
@@ -2646,6 +2656,8 @@ model Project {
   invoices             SalesInvoice[]
   members              ProjectMember[]
   mentoringEngagements MentoringEngagement[]
+  notes                ProjectNote[]
+  proposals            Proposal[]
 
   @@index([status])
   @@index([endDate])
@@ -2714,14 +2726,62 @@ model ProjectStage {
   completedAt       DateTime?
   completionReport  String? // یادداشت نتیجه‌ی مرحله — توسط مسئول مرحله هنگام تکمیل ثبت می‌شود
   createdAt         DateTime           @default(now())
+  /// آیا شروع این مرحله نیازمند تأیید مدیر است؟ (ردیف‌های قبلی true می‌مانند = رفتار قبلی)
+  requiresManagerApproval Boolean @default(true)
+  /// توضیح مرحله؛ فقط اگر descriptionVisibleToCustomer روشن باشد در لینک عمومی نمایش داده می‌شود
+  description                  String?
+  descriptionVisibleToCustomer Boolean @default(false)
 
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   responsible User?   @relation("ProjectStageResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
   requestedBy User?   @relation("ProjectStageRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   approvedBy  User?   @relation("ProjectStageApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  links       ProjectStageLink[]
+  notes       ProjectNote[]
 
   @@index([projectId])
   @@map("project_stages")
+}
+
+/// لینک روی مرحله‌ی پروژه — پیش‌فرض خصوصی؛ فقط با visibleToCustomer در لینک عمومی می‌آید
+model ProjectStageLink {
+  id                String   @id @default(uuid())
+  stageId           String
+  title             String
+  url               String
+  visibleToCustomer Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  stage ProjectStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId])
+  @@map("project_stage_links")
+}
+
+/// یادداشت پروژه/مرحله. source=CUSTOMER یعنی کامنت مشتری از لینک عمومی؛ parentId = پاسخ به یک یادداشت.
+/// visibleToCustomer پیش‌فرض false (خصوصی) است.
+model ProjectNote {
+  id                String   @id @default(uuid())
+  projectId         String
+  stageId           String?
+  parentId          String?
+  source            String   @default("STAFF") // STAFF | CUSTOMER
+  authorUserId      String?
+  authorName        String?
+  body              String
+  visibleToCustomer Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage   ProjectStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  author  User?         @relation("ProjectNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  parent  ProjectNote?  @relation("ProjectNoteReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies ProjectNote[] @relation("ProjectNoteReplies")
+
+  @@index([projectId, createdAt])
+  @@index([stageId])
+  @@index([parentId])
+  @@map("project_notes")
 }
 
 // ── ناوگان حمل و نقل (Fleet) ────────────────────────────────────────────
@@ -4116,9 +4176,14 @@ model Proposal {
   invoiceId  String?
   invoicedAt DateTime?
 
+  /// پروژه‌ی مرتبط (حداکثر یکی) و اینکه در «اسناد پروژه»ی لینک عمومی پروژه نمایش داده شود
+  projectId               String?
+  projectShowOnPublicLink Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  project    Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
   contact    CrmContact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
   deal       CrmDeal?          @relation(fields: [dealId], references: [id], onDelete: SetNull)
   createdBy  User?             @relation("ProposalCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -4131,6 +4196,7 @@ model Proposal {
   @@index([status])
   @@index([createdAt])
   @@index([assignedUserId])
+  @@index([projectId])
   @@map("proposals")
 }
 

@@ -3023,6 +3023,8 @@ export type SalesPayment = {
 
 export type SalesInvoice = {
   id: string;
+  /** پروژه‌ی متصل (حداکثر یکی) */
+  projectId?: string | null;
   invoiceNo: number;
   officialInvoiceNo: number | null;
   status: SalesInvoiceStatus;
@@ -3986,6 +3988,8 @@ export type Attachment = {
   /** اگر این پیوست کپیِ بایگانی‌شده‌ی فایل دیگری است (مثلاً فایل چک‌لیست در گزارش روزانه) */
   sourceAttachmentId?: string | null;
   sourceNote?: string | null;
+  /** فقط پیوست‌های مرحله‌ی پروژه: نمایش در لینک عمومی مشتری */
+  visibleToCustomer?: boolean;
 };
 
 export function fetchAttachments(entityType: string, entityId: string) {
@@ -4931,11 +4935,18 @@ export type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "C
 
 export type ProjectStageStatus = "PENDING" | "AWAITING_APPROVAL" | "IN_PROGRESS" | "DONE" | "REJECTED";
 
+export type ProjectStageLink = { id: string; stageId: string; title: string; url: string; visibleToCustomer: boolean };
+
 export type ProjectStage = {
   id: string;
   projectId: string;
   title: string;
   order: number;
+  /** نیاز به تأیید مدیر برای شروع مرحله (پیش‌فرض true) */
+  requiresManagerApproval: boolean;
+  description: string | null;
+  descriptionVisibleToCustomer: boolean;
+  links: ProjectStageLink[];
   status: ProjectStageStatus;
   responsibleUserId: string | null;
   requestedAt: string | null;
@@ -4970,7 +4981,12 @@ export type Project = {
   manager: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
   members: ProjectMember[];
+  /** پیشرفت وظایف مرتبط (قدیمی) */
   progress: { total: number; done: number };
+  /** درصد پیشرفت مرحله‌محور (۰ تا ۱۰۰) — محاسبه‌ی سرور */
+  progressPercent: number;
+  stageProgress: { done: number; total: number };
+  publicEnabled: boolean;
   stages: ProjectStage[];
 };
 
@@ -5005,7 +5021,11 @@ export function deleteProject(id: string) {
   return apiFetch<{ success: boolean }>(`/projects/${id}`, { method: "DELETE" });
 }
 
-export function updateProjectStage(projectId: string, stageId: string, data: { title?: string; responsibleUserId?: string }) {
+export function updateProjectStage(
+  projectId: string,
+  stageId: string,
+  data: { title?: string; responsibleUserId?: string; requiresManagerApproval?: boolean; description?: string; descriptionVisibleToCustomer?: boolean },
+) {
   return apiFetch<ProjectStage>(`/projects/${projectId}/stages/${stageId}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
@@ -5055,8 +5075,8 @@ export function deleteStageTemplate(id: string) {
 
 // ── مراحل پروژه ────────────────────────────────────────────────────────
 
-export function addProjectStage(projectId: string, title: string, responsibleUserId?: string) {
-  return apiFetch<ProjectStage>(`/projects/${projectId}/stages`, { method: "POST", body: JSON.stringify({ title, responsibleUserId }) });
+export function addProjectStage(projectId: string, title: string, responsibleUserId?: string, requiresManagerApproval = true) {
+  return apiFetch<ProjectStage>(`/projects/${projectId}/stages`, { method: "POST", body: JSON.stringify({ title, responsibleUserId, requiresManagerApproval }) });
 }
 
 export function assignProjectStage(projectId: string, stageId: string, responsibleUserId: string | undefined) {
@@ -5097,7 +5117,99 @@ export type ProjectInvoiceSummary = {
   total: number;
   paidAmount: number;
   issuedAt: string;
+  projectShowOnPublicLink?: boolean;
 };
+
+// ── همکاری روی پروژه: لینک عمومی، یادداشت/کامنت مشتری، نمایش به مشتری، اسناد ──
+
+export type ProjectPublicLink = { enabled: boolean; url: string };
+export const fetchProjectPublicLink = (id: string) => apiFetch<ProjectPublicLink>(`/projects/${id}/public-link`);
+export const setProjectPublicLink = (id: string, enabled: boolean) =>
+  apiFetch<ProjectPublicLink>(`/projects/${id}/public-link`, { method: "POST", body: JSON.stringify({ enabled }) });
+export const regenerateProjectPublicLink = (id: string) => apiFetch<ProjectPublicLink>(`/projects/${id}/public-link/regenerate`, { method: "POST" });
+
+export type ProjectNote = {
+  id: string;
+  stageId: string | null;
+  parentId: string | null;
+  source: "STAFF" | "CUSTOMER";
+  authorName: string | null;
+  body: string;
+  visibleToCustomer: boolean;
+  createdAt: string;
+};
+export const fetchProjectNotes = (id: string) => apiFetch<ProjectNote[]>(`/projects/${id}/notes`);
+export const addProjectNote = (id: string, data: { body: string; stageId?: string; parentId?: string; visibleToCustomer?: boolean }) =>
+  apiFetch<ProjectNote>(`/projects/${id}/notes`, { method: "POST", body: JSON.stringify(data) });
+export const setProjectNoteVisibility = (id: string, noteId: string, visibleToCustomer: boolean) =>
+  apiFetch<{ id: string; visibleToCustomer: boolean }>(`/projects/${id}/notes/${noteId}/visibility`, { method: "POST", body: JSON.stringify({ visibleToCustomer }) });
+export const deleteProjectNote = (id: string, noteId: string) => apiFetch<{ success: boolean }>(`/projects/${id}/notes/${noteId}`, { method: "DELETE" });
+
+export const addProjectStageLink = (id: string, stageId: string, data: { title: string; url: string; visibleToCustomer?: boolean }) =>
+  apiFetch<ProjectStageLink>(`/projects/${id}/stages/${stageId}/links`, { method: "POST", body: JSON.stringify(data) });
+export const setProjectStageLinkVisibility = (id: string, stageId: string, linkId: string, visibleToCustomer: boolean) =>
+  apiFetch<{ id: string; visibleToCustomer: boolean }>(`/projects/${id}/stages/${stageId}/links/${linkId}/visibility`, { method: "POST", body: JSON.stringify({ visibleToCustomer }) });
+export const deleteProjectStageLink = (id: string, stageId: string, linkId: string) =>
+  apiFetch<{ success: boolean }>(`/projects/${id}/stages/${stageId}/links/${linkId}`, { method: "DELETE" });
+export const setProjectStageAttachmentVisibility = (id: string, stageId: string, attachmentId: string, visibleToCustomer: boolean) =>
+  apiFetch<{ id: string; visibleToCustomer: boolean }>(`/projects/${id}/stages/${stageId}/attachments/${attachmentId}/visibility`, {
+    method: "POST",
+    body: JSON.stringify({ visibleToCustomer }),
+  });
+
+export type ProjectDocuments = {
+  proposals: {
+    enabled: boolean;
+    canView: boolean;
+    items: Array<{ id: string; proposalNo: number; title: string; status: string; amount: number; issuedAt: string; projectShowOnPublicLink: boolean; contact: { name: string; company: string | null } }>;
+  };
+  invoices: {
+    enabled: boolean;
+    canView: boolean;
+    items: Array<{ id: string; invoiceNo: number; status: string; total: number; paidAmount: number; issuedAt: string; projectShowOnPublicLink: boolean }>;
+  };
+};
+export const fetchProjectDocuments = (id: string) => apiFetch<ProjectDocuments>(`/projects/${id}/documents`);
+export const linkProjectProposal = (id: string, proposalId: string, showOnPublicLink = false) =>
+  apiFetch<{ success: boolean }>(`/projects/${id}/proposals/${proposalId}`, { method: "POST", body: JSON.stringify({ showOnPublicLink }) });
+export const setProjectProposalShow = (id: string, proposalId: string, showOnPublicLink: boolean) =>
+  apiFetch<unknown>(`/projects/${id}/proposals/${proposalId}/show`, { method: "POST", body: JSON.stringify({ showOnPublicLink }) });
+export const unlinkProjectProposal = (id: string, proposalId: string) => apiFetch<{ success: boolean }>(`/projects/${id}/proposals/${proposalId}`, { method: "DELETE" });
+export const linkProjectInvoice = (id: string, invoiceId: string, showOnPublicLink = false) =>
+  apiFetch<{ success: boolean }>(`/projects/${id}/sales-invoices/${invoiceId}`, { method: "POST", body: JSON.stringify({ showOnPublicLink }) });
+export const setProjectInvoiceShow = (id: string, invoiceId: string, showOnPublicLink: boolean) =>
+  apiFetch<unknown>(`/projects/${id}/sales-invoices/${invoiceId}/show`, { method: "POST", body: JSON.stringify({ showOnPublicLink }) });
+export const unlinkProjectInvoice = (id: string, invoiceId: string) => apiFetch<{ success: boolean }>(`/projects/${id}/sales-invoices/${invoiceId}`, { method: "DELETE" });
+
+// ── صفحه‌ی عمومی پروژه (بدون ورود) ──
+
+export type PublicProjectView = {
+  seller: { name: string; logoUrl: string | null; phone: string | null; address: string | null };
+  projectNo: number;
+  name: string;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  customer: { name: string; company: string | null } | null;
+  progress: { percent: number; doneStages: number; totalStages: number; hasStages: boolean };
+  stages: Array<{
+    index: number;
+    title: string;
+    status: "PENDING" | "IN_PROGRESS" | "DONE";
+    completedAt: string | null;
+    description: string | null;
+    links: Array<{ id: string; title: string; url: string }>;
+    images: Array<{ id: string; title: string }>;
+    files: Array<{ id: string; title: string; sizeBytes: number | null; externalUrl: string | null }>;
+    notes: Array<{ id: string; body: string; createdAt: string }>;
+  }>;
+  documents: Array<{ kind: "PROPOSAL" | "INVOICE"; number: number; title: string; amount: number; status: string; date: string; path: string }>;
+  comments: Array<{ id: string; authorName: string; body: string; createdAt: string; replies: Array<{ id: string; body: string; createdAt: string }> }>;
+};
+export const fetchPublicProject = (slug: string, token: string) => apiFetch<PublicProjectView>(`/public/tenants/${slug}/projects/${token}`);
+export const publicProjectFileUrl = (slug: string, token: string, attachmentId: string) => `${API_URL}/public/tenants/${slug}/projects/${token}/files/${attachmentId}`;
+export const commentPublicProject = (slug: string, token: string, data: { body: string; name?: string }) =>
+  apiFetch<PublicProjectView["comments"][number]>(`/public/tenants/${slug}/projects/${token}/comments`, { method: "POST", body: JSON.stringify(data) });
 
 export function fetchProjectInvoices(projectId: string) {
   return apiFetch<ProjectInvoiceSummary[]>(`/projects/${projectId}/invoices`);
@@ -8074,6 +8186,8 @@ export type ProposalInvoiceLine = { description: string; quantity: number; unitP
 
 export type ProposalListItem = {
   id: string;
+  /** پروژه‌ی متصل (حداکثر یکی) */
+  projectId?: string | null;
   proposalNo: number;
   title: string;
   status: ProposalStatus;

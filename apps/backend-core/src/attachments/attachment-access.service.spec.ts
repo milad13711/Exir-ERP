@@ -90,3 +90,23 @@ describe('AttachmentAccessService', () => {
     await expect(admin.svc.assertAccess(admin.ctx, 'Report', 'rep-1', 'write')).resolves.toBeUndefined();
   });
 });
+
+describe('AttachmentAccessService — ProjectStage', () => {
+  function makeStage(found: boolean, matrix: Record<string, boolean>) {
+    const { svc, ctx } = make({ matrix: { projects: matrix } });
+    (ctx.tenantDb as any).projectStage = { findFirst: vi.fn(async () => (found ? { id: 's1' } : null)) };
+    return { svc, ctx };
+  }
+
+  it('view-own user: a stage of someone else\'s project is a 404', async () => {
+    const { svc, ctx } = makeStage(false, { canViewOwn: true, canEdit: true });
+    await expect(svc.assertAccess(ctx, 'ProjectStage', 's1', 'read')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('view-own user can read their own project stage files; writing needs project edit', async () => {
+    const { svc, ctx } = makeStage(true, { canViewOwn: true });
+    await expect(svc.assertAccess(ctx, 'ProjectStage', 's1', 'read')).resolves.toBeUndefined();
+    await expect(svc.assertAccess(ctx, 'ProjectStage', 's1', 'write')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+

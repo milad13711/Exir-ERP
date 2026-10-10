@@ -3,6 +3,11 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { CheckIcon, PlusIcon } from "@/components/icons";
 import { TasksSection } from "@/components/shared/TasksSection";
+import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
+import { ProjectShareSection } from "@/components/projects/ProjectShareSection";
+import { ProjectNotesSection } from "@/components/projects/ProjectNotesSection";
+import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
+import { StageDetailsPanel } from "@/components/projects/StageDetailsPanel";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import { NewProjectModal } from "@/components/projects/NewProjectModal";
@@ -21,13 +26,12 @@ import {
   approveStage,
   rejectStage,
   completeStage,
-  fetchProjectInvoices,
+  fetchProject,
   fetchUsers,
   type Project,
   type ProjectStatus,
   type ProjectStage,
   type ProjectStageStatus,
-  type ProjectInvoiceSummary,
   type TenantUser,
 } from "@/lib/api";
 
@@ -61,14 +65,6 @@ const STAGE_STATUS_TONES: Record<ProjectStageStatus, "primary" | "success" | "wa
   REJECTED: "danger",
 };
 
-const INVOICE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "پیش‌نویس",
-  CONFIRMED: "تأییدشده",
-  PARTIALLY_PAID: "پرداخت جزئی",
-  PAID: "تسویه‌شده",
-  CANCELLED: "لغوشده",
-};
-
 export function ProjectDetailModal({
   project,
   onClose,
@@ -83,9 +79,12 @@ export function ProjectDetailModal({
   const [stages, setStages] = useState<ProjectStage[]>(project.stages);
   const [addStageOpen, setAddStageOpen] = useState(false);
   const [newStageTitle, setNewStageTitle] = useState("");
+  const [newStageNeedsApproval, setNewStageNeedsApproval] = useState(true);
+  const [openDetailsId, setOpenDetailsId] = useState<string | null>(null);
+  const [progress, setProgress] = useState({ percent: project.progressPercent, done: project.stageProgress.done, total: project.stageProgress.total });
+  const [docsVersion, setDocsVersion] = useState(0);
   const [rejectingStageId, setRejectingStageId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [invoices, setInvoices] = useState<ProjectInvoiceSummary[] | null>(null);
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [completingStageId, setCompletingStageId] = useState<string | null>(null);
@@ -94,10 +93,12 @@ export function ProjectDetailModal({
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [editStageTitle, setEditStageTitle] = useState("");
 
-  function reloadInvoices() {
-    fetchProjectInvoices(project.id).then(setInvoices).catch(() => setInvoices([]));
+  /** درصد پیشرفت را سرور حساب می‌کند؛ بعد از هر تغییر مرحله دوباره می‌خوانیم. */
+  function refreshProgress() {
+    fetchProject(project.id)
+      .then((p) => setProgress({ percent: p.progressPercent, done: p.stageProgress.done, total: p.stageProgress.total }))
+      .catch(() => undefined);
   }
-  useEffect(reloadInvoices, [project.id]);
   useEffect(() => {
     fetchUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
@@ -118,6 +119,7 @@ export function ProjectDetailModal({
 
   function replaceStage(updated: ProjectStage) {
     setStages((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    refreshProgress();
     onChanged();
   }
 
@@ -140,9 +142,11 @@ export function ProjectDetailModal({
     setBusy(true);
     setError(null);
     try {
-      const stage = await addProjectStage(project.id, newStageTitle.trim());
+      const stage = await addProjectStage(project.id, newStageTitle.trim(), undefined, newStageNeedsApproval);
       setStages((prev) => [...prev, stage]);
+      refreshProgress();
       setNewStageTitle("");
+      setNewStageNeedsApproval(true);
       setAddStageOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "افزودن مرحله ناموفق بود");
@@ -207,6 +211,7 @@ export function ProjectDetailModal({
     try {
       await deleteProjectStage(project.id, stageId);
       setStages((prev) => prev.filter((s) => s.id !== stageId));
+      refreshProgress();
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "حذف مرحله ناموفق بود");
@@ -214,8 +219,6 @@ export function ProjectDetailModal({
       setBusy(false);
     }
   }
-
-  const progressPct = project.progress.total > 0 ? Math.round((project.progress.done / project.progress.total) * 100) : 0;
 
   return (
     <Modal title={`پروژه شماره ${project.projectNo}`} onClose={onClose} width="max-w-[560px]">
@@ -258,15 +261,8 @@ export function ProjectDetailModal({
         </div>
 
         <div>
-          <div className="flex items-center justify-between text-[11.5px] text-muted mb-1.5">
-            <span>پیشرفت بر اساس وظایف</span>
-            <span>
-              {project.progress.done} از {project.progress.total}
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progressPct}%` }} />
-          </div>
+          <div className="text-[11.5px] text-muted mb-1.5">پیشرفت پروژه (بر اساس مراحل)</div>
+          <ProjectProgressBar percent={progress.percent} done={progress.done} total={progress.total} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -371,20 +367,26 @@ export function ProjectDetailModal({
           </div>
 
           {addStageOpen && (
-            <form onSubmit={handleAddStage} className="flex items-center gap-2 mb-2.5">
-              <input
-                value={newStageTitle}
-                onChange={(e) => setNewStageTitle(e.target.value)}
-                placeholder="عنوان مرحله"
-                className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2 focus:border-primary"
-              />
-              <button
-                type="submit"
-                disabled={busy || !newStageTitle.trim()}
-                className="text-[11.5px] font-bold text-white bg-primary px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
-              >
-                افزودن
-              </button>
+            <form onSubmit={handleAddStage} className="flex flex-col gap-2 mb-2.5">
+              <div className="flex items-center gap-2">
+                <input
+                  value={newStageTitle}
+                  onChange={(e) => setNewStageTitle(e.target.value)}
+                  placeholder="عنوان مرحله"
+                  className="flex-1 text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2 focus:border-primary"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !newStageTitle.trim()}
+                  className="text-[11.5px] font-bold text-white bg-primary px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+                >
+                  افزودن
+                </button>
+              </div>
+              <label className="flex items-center gap-1.5 text-[11.5px] font-semibold cursor-pointer">
+                <input type="checkbox" checked={newStageNeedsApproval} onChange={(e) => setNewStageNeedsApproval(e.target.checked)} className="w-3.5 h-3.5" />
+                نیاز به تأیید مدیر
+              </label>
             </form>
           )}
 
@@ -460,6 +462,28 @@ export function ProjectDetailModal({
                     </select>
                   </div>
 
+                  <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+                    <label className="flex items-center gap-1.5 text-[11.5px] font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={s.requiresManagerApproval}
+                        disabled={busy || s.status === "DONE"}
+                        onChange={(e) => runStageAction(() => updateProjectStage(project.id, s.id, { requiresManagerApproval: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                      />
+                      نیاز به تأیید مدیر
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDetailsId((cur) => (cur === s.id ? null : s.id))}
+                      className="text-[11px] font-bold text-primary cursor-pointer"
+                    >
+                      {openDetailsId === s.id ? "بستن جزئیات" : "جزئیات و نمایش به مشتری"}
+                    </button>
+                  </div>
+
+                  {openDetailsId === s.id ? <StageDetailsPanel projectId={project.id} stage={s} onStageChanged={replaceStage} /> : null}
+
                   {s.status === "REJECTED" && s.rejectionReason && (
                     <div className="text-[11px] text-danger mt-1.5">دلیل رد: {s.rejectionReason}</div>
                   )}
@@ -528,7 +552,19 @@ export function ProjectDetailModal({
                           disabled={busy}
                           className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
                         >
-                          درخواست شروع
+                          {s.requiresManagerApproval ? "درخواست شروع" : "شروع مرحله"}
+                        </button>
+                      )}
+                      {(s.status === "PENDING" || s.status === "REJECTED") && !s.requiresManagerApproval && (
+                        <button
+                          onClick={() => {
+                            setCompletingStageId(s.id);
+                            setCompletionReport("");
+                          }}
+                          disabled={busy}
+                          className="text-[11px] font-bold text-success bg-success-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                        >
+                          علامت‌گذاری به‌عنوان انجام‌شده
                         </button>
                       )}
                       {s.status === "AWAITING_APPROVAL" && (
@@ -570,35 +606,11 @@ export function ProjectDetailModal({
           )}
         </div>
 
-        {/* فاکتورهای پروژه */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12.5px] font-semibold text-ink-soft">فاکتورها</span>
-            <button
-              type="button"
-              onClick={() => setNewInvoiceOpen(true)}
-              className="flex items-center gap-1 text-[11px] font-bold text-primary cursor-pointer"
-            >
-              <PlusIcon className="w-3 h-3" />
-              صدور فاکتور
-            </button>
-          </div>
-          {invoices === null ? (
-            <div className="text-[12px] text-muted text-center py-2">در حال بارگذاری...</div>
-          ) : invoices.length === 0 ? (
-            <div className="text-[12px] text-muted bg-slate-50 rounded-xl p-3 text-center">فاکتوری صادر نشده</div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {invoices.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-lg px-3 py-2">
-                  <span className="text-[12px] font-semibold">فاکتور #{inv.invoiceNo}</span>
-                  <span className="text-[11.5px] text-muted">{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</span>
-                  <span className="text-[12px] font-bold">{formatToman(inv.total)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ProjectShareSection projectId={project.id} />
+
+        <ProjectDocumentsSection projectId={project.id} version={docsVersion} onCreateInvoice={() => setNewInvoiceOpen(true)} />
+
+        <ProjectNotesSection projectId={project.id} />
 
         <TasksSection relatedModule="project" relatedEntityId={project.id} />
         <AttachmentsSection entityType="Project" entityId={project.id} />
@@ -608,7 +620,7 @@ export function ProjectDetailModal({
         <NewInvoiceModal
           onClose={() => setNewInvoiceOpen(false)}
           onCreated={() => {
-            reloadInvoices();
+            setDocsVersion((v) => v + 1);
             setNewInvoiceOpen(false);
           }}
           prefill={{ contactId: project.contactId ?? undefined, projectId: project.id }}

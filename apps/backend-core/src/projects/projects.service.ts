@@ -6,11 +6,18 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import type { CreateProjectDto } from './dto/create-project.dto.js';
 import type { UpdateProjectDto } from './dto/update-project.dto.js';
 import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { computeProjectProgress } from './project-progress.js';
 
 const STAGE_INCLUDE = {
   requestedBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
   responsible: { select: { id: true, name: true } },
+} as const;
+
+const STAGE_FULL_INCLUDE = {
+  ...STAGE_INCLUDE,
+  links: { orderBy: { createdAt: 'asc' as const } },
 } as const;
 
 const PROJECT_INCLUDE = {
@@ -20,9 +27,17 @@ const PROJECT_INCLUDE = {
   members: { include: { user: { select: { id: true, name: true } } } },
   stages: {
     orderBy: { order: 'asc' as const },
-    include: STAGE_INCLUDE,
+    include: STAGE_FULL_INCLUDE,
   },
 } as const;
+
+/** توکن عمومی هرگز در پاسخ‌های پنل نمی‌آید (فقط از endpoint لینک عمومی با دسترسی ویرایش)؛ درصد پیشرفت از مراحل. */
+export function presentProject<P extends { publicToken?: string; stages: Array<{ status: string }> }>(project: P) {
+  const { publicToken: _omit, ...rest } = project;
+  void _omit;
+  const pr = computeProjectProgress(project.stages);
+  return { ...rest, progressPercent: pr.progressPercent, stageProgress: { done: pr.doneStages, total: pr.totalStages } };
+}
 
 const ACTIVE_STATUSES = ['PLANNING', 'ACTIVE', 'ON_HOLD'] as const;
 
@@ -31,6 +46,7 @@ export class ProjectsService implements OnModuleInit {
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly approvals: ApprovalsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit(): void {
@@ -97,14 +113,14 @@ export class ProjectsService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
     });
     const progress = await this.progressByProjectId(ctx, projects.map((p) => p.id));
-    return projects.map((p) => ({ ...p, progress: progress.get(p.id) ?? { total: 0, done: 0 } }));
+    return projects.map((p) => ({ ...presentProject(p), progress: progress.get(p.id) ?? { total: 0, done: 0 } }));
   }
 
   async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
     const project = await ctx.tenantDb.project.findFirst({ where: { id, ...scope }, include: PROJECT_INCLUDE });
     if (!project) throw new NotFoundException('پروژه یافت نشد');
     const progress = await this.progressByProjectId(ctx, [id]);
-    return { ...project, progress: progress.get(id) ?? { total: 0, done: 0 } };
+    return { ...presentProject(project), progress: progress.get(id) ?? { total: 0, done: 0 } };
   }
 
   async create(ctx: TenantRequestContext, dto: CreateProjectDto) {
@@ -122,7 +138,7 @@ export class ProjectsService implements OnModuleInit {
 
     const memberUserIds = [...new Set(dto.memberUserIds ?? [])];
 
-    return ctx.tenantDb.project.create({
+    const created = await ctx.tenantDb.project.create({
       data: {
         name: dto.name,
         contactId: dto.contactId,
@@ -137,6 +153,7 @@ export class ProjectsService implements OnModuleInit {
       },
       include: PROJECT_INCLUDE,
     });
+    return presentProject(created);
   }
 
   async update(ctx: TenantRequestContext, id: string, dto: UpdateProjectDto) {
@@ -154,7 +171,7 @@ export class ProjectsService implements OnModuleInit {
       }
     }
 
-    return ctx.tenantDb.project.update({
+    const updated = await ctx.tenantDb.project.update({
       where: { id },
       data: {
         name: dto.name,
@@ -167,6 +184,7 @@ export class ProjectsService implements OnModuleInit {
       },
       include: PROJECT_INCLUDE,
     });
+    return presentProject(updated);
   }
 
   private async transition(ctx: TenantRequestContext, id: string, allowedFrom: readonly string[], status: string) {
@@ -175,7 +193,7 @@ export class ProjectsService implements OnModuleInit {
     if (!allowedFrom.includes(existing.status)) {
       throw new ConflictException('این تغییر وضعیت برای پروژه با وضعیت فعلی مجاز نیست');
     }
-    return ctx.tenantDb.project.update({ where: { id }, data: { status: status as never }, include: PROJECT_INCLUDE });
+    return presentProject(await ctx.tenantDb.project.update({ where: { id }, data: { status: status as never }, include: PROJECT_INCLUDE }));
   }
 
   start(ctx: TenantRequestContext, id: string) {
@@ -202,13 +220,13 @@ export class ProjectsService implements OnModuleInit {
 
   // ── مراحل پروژه ──────────────────────────────────────────────────────
 
-  async addStage(ctx: TenantRequestContext, projectId: string, title: string, responsibleUserId?: string) {
+  async addStage(ctx: TenantRequestContext, projectId: string, title: string, responsibleUserId?: string, requiresManagerApproval = true) {
     const project = await ctx.tenantDb.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('پروژه یافت نشد');
     const last = await ctx.tenantDb.projectStage.findFirst({ where: { projectId }, orderBy: { order: 'desc' } });
     return ctx.tenantDb.projectStage.create({
-      data: { projectId, title, order: (last?.order ?? -1) + 1, responsibleUserId },
-      include: STAGE_INCLUDE,
+      data: { projectId, title: title.trim(), order: (last?.order ?? -1) + 1, responsibleUserId, requiresManagerApproval },
+      include: STAGE_FULL_INCLUDE,
     });
   }
 
@@ -218,30 +236,51 @@ export class ProjectsService implements OnModuleInit {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { responsibleUserId: responsibleUserId ?? null },
-      include: STAGE_INCLUDE,
+      include: STAGE_FULL_INCLUDE,
     });
   }
 
+  /**
+   * ویرایش مرحله. تغییر «نیاز به تأیید مدیر» فقط با دسترسی ویرایش پروژه (کنترلر) و سمت سرور:
+   * خاموش‌کردنِ آن وقتی مرحله درخواست تأیید در انتظار دارد رد می‌شود (ایمن‌ترین گزینه: بدون دورزدن
+   * تصمیم مدیر؛ ابتدا باید درخواست تأیید/رد شود).
+   */
   async updateStage(
     ctx: TenantRequestContext,
     projectId: string,
     stageId: string,
-    dto: { title?: string; responsibleUserId?: string | null },
+    dto: {
+      title?: string;
+      responsibleUserId?: string | null;
+      requiresManagerApproval?: boolean;
+      description?: string | null;
+      descriptionVisibleToCustomer?: boolean;
+    },
   ) {
-    await this.findStage(ctx, projectId, stageId);
+    const stage = await this.findStage(ctx, projectId, stageId);
+    if (dto.requiresManagerApproval === false && stage.requiresManagerApproval && stage.status === 'AWAITING_APPROVAL') {
+      throw new ConflictException('این مرحله یک درخواست تأیید در انتظار دارد؛ ابتدا آن را تأیید یا رد کنید، سپس نیاز به تأیید مدیر را خاموش کنید');
+    }
+    const description = dto.description === undefined ? undefined : (dto.description ?? '').trim() || null;
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: {
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
         ...(dto.responsibleUserId !== undefined ? { responsibleUserId: dto.responsibleUserId || null } : {}),
+        ...(dto.requiresManagerApproval !== undefined ? { requiresManagerApproval: dto.requiresManagerApproval } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(dto.descriptionVisibleToCustomer !== undefined ? { descriptionVisibleToCustomer: dto.descriptionVisibleToCustomer } : {}),
       },
-      include: STAGE_INCLUDE,
+      include: STAGE_FULL_INCLUDE,
     });
   }
 
   async removeStage(ctx: TenantRequestContext, projectId: string, stageId: string) {
     await this.findStage(ctx, projectId, stageId);
-    await ctx.tenantDb.projectStage.delete({ where: { id: stageId } });
+    await ctx.tenantDb.$transaction([
+      ctx.tenantDb.attachment.deleteMany({ where: { entityType: 'ProjectStage', entityId: stageId } }),
+      ctx.tenantDb.projectStage.delete({ where: { id: stageId } }),
+    ]);
     return { success: true };
   }
 
@@ -252,7 +291,9 @@ export class ProjectsService implements OnModuleInit {
     if (project._count.invoices > 0) {
       throw new ConflictException('به این پروژه فاکتور متصل است؛ به‌جای حذف، پروژه را لغو کنید');
     }
+    const stageIds = (await ctx.tenantDb.projectStage.findMany({ where: { projectId: id }, select: { id: true } })).map((st) => st.id);
     await ctx.tenantDb.$transaction([
+      ctx.tenantDb.attachment.deleteMany({ where: { entityType: 'ProjectStage', entityId: { in: stageIds } } }),
       ctx.tenantDb.task.deleteMany({ where: { relatedModule: 'project', relatedEntityId: id } }),
       ctx.tenantDb.project.delete({ where: { id } }),
     ]);
@@ -265,13 +306,25 @@ export class ProjectsService implements OnModuleInit {
     return stage;
   }
 
-  /** اجراکننده درخواست شروع مرحله می‌دهد — نیازمند تأیید مدیر پیش از اجرا. */
+  /**
+   * اجراکننده درخواست شروع مرحله می‌دهد. اگر مرحله «نیاز به تأیید مدیر» دارد، درخواست تأیید ساخته می‌شود؛
+   * وگرنه (تأیید خاموش) مرحله مستقیم «در حال اجرا» می‌شود و فقط مدیر پروژه مطلع می‌شود.
+   */
   async requestStageStart(ctx: TenantRequestContext, projectId: string, stageId: string) {
     const stage = await this.findStage(ctx, projectId, stageId);
     if (stage.status !== 'PENDING' && stage.status !== 'REJECTED') {
       throw new ConflictException('این مرحله در وضعیتی نیست که بتوان درخواست شروع داد');
     }
     const requestedByUserId = await resolveTenantUserId(ctx);
+    if (!stage.requiresManagerApproval) {
+      const updated = await ctx.tenantDb.projectStage.update({
+        where: { id: stageId },
+        data: { status: 'IN_PROGRESS', requestedAt: new Date(), requestedByUserId, rejectionReason: null },
+        include: STAGE_FULL_INCLUDE,
+      });
+      await this.notifyManager(ctx, projectId, requestedByUserId, 'projects.stage.started', `مرحله‌ی «${stage.title}» بدون نیاز به تأیید شروع شد`);
+      return updated;
+    }
     await this.approvals.request(ctx, {
       moduleCode: 'projects',
       entityType: 'PROJECT_STAGE',
@@ -284,8 +337,19 @@ export class ProjectsService implements OnModuleInit {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'AWAITING_APPROVAL', requestedAt: new Date(), requestedByUserId, rejectionReason: null },
-      include: STAGE_INCLUDE,
+      include: STAGE_FULL_INCLUDE,
     });
+  }
+
+  /** اعلان به مدیر پروژه برای رویدادهای بدون تأیید (خودِ اقدام‌کننده اعلان نمی‌گیرد). */
+  private async notifyManager(ctx: TenantRequestContext, projectId: string, actorUserId: string | null, type: string, title: string) {
+    try {
+      const project = await ctx.tenantDb.project.findUnique({ where: { id: projectId }, select: { managerUserId: true, name: true } });
+      if (!project?.managerUserId || project.managerUserId === actorUserId) return;
+      await this.notifications.notify(ctx.tenantDb, { userId: project.managerUserId, type, title, body: project.name, link: `/projects?id=${projectId}` });
+    } catch {
+      /* اعلان هرگز عملیات اصلی را نمی‌شکند */
+    }
   }
 
   /** تأیید مدیر برای اجرای مرحله — دسترسی سطح مدیریتی (assertDelete روی ماژول projects) در کنترلر بررسی می‌شود. */
@@ -299,7 +363,7 @@ export class ProjectsService implements OnModuleInit {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'IN_PROGRESS', approvedAt: new Date(), approvedByUserId },
-      include: STAGE_INCLUDE,
+      include: STAGE_FULL_INCLUDE,
     });
   }
 
@@ -312,20 +376,30 @@ export class ProjectsService implements OnModuleInit {
     return ctx.tenantDb.projectStage.update({
       where: { id: stageId },
       data: { status: 'REJECTED', rejectionReason: reason },
-      include: STAGE_INCLUDE,
+      include: STAGE_FULL_INCLUDE,
     });
   }
 
+  /**
+   * تکمیل مرحله. مرحله‌ی «نیازمند تأیید مدیر» فقط از وضعیت «در حال اجرا» (یعنی پس از تأیید) تکمیل می‌شود.
+   * مرحله‌ی بدون نیاز به تأیید را مسئول/ویرایشگر مستقیم می‌بندد (حتی بدون شروع جداگانه).
+   */
   async completeStage(ctx: TenantRequestContext, projectId: string, stageId: string, report: string | undefined) {
     const stage = await this.findStage(ctx, projectId, stageId);
-    if (stage.status !== 'IN_PROGRESS') {
+    const directAllowed = !stage.requiresManagerApproval && (stage.status === 'PENDING' || stage.status === 'REJECTED');
+    if (stage.status !== 'IN_PROGRESS' && !directAllowed) {
       throw new ConflictException('فقط مرحله‌ی در حال اجرا قابل تکمیل است');
     }
-    return ctx.tenantDb.projectStage.update({
+    const actor = await resolveTenantUserId(ctx);
+    const updated = await ctx.tenantDb.projectStage.update({
       where: { id: stageId },
-      data: { status: 'DONE', completedAt: new Date(), completionReport: report },
-      include: STAGE_INCLUDE,
+      data: { status: 'DONE', completedAt: new Date(), completionReport: report, ...(directAllowed ? { requestedAt: new Date(), requestedByUserId: actor } : {}) },
+      include: STAGE_FULL_INCLUDE,
     });
+    if (directAllowed) {
+      await this.notifyManager(ctx, projectId, actor, 'projects.stage.completed', `مرحله‌ی «${stage.title}» بدون نیاز به تأیید تکمیل شد`);
+    }
+    return updated;
   }
 
   // ── فاکتورهای پروژه ──────────────────────────────────────────────────
@@ -333,7 +407,7 @@ export class ProjectsService implements OnModuleInit {
   listInvoices(ctx: TenantRequestContext, projectId: string) {
     return ctx.tenantDb.salesInvoice.findMany({
       where: { projectId },
-      select: { id: true, invoiceNo: true, status: true, total: true, paidAmount: true, issuedAt: true },
+      select: { id: true, invoiceNo: true, status: true, total: true, paidAmount: true, issuedAt: true, projectShowOnPublicLink: true },
       orderBy: { issuedAt: 'desc' },
     });
   }

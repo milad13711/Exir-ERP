@@ -1,12 +1,15 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { projectScope } from '../permissions/entity-scopes.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ProjectsService } from './projects.service.js';
+import { ProjectCollabService } from './project-collab.service.js';
+import { CreateProjectNoteDto, CreateStageLinkDto, LinkDocumentDto, SetPublicLinkDto, SetShowOnPublicDto, SetVisibilityDto } from './dto/project-collab.dto.js';
 import { StageTemplatesService } from './stage-templates.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
@@ -26,6 +29,8 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
  * `:id` value and never reach them (see employees.controller.ts's
  * export/org-chart-before-:id for the same established pattern).
  */
+const publicWebUrl = () => (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
+
 @Controller('projects')
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('projects')
@@ -34,6 +39,7 @@ export class ProjectsController {
     private readonly projects: ProjectsService,
     private readonly stageTemplates: StageTemplatesService,
     private readonly permissions: PermissionsService,
+    private readonly collab: ProjectCollabService,
   ) {}
 
   /**
@@ -44,12 +50,9 @@ export class ProjectsController {
     return projectScope(this.permissions, ctx);
   }
 
-  /** دسترسی به یک پروژه‌ی مشخص — برای کاربر «فقط خودم»، فقط پروژه‌های خودش. */
+  /** دسترسی به یک پروژه‌ی مشخص — برای کاربر «فقط خودم»، فقط پروژه‌های خودش؛ خارج از دامنه = ۴۰۴ (مثل «وجود ندارد»). */
   private async requireAccess(ctx: TenantRequestContext, id: string): Promise<void> {
-    const scope = await this.projectScope(ctx);
-    if (Object.keys(scope).length === 0) return;
-    const found = await ctx.tenantDb.project.findFirst({ where: { id, ...scope }, select: { id: true } });
-    if (!found) throw new ForbiddenException('به این پروژه دسترسی ندارید');
+    await assertInScope(ctx.tenantDb.project, await this.projectScope(ctx), { id }, { message: 'پروژه یافت نشد' });
   }
 
   @Get('stage-templates')
@@ -153,7 +156,7 @@ export class ProjectsController {
   async addStage(@Param('id') id: string, @Body() dto: AddStageDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'projects');
     await this.requireAccess(ctx, id);
-    return this.projects.addStage(ctx, id, dto.title, dto.responsibleUserId);
+    return this.projects.addStage(ctx, id, dto.title, dto.responsibleUserId, dto.requiresManagerApproval ?? true);
   }
 
   @Patch(':id/stages/:stageId')
@@ -228,5 +231,149 @@ export class ProjectsController {
     await this.permissions.assertEdit(ctx, 'projects');
     await this.requireAccess(ctx, id);
     return this.projects.completeStage(ctx, id, stageId, dto.report);
+  }
+
+  // ── لینک عمومی مشتری ────────────────────────────────────────────────
+
+  @Get(':id/public-link')
+  async getPublicLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.getPublicLink(ctx, id, publicWebUrl());
+  }
+
+  @Post(':id/public-link')
+  async setPublicLink(@Param('id') id: string, @Body() dto: SetPublicLinkDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setPublicLink(ctx, id, dto.enabled, publicWebUrl());
+  }
+
+  @Post(':id/public-link/regenerate')
+  async regeneratePublicLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.regeneratePublicLink(ctx, id, publicWebUrl());
+  }
+
+  // ── یادداشت‌ها و کامنت مشتری ────────────────────────────────────────
+
+  @Get(':id/notes')
+  async listNotes(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.requireAccess(ctx, id);
+    return this.collab.listNotes(ctx, id);
+  }
+
+  @Post(':id/notes')
+  async addNote(@Param('id') id: string, @Body() dto: CreateProjectNoteDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.addNote(ctx, id, dto);
+  }
+
+  @Post(':id/notes/:noteId/visibility')
+  async setNoteVisibility(@Param('id') id: string, @Param('noteId') noteId: string, @Body() dto: SetVisibilityDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setNoteVisibility(ctx, id, noteId, dto.visibleToCustomer);
+  }
+
+  @Delete(':id/notes/:noteId')
+  async removeNote(@Param('id') id: string, @Param('noteId') noteId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.removeNote(ctx, id, noteId);
+  }
+
+  // ── لینک و پیوست مرحله (نمایش به مشتری) ──────────────────────────────
+
+  @Post(':id/stages/:stageId/links')
+  async addStageLink(@Param('id') id: string, @Param('stageId') stageId: string, @Body() dto: CreateStageLinkDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.addStageLink(ctx, id, stageId, dto);
+  }
+
+  @Post(':id/stages/:stageId/links/:linkId/visibility')
+  async setStageLinkVisibility(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Param('linkId') linkId: string,
+    @Body() dto: SetVisibilityDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setStageLinkVisibility(ctx, id, stageId, linkId, dto.visibleToCustomer);
+  }
+
+  @Delete(':id/stages/:stageId/links/:linkId')
+  async removeStageLink(@Param('id') id: string, @Param('stageId') stageId: string, @Param('linkId') linkId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.removeStageLink(ctx, id, stageId, linkId);
+  }
+
+  @Post(':id/stages/:stageId/attachments/:attachmentId/visibility')
+  async setStageAttachmentVisibility(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Body() dto: SetVisibilityDto,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setStageAttachmentVisibility(ctx, id, stageId, attachmentId, dto.visibleToCustomer);
+  }
+
+  // ── اسناد پروژه: پروپوزال و فاکتور ──────────────────────────────────
+
+  @Get(':id/documents')
+  async listDocuments(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.requireAccess(ctx, id);
+    return this.collab.listDocuments(ctx, id);
+  }
+
+  @Post(':id/proposals/:proposalId')
+  async linkProposal(@Param('id') id: string, @Param('proposalId') proposalId: string, @Body() dto: LinkDocumentDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.linkProposal(ctx, id, proposalId, dto.showOnPublicLink === true);
+  }
+
+  @Post(':id/proposals/:proposalId/show')
+  async setProposalShow(@Param('id') id: string, @Param('proposalId') proposalId: string, @Body() dto: SetShowOnPublicDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setProposalShow(ctx, id, proposalId, dto.showOnPublicLink);
+  }
+
+  @Delete(':id/proposals/:proposalId')
+  async unlinkProposal(@Param('id') id: string, @Param('proposalId') proposalId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.unlinkProposal(ctx, id, proposalId);
+  }
+
+  @Post(':id/sales-invoices/:invoiceId')
+  async linkInvoice(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @Body() dto: LinkDocumentDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.linkInvoice(ctx, id, invoiceId, dto.showOnPublicLink === true);
+  }
+
+  @Post(':id/sales-invoices/:invoiceId/show')
+  async setInvoiceShow(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @Body() dto: SetShowOnPublicDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.setInvoiceShow(ctx, id, invoiceId, dto.showOnPublicLink);
+  }
+
+  @Delete(':id/sales-invoices/:invoiceId')
+  async unlinkInvoice(@Param('id') id: string, @Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'projects');
+    await this.requireAccess(ctx, id);
+    return this.collab.unlinkInvoice(ctx, id, invoiceId);
   }
 }

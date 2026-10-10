@@ -7,12 +7,15 @@ import { ProjectsController } from './projects.controller.js';
 import { ProjectsService } from './projects.service.js';
 import { StageTemplatesService } from './stage-templates.service.js';
 import { ProjectsReminderService } from './projects-reminder.service.js';
+import { ProjectCollabService } from './project-collab.service.js';
+import { PublicProjectsController } from './public-projects.controller.js';
+import { PublicProjectsService } from './public-projects.service.js';
 import { ProjectsAutomationTriggers } from './projects-automation.triggers.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule, NotificationsModule],
-  controllers: [ProjectsController],
-  providers: [ProjectsService, StageTemplatesService, ProjectsReminderService, ProjectsAutomationTriggers],
+  controllers: [ProjectsController, PublicProjectsController],
+  providers: [ProjectsService, ProjectCollabService, PublicProjectsService, StageTemplatesService, ProjectsReminderService, ProjectsAutomationTriggers],
   exports: [ProjectsService],
 })
 export class ProjectsModule {}
