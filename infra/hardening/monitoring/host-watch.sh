@@ -139,10 +139,17 @@ check_ssh() {
     fp=$(grep -oE 'SHA256:[A-Za-z0-9+/]+' <<<"$line" | head -1)
     if [ "$method" != publickey ]; then
       send "ssh-login-$method:$user" "SSH login by $method (not key) user=$user ip=$ip"
-    elif ! allow_match ip "$ip"; then
-      send "ssh-new-ip:${ip//[^0-9a-fA-F.:]/_}" "SSH login from NEW IP $ip user=$user key=${fp:-?}"
     elif [ -n "$fp" ] && ! allow_match fp "$fp"; then
+      # کلید ناشناس = مهم‌ترین سیگنال؛ همیشه هشدار (از هر IP).
       send "ssh-new-key:${fp//[^A-Za-z0-9]/_}" "SSH login with NEW key fingerprint $fp user=$user ip=$ip"
+    elif ! allow_match ip "$ip"; then
+      # کلید آشناست ولی IP تازه. با VPN/IP متغیر این مورد عادی است؛ پیش‌فرض فقط لاگ (journalctl -t exir-host-watch).
+      # برای هشدار پیامکی: SSH_ALERT_KNOWN_KEY_NEW_IP=1 در /etc/exir/host-watch.env (اگر IP ثابت دارید).
+      if [ "${SSH_ALERT_KNOWN_KEY_NEW_IP:-0}" = 1 ] || [ -z "$fp" ]; then
+        send "ssh-new-ip:${ip//[^0-9a-fA-F.:]/_}" "SSH login from NEW IP $ip user=$user key=${fp:-?}"
+      else
+        log "ssh login with known key from new IP $ip user=$user (not alerted)"
+      fi
     fi
   done < <(ssh_lines_since "$since")
   cursor_set ssh.cursor "$NOW"
