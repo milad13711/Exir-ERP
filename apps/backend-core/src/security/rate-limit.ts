@@ -78,6 +78,8 @@ export function buildRouteRules(): RouteRuleSet[] {
     { match: (m, p) => m === 'POST' && /^\/api\/public\/signup\/?$/.test(p), rules: [{ name: 'signup-create-ip', limit: n(process.env.RL_SIGNUP_PER_IP_HOUR, 10), windowSec: 3600, by: 'ip' }] },
     // وب‌هوک PBX با راز احراز می‌شود و ممکن است پرحجم باشد
     { match: (_m, p) => p.startsWith('/api/public/voip/'), rules: [{ name: 'voip-webhook-ip', limit: 3000, windowSec: 60, by: 'ip' }] },
+    // «پروژه‌های من» در صفحه‌ی پیگیری (نشست OTP): فهرست‌کردن/حدس توکن را کند می‌کند
+    { match: (m, p) => m === 'POST' && /^\/api\/public\/tracking\/[^/]+\/(my-)?projects\/?$/.test(p), rules: [{ name: 'tracking-projects-ip', limit: n(process.env.RL_TRACKING_PROJECTS_PER_IP_15M, 60), windowSec: 900, by: 'ip' }] },
     // نوشتن در endpointهای عمومی بدون ورود (ثبت فرم/سفارش/نوبت/... ) — ضد اسپم و SMS-pumping
     { match: (m, p) => m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && p.startsWith('/api/public/'), rules: [{ name: 'public-write-ip', limit: n(process.env.RL_PUBLIC_WRITE_PER_IP_MIN, 120), windowSec: 60, by: 'ip' }] },
     { match: (m, p) => (m === 'GET' || m === 'HEAD') && p.startsWith('/api/public/'), rules: [{ name: 'public-read-ip', limit: n(process.env.RL_PUBLIC_READ_PER_IP_MIN, 600), windowSec: 60, by: 'ip' }] },

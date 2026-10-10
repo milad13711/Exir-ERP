@@ -62,6 +62,14 @@ describe('RateLimitGuard', () => {
   const events = { record: vi.fn() };
   const make = () => new RateLimitGuard(events as never);
 
+  it('rate-limits the tracking my-projects endpoint per IP (60 / 15min)', () => {
+    const g = make();
+    const url = '/api/public/tracking/acme/my-projects';
+    for (let i = 0; i < 60; i++) expect(g.canActivate(ctx('POST', url, { ip: '198.51.100.55', body: { trackingToken: 'x' } }))).toBe(true);
+    expect(() => g.canActivate(ctx('POST', url, { ip: '198.51.100.55', body: { trackingToken: 'x' } }))).toThrow(HttpException);
+    expect(g.canActivate(ctx('POST', url, { ip: '198.51.100.56', body: { trackingToken: 'x' } }))).toBe(true);
+  });
+
   it('limits OTP requests per IP (30 / 15min) and answers 429 with Retry-After', () => {
     const g = make();
     for (let i = 0; i < 30; i++) expect(g.canActivate(ctx('POST', '/api/auth/otp/request', { body: { phone: `0912000${1000 + i}` } }))).toBe(true);

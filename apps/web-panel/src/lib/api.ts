@@ -5247,6 +5247,24 @@ export function fetchTrackedProjects(slug: string, trackingToken: string) {
   });
 }
 
+/** «پروژه‌های من» در صفحه‌ی پیگیری: فقط پروژه‌های با لینک عمومی روشن (خلاصه + اجزای آدرس /project/<key>/<token>). */
+export type TrackingMyProject = {
+  name: string;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  progress: { percent: number; doneStages: number; totalStages: number };
+  publicKey: string;
+  publicToken: string;
+};
+
+export function fetchTrackingMyProjects(slug: string, trackingToken: string) {
+  return apiFetch<TrackingMyProject[]>(`/public/tracking/${slug}/my-projects`, {
+    method: "POST",
+    body: JSON.stringify({ trackingToken }),
+  });
+}
+
 // ── پورتال عمومی آزمایشگاه جیره (Ration lab review — no auth) ───────────
 
 export type PublicRationLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: number; lineCost: number };

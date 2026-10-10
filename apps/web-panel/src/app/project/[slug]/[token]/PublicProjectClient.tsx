@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { safeHref } from "@/lib/safe-url";
 import { LogoMark, DocsIcon, CheckIcon } from "@/components/icons";
 import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
@@ -34,6 +35,12 @@ export function PublicProjectClient({ slug, token }: { slug: string; token: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // فقط وقتی از صفحه‌ی پیگیری آمده‌اند (?from=track)؛ لینک مستقیم بدون تغییر کار می‌کند
+  const [fromTrack, setFromTrack] = useState(false);
+  useEffect(() => {
+    setFromTrack(new URLSearchParams(window.location.search).get("from") === "track");
+  }, []);
 
   function load() {
     fetchPublicProject(slug, token)
@@ -88,6 +95,11 @@ export function PublicProjectClient({ slug, token }: { slug: string; token: stri
 
       <div className="flex-1 px-4 py-6">
         <div className="max-w-[720px] mx-auto flex flex-col gap-4">
+          {fromTrack ? (
+            <Link href={`/track/${slug}`} className="text-[13px] font-bold text-primary self-start">
+              → بازگشت به پروژه‌های من
+            </Link>
+          ) : null}
           <div className="bg-white rounded-2xl border border-border p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">

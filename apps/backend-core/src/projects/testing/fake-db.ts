@@ -8,6 +8,7 @@ function matchValue(actual: unknown, cond: unknown): boolean {
     const c = cond as Record<string, unknown>;
     if ('in' in c && !(c.in as unknown[]).includes(actual)) return false;
     if ('notIn' in c && (c.notIn as unknown[]).includes(actual)) return false;
+    if ('contains' in c && !(typeof actual === 'string' && actual.includes(c.contains as string))) return false;
     if ('not' in c && matchValue(actual, c.not)) return false;
     if ('gt' in c && !((actual as Date | number) > (c.gt as Date | number))) return false;
     if ('lt' in c && !(actual != null && (actual as Date | number) < (c.lt as Date | number))) return false;

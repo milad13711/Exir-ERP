@@ -1,14 +1,18 @@
 "use client";
 
-import { use, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
 import { LogoMark, CheckIcon, BuildingIcon } from "@/components/icons";
 import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
 import {
   requestTrackingOtp,
   verifyTrackingOtp,
   fetchTrackedProjects,
+  fetchTrackingMyProjects,
   ApiError,
   type PublicTrackedProject,
+  type TrackingMyProject,
   type ProjectStageStatus,
 } from "@/lib/api";
 
@@ -44,8 +48,41 @@ export default function PublicTrackingPage({ params }: { params: Promise<{ slug:
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const [projects, setProjects] = useState<PublicTrackedProject[]>([]);
+  const [myProjects, setMyProjects] = useState<TrackingMyProject[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const sessionKey = `exir-track-${slug}`;
+
+  async function loadResults(trackingToken: string) {
+    const [list, mine] = await Promise.all([
+      fetchTrackedProjects(slug, trackingToken),
+      // اگر این بخش خطا بدهد، نمایش قبلی صفحه نباید خراب شود
+      fetchTrackingMyProjects(slug, trackingToken).catch(() => [] as TrackingMyProject[]),
+    ]);
+    setProjects(list);
+    setMyProjects(mine);
+    setStep("results");
+  }
+
+  // بازگشت از صفحه‌ی جزئیات پروژه: اگر نشست کوتاه‌مدت (۱۵ دقیقه) هنوز معتبر است، بدون OTP مجدد فهرست را نشان بده
+  useEffect(() => {
+    let t: string | null = null;
+    try {
+      t = sessionStorage.getItem(sessionKey);
+    } catch {
+      /* storage unavailable */
+    }
+    if (!t) return;
+    loadResults(t).catch(() => {
+      try {
+        sessionStorage.removeItem(sessionKey);
+      } catch {
+        /* ignore */
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   async function sendOtp() {
     setError(null);
@@ -90,9 +127,12 @@ export default function PublicTrackingPage({ params }: { params: Promise<{ slug:
     setSubmitting(true);
     try {
       const res = await verifyTrackingOtp(slug, phone.trim(), otp.join(""));
-      const list = await fetchTrackedProjects(slug, res.trackingToken);
-      setProjects(list);
-      setStep("results");
+      await loadResults(res.trackingToken);
+      try {
+        sessionStorage.setItem(sessionKey, res.trackingToken);
+      } catch {
+        /* storage unavailable */
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "تأیید کد با خطا مواجه شد");
     } finally {
@@ -195,7 +235,30 @@ export default function PublicTrackingPage({ params }: { params: Promise<{ slug:
 
           {step === "results" && (
             <div>
-              <div className="text-xl font-extrabold mb-6 text-center">پروژه‌های شما</div>
+              <div className="text-xl font-extrabold mb-4 text-center">پروژه‌های من</div>
+              {myProjects.length === 0 ? (
+                <div className="text-center text-muted text-sm py-6 mb-6 bg-white border border-border rounded-2xl">پروژه‌ای برای نمایش موجود نیست</div>
+              ) : (
+                <div className="flex flex-col gap-3 mb-8">
+                  {myProjects.map((p) => (
+                    <div key={p.publicToken} className="bg-white border border-border rounded-2xl p-4">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="text-[14px] font-bold leading-6 break-words min-w-0">{p.name}</div>
+                        <span className="text-[11.5px] font-bold bg-slate-100 rounded-full px-2.5 py-1 shrink-0">{STATUS_LABELS[p.status] ?? p.status}</span>
+                      </div>
+                      <ProjectProgressBar percent={p.progress.percent} done={p.progress.doneStages} total={p.progress.totalStages} />
+                      {p.endDate ? <div className="text-[11.5px] text-muted mt-2">موعد: {formatJalaliDate(p.endDate)}</div> : null}
+                      <Link
+                        href={`/project/${p.publicKey}/${p.publicToken}?from=track`}
+                        className="mt-3 block w-full text-center py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold"
+                      >
+                        مشاهده جزئیات
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="text-[15px] font-extrabold mb-4 text-center">وضعیت مراحل پروژه‌ها</div>
               {projects.length === 0 ? (
                 <div className="text-center text-muted text-sm py-10">پروژه‌ای برای این شماره یافت نشد</div>
               ) : (
