@@ -36,7 +36,7 @@ describe('DashboardCalendarService.monthCalendar scoping', () => {
   it('own scope adds the owner field to the where clause', async () => {
     const ctx = makeCtx();
     await svc.monthCalendar(ctx, 1405, 7, { userId: ME, scope: { ...allNone, task: 'own', 'invoice-due': 'own', 'mentoring-session': 'own', interview: 'own' } });
-    expect(ctx.tenantDb.task.findMany.mock.calls[0][0].where).toMatchObject({ assignedUserId: ME });
+    expect(ctx.tenantDb.task.findMany.mock.calls[0][0].where).toMatchObject({ OR: expect.arrayContaining([{ createdByUserId: ME }, { isPublished: true, assignedUserId: ME }]) });
     expect(ctx.tenantDb.salesInvoice.findMany.mock.calls[0][0].where).toMatchObject({ createdByUserId: ME });
     expect(ctx.tenantDb.mentoringSession.findMany.mock.calls[0][0].where).toMatchObject({ engagement: { advisorUserId: ME } });
     expect(ctx.tenantDb.jobInterview.findMany.mock.calls[0][0].where).toMatchObject({ interviewerUserId: ME });
@@ -45,7 +45,7 @@ describe('DashboardCalendarService.monthCalendar scoping', () => {
   it('all scope adds no owner restriction', async () => {
     const ctx = makeCtx();
     await svc.monthCalendar(ctx, 1405, 7, { userId: ME, scope: { ...allNone, task: 'all' } });
-    expect(ctx.tenantDb.task.findMany.mock.calls[0][0].where).not.toHaveProperty('assignedUserId');
+    expect(ctx.tenantDb.task.findMany.mock.calls[0][0].where).not.toHaveProperty('OR');
   });
 
   it('none scope never queries the table', async () => {

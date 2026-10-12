@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
 import { FormFieldDto } from './form-field.dto.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateFormDto {
   @IsOptional()
@@ -14,6 +15,7 @@ export class UpdateFormDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   coverImage?: string;
 
   @IsOptional()

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import {
   createConfidentialDocument,
   CONFIDENTIAL_DOCUMENT_CATEGORY_LABELS,
@@ -9,15 +10,6 @@ import {
   type ConfidentialDocumentCategory,
   ApiError,
 } from "@/lib/api";
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 const CATEGORIES = Object.keys(CONFIDENTIAL_DOCUMENT_CATEGORY_LABELS) as ConfidentialDocumentCategory[];
 
@@ -37,8 +29,12 @@ export function NewDocumentModal({ onClose, onCreated }: { onClose: () => void; 
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
-    setFileName(file.name);
-    setFileData(await readAsDataUrl(file));
+    try {
+      setFileData(await fileToDataUri(file));
+      setFileName(file.name);
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    }
   }
 
   async function submit() {

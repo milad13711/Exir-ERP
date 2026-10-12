@@ -1,4 +1,5 @@
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 const CATEGORIES = ['PASSWORD', 'TECHNICAL_KNOWLEDGE', 'FORMULATION', 'CONFIDENTIAL_CONTRACT', 'SYSTEM_LOG', 'OTHER'] as const;
 export type ConfidentialDocumentCategoryValue = (typeof CATEGORIES)[number];
@@ -22,5 +23,6 @@ export class CreateConfidentialDocumentDto {
   /** data URL به‌صورت base64 — همان قرارداد CompanyStampService. */
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('file')
   fileData?: string;
 }

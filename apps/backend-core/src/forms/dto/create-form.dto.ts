@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength, ValidateNested } from 'class-validator';
 import { FormFieldDto } from './form-field.dto.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 const FORM_TYPES = ['SURVEY', 'QUIZ', 'QUESTIONNAIRE', 'REGISTRATION'] as const;
 
@@ -22,6 +23,7 @@ export class CreateFormDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   coverImage?: string;
 
   @IsOptional()

@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { LogoMark, BriefcaseIcon } from "@/components/icons";
 import { formatJalaliDate, formatToman } from "@/lib/persian";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { fetchPublicJobOffer, respondToPublicJobOffer, ApiError, type PublicJobOfferView } from "@/lib/api";
 
 export default function PublicJobOfferPage({ params }: { params: Promise<{ slug: string; token: string }> }) {
@@ -43,19 +44,14 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
     }
   }
 
-  function readAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function handleIdCardFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setIdCardImage(await readAsDataUrl(file));
+    try {
+      setIdCardImage(await fileToDataUri(file, "image"));
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    }
   }
 
   return (

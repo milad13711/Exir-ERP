@@ -9,6 +9,7 @@ import { canViewModule } from "@/lib/access";
 import { primaryNav, secondaryNav, type NavItem } from "./nav";
 import { useWorkspace } from "@/lib/workspace-context";
 import { updateNavOrder } from "@/lib/api";
+import { useMessengerUnread } from "@/lib/useMessengerUnread";
 
 function NavLink({
   href,
@@ -20,7 +21,9 @@ function NavLink({
   onDragStart,
   onDragOver,
   onDrop,
+  badge,
 }: {
+  badge?: number;
   href: string;
   label: string;
   Icon: (typeof primaryNav)[number]["icon"];
@@ -43,6 +46,7 @@ function NavLink({
       {editing ? <DragHandleIcon className="w-3.5 h-3.5 shrink-0 text-muted" /> : null}
       <Icon className="w-[18px] h-[18px] shrink-0" />
       {label}
+      {badge ? <span className="ms-auto min-w-5 h-5 px-1.5 rounded-full bg-danger text-white text-[11px] font-bold flex items-center justify-center">{badge > 99 ? "99+" : badge}</span> : null}
     </div>
   );
 
@@ -86,7 +90,8 @@ function useVisibleNav(items: NavItem[], navOrder: string[]) {
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { me, refreshMe, isPlatformOwner } = useWorkspace();
+  const { me, refreshMe, isPlatformOwner, installedModules } = useWorkspace();
+  const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
   const navOrder = me?.navOrder ?? [];
   const isCustomOrder = navOrder.length > 0;
   const visiblePrimaryNav = useVisibleNav(primaryNav, navOrder);
@@ -177,6 +182,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 label={item.label}
                 Icon={item.icon}
                 active={pathname === item.href}
+                badge={item.href === "/messenger" ? messengerUnread : 0}
                 onNavigate={onNavigate}
                 editing={editing}
                 onDragStart={() => {

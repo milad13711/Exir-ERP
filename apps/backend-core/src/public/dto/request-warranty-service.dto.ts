@@ -1,4 +1,5 @@
 import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class RequestWarrantyServiceDto {
   @IsString()
@@ -10,5 +11,6 @@ export class RequestWarrantyServiceDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   photo?: string;
 }

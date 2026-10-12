@@ -1,4 +1,5 @@
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 const METHODS = ['CASH', 'BANK_TRANSFER', 'CHECK', 'POS', 'ONLINE_GATEWAY'] as const;
 
@@ -37,5 +38,6 @@ export class RecordPaymentDto {
   // عکس چک — data:image/...;base64,... (اختیاری، طبق همان قرارداد ذخیره‌سازی تصویر CompanyStampService)
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   checkPhotoDataUrl?: string;
 }

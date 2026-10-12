@@ -1,4 +1,5 @@
 import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateListingDto {
   @IsBoolean()
@@ -18,6 +19,7 @@ export class UpdateListingDto {
   @IsArray()
   @ArrayMaxSize(6)
   @IsString({ each: true })
+  @IsUploadDataUri('image', { each: true })
   publicImages?: string[];
 
   /**

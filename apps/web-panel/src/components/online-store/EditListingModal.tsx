@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CloseIcon, TrashIcon } from "@/components/icons";
 import { formatToman, toPersianDigits } from "@/lib/persian";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { updateStoreListing, ApiError, type StoreProduct } from "@/lib/api";
 
 const inputClass =
@@ -16,15 +17,6 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .slice(0, 60);
-}
-
-function fileToDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 export function EditListingModal({
@@ -47,8 +39,12 @@ export function EditListingModal({
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []).slice(0, 6 - images.length);
     if (files.length === 0) return;
-    const uris = await Promise.all(files.map(fileToDataUri));
-    setImages((prev) => [...prev, ...uris].slice(0, 6));
+    try {
+      const uris = await Promise.all(files.map((f) => fileToDataUri(f, "image")));
+      setImages((prev) => [...prev, ...uris].slice(0, 6));
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    }
     e.target.value = "";
   }
 
@@ -60,7 +56,8 @@ export function EditListingModal({
         isPubliclyListed,
         publicSlug: publicSlug.trim() || undefined,
         publicDescription: publicDescription.trim() || undefined,
-        publicImages: images,
+        // تصاویر دست‌نخورده دوباره ارسال نمی‌شوند (تصاویر قدیمیِ بزرگ از سقف جدید رد می‌شدند)
+        ...(JSON.stringify(images) !== JSON.stringify(product.publicImages) ? { publicImages: images } : {}),
         publicCompareAtPrice: compareAtPrice.trim() ? Number(compareAtPrice) : null,
       });
       onSaved(updated);

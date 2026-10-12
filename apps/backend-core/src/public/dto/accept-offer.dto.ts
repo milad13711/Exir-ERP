@@ -1,4 +1,5 @@
 import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class AcceptOfferDto {
   @IsBoolean()
@@ -19,5 +20,6 @@ export class AcceptOfferDto {
   /** تصویر کارت ملی متقاضی — data URL (base64)، همان الگوی CompanyStampService */
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   idCardImage?: string;
 }

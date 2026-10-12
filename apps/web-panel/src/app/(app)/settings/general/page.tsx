@@ -13,6 +13,7 @@ import {
   type GeneralSettings,
 } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
+import { fileToDataUri, uploadErrorMessage, SMALL_IMAGE } from "@/lib/upload";
 
 const TIMEZONE_OPTIONS = [
   { value: "Asia/Tehran", label: "تهران (Asia/Tehran)" },
@@ -223,14 +224,6 @@ export default function GeneralSettingsPage() {
   );
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 function ImageSlot({
   label,
@@ -248,7 +241,13 @@ function ImageSlot({
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    onChange(await readAsDataUrl(file));
+    try {
+      onChange(await fileToDataUri(file, "image", SMALL_IMAGE));
+    } catch (err) {
+      window.alert(uploadErrorMessage(err));
+    } finally {
+      e.target.value = "";
+    }
   }
 
   return (

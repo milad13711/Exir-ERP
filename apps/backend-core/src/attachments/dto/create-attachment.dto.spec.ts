@@ -21,16 +21,26 @@ describe('CreateAttachmentDto — fileUrl (آپلود فایل واقعی یا �
   });
 
   it('rejects a data URI larger than the size cap so an oversized upload fails clearly instead of blowing up the request body', async () => {
-    const huge = `data:application/pdf;base64,${'A'.repeat(15_000_001)}`;
+    const huge = `data:application/pdf;base64,${'A'.repeat(13_400_001)}`;
     const errors = await errorsFor(huge);
     expect(errors).toHaveLength(1);
-    expect(errors[0].constraints?.isFileUrlOrDataUri).toContain('۱۵ مگابایت');
+    expect(errors[0].constraints?.isFileUrlOrDataUri).toContain('۱۰ مگابایت');
   });
 
   it('rejects active-content data URIs (HTML/SVG/JS) so a stored attachment can never execute script', async () => {
     for (const mime of ['text/html', 'image/svg+xml', 'application/javascript', 'application/xhtml+xml', 'text/xml']) {
       expect(await errorsFor(`data:${mime};base64,${PNG_HEADER}`), mime).toHaveLength(1);
     }
+  });
+
+  it('rejects an oversized image data URI (cap is lower than for documents)', async () => {
+    const errors = await errorsFor(`data:image/jpeg;base64,${'A'.repeat(4_000_001)}`);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].constraints?.isFileUrlOrDataUri).toContain('حجم تصویر');
+  });
+
+  it('rejects MIME types outside the allowlist', async () => {
+    expect(await errorsFor(`data:application/x-msdownload;base64,${PNG_HEADER}`)).toHaveLength(1);
   });
 
   it('rejects garbage that is neither a data URI nor a URL', async () => {

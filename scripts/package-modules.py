@@ -44,6 +44,7 @@ MODULES = {
     "certificates": (["certificates"], "certificates", "certificates"),
     "marketing": (["marketing"], "marketing", "marketing"),
     "mentoring": (["mentoring"], "mentoring", "mentoring"),
+    "messenger": (["messenger"], "messenger", "messenger"),
     "proposals": (["proposals"], "proposals", "proposals"),
     "tax": (["tax"], "tax", "tax"),
     "online-store": (["online-store"], "online-store", "online-store"),

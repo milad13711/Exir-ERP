@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LogoMark, ShieldIcon } from "@/components/icons";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import {
   fetchPublicWarrantyLookup,
@@ -14,15 +15,6 @@ import {
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<WarrantyCodeStatus, string> = { PENDING: "صادرشده — هنوز فعال نشده", ACTIVE: "فعال", EXPIRED: "منقضی‌شده", VOID: "باطل‌شده" };
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function PublicWarrantyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -207,7 +199,12 @@ function ActivateForm({ tenantSlug, code, onActivated }: { tenantSlug: string; c
           accept="image/*"
           onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (file) setPhoto(await fileToDataUrl(file));
+            if (!file) return;
+            try {
+              setPhoto(await fileToDataUri(file, "image"));
+            } catch (err) {
+              setError(uploadErrorMessage(err));
+            }
           }}
           className="text-[12.5px]"
         />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { safeHref } from "@/lib/safe-url";
 import { DocsIcon, TrashIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
+import { fileToDataUri, uploadErrorMessage, IMAGE_COMPRESS_HINT } from "@/lib/upload";
 import { useWorkspace } from "@/lib/workspace-context";
 import { VisibilityToggle } from "@/components/projects/VisibilityToggle";
 import {
@@ -40,22 +41,6 @@ function stripExtension(name: string): string {
   return name.replace(/\.[A-Za-z0-9]{1,6}$/, "").trim();
 }
 
-// باید کمی زیر کران واقعی سرور (۱۵ مگابایت base64 ≈ ۱۱ مگابایت خام) بماند تا خطا همیشه
-// همین‌جا و روشن نشان داده شود، نه بعد از رفتن به سرور با یک پیام عمومی.
-const MAX_FILE_BYTES = 11 * 1024 * 1024;
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-function formatBytes(bytes: number): string {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} مگابایت` : `${Math.ceil(bytes / 1024)} کیلوبایت`;
-}
 
 /** پیوست فایل عمومی روی هر رکورد — یا با آپلود واقعی فایل از دستگاه، یا با چسباندن یک لینک خارجی. */
 export function AttachmentsSection({
@@ -101,13 +86,9 @@ export function AttachmentsSection({
     e.target.value = "";
     if (!file) return;
     setError(null);
-    if (file.size > MAX_FILE_BYTES) {
-      setError(`حجم فایل (${formatBytes(file.size)}) بیشتر از سقف مجاز (۱۱ مگابایت) است`);
-      return;
-    }
     setUploading(true);
     try {
-      const dataUrl = await readAsDataUrl(file);
+      const dataUrl = await fileToDataUri(file);
       if (mustName) {
         setPending({ dataUrl, name: stripExtension(file.name) });
       } else {
@@ -115,7 +96,7 @@ export function AttachmentsSection({
         reload();
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "بارگذاری فایل ناموفق بود");
+      setError(err instanceof ApiError ? err.message : uploadErrorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -202,7 +183,7 @@ export function AttachmentsSection({
   return (
     <div>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <span className="text-[12px] text-muted">پیوست‌ها</span>
+        <span className="text-[12px] text-muted" title={IMAGE_COMPRESS_HINT}>پیوست‌ها</span>
         {readOnly ? null : (
         <div className="flex items-center gap-3">
           <input ref={fileInputRef} type="file" onChange={handlePickFile} className="hidden" />

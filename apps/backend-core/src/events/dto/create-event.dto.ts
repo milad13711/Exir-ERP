@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { IsHttpUrl } from '../../common/validators/is-http-url.js';
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Matches, Min, MinLength, ValidateNested } from 'class-validator';
 import { CreateTicketTypeDto } from './create-ticket-type.dto.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class CreateEventDto {
   @IsString()
@@ -18,6 +19,7 @@ export class CreateEventDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   coverImage?: string;
 
   @IsOptional()

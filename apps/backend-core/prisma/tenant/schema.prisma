@@ -23,101 +23,101 @@ enum UserStatus {
 
 model User {
   moduleApprovals ModuleApprover[] @relation("ModuleApproverUser")
-  id           String     @id @default(uuid())
-  globalUserId String     @unique // points at Control Plane GlobalUser.id (no cross-db FK)
-  name         String
-  email        String?
-  phone        String
-  status       UserStatus @default(INVITED)
-  createdAt    DateTime   @default(now())
+  id              String           @id @default(uuid())
+  globalUserId    String           @unique // points at Control Plane GlobalUser.id (no cross-db FK)
+  name            String
+  email           String?
+  phone           String
+  status          UserStatus       @default(INVITED)
+  createdAt       DateTime         @default(now())
   // ترتیب دستی آیتم‌های منوی کناری (href ها) — خالی یعنی چیدمان پیش‌فرض
   // دسته‌بندی‌شده‌ی nav.ts (فرانت) استفاده شود.
-  navOrder     String[]   @default([])
+  navOrder        String[]         @default([])
 
-  roles                         UserRole[]
-  tasks                         Task[]                     @relation("TaskAssignee")
-  dailyChecklistItems           DailyChecklistItem[]       @relation("DailyChecklistOwner")
-  createdDailyChecklistItems     DailyChecklistItem[]       @relation("DailyChecklistCreatedBy")
-  dailyChecklistCloses           DailyChecklistDayClose[]   @relation("DailyChecklistDayCloseUser")
-  activityLogs                  ActivityLog[]
-  ownedContacts                 CrmContact[]               @relation("CrmContactOwner")
-  ownedDeals                    CrmDeal[]                  @relation("CrmDealOwner")
-  crmActivities                 CrmActivity[]
-  journalEntries                JournalEntry[]
-  stockMovements                StockMovement[]
-  reviewedLeaveRequests         LeaveRequest[]
-  notifications                 Notification[]
-  notificationPreference        NotificationPreference?
-  createdInvoices               SalesInvoice[]
-  signedInvoices                SalesInvoice[]             @relation("SalesInvoiceSigner")
-  createdQuotations             SalesQuotation[]
-  createdSalesReturns           SalesReturn[]
-  createdPurchaseReturns        PurchaseReturn[]
-  createdPurchaseOrders         PurchaseOrder[]
-  approvedPurchaseOrders        PurchaseOrder[]            @relation("PurchaseOrderApprover")
-  checks                        Check[]
-  partyTransactions             PartyTransaction[]
-  bankStatementLines            BankStatementLine[]
-  recurringInvoiceTemplates     RecurringInvoiceTemplate[]
-  budgets                       Budget[]
-  fixedAssets                   FixedAsset[]
-  attachments                   Attachment[]
-  createdBoms                   BillOfMaterial[]
-  createdProductionOrders       ProductionOrder[]          @relation("ProductionOrderCreatedBy")
-  rawMaterialApprovals          ProductionOrder[]          @relation("ProductionOrderRawApprover")
-  assignedProductionStages      ProductionOrderStage[]
-  qualitySamplesTaken           QualitySample[]            @relation("QualitySampleSampledBy")
-  qualitySampleResultsTested    QualitySampleResult[]      @relation("QualitySampleResultTestedBy")
-  rationSamplesCollected        RationSample[]             @relation("RationSampleCollectedBy")
-  createdAutomationRules        AutomationRule[]
-  voipExtension                 VoipExtension?
-  callLogs                      CallLog[]
-  pushSubscriptions             PushSubscription[]
-  modulePermissionOverrides     UserModulePermission[]
-  decidedAiActions              AiActionRequest[]
-  providedAppointments          Appointment[]              @relation("AppointmentProvider")
-  createdAppointments           Appointment[]              @relation("AppointmentCreatedBy")
-  staffAvailabilitySlots        StaffAvailabilitySlot[]
-  createdContracts              Contract[]
-  referredContractsToSign       Contract[]                 @relation("ContractReferredSigner")
-  createdContractTemplates      ContractTemplate[]
-  createdContractAmendments     ContractAmendment[]
-  managedProjects               Project[]                  @relation("ProjectManager")
-  createdProjects               Project[]                  @relation("ProjectCreatedBy")
-  requestedStages               ProjectStage[]             @relation("ProjectStageRequestedBy")
-  approvedStages                ProjectStage[]             @relation("ProjectStageApprovedBy")
-  responsibleForStages          ProjectStage[]             @relation("ProjectStageResponsible")
-  projectNotes                  ProjectNote[]              @relation("ProjectNoteAuthor")
-  projectMemberships            ProjectMember[]            @relation("ProjectMemberUser")
-  createdShipments              Shipment[]
-  createdCampaigns              MarketingCampaign[]
-  mentoringEngagementsAsAdvisor MentoringEngagement[]      @relation("MentoringAdvisor")
-  createdMentoringEngagements   MentoringEngagement[]      @relation("MentoringEngagementCreatedBy")
-  createdMentoringSessions      MentoringSession[]         @relation("MentoringSessionCreatedBy")
-  createdEvents                 Event[]
-  checkedInEventTickets         EventTicket[]              @relation("EventTicketCheckedInBy")
-  createdForms                  Form[]
-  createdProposals              Proposal[]                 @relation("ProposalCreatedBy")
-  assignedProposals             Proposal[]                 @relation("ProposalAssignee")
-  createdProposalTemplates      ProposalTemplate[]
-  createdWarrantyCodes          WarrantyCode[]
-  createdQrCodes                QrCode[]
-  createdJobPostings            JobPosting[]
-  jobApplicantsAsSpecialist     JobApplicant[]             @relation("ApplicantSpecialist")
-  jobApplicantsAsManagement     JobApplicant[]             @relation("ApplicantManagement")
-  jobInterviewsAsInterviewer    JobInterview[]
-  signedJobOffers               JobOffer[]
-  issuedCertificates            Certificate[]
-  createdPersonnelRewards       PersonnelReward[]
-  createdPersonnelPenalties     PersonnelPenalty[]
-  createdReports                Report[]
-  reportReferralsSent           ReportReferral[]           @relation("ReportReferralFrom")
-  reportReferralsReceived       ReportReferral[]           @relation("ReportReferralTo")
+  roles                          UserRole[]
+  tasks                          Task[]                      @relation("TaskAssignee")
+  dailyChecklistItems            DailyChecklistItem[]        @relation("DailyChecklistOwner")
+  createdDailyChecklistItems     DailyChecklistItem[]        @relation("DailyChecklistCreatedBy")
+  dailyChecklistCloses           DailyChecklistDayClose[]    @relation("DailyChecklistDayCloseUser")
+  activityLogs                   ActivityLog[]
+  ownedContacts                  CrmContact[]                @relation("CrmContactOwner")
+  ownedDeals                     CrmDeal[]                   @relation("CrmDealOwner")
+  crmActivities                  CrmActivity[]
+  journalEntries                 JournalEntry[]
+  stockMovements                 StockMovement[]
+  reviewedLeaveRequests          LeaveRequest[]
+  notifications                  Notification[]
+  notificationPreference         NotificationPreference?
+  createdInvoices                SalesInvoice[]
+  signedInvoices                 SalesInvoice[]              @relation("SalesInvoiceSigner")
+  createdQuotations              SalesQuotation[]
+  createdSalesReturns            SalesReturn[]
+  createdPurchaseReturns         PurchaseReturn[]
+  createdPurchaseOrders          PurchaseOrder[]
+  approvedPurchaseOrders         PurchaseOrder[]             @relation("PurchaseOrderApprover")
+  checks                         Check[]
+  partyTransactions              PartyTransaction[]
+  bankStatementLines             BankStatementLine[]
+  recurringInvoiceTemplates      RecurringInvoiceTemplate[]
+  budgets                        Budget[]
+  fixedAssets                    FixedAsset[]
+  attachments                    Attachment[]
+  createdBoms                    BillOfMaterial[]
+  createdProductionOrders        ProductionOrder[]           @relation("ProductionOrderCreatedBy")
+  rawMaterialApprovals           ProductionOrder[]           @relation("ProductionOrderRawApprover")
+  assignedProductionStages       ProductionOrderStage[]
+  qualitySamplesTaken            QualitySample[]             @relation("QualitySampleSampledBy")
+  qualitySampleResultsTested     QualitySampleResult[]       @relation("QualitySampleResultTestedBy")
+  rationSamplesCollected         RationSample[]              @relation("RationSampleCollectedBy")
+  createdAutomationRules         AutomationRule[]
+  voipExtension                  VoipExtension?
+  callLogs                       CallLog[]
+  pushSubscriptions              PushSubscription[]
+  modulePermissionOverrides      UserModulePermission[]
+  decidedAiActions               AiActionRequest[]
+  providedAppointments           Appointment[]               @relation("AppointmentProvider")
+  createdAppointments            Appointment[]               @relation("AppointmentCreatedBy")
+  staffAvailabilitySlots         StaffAvailabilitySlot[]
+  createdContracts               Contract[]
+  referredContractsToSign        Contract[]                  @relation("ContractReferredSigner")
+  createdContractTemplates       ContractTemplate[]
+  createdContractAmendments      ContractAmendment[]
+  managedProjects                Project[]                   @relation("ProjectManager")
+  createdProjects                Project[]                   @relation("ProjectCreatedBy")
+  requestedStages                ProjectStage[]              @relation("ProjectStageRequestedBy")
+  approvedStages                 ProjectStage[]              @relation("ProjectStageApprovedBy")
+  responsibleForStages           ProjectStage[]              @relation("ProjectStageResponsible")
+  projectNotes                   ProjectNote[]               @relation("ProjectNoteAuthor")
+  projectMemberships             ProjectMember[]             @relation("ProjectMemberUser")
+  createdShipments               Shipment[]
+  createdCampaigns               MarketingCampaign[]
+  mentoringEngagementsAsAdvisor  MentoringEngagement[]       @relation("MentoringAdvisor")
+  createdMentoringEngagements    MentoringEngagement[]       @relation("MentoringEngagementCreatedBy")
+  createdMentoringSessions       MentoringSession[]          @relation("MentoringSessionCreatedBy")
+  createdEvents                  Event[]
+  checkedInEventTickets          EventTicket[]               @relation("EventTicketCheckedInBy")
+  createdForms                   Form[]
+  createdProposals               Proposal[]                  @relation("ProposalCreatedBy")
+  assignedProposals              Proposal[]                  @relation("ProposalAssignee")
+  createdProposalTemplates       ProposalTemplate[]
+  createdWarrantyCodes           WarrantyCode[]
+  createdQrCodes                 QrCode[]
+  createdJobPostings             JobPosting[]
+  jobApplicantsAsSpecialist      JobApplicant[]              @relation("ApplicantSpecialist")
+  jobApplicantsAsManagement      JobApplicant[]              @relation("ApplicantManagement")
+  jobInterviewsAsInterviewer     JobInterview[]
+  signedJobOffers                JobOffer[]
+  issuedCertificates             Certificate[]
+  createdPersonnelRewards        PersonnelReward[]
+  createdPersonnelPenalties      PersonnelPenalty[]
+  createdReports                 Report[]
+  reportReferralsSent            ReportReferral[]            @relation("ReportReferralFrom")
+  reportReferralsReceived        ReportReferral[]            @relation("ReportReferralTo")
   resellerProfile                ResellerProfile?
   invoiceFollowUps               InvoiceFollowUp[]
   dashboardReminders             DashboardReminder[]
-  createdConfidentialDocuments   ConfidentialDocument[]     @relation("ConfidentialDocCreatedBy")
-  updatedConfidentialDocuments   ConfidentialDocument[]     @relation("ConfidentialDocUpdatedBy")
+  createdConfidentialDocuments   ConfidentialDocument[]      @relation("ConfidentialDocCreatedBy")
+  updatedConfidentialDocuments   ConfidentialDocument[]      @relation("ConfidentialDocUpdatedBy")
   confidentialArchiveAccess      ConfidentialArchiveAccess?
   confidentialArchiveGrantsGiven ConfidentialArchiveAccess[] @relation("ConfidentialAccessGrantedBy")
 
@@ -200,29 +200,181 @@ enum TaskPriority {
 }
 
 enum TaskStatus {
+  /// منسوخ — فقط برای سازگاری با داده‌ی قدیمی؛ مهاجرت بک‌فیل همه را به NEW می‌برد.
   OPEN
+  /// «انجام‌شده» — نتیجه ثبت شده و منتظر تأیید مدیر است (در داده‌ی قدیمی DONE یعنی کامل‌شده → به APPROVED بک‌فیل شد).
   DONE
+  NEW
+  SEEN
+  IN_PROGRESS
+  APPROVED
+  HAS_PROBLEM
+  RETURNED_FOR_FIX
+  EXPIRED
+  CANCELLED
+}
+
+enum TaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskReviewStatus {
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+enum TaskExtensionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Task {
   id              String       @id @default(uuid())
+  /// شماره‌ی یکتای وظیفه در هر تننت (توالی اتمیک دیتابیس) — نمایش: پیشوند-۶رقم، مثل TASK-000125
+  number          Int          @unique @default(autoincrement())
   title           String
   description     String?
   dueAt           DateTime?
   priority        TaskPriority @default(NORMAL)
-  status          TaskStatus   @default(OPEN)
+  status          TaskStatus   @default(NEW)
+  /// «مسئول اصلی» (اولین ارجاع‌گیرنده) — برای سازگاری با مصرف‌کننده‌های قدیمی نگه داشته می‌شود؛ منبع اصلی TaskAssignee است.
   assignedUserId  String?
   relatedModule   String? // e.g. "crm", "accounting" — null for general tasks
   relatedEntityId String?
   createdAt       DateTime     @default(now())
   completedAt     DateTime?
+  updatedAt       DateTime     @default(now()) @updatedAt
+
+  createdByUserId String?
+  startAt         DateTime?
+  /// ارسال زمان‌بندی‌شده: تا sendAt منتشر نشده (isPublished=false) و برای ارجاع‌گیرنده نامرئی است.
+  sendAt          DateTime?
+  isPublished     Boolean      @default(true)
+  publishedAt     DateTime?
+  /// یادآوری‌ها: چند دقیقه پیش از موعد (مثلاً [60, 1440]) و آن‌هایی که قبلاً ارسال شده‌اند.
+  reminderOffsetsMin Int[]    @default([])
+  remindersSentMin   Int[]    @default([])
+  overdueNotifiedAt  DateTime?
+  /// وضعیتِ قبل از انقضا، برای بازگشت پس از تمدید
+  expiredFrom     TaskStatus?
+  startedAt       DateTime?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedByUserId String?
+  notes           String?
+  tags            String[]     @default([])
+  recurrence      TaskRecurrence @default(NONE)
+  recurrenceInterval Int        @default(1)
+  recurrenceEndAt DateTime?
+  /// نمونه‌ی بعدیِ تکرار هنوز ساخته نشده؟ cron بر اساس این زمان نمونه‌ی بعد را می‌سازد.
+  nextRecurAt     DateTime?
+  recurrenceParentId String?
 
   assignee  User?      @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   reminders Reminder[]
   dailyChecklistItem DailyChecklistItem?
   checklist TaskChecklistItem[]
+  assignees TaskAssignee[]
+  events    TaskEvent[]
+  comments  TaskComment[]
+  results   TaskResult[]
+  extensionRequests TaskExtensionRequest[]
 
+  @@index([status, dueAt])
+  @@index([createdByUserId])
+  @@index([isPublished, sendAt])
+  @@index([nextRecurAt])
   @@map("tasks")
+}
+
+/// ارجاع‌گیرندگان وظیفه (چندنفره). seenAt = اولین بازدید همان نفر.
+model TaskAssignee {
+  id        String    @id @default(uuid())
+  taskId    String
+  userId    String
+  seenAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_assignees")
+}
+
+/// تاریخچه‌ی کامل فعالیت وظیفه (تایم‌لاین): ایجاد، ارسال، مشاهده، شروع، ثبت نتیجه، تأیید، بازگشت، تمدید، ارجاع مجدد و ...
+model TaskEvent {
+  id          String      @id @default(uuid())
+  taskId      String
+  type        String
+  actorUserId String? // null = سیستم
+  fromStatus  TaskStatus?
+  toStatus    TaskStatus?
+  note        String?
+  meta        Json?
+  createdAt   DateTime    @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_events")
+}
+
+/// رشته‌ی گفتگو/«گزارش مشکل»: isProblem=true یعنی ریشه‌ی گزارش مشکل؛ پاسخ‌ها با parentId.
+model TaskComment {
+  id           String   @id @default(uuid())
+  taskId       String
+  parentId     String?
+  authorUserId String
+  body         String
+  isProblem    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+/// نتیجه‌ی ثبت‌شده‌ی ارجاع‌گیرنده؛ فایل‌ها/عکس‌ها با Attachment(entityType='TaskResult').
+model TaskResult {
+  id               String           @id @default(uuid())
+  taskId           String
+  authorUserId     String
+  text             String?
+  status           TaskReviewStatus @default(SUBMITTED)
+  reviewNote       String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_results")
+}
+
+model TaskExtensionRequest {
+  id                String              @id @default(uuid())
+  taskId            String
+  requestedByUserId String
+  proposedDueAt     DateTime
+  reason            String?
+  status            TaskExtensionStatus @default(PENDING)
+  decidedByUserId   String?
+  decisionNote      String?
+  decidedAt         DateTime?
+  createdAt         DateTime            @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_extension_requests")
 }
 
 /// آیتم‌های چک‌لیستی داخل یک وظیفه — هر وظیفه می‌تواند به چند مرحله‌ی کوچک تیک‌خور تقسیم شود.
@@ -243,20 +395,20 @@ model TaskChecklistItem {
 /// چک‌لیست کارهای روزانه‌ی هر پرسنل — ویجت داشبورد، شبیه یادداشت چسبان. مدیر می‌تواند
 /// چک‌لیست زیردستان را هم ببیند و آیتم اضافه کند (createdByUserId با userId فرق می‌کند).
 model DailyChecklistItem {
-  id              String                 @id @default(uuid())
+  id              String                @id @default(uuid())
   userId          String // صاحب چک‌لیست — این آیتم برای کیست
   date            DateTime // فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود
   title           String
   description     String?
-  done            Boolean                @default(false)
+  done            Boolean               @default(false)
   doneAt          DateTime?
-  taskId          String?                @unique // اگر رویش وظیفه ساخته شده
+  taskId          String?               @unique // اگر رویش وظیفه ساخته شده
   createdByUserId String? // خودش یا مدیرش
-  order           Int                    @default(0)
-  priority        ChecklistItemPriority  @default(NORMAL) // فوری/متوسط/عادی — لیست همیشه بر اساس این فیلد مرتب می‌شود
-  carriedOver     Boolean                @default(false) // از روز قبل مانده و خودکار به همین روز منتقل شده
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  order           Int                   @default(0)
+  priority        ChecklistItemPriority @default(NORMAL) // فوری/متوسط/عادی — لیست همیشه بر اساس این فیلد مرتب می‌شود
+  carriedOver     Boolean               @default(false) // از روز قبل مانده و خودکار به همین روز منتقل شده
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   user      User  @relation("DailyChecklistOwner", fields: [userId], references: [id], onDelete: Cascade)
   createdBy User? @relation("DailyChecklistCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -386,13 +538,13 @@ model Notification {
 /// باشد، دقیقاً همین جایگزین اتحاد نقش‌های او در آن ماژول می‌شود (هم افزایش
 /// هم کاهش نسبت به نقش)؛ بدون ردیف، دسترسی از نقش‌ها ارث‌بری می‌شود.
 model UserModulePermission {
-  userId       String
-  moduleCode   String
-  canViewAll   Boolean @default(false)
-  canViewOwn   Boolean @default(false)
-  canCreate    Boolean @default(false)
-  canEdit      Boolean @default(false)
-  canDelete    Boolean @default(false)
+  userId     String
+  moduleCode String
+  canViewAll Boolean @default(false)
+  canViewOwn Boolean @default(false)
+  canCreate  Boolean @default(false)
+  canEdit    Boolean @default(false)
+  canDelete  Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -627,29 +779,29 @@ enum SalesInvoiceStatus {
 }
 
 model SalesInvoice {
-  cancelledAt  DateTime?
-  cancelReason String?
-  id              String             @id @default(uuid())
-  invoiceNo       Int                @unique @default(autoincrement())
-  contactId       String
-  dealId          String?
-  projectId       String?
+  cancelledAt             DateTime?
+  cancelReason            String?
+  id                      String             @id @default(uuid())
+  invoiceNo               Int                @unique @default(autoincrement())
+  contactId               String
+  dealId                  String?
+  projectId               String?
   /// نمایش در «اسناد پروژه»ی لینک عمومی پروژه (پیش‌فرض خیر)
-  projectShowOnPublicLink Boolean    @default(false)
-  status          SalesInvoiceStatus @default(DRAFT)
-  issuedAt        DateTime           @default(now())
-  dueAt           DateTime?
-  subtotal        Int // تومان
-  discount        Int                @default(0)
-  taxRate         Int? // درصد مالیات بر ارزش افزوده — فقط فاکتور رسمی
-  taxAmount       Int                @default(0)
-  total           Int // subtotal - discount + taxAmount
-  paidAmount      Int                @default(0)
-  notes           String?
-  createdByUserId String?
-  journalEntryId  String? // سند فروش (بدهکار/بستانکار درآمد) — برای رهگیری، نه رابطه‌ی دوطرفه
-  createdAt       DateTime           @default(now())
-  confirmedAt     DateTime?
+  projectShowOnPublicLink Boolean            @default(false)
+  status                  SalesInvoiceStatus @default(DRAFT)
+  issuedAt                DateTime           @default(now())
+  dueAt                   DateTime?
+  subtotal                Int // تومان
+  discount                Int                @default(0)
+  taxRate                 Int? // درصد مالیات بر ارزش افزوده — فقط فاکتور رسمی
+  taxAmount               Int                @default(0)
+  total                   Int // subtotal - discount + taxAmount
+  paidAmount              Int                @default(0)
+  notes                   String?
+  createdByUserId         String?
+  journalEntryId          String? // سند فروش (بدهکار/بستانکار درآمد) — برای رهگیری، نه رابطه‌ی دوطرفه
+  createdAt               DateTime           @default(now())
+  confirmedAt             DateTime?
 
   // فاکتور رسمی فقط با امضای مالک/مدیر معتبر است؛ غیررسمی را نیروی فروش هم می‌تواند امضا کند.
   // شماره‌گذاری فاکتور رسمی از توالی مستقل خودش می‌آید (officialInvoiceNoSeq)، جدا از invoiceNo عمومی.
@@ -709,7 +861,9 @@ model SalesInvoice {
   @@map("sales_invoices")
 }
 
-/** لاگ پیگیری تلفنی فاکتورهای نزدیک به سررسید/معوق — فقط تاریخچه‌ی تماس‌ها، بدون ماشین‌حالت گردش‌کار. */
+/**
+ * لاگ پیگیری تلفنی فاکتورهای نزدیک به سررسید/معوق — فقط تاریخچه‌ی تماس‌ها، بدون ماشین‌حالت گردش‌کار.
+ */
 model InvoiceFollowUp {
   id                 String   @id @default(uuid())
   invoiceId          String
@@ -1018,13 +1172,13 @@ model PurchaseOrder {
   approvedAt       DateTime?
   rejectionReason  String?
 
-  supplier   CrmContact          @relation(fields: [supplierId], references: [id])
-  createdBy  User?               @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  approvedBy User?               @relation("PurchaseOrderApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  lines      PurchaseOrderLine[]
-  payments   PurchasePayment[]
-  checks     Check[]
-  returns    PurchaseReturn[]
+  supplier           CrmContact          @relation(fields: [supplierId], references: [id])
+  createdBy          User?               @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy         User?               @relation("PurchaseOrderApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  lines              PurchaseOrderLine[]
+  payments           PurchasePayment[]
+  checks             Check[]
+  returns            PurchaseReturn[]
   referralCommission ReferralCommission?
 
   @@index([supplierId])
@@ -1201,29 +1355,29 @@ model ResellerSettlement {
 }
 
 model ResellerProfile {
-  id                            String               @id @default(uuid())
-  contactId                     String               @unique
-  userId                        String?              @unique // اکانت ورود نماینده، پس از اعطای دسترسی سیستمی
+  id                            String                    @id @default(uuid())
+  contactId                     String                    @unique
+  userId                        String?                   @unique // اکانت ورود نماینده، پس از اعطای دسترسی سیستمی
   websiteUrl                    String?
   logoUrl                       String?
   shabaNumber                   String?
-  tier                          ResellerTier         @default(B)
-  isVerified                    Boolean              @default(false) // تیک آبی احراز هویت
+  tier                          ResellerTier              @default(B)
+  isVerified                    Boolean                   @default(false) // تیک آبی احراز هویت
   verifiedAt                    DateTime?
-  commissionFirstPaymentPercent Int                  @default(10)
-  commissionRenewalPercent      Int                  @default(5)
-  referralCode                  String               @unique @default(uuid())
+  commissionFirstPaymentPercent Int                       @default(10)
+  commissionRenewalPercent      Int                       @default(5)
+  referralCode                  String                    @unique @default(uuid())
   npsAvgScore                   Float?
   cooperationStatus             ResellerCooperationStatus @default(ACTIVE)
   endRequestedAt                DateTime?
   endedAt                       DateTime?
   endReason                     String?
-  hiddenFromMap                 Boolean              @default(false) // ادمین نمایش روی نقشه را متوقف کرده
+  hiddenFromMap                 Boolean                   @default(false) // ادمین نمایش روی نقشه را متوقف کرده
   bio                           String? // معرفی کوتاه نماینده — روی نقشه‌ی eta.co.ir نمایش داده می‌شود
   city                          String? // برای پین‌گذاری روی نقشه‌ی نمایندگان (eta.co.ir)
   productCode                   ResellerProductCode?
-  createdAt                     DateTime             @default(now())
-  updatedAt                     DateTime             @updatedAt
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
 
   contact     CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -1257,14 +1411,14 @@ model ReferralConversion {
 /// معرف — بدون OTP (همان الگوی MentoringSessionSurvey)، لینک با publicToken
 /// خودش اعتبار دارد. میانگین امتیازهای ثبت‌شده در ResellerProfile.npsAvgScore ذخیره می‌شود.
 model ReferralNpsSurvey {
-  id                    String    @id @default(uuid())
-  referralConversionId  String
-  publicToken           String    @unique @default(uuid())
-  rating                Int? // ۱ تا ۵
-  note                  String?
-  sentAt                DateTime?
-  submittedAt           DateTime?
-  createdAt             DateTime  @default(now())
+  id                   String    @id @default(uuid())
+  referralConversionId String
+  publicToken          String    @unique @default(uuid())
+  rating               Int? // ۱ تا ۵
+  note                 String?
+  sentAt               DateTime?
+  submittedAt          DateTime?
+  createdAt            DateTime  @default(now())
 
   referralConversion ReferralConversion @relation(fields: [referralConversionId], references: [id], onDelete: Cascade)
 
@@ -1790,13 +1944,13 @@ model ModuleSetting {
 /// entityType/entityId چندریختی هستند (بدون FK واقعی) تا یک مدل واحد
 /// بتواند به هر موجودیتی (فاکتور، مخاطب، تیکت، سفارش خرید...) وصل شود.
 model Attachment {
-  id              String   @id @default(uuid())
-  entityType      String
-  entityId        String
-  title           String
-  fileUrl         String
-  createdByUserId String?
-  createdAt       DateTime @default(now())
+  id                 String   @id @default(uuid())
+  entityType         String
+  entityId           String
+  title              String
+  fileUrl            String
+  createdByUserId    String?
+  createdAt          DateTime @default(now())
   /// اگر این پیوست کپیِ بایگانی‌شده‌ی پیوستِ دیگری است (مثلاً فایل آیتم چک‌لیست در گزارش روزانه)، شناسه‌ی پیوست مبدأ
   sourceAttachmentId String?
   /// توضیح مبدأ (مثلاً عنوان آیتم چک‌لیست)
@@ -2139,15 +2293,15 @@ model RationLabReviewer {
 model RationFollowUpCheckin {
   id                          String    @id @default(uuid())
   sampleId                    String
-  dueOffsetDays                Int // 7 | 14 | 30
-  scheduledAt                  DateTime
-  completedAt                  DateTime?
-  herdSize                     Int?
-  totalHerdMilkYieldLiters     Decimal?  @db.Decimal(10, 2)
-  avgMilkYieldPerAnimalLiters  Decimal?  @db.Decimal(10, 2)
-  milkFatPercent               Decimal?  @db.Decimal(5, 2)
-  milkProteinPercent           Decimal?  @db.Decimal(5, 2)
-  notes                        String?
+  dueOffsetDays               Int // 7 | 14 | 30
+  scheduledAt                 DateTime
+  completedAt                 DateTime?
+  herdSize                    Int?
+  totalHerdMilkYieldLiters    Decimal?  @db.Decimal(10, 2)
+  avgMilkYieldPerAnimalLiters Decimal?  @db.Decimal(10, 2)
+  milkFatPercent              Decimal?  @db.Decimal(5, 2)
+  milkProteinPercent          Decimal?  @db.Decimal(5, 2)
+  notes                       String?
 
   sample RationSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
 
@@ -2254,7 +2408,9 @@ model VoipProviderConfig {
 model VoipExtension {
   id        String  @id @default(uuid())
   userId    String  @unique
-  /** فقط برای ویژگی پاپ‌آپ تماس ورودی (وب‌هوک) — رابط کاربری فعلی که فقط اتصال مستقیم تلفن IP را نشان می‌دهد این را ست نمی‌کند. */
+  /**
+   * فقط برای ویژگی پاپ‌آپ تماس ورودی (وب‌هوک) — رابط کاربری فعلی که فقط اتصال مستقیم تلفن IP را نشان می‌دهد این را ست نمی‌کند.
+   */
   extension String?
 
   /**
@@ -2481,49 +2637,51 @@ model ContractTemplate {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  createdBy User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  contracts Contract[]
+  createdBy   User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contracts   Contract[]
   jobPostings JobPosting[]
 
   @@map("contract_templates")
 }
 
 model Contract {
-  jobPostings JobPosting[]
-  id                   String                @id @default(uuid())
-  contractNo           Int                   @unique @default(autoincrement())
-  title                String
-  type                 ContractType?
-  partyMode            ContractPartyMode     @default(EXTERNAL)
-  legalCategory        ContractLegalCategory @default(GENERAL)
-  category             String? // دسته‌بندی آزاد کسب‌وکاری (مثلاً «اجاره»، «پیمانکاری»، «خدمات») — مستقل از legalCategory
-  templateId           String?
-  contactId            String? // طرف اول — مشتری/تأمین‌کننده (EXTERNAL) یا یکی از طرفین (THIRD_PARTY)
-  employeeId           String? // طرف اول برای قرارداد داخلی (INTERNAL)
-  secondPartyContactId String? // طرف دوم اگر خودش یکی از مخاطبین CRM باشد (THIRD_PARTY)
-  secondPartyName      String? // طرف دوم آزاد — وقتی مخاطب ثبت‌شده‌ای نیست
-  secondPartyPhone     String?
+  jobPostings                   JobPosting[]
+  id                            String                @id @default(uuid())
+  contractNo                    Int                   @unique @default(autoincrement())
+  title                         String
+  type                          ContractType?
+  partyMode                     ContractPartyMode     @default(EXTERNAL)
+  legalCategory                 ContractLegalCategory @default(GENERAL)
+  category                      String? // دسته‌بندی آزاد کسب‌وکاری (مثلاً «اجاره»، «پیمانکاری»، «خدمات») — مستقل از legalCategory
+  templateId                    String?
+  contactId                     String? // طرف اول — مشتری/تأمین‌کننده (EXTERNAL) یا یکی از طرفین (THIRD_PARTY)
+  employeeId                    String? // طرف اول برای قرارداد داخلی (INTERNAL)
+  secondPartyContactId          String? // طرف دوم اگر خودش یکی از مخاطبین CRM باشد (THIRD_PARTY)
+  secondPartyName               String? // طرف دوم آزاد — وقتی مخاطب ثبت‌شده‌ای نیست
+  secondPartyPhone              String?
   secondPartyNationalId         String? // فقط وقتی طرف دوم آزاد است (بدون CrmContact مرتبط)
   secondPartyRegistrationNumber String?
   secondPartyAddress            String?
-  /** مقادیر فیلدهای سفارشی که کاربر هنگام ثبت قرارداد وارد کرده — کلید همان نامی است که در قالب به‌صورت {{کلید}} استفاده شده. */
+  /**
+   * مقادیر فیلدهای سفارشی که کاربر هنگام ثبت قرارداد وارد کرده — کلید همان نامی است که در قالب به‌صورت {{کلید}} استفاده شده.
+   */
   customFieldValues             Json?
-  status               ContractStatus        @default(DRAFT)
-  value                Int // تومان — ارزش کل قرارداد
-  startDate            DateTime
-  endDate              DateTime
-  autoRenew            Boolean               @default(false)
-  renewalReminderDays  Int                   @default(30)
-  reminderSentAt       DateTime?
-  terms                String? // شرح بندها و شرایط قرارداد
-  guaranteeTerms       String? // ضمانت اجرا — جریمه/وثیقه/تعهدات در صورت نقض قرارداد
-  referredSignerUserId String? // اگر مشخص شود، امضای شرکت فقط توسط مالک/مدیر یا همین کاربر ممکن است
-  signedAt             DateTime?
-  terminatedAt         DateTime?
-  terminationReason    String?
-  createdByUserId      String?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  status                        ContractStatus        @default(DRAFT)
+  value                         Int // تومان — ارزش کل قرارداد
+  startDate                     DateTime
+  endDate                       DateTime
+  autoRenew                     Boolean               @default(false)
+  renewalReminderDays           Int                   @default(30)
+  reminderSentAt                DateTime?
+  terms                         String? // شرح بندها و شرایط قرارداد
+  guaranteeTerms                String? // ضمانت اجرا — جریمه/وثیقه/تعهدات در صورت نقض قرارداد
+  referredSignerUserId          String? // اگر مشخص شود، امضای شرکت فقط توسط مالک/مدیر یا همین کاربر ممکن است
+  signedAt                      DateTime?
+  terminatedAt                  DateTime?
+  terminationReason             String?
+  createdByUserId               String?
+  createdAt                     DateTime              @default(now())
+  updatedAt                     DateTime              @updatedAt
 
   // امضای دیجیتال دوطرفه از طریق لینک عمومی + OTP
   publicToken            String    @unique @default(uuid())
@@ -2535,7 +2693,9 @@ model Contract {
   partyBSignedAt         DateTime?
   partyBSignatureDataUrl String?
   partyBSignerName       String?
-  /** وقتی امضاکننده‌ی طرف شرکت، مالک اصلی نبوده (یعنی از طریق ارجاع دسترسی مهر و امضا امضا کرده) — برای درج «از طرف …» کنار مهر در سند. */
+  /**
+   * وقتی امضاکننده‌ی طرف شرکت، مالک اصلی نبوده (یعنی از طریق ارجاع دسترسی مهر و امضا امضا کرده) — برای درج «از طرف …» کنار مهر در سند.
+   */
   partyBSignedAsDelegate Boolean   @default(false)
 
   contact              CrmContact?           @relation(fields: [contactId], references: [id])
@@ -2629,23 +2789,23 @@ enum ProjectStatus {
 }
 
 model Project {
-  id                String        @id @default(uuid())
-  projectNo         Int           @unique @default(autoincrement())
-  name              String
-  contactId         String?
-  managerUserId     String?
-  status            ProjectStatus @default(PLANNING)
-  budget            Int? // تومان
-  startDate         DateTime?
-  endDate           DateTime?
-  description       String?
-  overdueNotifiedAt DateTime?
-  createdByUserId   String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                            String        @id @default(uuid())
+  projectNo                     Int           @unique @default(autoincrement())
+  name                          String
+  contactId                     String?
+  managerUserId                 String?
+  status                        ProjectStatus @default(PLANNING)
+  budget                        Int? // تومان
+  startDate                     DateTime?
+  endDate                       DateTime?
+  description                   String?
+  overdueNotifiedAt             DateTime?
+  createdByUserId               String?
+  createdAt                     DateTime      @default(now())
+  updatedAt                     DateTime      @updatedAt
   /// لینک عمومی پیگیری برای مشتری — با توکن غیرقابل‌حدس؛ تا مالک روشنش نکند (publicEnabled) هیچ صفحه‌ای باز نمی‌شود
-  publicToken                   String    @unique @default(uuid())
-  publicEnabled                 Boolean   @default(false)
+  publicToken                   String        @unique @default(uuid())
+  publicEnabled                 Boolean       @default(false)
   /// محدودکننده‌ی تکرار اعلان «کامنت جدید مشتری»
   lastCustomerCommentNotifiedAt DateTime?
   /// پیامک خودکار وضعیت/پیشرفت به مشتری: null = پیروی از پیش‌فرض ماژول (تنظیمات پیامک پروژه)، true/false = اختصاصی این پروژه
@@ -2737,30 +2897,30 @@ enum ProjectStageStatus {
 }
 
 model ProjectStage {
-  id                String             @id @default(uuid())
-  projectId         String
-  title             String
-  order             Int
-  status            ProjectStageStatus @default(PENDING)
-  responsibleUserId String? // مسئول اجرای این مرحله — گزارش تکمیل را همین فرد ثبت می‌کند
-  requestedAt       DateTime?
-  requestedByUserId String?
-  approvedAt        DateTime?
-  approvedByUserId  String?
-  rejectionReason   String?
-  completedAt       DateTime?
-  completionReport  String? // یادداشت نتیجه‌ی مرحله — توسط مسئول مرحله هنگام تکمیل ثبت می‌شود
-  createdAt         DateTime           @default(now())
+  id                           String             @id @default(uuid())
+  projectId                    String
+  title                        String
+  order                        Int
+  status                       ProjectStageStatus @default(PENDING)
+  responsibleUserId            String? // مسئول اجرای این مرحله — گزارش تکمیل را همین فرد ثبت می‌کند
+  requestedAt                  DateTime?
+  requestedByUserId            String?
+  approvedAt                   DateTime?
+  approvedByUserId             String?
+  rejectionReason              String?
+  completedAt                  DateTime?
+  completionReport             String? // یادداشت نتیجه‌ی مرحله — توسط مسئول مرحله هنگام تکمیل ثبت می‌شود
+  createdAt                    DateTime           @default(now())
   /// آیا شروع این مرحله نیازمند تأیید مدیر است؟ (ردیف‌های قبلی true می‌مانند = رفتار قبلی)
-  requiresManagerApproval Boolean @default(true)
+  requiresManagerApproval      Boolean            @default(true)
   /// توضیح مرحله؛ فقط اگر descriptionVisibleToCustomer روشن باشد در لینک عمومی نمایش داده می‌شود
   description                  String?
-  descriptionVisibleToCustomer Boolean @default(false)
+  descriptionVisibleToCustomer Boolean            @default(false)
 
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  responsible User?   @relation("ProjectStageResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-  requestedBy User?   @relation("ProjectStageRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
-  approvedBy  User?   @relation("ProjectStageApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  responsible User?              @relation("ProjectStageResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  requestedBy User?              @relation("ProjectStageRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?              @relation("ProjectStageApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   links       ProjectStageLink[]
   notes       ProjectNote[]
 
@@ -3110,29 +3270,29 @@ enum StoreOrderStatus {
 }
 
 model StoreOrder {
-  id              String           @id @default(uuid())
-  orderNo         Int              @unique @default(autoincrement())
-  contactId       String?
-  customerName    String
-  customerPhone   String
-  shippingAddress String
-  notes           String?
-  status          StoreOrderStatus @default(PENDING)
-  subtotal        Int // تومان — مجموع خطوط، در لحظه‌ی ثبت
-  trackingCode    String?
-  sessionToken    String? // برای اتصال این سفارش به رویدادهای تحلیلی همان بازدیدکننده
+  id                String           @id @default(uuid())
+  orderNo           Int              @unique @default(autoincrement())
+  contactId         String?
+  customerName      String
+  customerPhone     String
+  shippingAddress   String
+  notes             String?
+  status            StoreOrderStatus @default(PENDING)
+  subtotal          Int // تومان — مجموع خطوط، در لحظه‌ی ثبت
+  trackingCode      String?
+  sessionToken      String? // برای اتصال این سفارش به رویدادهای تحلیلی همان بازدیدکننده
   // پرداخت آنلاین اختیاری — پیش‌فرض checkout همچنان بدون پرداخت آنلاین (نقدی/پس‌کرایه)
   // باقی می‌ماند؛ این فیلدها فقط وقتی پر می‌شوند که خریدار مسیر «پرداخت آنلاین»
   // را طی کند (نک: PublicStorePaymentController، الگوبرداری از BookOrder).
   zarinpalAuthority String?
   paymentRefId      Int?
   paidAt            DateTime?
-  createdAt       DateTime         @default(now())
-  confirmedAt     DateTime?
-  packedAt        DateTime?
-  shippedAt       DateTime?
-  deliveredAt     DateTime?
-  cancelledAt     DateTime?
+  createdAt         DateTime         @default(now())
+  confirmedAt       DateTime?
+  packedAt          DateTime?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
 
   contact CrmContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lines   StoreOrderLine[]
@@ -3429,21 +3589,21 @@ enum BookOrderStatus {
 }
 
 model BookOrder {
-  id                String           @id @default(uuid())
-  orderNo           Int              @unique @default(autoincrement())
+  id                String          @id @default(uuid())
+  orderNo           Int             @unique @default(autoincrement())
   format            BookOrderFormat
   buyerName         String
   buyerPhone        String
   address           String? // فقط نسخه‌ی چاپی
   postalCode        String? // فقط نسخه‌ی چاپی
   unitPrice         Int
-  status            BookOrderStatus  @default(PENDING_PAYMENT)
+  status            BookOrderStatus @default(PENDING_PAYMENT)
   contactId         String? // بعد از پرداخت موفق پر می‌شود (پیدا/ساخته‌شده بر اساس شماره خریدار)
   zarinpalAuthority String?
   paymentRefId      Int?
   paidAt            DateTime?
   invoiceId         String?
-  createdAt         DateTime         @default(now())
+  createdAt         DateTime        @default(now())
 
   contact CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
   invoice SalesInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
@@ -3556,9 +3716,9 @@ model FormSubmission {
   viewedByUserId String?
   internalNote   String?
   // منبع ثبت: آدرس صفحه‌ای که فرم در آن بود، utm و referrer، و IP ماسک‌شده (آخرین بخش حذف می‌شود)
-  sourceUrl  String?
-  sourceMeta Json?
-  ipMasked   String?
+  sourceUrl      String?
+  sourceMeta     Json?
+  ipMasked       String?
 
   form    Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
   contact CrmContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
@@ -3752,26 +3912,26 @@ enum JobOfferStatus {
 }
 
 model JobPosting {
-  id              String            @id @default(uuid())
-  postingNo       Int               @unique @default(autoincrement())
-  title           String
-  jobField        String // زمینه‌ی شغلی
-  employmentType  JobEmploymentType
-  capacity        Int // ظرفیت جذب
-  publishChannel  String?
-  publishBudget   Int? // تومان
-  description     String?
-  status          JobPostingStatus  @default(OPEN)
-  closedAt        DateTime?
-  contractId      String? // (قدیمی) قرارداد آماده‌ی سیستمی — آگهی‌های جدید به‌جای آن از contractTemplateId استفاده می‌کنند
+  id                 String            @id @default(uuid())
+  postingNo          Int               @unique @default(autoincrement())
+  title              String
+  jobField           String // زمینه‌ی شغلی
+  employmentType     JobEmploymentType
+  capacity           Int // ظرفیت جذب
+  publishChannel     String?
+  publishBudget      Int? // تومان
+  description        String?
+  status             JobPostingStatus  @default(OPEN)
+  closedAt           DateTime?
+  contractId         String? // (قدیمی) قرارداد آماده‌ی سیستمی — آگهی‌های جدید به‌جای آن از contractTemplateId استفاده می‌کنند
   contractTemplateId String? // قالب قرارداد با فیلدهای پویا — برای هر متقاضی با اطلاعات خودش پر می‌شود و قبل از امضا نمایش داده می‌شود
-  createdByUserId String?
-  createdAt       DateTime          @default(now())
+  createdByUserId    String?
+  createdAt          DateTime          @default(now())
 
-  createdBy  User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  contract   Contract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contract         Contract?         @relation(fields: [contractId], references: [id], onDelete: SetNull)
   contractTemplate ContractTemplate? @relation(fields: [contractTemplateId], references: [id], onDelete: SetNull)
-  applicants JobApplicant[]
+  applicants       JobApplicant[]
 
   @@index([status])
   @@map("recruitment_job_postings")
@@ -3983,9 +4143,9 @@ model Report {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  category  ReportCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  createdBy User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  referrals       ReportReferral[]
+  category         ReportCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  referrals        ReportReferral[]
   rationLabReports RationLabReport[]
 
   @@index([categoryId])
@@ -3993,15 +4153,15 @@ model Report {
 }
 
 model ReportReferral {
-  id          String    @id @default(uuid())
-  reportId    String
-  fromUserId  String?
-  toUserId    String
-  note        String?
-  emailCc     String? // آدرس‌های ایمیل رونوشت، جداشده با کاما
-  paraphed    Boolean   @default(false) // پاراف/تأیید کارشناسی روی این ارجاع
-  paraphedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  id         String    @id @default(uuid())
+  reportId   String
+  fromUserId String?
+  toUserId   String
+  note       String?
+  emailCc    String? // آدرس‌های ایمیل رونوشت، جداشده با کاما
+  paraphed   Boolean   @default(false) // پاراف/تأیید کارشناسی روی این ارجاع
+  paraphedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
   fromUser User?  @relation("ReportReferralFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
@@ -4011,7 +4171,6 @@ model ReportReferral {
   @@index([toUserId])
   @@map("report_referrals")
 }
-
 
 // ── کارتابل تأیید مدیر (مشترک بین همه‌ی ماژول‌ها) ──────────────────────────────
 // هر سندی که تأییدش با مدیر (OWNER/ADMIN) است، هنگام ایجاد یک ردیف اینجا می‌سازد
@@ -4096,17 +4255,17 @@ enum ConfidentialDocumentCategory {
 }
 
 model ConfidentialDocument {
-  id              String                        @id @default(uuid())
+  id              String                       @id @default(uuid())
   title           String
   category        ConfidentialDocumentCategory
   content         String? // متن آزاد
   fileName        String?
   fileData        String? // data URL به‌صورت base64 — همان قرارداد CompanyStampService، بدون فضای ذخیره‌سازی فایل جداگانه
-  ownerOnly       Boolean                       @default(false) // فقط سازنده + مالک/مدیر ببینند (مثلاً سندهای تبدیل‌شده از پیوست‌ها)
+  ownerOnly       Boolean                      @default(false) // فقط سازنده + مالک/مدیر ببینند (مثلاً سندهای تبدیل‌شده از پیوست‌ها)
   createdByUserId String?
-  createdAt       DateTime                      @default(now())
+  createdAt       DateTime                     @default(now())
   updatedByUserId String?
-  updatedAt       DateTime                      @updatedAt
+  updatedAt       DateTime                     @updatedAt
 
   createdBy User? @relation("ConfidentialDocCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedBy User? @relation("ConfidentialDocUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -4432,4 +4591,180 @@ model TaxSubmissionLog {
 
   @@index([taxInvoiceId, createdAt])
   @@map("tax_submission_logs")
+}
+
+// ── پیام‌رسان داخلی (messenger) ───────────────────────────────────────────
+// userId ها همان User.id تننت‌اند (بدون FK عمدی؛ حذف کاربر نباید تاریخچه‌ی گفتگو را بشکند).
+// رسانه (تصویر/فایل/ویدئو) فقط ۲۴ ساعت نگهداری می‌شود: متادیتا در MessengerMedia و بایت‌ها جدا در
+// MessengerMediaBlob تا پاکسازی ساعتی یک DELETE ارزان باشد؛ ردیف پیام و متادیتا می‌ماند (tombstone).
+
+enum MessengerConversationType {
+  DIRECT
+  GROUP
+  SAVED
+}
+
+enum MessengerMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessengerMessageKind {
+  TEXT
+  MEDIA
+  SYSTEM
+}
+
+enum MessengerMediaKind {
+  IMAGE
+  FILE
+  VIDEO
+}
+
+model MessengerConversation {
+  id            String                    @id @default(uuid())
+  type          MessengerConversationType
+  title         String?
+  /// DIRECT: "<idکوچک‌تر>:<idبزرگ‌تر>"، SAVED: "saved:<userId>" — یکتا تا گفتگوی تکراری ساخته نشود.
+  directKey     String?                   @unique
+  createdById   String
+  /// آخرین شماره‌ی ترتیبی پیام در این گفتگو (مبنای صفحه‌بندی با مکان‌نما و شمارنده‌ی نخوانده).
+  lastSeq       Int                       @default(0)
+  lastMessageAt DateTime                  @default(now())
+  createdAt     DateTime                  @default(now())
+
+  members  MessengerMember[]
+  messages MessengerMessage[]
+  pins     MessengerPin[]
+
+  @@index([lastMessageAt])
+  @@map("messenger_conversations")
+}
+
+model MessengerMember {
+  id               String              @id @default(uuid())
+  conversationId   String
+  userId           String
+  role             MessengerMemberRole @default(MEMBER)
+  muted            Boolean             @default(false)
+  /// آخرین seq که کاربر خوانده / دستگاهش دریافت کرده — مبنای «دیده‌شد/تحویل‌شد».
+  lastReadSeq      Int                 @default(0)
+  lastDeliveredSeq Int                 @default(0)
+  /// عضو جدید فقط پیام‌های بعد از ورودش را می‌بیند.
+  visibleFromSeq   Int                 @default(0)
+  joinedAt         DateTime            @default(now())
+
+  conversation MessengerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("messenger_members")
+}
+
+model MessengerMessage {
+  id                  String               @id @default(uuid())
+  conversationId      String
+  seq                 Int
+  senderId            String
+  kind                MessengerMessageKind @default(TEXT)
+  text                String?
+  replyToId           String?
+  /// فوروارد: نام و شناسه‌ی فرستنده‌ی اصلی در لحظه‌ی فوروارد (نام ثابت می‌ماند).
+  forwardedFromName   String?
+  forwardedFromUserId String?
+  mediaId             String?
+  mentionIds          String[]             @default([])
+  editedAt            DateTime?
+  deletedForAllAt     DateTime?
+  createdAt           DateTime             @default(now())
+
+  conversation MessengerConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  media        MessengerMedia?        @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  reactions    MessengerReaction[]
+  hides        MessengerMessageHide[]
+
+  @@unique([conversationId, seq])
+  @@index([conversationId, createdAt])
+  @@index([mediaId])
+  @@map("messenger_messages")
+}
+
+/// «حذف برای من».
+model MessengerMessageHide {
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message MessengerMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+  @@map("messenger_message_hides")
+}
+
+model MessengerReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message MessengerMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("messenger_reactions")
+}
+
+model MessengerPin {
+  id             String   @id @default(uuid())
+  conversationId String
+  messageId      String
+  pinnedById     String
+  createdAt      DateTime @default(now())
+
+  conversation MessengerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId])
+  @@map("messenger_pins")
+}
+
+/// متادیتای رسانه — بایت‌ها در MessengerMediaBlob؛ پس از expiresAt بلاب حذف و purgedAt ثبت می‌شود.
+model MessengerMedia {
+  id             String             @id @default(uuid())
+  conversationId String
+  uploaderId     String
+  kind           MessengerMediaKind
+  mime           String
+  fileName       String
+  size           Int
+  expiresAt      DateTime
+  purgedAt       DateTime?
+  createdAt      DateTime           @default(now())
+
+  blob     MessengerMediaBlob?
+  messages MessengerMessage[]
+
+  @@index([expiresAt, purgedAt])
+  @@index([uploaderId, createdAt])
+  @@map("messenger_media")
+}
+
+model MessengerMediaBlob {
+  mediaId String @id
+  data    Bytes
+
+  media MessengerMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@map("messenger_media_blobs")
+}
+
+/// آخرین بازدید (حضور) — حریم خصوصی: هر کاربر می‌تواند پنهانش کند.
+model MessengerPresence {
+  userId     String   @id
+  lastSeenAt DateTime @default(now())
+  hidden     Boolean  @default(false)
+
+  @@map("messenger_presence")
 }

@@ -34,6 +34,7 @@ import {
   StarIcon,
   KeyIcon,
   ProposalIcon,
+  ChatIcon,
 } from "@/components/icons";
 
 export type NavItem = {
@@ -96,6 +97,7 @@ export const primaryNav: NavItem[] = [
   // بهره‌وری
   { href: "/projects", label: "مدیریت پروژه", icon: BuildingIcon, moduleCode: "projects", category: "بهره‌وری" },
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon, category: "بهره‌وری" },
+  { href: "/messenger", label: "پیام‌رسان داخلی", icon: ChatIcon, moduleCode: "messenger", category: "بهره‌وری" },
   { href: "/approvals", label: "کارتابل تأیید", icon: ClipboardCheckIcon, category: "بهره‌وری" },
 
   // عملیات

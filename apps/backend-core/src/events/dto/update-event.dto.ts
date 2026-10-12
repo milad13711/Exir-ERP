@@ -1,5 +1,6 @@
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { IsHttpUrl } from '../../common/validators/is-http-url.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateEventDto {
   @IsOptional()
@@ -13,6 +14,7 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   coverImage?: string;
 
   @IsOptional()

@@ -1,4 +1,5 @@
 import { IsArray, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateApplicantDto {
   @IsOptional()
@@ -26,5 +27,6 @@ export class UpdateApplicantDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('file')
   resumeFile?: string;
 }

@@ -114,6 +114,11 @@ export class BackupService {
       employees,
       payrollSlips,
       tasks,
+      taskAssignees,
+      taskEvents,
+      taskComments,
+      taskResults,
+      taskExtensionRequests,
       attachments,
     ] = await Promise.all([
       db.user.findMany(),
@@ -143,6 +148,11 @@ export class BackupService {
       db.employee.findMany(),
       db.payrollSlip.findMany(),
       db.task.findMany(),
+      db.taskAssignee.findMany(),
+      db.taskEvent.findMany(),
+      db.taskComment.findMany(),
+      db.taskResult.findMany(),
+      db.taskExtensionRequest.findMany(),
       db.attachment.findMany(),
     ]);
 
@@ -177,6 +187,11 @@ export class BackupService {
         employees,
         payrollSlips,
         tasks,
+        taskAssignees,
+        taskEvents,
+        taskComments,
+        taskResults,
+        taskExtensionRequests,
         attachments,
       },
     };

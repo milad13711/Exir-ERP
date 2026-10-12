@@ -1,4 +1,5 @@
 import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class ActivateWarrantyDto {
   @IsString()
@@ -22,5 +23,6 @@ export class ActivateWarrantyDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('image')
   productPhoto?: string;
 }

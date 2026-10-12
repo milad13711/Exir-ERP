@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { fileToDataUri, uploadErrorMessage, SMALL_IMAGE } from "@/lib/upload";
 import {
   updateCertificateTemplateSettings,
   type CertificateTemplateSettings,
@@ -53,15 +54,6 @@ const SAMPLE_TEXT: Record<"fa" | "en", Partial<Record<CertificateFieldKey, strin
   },
 };
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 function ImageSlot({
   label,
   value,
@@ -79,7 +71,13 @@ function ImageSlot({
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    onChange(await readAsDataUrl(file));
+    try {
+      onChange(await fileToDataUri(file, "image", SMALL_IMAGE));
+    } catch (err) {
+      window.alert(uploadErrorMessage(err));
+    } finally {
+      e.target.value = "";
+    }
   }
   return (
     <div className="bg-slate-50 border border-border rounded-xl p-3.5">

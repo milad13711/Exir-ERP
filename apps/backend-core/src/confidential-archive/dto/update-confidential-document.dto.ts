@@ -1,5 +1,6 @@
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import type { ConfidentialDocumentCategoryValue } from './create-confidential-document.dto.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 const CATEGORIES = ['PASSWORD', 'TECHNICAL_KNOWLEDGE', 'FORMULATION', 'CONFIDENTIAL_CONTRACT', 'SYSTEM_LOG', 'OTHER'] as const;
 
@@ -23,5 +24,6 @@ export class UpdateConfidentialDocumentDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('file')
   fileData?: string;
 }

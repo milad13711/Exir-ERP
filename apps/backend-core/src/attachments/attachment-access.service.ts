@@ -6,6 +6,7 @@ import { contractScope, projectScope, proposalScope } from '../permissions/entit
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { assertTaskAttachmentAccess, TASK_ATTACHMENT_ENTITIES } from '../tasks/task-attachment-access.js';
 
 export type AttachmentMode = 'read' | 'write' | 'delete';
 
@@ -58,6 +59,11 @@ export class AttachmentAccessService {
     }
 
     if (this.isManager(ctx)) return;
+
+    if (TASK_ATTACHMENT_ENTITIES.has(entityType)) {
+      await assertTaskAttachmentAccess(this.permissions, ctx, entityType, entityId, mode);
+      return;
+    }
 
     const owned = OWNED[entityType];
     if (owned) {

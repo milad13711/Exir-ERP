@@ -69,7 +69,7 @@ function describeQueuedRequest(method: string, path: string): string {
   return `${method === "DELETE" ? "حذف" : method === "POST" ? "ثبت" : "ویرایش"} در ${label || "سیستم"}`;
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const method = (options.method ?? "GET").toUpperCase();
 
@@ -656,37 +656,153 @@ export function deleteRole(roleId: string) {
 
 export type ApiTaskChecklistItem = { id: string; taskId: string; text: string; done: boolean; order: number };
 
+export type TaskStatus =
+  | "OPEN"
+  | "NEW"
+  | "SEEN"
+  | "IN_PROGRESS"
+  | "DONE"
+  | "APPROVED"
+  | "HAS_PROBLEM"
+  | "RETURNED_FOR_FIX"
+  | "EXPIRED"
+  | "CANCELLED";
+export type TaskPriority = "NORMAL" | "MEDIUM" | "URGENT";
+export type TaskAction = "SEE" | "START" | "SUBMIT" | "REPORT_PROBLEM" | "RESOLVE_PROBLEM" | "APPROVE" | "RETURN" | "CANCEL" | "REASSIGN" | "REOPEN";
+export type TaskRecurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+
+export type ApiTaskAssignee = { userId: string; name: string; seenAt: string | null };
+
 export type ApiTask = {
   id: string;
+  /** شماره‌ی نمایشی مثل TASK-000125 */
+  code?: string;
+  number?: number;
   title: string;
   description?: string | null;
   checklist?: ApiTaskChecklistItem[];
   dueAt: string | null;
-  priority: "NORMAL" | "MEDIUM" | "URGENT";
-  status: "OPEN" | "DONE";
+  startAt?: string | null;
+  sendAt?: string | null;
+  isPublished?: boolean;
+  priority: TaskPriority;
+  status: TaskStatus;
   createdAt: string;
   completedAt: string | null;
   assignedUserId?: string | null;
   assignee?: { name: string } | null;
+  assignees?: ApiTaskAssignee[];
+  createdBy?: { id: string; name: string } | null;
   relatedModule?: string | null;
   relatedEntityId?: string | null;
+  reminderOffsetsMin?: number[];
+  recurrence?: TaskRecurrence;
+  recurrenceInterval?: number;
+  recurrenceEndAt?: string | null;
+  tags?: string[];
+  notes?: string | null;
+  isOverdue?: boolean;
+  role?: { manager: boolean; creator: boolean; assignee: boolean; canManage: boolean };
+  actions?: TaskAction[];
 };
 
-export function fetchTasks(filter?: { relatedModule: string; relatedEntityId: string }) {
-  const qs = filter ? `?relatedModule=${filter.relatedModule}&relatedEntityId=${filter.relatedEntityId}` : "";
-  return apiFetch<ApiTask[]>(`/tasks${qs}`);
+export type ApiTaskEvent = {
+  id: string;
+  type: string;
+  actorName: string | null;
+  fromStatus: TaskStatus | null;
+  toStatus: TaskStatus | null;
+  note: string | null;
+  meta?: Record<string, unknown> | null;
+  createdAt: string;
+};
+export type ApiTaskComment = { id: string; parentId: string | null; authorUserId: string; authorName: string | null; body: string; isProblem: boolean; createdAt: string };
+export type ApiTaskResult = {
+  id: string;
+  authorName: string | null;
+  text: string | null;
+  status: "SUBMITTED" | "APPROVED" | "RETURNED";
+  reviewNote: string | null;
+  reviewedByName: string | null;
+  createdAt: string;
+};
+export type ApiTaskExtension = {
+  id: string;
+  requestedByName: string | null;
+  proposedDueAt: string;
+  reason: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  decidedByName: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+};
+export type ApiTaskDetail = ApiTask & {
+  events: ApiTaskEvent[];
+  comments: ApiTaskComment[];
+  results: ApiTaskResult[];
+  extensionRequests: ApiTaskExtension[];
+};
+export type TaskSummary = { new: number; inProgress: number; overdue: number; awaitingApproval: number; hasProblem: number; doneToday: number; scheduled: number };
+export type TaskFileInput = { title: string; fileUrl: string };
+
+export type TaskFilters = {
+  relatedModule?: string;
+  relatedEntityId?: string;
+  assigneeId?: string;
+  status?: string;
+  priority?: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  mine?: boolean;
+};
+
+function taskQuery(filter?: TaskFilters): string {
+  if (!filter) return "";
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filter)) if (v !== undefined && v !== "" && v !== false) p.set(k, v === true ? "1" : String(v));
+  const qs = p.toString();
+  return qs ? `?${qs}` : "";
 }
 
-export function createTask(data: {
+export function fetchTasks(filter?: TaskFilters) {
+  return apiFetch<ApiTask[]>(`/tasks${taskQuery(filter)}`);
+}
+
+export function fetchTaskSummary(assigneeId?: string) {
+  return apiFetch<TaskSummary>(`/tasks/summary${assigneeId ? `?assigneeId=${encodeURIComponent(assigneeId)}` : ""}`);
+}
+
+export function fetchTaskSettings() {
+  return apiFetch<{ numberPrefix: string }>("/tasks/settings");
+}
+
+export function updateTaskSettings(numberPrefix: string) {
+  return apiFetch<{ numberPrefix: string }>("/tasks/settings", { method: "PUT", body: JSON.stringify({ numberPrefix }) });
+}
+
+export type CreateTaskInput = {
   title: string;
   description?: string;
   checklist?: string[];
-  priority?: ApiTask["priority"];
+  priority?: TaskPriority;
   dueAt?: string;
+  assigneeIds?: string[];
   assignedUserId?: string;
   relatedModule?: string;
   relatedEntityId?: string;
-}) {
+  startAt?: string;
+  sendAt?: string;
+  reminderOffsetsMin?: number[];
+  recurrence?: TaskRecurrence;
+  recurrenceInterval?: number;
+  recurrenceEndAt?: string;
+  tags?: string[];
+  notes?: string;
+  attachments?: TaskFileInput[];
+};
+
+export function createTask(data: CreateTaskInput) {
   return apiFetch<ApiTask>("/tasks", { method: "POST", body: JSON.stringify(data) });
 }
 
@@ -699,17 +815,43 @@ export function updateTask(
   data: Partial<{
     title: string;
     description: string | null;
-    priority: ApiTask["priority"];
+    priority: TaskPriority;
     dueAt: string | null;
     assignedUserId: string;
+    startAt: string | null;
+    sendAt: string | null;
+    reminderOffsetsMin: number[];
+    recurrence: TaskRecurrence;
+    recurrenceInterval: number;
+    recurrenceEndAt: string | null;
+    tags: string[];
+    notes: string | null;
   }>,
 ) {
   return apiFetch<ApiTask>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
 export function fetchTask(id: string) {
-  return apiFetch<ApiTask>(`/tasks/${id}`);
+  return apiFetch<ApiTaskDetail>(`/tasks/${id}`);
 }
+
+const taskPost = <T = ApiTask>(id: string, path: string, body: unknown = {}) =>
+  apiFetch<T>(`/tasks/${id}/${path}`, { method: "POST", body: JSON.stringify(body) });
+
+export const markTaskSeen = (id: string) => taskPost(id, "seen");
+export const startTask = (id: string) => taskPost(id, "start");
+export const submitTaskResult = (id: string, data: { text?: string; files?: TaskFileInput[] }) => taskPost(id, "result", data);
+export const reportTaskProblem = (id: string, data: { body: string; files?: TaskFileInput[] }) => taskPost(id, "problem", data);
+export const addTaskComment = (id: string, data: { body: string; parentId?: string }) => taskPost<ApiTaskComment>(id, "comments", data);
+export const requestTaskExtension = (id: string, data: { proposedDueAt: string; reason?: string }) => taskPost(id, "extension-requests", data);
+export const decideTaskExtension = (id: string, requestId: string, approve: boolean, data: { note?: string; dueAt?: string } = {}) =>
+  taskPost(id, `extension-requests/${requestId}/${approve ? "approve" : "reject"}`, data);
+export const approveTask = (id: string, note?: string) => taskPost(id, "approve", { note });
+export const returnTask = (id: string, note: string) => taskPost(id, "return", { note });
+export const resolveTaskProblem = (id: string, data: { note?: string; dueAt?: string } = {}) => taskPost(id, "resolve-problem", data);
+export const reassignTask = (id: string, assigneeIds: string[], note?: string) => taskPost(id, "reassign", { assigneeIds, note });
+export const cancelTask = (id: string, note?: string) => taskPost(id, "cancel", { note });
+export const reopenTask = (id: string, note?: string) => taskPost(id, "reopen", { note });
 
 export function addTaskChecklistItem(taskId: string, text: string) {
   return apiFetch<ApiTaskChecklistItem>(`/tasks/${taskId}/checklist`, { method: "POST", body: JSON.stringify({ text }) });

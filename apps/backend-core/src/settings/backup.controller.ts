@@ -165,6 +165,12 @@ export class BackupController {
         db.bankStatementLine.createMany({ data: toBigInt(g('bankStatementLines'), 'amount') as never[] }),
         db.payrollSlip.createMany({ data: g('payrollSlips') as never[] }),
         db.task.createMany({ data: g('tasks') as never[] }),
+        db.taskAssignee.createMany({ data: g('taskAssignees') as never[] }),
+        db.taskEvent.createMany({ data: g('taskEvents') as never[] }),
+        db.taskComment.createMany({ data: g('taskComments') as never[] }),
+        db.taskResult.createMany({ data: g('taskResults') as never[] }),
+        db.taskExtensionRequest.createMany({ data: g('taskExtensionRequests') as never[] }),
+        db.$executeRaw`SELECT setval('"tasks_number_seq"', COALESCE((SELECT MAX("number") FROM "tasks"), 0) + 1, false)`,
         db.attachment.createMany({ data: g('attachments') as never[] }),
       ]);
     } catch (err) {

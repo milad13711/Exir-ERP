@@ -1,4 +1,5 @@
 import { IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -14,5 +15,6 @@ export class UpdateProfileDto {
   @IsOptional()
   @ValidateIf((o) => o.avatarUrl !== null)
   @IsString()
+  @IsUploadDataUri('smallImage')
   avatarUrl?: string | null;
 }

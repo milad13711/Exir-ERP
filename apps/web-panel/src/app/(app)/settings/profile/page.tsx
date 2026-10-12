@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { TwoFactorCard } from "@/components/settings/TwoFactorCard";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getInitials } from "@/lib/persian";
+import { fileToDataUri, uploadErrorMessage, AVATAR_IMAGE } from "@/lib/upload";
 import {
   updateMyProfile,
   fetchStampDelegate,
@@ -17,14 +18,6 @@ const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function ProfileSettingsPage() {
   const { me, loading, refreshMe } = useWorkspace();
@@ -51,8 +44,11 @@ export default function ProfileSettingsPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const dataUrl = await readAsDataUrl(file);
-    setAvatarUrl(dataUrl);
+    try {
+      setAvatarUrl(await fileToDataUri(file, "image", AVATAR_IMAGE));
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    }
   }
 
   async function handleSave(e: React.FormEvent) {

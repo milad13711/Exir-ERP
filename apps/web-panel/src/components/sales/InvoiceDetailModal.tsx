@@ -34,6 +34,7 @@ import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 
 
 /** تاریخ امروز به‌صورت YYYY-MM-DD محلی — مقدار پیش‌فرض «تاریخ پرداخت». */
@@ -81,15 +82,6 @@ const CHECK_STATUS_LABELS: Record<string, string> = {
   BOUNCED: "برگشتی",
   CANCELLED: "باطل‌شده",
 };
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export function InvoiceDetailModal({
   invoiceId,
@@ -680,7 +672,12 @@ export function InvoiceDetailModal({
                         accept="image/*"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
-                          if (file) setCheckPhotoDataUrl(await readAsDataUrl(file));
+                          if (!file) return;
+                          try {
+                            setCheckPhotoDataUrl(await fileToDataUri(file, "image"));
+                          } catch (err) {
+                            setError(uploadErrorMessage(err));
+                          }
                         }}
                         className="flex-1 text-[11.5px] text-muted"
                       />

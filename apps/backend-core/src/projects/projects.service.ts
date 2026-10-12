@@ -106,7 +106,7 @@ export class ProjectsService implements OnModuleInit {
       const id = t.relatedEntityId!;
       const entry = map.get(id) ?? { total: 0, done: 0 };
       entry.total += 1;
-      if (t.status === 'DONE') entry.done += 1;
+      if (t.status === 'DONE' || t.status === 'APPROVED') entry.done += 1;
       map.set(id, entry);
     }
     return map;

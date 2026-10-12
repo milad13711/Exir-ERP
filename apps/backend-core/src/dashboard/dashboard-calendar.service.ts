@@ -3,6 +3,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { jalaliMonthGregorianRange, jalaliMonthLength, toJalaliDate } from '../common/jalali.js';
 import { iranHolidaysForYear } from '../booking/iran-holidays.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { taskScopeWhere } from '../tasks/task-scope.js';
 import type { CreateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
 
 export type CalendarEventType =
@@ -98,7 +99,7 @@ export class DashboardCalendarService {
     ] = await Promise.all([
       gate('birthday-employee', { userId: me }, (w) => ctx.tenantDb.employee.findMany({ where: { birthDate: { not: null }, ...w }, select: { id: true, fullName: true, birthDate: true } })),
       gate('birthday-contact', { ownerUserId: me }, (w) => ctx.tenantDb.crmContact.findMany({ where: { birthDate: { not: null }, ...w }, select: { id: true, name: true, company: true, birthDate: true } })),
-      gate('task', { assignedUserId: me }, (w) => ctx.tenantDb.task.findMany({ where: { dueAt: { gte: start, lt: end }, ...w }, select: { id: true, title: true, dueAt: true } })),
+      gate('task', taskScopeWhere(false, me), (w) => ctx.tenantDb.task.findMany({ where: { dueAt: { gte: start, lt: end }, status: { not: 'CANCELLED' }, ...w }, select: { id: true, title: true, dueAt: true } })),
       gate('interview', { interviewerUserId: me }, (w) =>
         ctx.tenantDb.jobInterview.findMany({
           where: { scheduledAt: { gte: start, lt: end }, ...w },

@@ -38,6 +38,7 @@ import { DueOrOverdueInvoicesWidget } from "@/components/dashboard/DueOrOverdueI
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import Link from "next/link";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { isTaskFinished } from "@/components/tasks/task-ui";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function DashboardPage() {
   const { me, installedModules } = useWorkspace();
@@ -49,7 +50,7 @@ export default function DashboardPage() {
   const [weekAppointments, setWeekAppointments] = useState<Appointment[] | null>(null);
 
   useEffect(() => {
-    fetchTasks().then((t) => setTasks([...t].sort((a, b) => Number(a.status === "DONE") - Number(b.status === "DONE")).slice(0, 5))).catch(() => setTasks([]));
+    fetchTasks().then((t) => setTasks([...t].sort((a, b) => Number(isTaskFinished(a.status)) - Number(isTaskFinished(b.status))).slice(0, 5))).catch(() => setTasks([]));
     fetchActivity().then((a) => setActivity(a.slice(0, 3))).catch(() => setActivity([]));
     fetchDashboardSummary().then(setSummary).catch(() => {});
   }, []);
@@ -181,7 +182,7 @@ export default function DashboardPage() {
               <div className="text-center text-muted text-sm py-4">هنوز وظیفه‌ای ثبت نشده است</div>
             ) : (
               tasks.map((task) => {
-                const done = task.status === "DONE";
+                const done = isTaskFinished(task.status);
                 return (
                   <div key={task.id} className="flex items-start gap-2.5">
                     <button
@@ -205,7 +206,7 @@ export default function DashboardPage() {
                     </div>
                     {task.priority !== "NORMAL" ? (
                       <Badge tone={task.priority === "URGENT" ? "danger" : "warning"}>
-                        {task.priority === "URGENT" ? "فوری" : "متوسط"}
+                        {task.priority === "URGENT" ? "فوری" : "مهم"}
                       </Badge>
                     ) : null}
                   </div>

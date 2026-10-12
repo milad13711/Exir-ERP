@@ -100,9 +100,9 @@ export class KpiService {
 
   private async computeTasks(ctx: TenantRequestContext, userId: string, from: Date, to: Date) {
     const [assigned, completed, overdue] = await Promise.all([
-      ctx.tenantDb.task.count({ where: { assignedUserId: userId, createdAt: { gte: from, lte: to } } }),
-      ctx.tenantDb.task.count({ where: { assignedUserId: userId, status: 'DONE', completedAt: { gte: from, lte: to } } }),
-      ctx.tenantDb.task.count({ where: { assignedUserId: userId, status: 'OPEN', dueAt: { lt: new Date() } } }),
+      ctx.tenantDb.task.count({ where: { isPublished: true, status: { not: 'CANCELLED' }, createdAt: { gte: from, lte: to }, OR: [{ assignedUserId: userId }, { assignees: { some: { userId } } }] } }),
+      ctx.tenantDb.task.count({ where: { status: { in: ['DONE', 'APPROVED'] }, completedAt: { gte: from, lte: to }, OR: [{ assignedUserId: userId }, { assignees: { some: { userId } } }] } }),
+      ctx.tenantDb.task.count({ where: { isPublished: true, status: { in: ['OPEN', 'NEW', 'SEEN', 'IN_PROGRESS', 'HAS_PROBLEM', 'RETURNED_FOR_FIX', 'EXPIRED'] }, dueAt: { lt: new Date() }, OR: [{ assignedUserId: userId }, { assignees: { some: { userId } } }] } }),
     ]);
     const completionRate = assigned > 0 ? Math.round((completed / assigned) * 100) : null;
     return { assigned, completed, overdue, completionRate };

@@ -416,7 +416,7 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
       handler: async (_args, ctx) => {
-        const tasks = await ctx.tenantDb.task.findMany({ where: { status: 'OPEN' }, orderBy: { createdAt: 'desc' }, take: 50 });
+        const tasks = await ctx.tenantDb.task.findMany({ where: { isPublished: true, status: { in: ['OPEN', 'NEW', 'SEEN', 'IN_PROGRESS', 'HAS_PROBLEM', 'RETURNED_FOR_FIX', 'EXPIRED'] } }, orderBy: { createdAt: 'desc' }, take: 50 });
         return tasks.map((t) => ({ id: t.id, title: t.title, priority: t.priority, dueAt: t.dueAt }));
       },
     },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
 import { createEvent, ApiError } from "@/lib/api";
@@ -17,15 +18,6 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .slice(0, 60);
-}
-
-function fileToDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 type TicketTypeRow = { name: string; price: string; capacity: string };
@@ -56,7 +48,11 @@ export function NewEventModal({ onClose, onCreated }: { onClose: () => void; onC
 
   async function handleCoverChange(file: File | null) {
     if (!file) return;
-    setCoverImage(await fileToDataUri(file));
+    try {
+      setCoverImage(await fileToDataUri(file, "image"));
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    }
   }
 
   function updateTicketType(index: number, patch: Partial<TicketTypeRow>) {

@@ -116,6 +116,8 @@ self.addEventListener("push", (event) => {
       data: { url: payload.url || "/dashboard" },
       dir: "rtl",
       lang: "fa",
+      // هم‌تگ = جایگزینی اعلان قبلی (مثلاً یک اعلان به‌ازای هر گفتگوی پیام‌رسان)
+      ...(payload.tag ? { tag: payload.tag, renotify: true } : {}),
     }),
   );
 });
@@ -127,6 +129,14 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      // پیام‌رسان: تب باز را فوکوس و روی همان گفتگو ببر (به‌جای باز کردن پنجره‌ی تازه)
+      if (url.startsWith("/messenger")) {
+        for (const client of clients) {
+          if ("focus" in client && "navigate" in client) {
+            return client.focus().then((c) => (c || client).navigate(url));
+          }
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     }),

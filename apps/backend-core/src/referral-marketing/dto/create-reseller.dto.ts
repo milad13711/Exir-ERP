@@ -1,5 +1,6 @@
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { IsHttpUrl } from '../../common/validators/is-http-url.js';
+import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 const TIERS = ['A_PLUS', 'A', 'B'] as const;
 
@@ -27,6 +28,7 @@ export class CreateResellerDto {
 
   @IsOptional()
   @IsString()
+  @IsUploadDataUri('smallImage', { allowHttp: true })
   logoUrl?: string;
 
   @IsOptional()

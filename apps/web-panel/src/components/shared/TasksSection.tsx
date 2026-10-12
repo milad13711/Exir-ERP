@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { isTaskFinished } from "@/components/tasks/task-ui";
 import { fetchTasks, toggleTask, type ApiTask } from "@/lib/api";
 
 export function TasksSection({ relatedModule, relatedEntityId }: { relatedModule: string; relatedEntityId: string }) {
@@ -39,13 +40,13 @@ export function TasksSection({ relatedModule, relatedEntityId }: { relatedModule
                 onClick={() => handleToggle(t.id)}
                 className={
                   "w-4.5 h-4.5 rounded-md shrink-0 flex items-center justify-center cursor-pointer " +
-                  (t.status === "DONE" ? "bg-success" : "border-2 border-border")
+                  (isTaskFinished(t.status) ? "bg-success" : "border-2 border-border")
                 }
               >
-                {t.status === "DONE" ? <CheckIcon className="w-2.5 h-2.5 text-white" strokeWidth={3} /> : null}
+                {isTaskFinished(t.status) ? <CheckIcon className="w-2.5 h-2.5 text-white" strokeWidth={3} /> : null}
               </button>
               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setModalTask(t)}>
-                <div className={"text-[12px] font-bold truncate" + (t.status === "DONE" ? " text-muted line-through" : "")}>{t.title}</div>
+                <div className={"text-[12px] font-bold truncate" + (isTaskFinished(t.status) ? " text-muted line-through" : "")}>{t.title}</div>
                 <div className="text-[10.5px] text-muted mt-0.5">
                   {t.dueAt ? formatJalaliDateTime(t.dueAt) : formatJalaliDateTime(t.createdAt)}
                   {t.assignee ? ` · ${t.assignee.name}` : ""}

@@ -397,7 +397,7 @@ export class TenantsService {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
     const [userCount, openTaskCount, lastActivity, recentErrorCount] = await Promise.all([
       tenantDb.user.count({ where: { status: 'ACTIVE' } }),
-      tenantDb.task.count({ where: { status: 'OPEN' } }),
+      tenantDb.task.count({ where: { status: { in: ['OPEN', 'NEW', 'SEEN', 'IN_PROGRESS', 'HAS_PROBLEM', 'RETURNED_FOR_FIX', 'EXPIRED'] } } }),
       tenantDb.activityLog.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
       this.controlDb.errorLog.count({ where: { tenantId, createdAt: { gte: sevenDaysAgo } } }),
     ]);
