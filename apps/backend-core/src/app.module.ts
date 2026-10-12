@@ -53,6 +53,7 @@ import { MarketingModule } from './marketing/marketing.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { MentoringModule } from './mentoring/mentoring.module.js';
 import { MessengerModule } from './messenger/messenger.module.js';
+import { OperationsModule } from './operations/operations.module.js';
 import { EventsModule } from './events/events.module.js';
 import { ProposalsModule } from './proposals/proposals.module.js';
 import { TaxModule } from './tax/tax.module.js';
@@ -98,6 +99,7 @@ import { MonitoringModule } from './monitoring/monitoring.module.js';
     OnboardingModule,
     MentoringModule,
     MessengerModule,
+    OperationsModule,
     EventsModule,
     ProposalsModule,
     TaxModule,

@@ -38,6 +38,7 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "projects": 400,
   "mentoring": 370,
   "messenger": 160,
+  "operations": 160,
   "events": 450,
   "proposals": 350,
   "forms": 240,

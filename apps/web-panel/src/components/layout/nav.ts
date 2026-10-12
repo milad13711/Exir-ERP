@@ -101,6 +101,7 @@ export const primaryNav: NavItem[] = [
   { href: "/approvals", label: "کارتابل تأیید", icon: ClipboardCheckIcon, category: "بهره‌وری" },
 
   // عملیات
+  { href: "/operations", label: "داشبورد عملیات", icon: DashboardIcon, moduleCode: "operations", category: "عملیات" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet", category: "عملیات" },
 
   // عمومی (بقیه)

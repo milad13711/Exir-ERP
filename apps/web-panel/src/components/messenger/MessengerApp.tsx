@@ -137,8 +137,14 @@ export function MessengerApp() {
       try {
         const [m] = await Promise.all([messengerApi.me(), messengerApi.conversations().then(setConvs)]);
         setMe(m);
-        const c = new URLSearchParams(window.location.search).get("c");
+        const sp = new URLSearchParams(window.location.search);
+        const c = sp.get("c");
+        const peer = sp.get("with"); // لینک داشبورد عملیات: گفتگوی مستقیم با یک همکار
         if (c) void openConversation(c);
+        else if (peer && /^[0-9a-fA-F-]{36}$/.test(peer)) {
+          const d = await messengerApi.openDirect(peer);
+          void openConversation(d.id);
+        }
       } catch (e) {
         setError(errMsg(e));
       }

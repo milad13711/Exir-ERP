@@ -457,6 +457,17 @@ async function main() {
       features: ['گفتگوی مستقیم و گروهی', 'پاسخ، فوروارد، ویرایش و حذف پیام', 'ذخیره‌شده‌ها و سنجاق پیام', 'اعلان پوش روی گوشی', 'فایل و تصویر با حذف خودکار پس از ۲۴ ساعت'],
     },
     {
+      code: 'operations',
+      name: 'داشبورد عملیات',
+      description: 'نمای زنده‌ی مدیر از وضعیت کارها در مجموعه‌های عملیاتی مثل آزمایشگاه — شمارنده‌ها، موارد نیازمند اقدام، بار کاری افراد، روند و خروجی CSV؛ روی ماژول وظایف سوار است.',
+      category: 'بهره‌وری',
+      priceMonthly: 90000,
+      isCore: false,
+      version: '1.0.0',
+      dependsOn: ['tasks'],
+      features: ['شمارنده‌های زنده‌ی کارها با لینک به فهرست', 'فهرست اولویت‌دار «نیازمند اقدام» با تأیید و بازگشت سریع', 'بار کاری و عملکرد هر نفر', 'روند روزانه و خروجی CSV'],
+    },
+    {
       code: 'events',
       name: 'رویداد و بلیط‌فروشی',
       description: 'صفحه‌ی عمومی معرفی و فروش بلیط رویداد با پرداخت آنلاین، صدور بلیط QR و ثبت حضور با اسکن گوشی.',
@@ -1199,6 +1210,47 @@ async function main() {
       ],
       suggestedThemeColor: '#7c3aed',
       defaultModules: ['tasks', 'crm', 'booking', 'accounting', 'contracts'],
+    },
+    {
+      code: 'laboratory',
+      businessCategory: 'SERVICES',
+      name: 'آزمایشگاه و مجموعه‌های عملیاتی',
+      description:
+        'آزمایشگاه‌ها و مراکز خدمات عملیاتی — ارجاع و پیگیری نمونه‌ها و کارها، تأیید نتیجه توسط مدیر، داشبورد زنده‌ی عملیات و پیام‌رسان داخلی تیم.',
+      roles: [
+        {
+          name: 'کارشناس آزمایشگاه',
+          permissionCodes: ['tasks.manage'],
+          modulePermissions: { tasks: OWN_CONTRIBUTOR },
+        },
+        {
+          name: 'مسئول فنی / سرپرست',
+          permissionCodes: ['tasks.manage', 'warehouse.manage'],
+          modulePermissions: { tasks: FULL_ACCESS, warehouse: EDITOR_ACCESS },
+        },
+        {
+          name: 'مدیر آزمایشگاه',
+          permissionCodes: ['crm.manage', 'accounting.manage', 'warehouse.manage', 'tasks.manage'],
+          modulePermissions: { crm: FULL_ACCESS, accounting: EDITOR_ACCESS, warehouse: FULL_ACCESS, tasks: FULL_ACCESS },
+        },
+      ],
+      chartOfAccounts: [
+        { code: '1181', name: 'مطالبات از مشتریان آزمایش', type: 'ASSET' },
+        { code: '1182', name: 'موجودی مواد و معرف‌های آزمایشگاهی', type: 'ASSET' },
+        { code: '4181', name: 'درآمد خدمات آزمایش و کالیبراسیون', type: 'REVENUE' },
+        { code: '5181', name: 'هزینه مواد مصرفی و معرف‌ها', type: 'EXPENSE' },
+        { code: '5182', name: 'هزینه کالیبراسیون و نگهداری تجهیزات', type: 'EXPENSE' },
+      ],
+      productCategories: ['معرف و مواد شیمیایی', 'مصرفی آزمایشگاهی', 'تجهیزات و قطعات'],
+      orgChart: [
+        { position: 'مدیر آزمایشگاه', reportsTo: null, department: 'مدیریت' },
+        { position: 'مسئول فنی / سرپرست', reportsTo: 'مدیر آزمایشگاه', department: 'عملیات' },
+        { position: 'کارشناس آزمایشگاه', reportsTo: 'مسئول فنی / سرپرست', department: 'عملیات' },
+        { position: 'مسئول پذیرش نمونه', reportsTo: 'مدیر آزمایشگاه', department: 'پذیرش' },
+        { position: 'مسئول مالی', reportsTo: 'مدیر آزمایشگاه', department: 'مالی' },
+      ],
+      suggestedThemeColor: '#0e7490',
+      defaultModules: ['tasks', 'operations', 'messenger', 'crm', 'warehouse', 'accounting'],
     },
   ];
 

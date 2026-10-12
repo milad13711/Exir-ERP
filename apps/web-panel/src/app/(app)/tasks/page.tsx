@@ -53,7 +53,17 @@ export default function TasksPage() {
     fetchUsers().then(setUsers).catch(() => setUsers([]));
     fetchTaskSettings().then((s) => setPrefix(s.numberPrefix)).catch(() => {});
     // لینک عمیق اعلان‌ها: /tasks?open=<id>
-    const id = new URLSearchParams(window.location.search).get("open");
+    const params = new URLSearchParams(window.location.search);
+    // لینک شمارنده‌های داشبورد عملیات: /tasks?status=OVERDUE&priority=URGENT&assigneeId=...
+    void Promise.resolve().then(() => {
+      const st = params.get("status");
+      if (st && /^[A-Z_,]+$/.test(st)) setStatus(st);
+      const pr = params.get("priority");
+      if (pr && ["NORMAL", "MEDIUM", "URGENT"].includes(pr)) setPriority(pr);
+      const as = params.get("assigneeId");
+      if (as && /^[0-9a-fA-F-]{36}$/.test(as)) setAssigneeId(as);
+    });
+    const id = params.get("open");
     if (id) void Promise.resolve().then(() => setModalTask({ id, title: "", dueAt: null, priority: "NORMAL", status: "NEW", createdAt: "", completedAt: null }));
   }, []);
 
