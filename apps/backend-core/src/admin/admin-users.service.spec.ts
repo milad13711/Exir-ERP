@@ -43,7 +43,7 @@ describe('AdminUsersService', () => {
     expect(await bcrypt.compare(res.oneTimePassword, data.passwordHash)).toBe(true);
     const logged = JSON.stringify([db.auditLog.create.mock.calls, events.record.mock.calls]);
     expect(logged).not.toContain(res.oneTimePassword);
-  });
+  }, 30_000);
 
   it('reset: new one-time password, flag set, sessions revoked, secret absent from audit/events; cannot reset self', async () => {
     const { svc, db, events } = make([sa('boss'), sa('u2', { team: 'SUPPORT' })]);

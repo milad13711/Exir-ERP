@@ -139,6 +139,11 @@ describe('BackupDrService.backupTarget', () => {
   });
 
   it('runAll alerts on failure via ErrorLog + SMS, once per day per kind', async () => {
+    // alert() پاک‌سازیِ کلیدهای قدیمی‌تر از ۳ روز را با ساعت واقعی انجام می‌دهد؛ اگر ساعت ثابت نباشد، این تست با گذشت زمان
+    // (روز مجازی 2026-10-08 «قدیمی» می‌شود) ضدتکرار را از کار می‌اندازد و ناگهان شکست می‌خورد.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-09T12:00:00Z'));
+    try {
     const svc = make([{ slug: 'acme', dbHost: 'h', dbPort: 5432, dbName: 'exir_tenant_acme' }]);
     svc.dumpFails = true;
     const r1 = await svc.runAll();
@@ -152,6 +157,9 @@ describe('BackupDrService.backupTarget', () => {
     await svc.runAll();
     expect(errorLogs.length).toBe(first + 2);
     expect(smsSent.join(' ')).not.toMatch(/pw@/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('skips tenants with unsafe slugs', async () => {

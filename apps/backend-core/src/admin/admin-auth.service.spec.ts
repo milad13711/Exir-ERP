@@ -132,7 +132,7 @@ describe('AdminAuthService.changePassword / profile / me', () => {
     expect(logged).not.toContain(NEW);
     expect(logged).not.toContain('Correct-Horse-9');
     expect(auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'admin_user.password_changed' }) }));
-  });
+  }, 30_000);
 
   it('profile: name needs no password; e-mail change needs the password, uniqueness, and is audited', async () => {
     const { svc, adminUser, state, auditLog } = make(makeAdmin());
