@@ -21,6 +21,13 @@ UPDATE "tasks" t SET "number" = n.rn FROM (SELECT "id", ROW_NUMBER() OVER (ORDER
 SELECT setval('"tasks_number_seq"', COALESCE((SELECT MAX("number") FROM "tasks"), 0) + 1, false);
 ALTER TABLE "tasks" ALTER COLUMN "number" SET DEFAULT nextval('"tasks_number_seq"');
 ALTER TABLE "tasks" ALTER COLUMN "number" SET NOT NULL;
+-- OWNED BY requires the sequence to have the same owner as the table (tenants with their own DB role).
+DO $$
+DECLARE tbl_owner text;
+BEGIN
+  SELECT pg_get_userbyid(c.relowner) INTO tbl_owner FROM pg_class c WHERE c.oid = '"tasks"'::regclass;
+  EXECUTE format('ALTER SEQUENCE "tasks_number_seq" OWNER TO %I', tbl_owner);
+END $$;
 ALTER SEQUENCE "tasks_number_seq" OWNED BY "tasks"."number";
 CREATE UNIQUE INDEX "tasks_number_key" ON "tasks"("number");
 
