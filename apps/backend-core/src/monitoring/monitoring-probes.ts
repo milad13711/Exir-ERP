@@ -1,8 +1,8 @@
 import { connect } from 'node:tls';
 import { statfs } from 'node:fs/promises';
 
-/** HTTP GET بدون دنبال‌کردن ریدایرکت: 2xx/3xx = سالم. null = خطای شبکه/timeout. */
-export async function httpStatus(url: string, timeoutMs = 10_000): Promise<{ status: number | null; ms: number; error?: string }> {
+/** یک تلاشِ خام. null = خطای شبکه/timeout. */
+async function httpStatusOnce(url: string, timeoutMs: number): Promise<{ status: number | null; ms: number; error?: string }> {
   const t0 = Date.now();
   try {
     const res = await fetch(url, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': 'exir-monitor/1' } });
@@ -11,6 +11,21 @@ export async function httpStatus(url: string, timeoutMs = 10_000): Promise<{ sta
   } catch (e) {
     return { status: null, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * HTTP GET بدون دنبال‌کردن ریدایرکت: 2xx/3xx = سالم. null = خطای شبکه/timeout.
+ *
+ * فقط برای «خطای شبکه» (نه پاسخ HTTP) یک‌بار بعد از `retryDelayMs` دوباره تلاش می‌شود: یک خطای گذرای اتصال سمت خودِ پروب
+ * (مثل «fetch failed» که یک‌بار هشدار کاذب داد در حالی که nginx همه‌ی درخواست‌ها را ۲۰۰ ثبت کرده بود) با تلاش دوم برطرف می‌شود،
+ * ولی قطع واقعی هر دو تلاش را رد می‌کند. پاسخ HTTP (مثلاً ۵۰۰) واقعی است و هرگز دوباره‌امتحان نمی‌شود.
+ */
+export async function httpStatus(url: string, timeoutMs = 10_000, retryDelayMs = 3_000): Promise<{ status: number | null; ms: number; error?: string }> {
+  const first = await httpStatusOnce(url, timeoutMs);
+  if (first.status !== null) return first;
+  await new Promise((r) => setTimeout(r, retryDelayMs));
+  const second = await httpStatusOnce(url, timeoutMs);
+  return second.status !== null ? second : { ...second, error: second.error ?? first.error };
 }
 
 /** روزهای باقی‌مانده تا انقضای گواهی host:443 (اتصال TLS واقعی، بدون اعتماد به زنجیره — فقط تاریخ مهم است). */

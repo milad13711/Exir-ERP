@@ -82,6 +82,10 @@ export class TenantDbAdminService {
     const pool = this.adminPool(host, port);
     try {
       await pool.query(`CREATE DATABASE "${dbName}" ENCODING 'UTF8'`);
+      // Postgres به‌طور پیش‌فرض CONNECT را به PUBLIC می‌دهد؛ بدون این خط نقش‌های جداشده‌ی تننت‌های دیگر به دیتابیس تازه وصل می‌شوند
+      // (verify دقیقاً همین را برای zenvoo/razi گرفت). حتی در حالت TENANT_DB_ISOLATION=off هر دیتابیس جدید از لحظه‌ی ساخته‌شدن بسته می‌شود.
+      // برنامه با کاربر مدیر (سوپریوزر) وصل می‌شود و به PUBLIC وابسته نیست.
+      await pool.query(`REVOKE ALL ON DATABASE "${dbName}" FROM PUBLIC`);
     } finally {
       await pool.end();
     }
