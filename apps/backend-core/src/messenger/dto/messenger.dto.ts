@@ -44,7 +44,23 @@ export class MuteDto {
   muted!: boolean;
 }
 
+export class PinChatDto {
+  @IsBoolean()
+  pinned!: boolean;
+}
+
+export class ArchiveChatDto {
+  @IsBoolean()
+  archived!: boolean;
+}
+
 export class SendMessageDto {
+  /** شناسه‌ی سمت کلاینت برای ارسال idempotent (تلاش دوباره‌ی صف آفلاین تکرار نمی‌سازد). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  clientId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(4000)

@@ -10,11 +10,13 @@ import { MessengerMediaService } from './messenger-media.service.js';
 import { MEDIA_MAX_BYTES } from './messenger-media.util.js';
 import {
   AddMembersDto,
+  ArchiveChatDto,
   CreateDirectDto,
   CreateGroupDto,
   EditMessageDto,
   ForwardDto,
   MuteDto,
+  PinChatDto,
   PresenceDto,
   ReactDto,
   ReadDto,
@@ -134,6 +136,16 @@ export class MessengerController {
     return this.messenger.setMuted(await this.messenger.actorOf(ctx), id, dto.muted);
   }
 
+  @Patch('conversations/:id/pin')
+  async pinChat(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PinChatDto, @Ctx() ctx: TenantRequestContext) {
+    return this.messenger.setChatPinned(await this.messenger.actorOf(ctx), id, dto.pinned);
+  }
+
+  @Patch('conversations/:id/archive')
+  async archiveChat(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ArchiveChatDto, @Ctx() ctx: TenantRequestContext) {
+    return this.messenger.setChatArchived(await this.messenger.actorOf(ctx), id, dto.archived);
+  }
+
   @Post('conversations/:id/members')
   async addMembers(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddMembersDto, @Ctx() ctx: TenantRequestContext) {
     return this.messenger.addMembers(await this.messenger.actorOf(ctx), id, dto.userIds);
@@ -171,10 +183,12 @@ export class MessengerController {
 
   // ── پیام‌ها ──
   @Get('conversations/:id/messages')
-  async messages(@Param('id', ParseUUIDPipe) id: string, @Query('before') before: string | undefined, @Query('limit') limit: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  async messages(@Param('id', ParseUUIDPipe) id: string, @Query('before') before: string | undefined, @Query('after') after: string | undefined, @Query('limit') limit: string | undefined, @Ctx() ctx: TenantRequestContext) {
     const b = before !== undefined ? Number(before) : undefined;
     if (b !== undefined && (!Number.isInteger(b) || b < 1)) throw new BadRequestException('مکان‌نما نامعتبر است');
-    return this.messenger.listMessages(await this.messenger.actorOf(ctx), id, { before: b, limit: limit ? Number(limit) || undefined : undefined });
+    const a = after !== undefined ? Number(after) : undefined;
+    if (a !== undefined && (!Number.isInteger(a) || a < 0)) throw new BadRequestException('مکان‌نما نامعتبر است');
+    return this.messenger.listMessages(await this.messenger.actorOf(ctx), id, { before: b, after: a, limit: limit ? Number(limit) || undefined : undefined });
   }
 
   @Post('conversations/:id/messages')

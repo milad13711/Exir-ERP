@@ -14,7 +14,11 @@ import {
   canRemoveMember,
   canSendDirect,
   canStartDirect,
+  buildPushText,
+  deliveryStatus,
   directKeyFor,
+  MAX_PINNED_CHATS,
+  sortConversationList,
   nextReactionState,
   normalizeSettings,
   pickNextOwner,
@@ -40,6 +44,8 @@ type MemberRow = {
   lastDeliveredSeq: number;
   visibleFromSeq: number;
   joinedAt: Date;
+  pinnedAt?: Date | null;
+  archivedAt?: Date | null;
 };
 type ConversationRow = {
   id: string;
@@ -67,6 +73,7 @@ type MessageRow = {
   editedAt: Date | null;
   deletedForAllAt: Date | null;
   createdAt: Date;
+  clientId?: string | null;
   media?: MediaRow | null;
   reactions?: { messageId: string; userId: string; emoji: string }[];
 };
@@ -87,6 +94,7 @@ export type MessageDto = {
   media: { id: string; kind: string; mime: string; fileName: string; size: number; expiresAt: string; expired: boolean; hoursLeft: number } | null;
   reactions: { emoji: string; userIds: string[] }[];
   mentionIds: string[];
+  clientId: string | null;
 };
 
 const MAX_TEXT = 4000;
@@ -303,8 +311,8 @@ export class MessengerService {
     await this.ensureSaved(actor);
     const memberships = (await actor.tenantDb.messengerMember.findMany({
       where: { userId: actor.userId },
-      include: { conversation: { include: { members: { select: { userId: true } } } } },
-    })) as unknown as (MemberRow & { conversation: ConversationRow & { members: { userId: string }[] } })[];
+      include: { conversation: { include: { members: { select: { userId: true, lastReadSeq: true, lastDeliveredSeq: true } } } } },
+    })) as unknown as (MemberRow & { conversation: ConversationRow & { members: { userId: string; lastReadSeq: number; lastDeliveredSeq: number }[] } })[];
     const peerIds = memberships.filter((m) => m.conversation.type === 'DIRECT').map((m) => m.conversation.members.find((x) => x.userId !== actor.userId)?.userId ?? '');
     const names = await this.names(actor.tenantDb, peerIds.filter(Boolean));
     const settings = await this.getSettings(actor.tenantDb);
@@ -320,6 +328,10 @@ export class MessengerService {
         ]);
         const peerId = m.conversation.type === 'DIRECT' ? (m.conversation.members.find((x) => x.userId !== actor.userId)?.userId ?? null) : null;
         const lastDto = last ? (await this.toDtos(actor, [last as unknown as MessageRow]))[0] : null;
+        const lastMessageStatus =
+          last && last.senderId === actor.userId && last.kind !== 'SYSTEM' && !last.deletedForAllAt && m.conversation.type !== 'SAVED'
+            ? deliveryStatus(last.seq, m.conversation.members.filter((x) => x.userId !== actor.userId))
+            : null;
         return {
           id: m.conversationId,
           type: m.conversation.type,
@@ -330,12 +342,16 @@ export class MessengerService {
           unread,
           memberCount: m.conversation.members.length,
           lastMessage: lastDto,
+          lastMessageStatus,
+          lastSeq: m.conversation.lastSeq,
+          pinnedAt: m.pinnedAt?.toISOString() ?? null,
+          archived: !!m.archivedAt,
           lastMessageAt: (last?.createdAt ?? m.conversation.createdAt).toISOString(),
         };
       }),
     );
-    // ذخیره‌شده‌ها همیشه در دسترس؛ بقیه بر اساس آخرین پیام
-    return items.sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+    // سنجاق‌شده‌ها بالا، بقیه بر اساس آخرین فعالیت
+    return sortConversationList(items);
   }
 
   async unreadTotal(actor: MessengerActor): Promise<{ total: number }> {
@@ -403,6 +419,30 @@ export class MessengerService {
     await actor.tenantDb.messengerMember.update({ where: { conversationId_userId: { conversationId: id, userId: actor.userId } }, data: { muted } });
     this.gateway.emitToUsers(actor.tenantId, [actor.userId], 'conversation:updated', { conversationId: id });
     return { muted };
+  }
+
+  async setChatPinned(actor: MessengerActor, id: string, pinned: boolean) {
+    const { member } = await this.requireMember(actor, id);
+    if (pinned && !member.pinnedAt) {
+      const count = await actor.tenantDb.messengerMember.count({ where: { userId: actor.userId, pinnedAt: { not: null } } });
+      if (count >= MAX_PINNED_CHATS) throw new BadRequestException(`حداکثر ${MAX_PINNED_CHATS} گفتگو را می‌توان سنجاق کرد`);
+    }
+    await actor.tenantDb.messengerMember.update({
+      where: { conversationId_userId: { conversationId: id, userId: actor.userId } },
+      data: pinned ? { pinnedAt: member.pinnedAt ?? new Date(), archivedAt: null } : { pinnedAt: null },
+    });
+    this.gateway.emitToUsers(actor.tenantId, [actor.userId], 'conversation:updated', { conversationId: id });
+    return { pinned };
+  }
+
+  async setChatArchived(actor: MessengerActor, id: string, archived: boolean) {
+    await this.requireMember(actor, id);
+    await actor.tenantDb.messengerMember.update({
+      where: { conversationId_userId: { conversationId: id, userId: actor.userId } },
+      data: archived ? { archivedAt: new Date(), pinnedAt: null } : { archivedAt: null },
+    });
+    this.gateway.emitToUsers(actor.tenantId, [actor.userId], 'conversation:updated', { conversationId: id });
+    return { archived };
   }
 
   // ── مدیریت گروه ────────────────────────────────────────────────────
@@ -489,11 +529,11 @@ export class MessengerService {
   // ── پیام‌ها ─────────────────────────────────────────────────────────
 
   /** افزایش اتمیک seq و ساخت پیام. */
-  private async insertMessage(db: Db, conversationId: string, data: { senderId: string; kind: 'TEXT' | 'MEDIA' | 'SYSTEM'; text?: string | null; replyToId?: string | null; forwardedFromName?: string | null; forwardedFromUserId?: string | null; mediaId?: string | null; mentionIds?: string[] }): Promise<MessageRow> {
+  private async insertMessage(db: Db, conversationId: string, data: { senderId: string; kind: 'TEXT' | 'MEDIA' | 'SYSTEM'; text?: string | null; replyToId?: string | null; forwardedFromName?: string | null; forwardedFromUserId?: string | null; mediaId?: string | null; mentionIds?: string[]; clientId?: string | null }): Promise<MessageRow> {
     return (await db.$transaction(async (tx) => {
       const conv = await tx.messengerConversation.update({ where: { id: conversationId }, data: { lastSeq: { increment: 1 }, lastMessageAt: new Date() }, select: { lastSeq: true } });
       const msg = await tx.messengerMessage.create({
-        data: { conversationId, seq: conv.lastSeq, senderId: data.senderId, kind: data.kind, text: data.text ?? null, replyToId: data.replyToId ?? null, forwardedFromName: data.forwardedFromName ?? null, forwardedFromUserId: data.forwardedFromUserId ?? null, mediaId: data.mediaId ?? null, mentionIds: data.mentionIds ?? [] },
+        data: { conversationId, seq: conv.lastSeq, senderId: data.senderId, kind: data.kind, text: data.text ?? null, replyToId: data.replyToId ?? null, forwardedFromName: data.forwardedFromName ?? null, forwardedFromUserId: data.forwardedFromUserId ?? null, mediaId: data.mediaId ?? null, mentionIds: data.mentionIds ?? [], clientId: data.clientId ?? null },
         include: { media: true, reactions: true },
       });
       if (data.kind !== 'SYSTEM') {
@@ -520,10 +560,15 @@ export class MessengerService {
     if (!ok) throw new ForbiddenException('سیاست پیام‌رسان این محیط کاری اجازه‌ی ارسال پیام به این کاربر را نمی‌دهد');
   }
 
-  async sendMessage(actor: MessengerActor, conversationId: string, dto: { text?: string; replyToId?: string; mediaId?: string; mentionIds?: string[] }) {
+  async sendMessage(actor: MessengerActor, conversationId: string, dto: { text?: string; replyToId?: string; mediaId?: string; mentionIds?: string[]; clientId?: string }) {
     if (!this.sendLimiter.take(`${actor.tenantId}:${actor.userId}`)) throw new ForbiddenException('ارسال پیام بیش از حد سریع است؛ کمی صبر کنید');
     const { conversation } = await this.requireMember(actor, conversationId);
     await this.assertCanSend(actor, conversation);
+    if (dto.clientId) {
+      // ارسال idempotent: تلاش دوباره‌ی صف آفلاین نباید پیام تکراری بسازد
+      const dup = await actor.tenantDb.messengerMessage.findFirst({ where: { senderId: actor.userId, clientId: dto.clientId }, include: { media: true, reactions: true } });
+      if (dup) return (await this.toDtos(actor, [dup as unknown as MessageRow]))[0];
+    }
     const text = dto.text?.trim() ? dto.text.trim().slice(0, MAX_TEXT) : null;
     if (!text && !dto.mediaId) throw new BadRequestException('پیام خالی است');
 
@@ -544,7 +589,7 @@ export class MessengerService {
       const members = new Set(await this.memberIds(actor.tenantDb, conversationId));
       mentionIds = [...new Set(dto.mentionIds)].filter((m) => members.has(m) && m !== actor.userId);
     }
-    const msg = await this.insertMessage(actor.tenantDb, conversationId, { senderId: actor.userId, kind, text, replyToId: dto.replyToId ?? null, mediaId: dto.mediaId ?? null, mentionIds });
+    const msg = await this.insertMessage(actor.tenantDb, conversationId, { senderId: actor.userId, kind, text, replyToId: dto.replyToId ?? null, mediaId: dto.mediaId ?? null, mentionIds, clientId: dto.clientId ?? null });
     return this.afterInsert(actor, conversation, msg);
   }
 
@@ -552,6 +597,14 @@ export class MessengerService {
     const dto = (await this.toDtos(actor, [msg]))[0];
     const members = await actor.tenantDb.messengerMember.findMany({ where: { conversationId: conversation.id } });
     this.gateway.emitToUsers(actor.tenantId, members.map((m) => m.userId), 'message:new', { message: dto });
+    // پیام تازه گفتگوی بایگانی‌شده را (اگر بی‌صدا نیست) از بایگانی درمی‌آورد؛ مثل تلگرام
+    const toUnarchive = members.filter((m) => m.userId !== actor.userId && m.archivedAt && !m.muted).map((m) => m.userId);
+    if (toUnarchive.length) {
+      void actor.tenantDb.messengerMember
+        .updateMany({ where: { conversationId: conversation.id, userId: { in: toUnarchive } }, data: { archivedAt: null } })
+        .then(() => this.gateway.emitToUsers(actor.tenantId, toUnarchive, 'conversation:updated', { conversationId: conversation.id }))
+        .catch(() => undefined);
+    }
     void this.pushToOffline(actor, conversation, members, msg, dto).catch((e) => this.logger.warn(`push failed: ${e instanceof Error ? e.message : e}`));
     return dto;
   }
@@ -562,20 +615,42 @@ export class MessengerService {
     const settings = await this.getSettings(actor.tenantDb);
     const recipients = members.filter((m) => m.userId !== actor.userId && !this.gateway.isActive(actor.tenantId, m.userId) && (!m.muted || msg.mentionIds.includes(m.userId)));
     if (recipients.length === 0) return;
-    const senderName = dto.senderName;
-    const preview = settings.hidePreview ? 'پیام جدید' : dto.media ? `📎 ${dto.media.fileName}${dto.text ? ` — ${snippet(dto.text, 60)}` : ''}` : snippet(dto.text, 100);
-    const title = conversation.type === 'GROUP' ? (conversation.title ?? 'گروه') : senderName;
-    const body = conversation.type === 'GROUP' ? (settings.hidePreview ? `${senderName}: پیام جدید` : `${senderName}: ${preview}`) : preview;
     await Promise.all(
-      recipients.map((r) =>
-        this.push.sendToTenantUser(actor.tenantDb, r.userId, { title, body, url: `/messenger?c=${conversation.id}`, tag: `messenger-${conversation.id}` }),
-      ),
+      recipients.map((r) => {
+        const { title, body } = buildPushText({
+          conversationType: conversation.type,
+          conversationTitle: conversation.title,
+          senderName: dto.senderName,
+          text: dto.text,
+          media: dto.media,
+          hidePreview: settings.hidePreview,
+          mentioned: msg.mentionIds.includes(r.userId),
+        });
+        return this.push.sendToTenantUser(actor.tenantDb, r.userId, {
+          title,
+          body,
+          url: `/messenger?c=${conversation.id}`,
+          tag: `messenger-${conversation.id}`,
+          icon: '/icons/icon-192.png',
+          actions: [{ action: 'reply', title: 'پاسخ سریع' }],
+        });
+      }),
     );
   }
 
-  async listMessages(actor: MessengerActor, conversationId: string, opts: { before?: number; limit?: number }) {
+  async listMessages(actor: MessengerActor, conversationId: string, opts: { before?: number; after?: number; limit?: number }) {
     const { member } = await this.requireMember(actor, conversationId);
     const limit = Math.min(Math.max(opts.limit ?? 40, 1), 100);
+    if (opts.after !== undefined) {
+      // همگام‌سازی پس از قطعی: پیام‌های جدیدتر از seq معلوم، از قدیم به جدید؛ hasMore یعنی شکاف بزرگ‌تر از سقف است
+      const rows = await actor.tenantDb.messengerMessage.findMany({
+        where: { conversationId, seq: { gt: Math.max(opts.after, member.visibleFromSeq) }, hides: { none: { userId: actor.userId } } },
+        orderBy: { seq: 'asc' },
+        take: limit + 1,
+        include: { media: true, reactions: true },
+      });
+      return { messages: await this.toDtos(actor, rows.slice(0, limit) as unknown as MessageRow[]), hasMore: rows.length > limit };
+    }
     const rows = await actor.tenantDb.messengerMessage.findMany({
       where: {
         conversationId,
@@ -796,6 +871,7 @@ export class MessengerService {
             : null,
         reactions: deleted ? [] : this.groupReactions(r.reactions ?? []),
         mentionIds: r.mentionIds ?? [],
+        clientId: r.clientId ?? null,
       };
     });
   }

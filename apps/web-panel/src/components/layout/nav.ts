@@ -120,6 +120,7 @@ export const secondaryNav: NavItem[] = [
 export const mobileNav: NavItem[] = [
   { href: "/dashboard", label: "داشبورد", icon: DashboardIcon, category: "عمومی" },
   { href: "/tasks", label: "وظایف", icon: TasksIcon, category: "بهره‌وری" },
+  { href: "/messenger", label: "پیام‌رسان", icon: ChatIcon, moduleCode: "messenger", category: "بهره‌وری" },
   { href: "/modules", label: "فروشگاه", icon: StoreIcon, category: "عمومی" },
   { href: "/settings", label: "تنظیمات", icon: SettingsIcon, category: "عمومی" },
 ];

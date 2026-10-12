@@ -108,34 +108,45 @@ self.addEventListener("push", (event) => {
   } catch {
     payload = { title: "اعلان جدید", body: event.data.text() };
   }
+  const isMessenger = typeof payload.url === "string" && payload.url.startsWith("/messenger");
   event.waitUntil(
     self.registration.showNotification(payload.title || "اکسیر ERP", {
       body: payload.body,
-      icon: "/icons/icon-192.png",
+      icon: payload.icon || "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: payload.url || "/dashboard" },
       dir: "rtl",
       lang: "fa",
       // هم‌تگ = جایگزینی اعلان قبلی (مثلاً یک اعلان به‌ازای هر گفتگوی پیام‌رسان)
       ...(payload.tag ? { tag: payload.tag, renotify: true } : {}),
+      // «پاسخ سریع» و مانند آن (فقط جایی که مرورگر دکمه‌ی اعلان را پشتیبانی کند نمایش داده می‌شود)
+      ...(Array.isArray(payload.actions) && payload.actions.length ? { actions: payload.actions.slice(0, 2) } : {}),
+      ...(isMessenger ? { timestamp: Date.now() } : {}),
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/dashboard";
+  let url = event.notification.data?.url || "/dashboard";
+  const isMessenger = url.startsWith("/messenger");
+  // دکمه‌ی «پاسخ سریع»: همان گفتگو را باز می‌کند و نشانگر را در کادر پیام می‌گذارد
+  const focusComposer = event.action === "reply";
+  if (isMessenger && focusComposer) url += (url.includes("?") ? "&" : "?") + "focus=1";
+  const convMatch = isMessenger ? /[?&]c=([0-9a-fA-F-]{36})/.exec(url) : null;
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if (client.url.includes(url) && "focus" in client) return client.focus();
-      }
-      // پیام‌رسان: تب باز را فوکوس و روی همان گفتگو ببر (به‌جای باز کردن پنجره‌ی تازه)
-      if (url.startsWith("/messenger")) {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+      // پیام‌رسان: اگر برنامه باز است، بدون بارگذاری مجدد صفحه، گفتگو را داخل همان تب باز کن
+      if (convMatch) {
+        const open = clients.find((c) => "focus" in c);
+        if (open) {
+          await open.focus();
+          open.postMessage({ type: "messenger-open", conversationId: convMatch[1], focus: focusComposer });
+          return;
+        }
+      } else {
         for (const client of clients) {
-          if ("focus" in client && "navigate" in client) {
-            return client.focus().then((c) => (c || client).navigate(url));
-          }
+          if (client.url.includes(url) && "focus" in client) return client.focus();
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);

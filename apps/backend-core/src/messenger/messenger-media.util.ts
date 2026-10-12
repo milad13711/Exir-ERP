@@ -13,6 +13,11 @@ export const MEDIA_MAX_BYTES = MEDIA_LIMITS.VIDEO;
 /** سهمیه‌ی روزانه‌ی هر کاربر (۲۴ ساعت اخیر). */
 export const MEDIA_DAILY_QUOTA = { count: 60, bytes: 300 * 1024 * 1024 } as const;
 
+/** پیام صوتی (audio/*) سقف ویدئو را دارد (۱۸ مگابایت)، هرچند نوعش FILE ثبت می‌شود. */
+export function limitFor(kind: MediaKind, mime: string): number {
+  return mime.startsWith('audio/') ? MEDIA_LIMITS.VIDEO : MEDIA_LIMITS[kind];
+}
+
 export type MediaKind = 'IMAGE' | 'FILE' | 'VIDEO';
 
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -80,7 +85,12 @@ export function magicMatches(mime: string, buf: Buffer): boolean {
     case 'video/quicktime':
       return startsWith(buf, [0x66, 0x74, 0x79, 0x70], 4) || startsWith(buf, [0x6d, 0x6f, 0x6f, 0x76], 4) || startsWith(buf, [0x66, 0x72, 0x65, 0x65], 4);
     case 'video/webm':
+    case 'audio/webm':
       return startsWith(buf, [0x1a, 0x45, 0xdf, 0xa3]);
+    case 'audio/ogg':
+      return startsWith(buf, [0x4f, 0x67, 0x67, 0x53]);
+    case 'audio/mp4':
+      return startsWith(buf, [0x66, 0x74, 0x79, 0x70], 4);
     case 'application/zip':
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
     case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':

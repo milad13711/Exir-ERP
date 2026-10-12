@@ -5,7 +5,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { MessengerService, type MessengerActor } from './messenger.service.js';
 import { SlidingWindowLimiter } from './messenger-policy.js';
-import { MEDIA_DAILY_QUOTA, MEDIA_LIMITS, MEDIA_TTL_MS, hoursUntilExpiry, isMediaExpired, kindForMime, magicMatches, normalizeMime, sanitizeFileName } from './messenger-media.util.js';
+import { MEDIA_DAILY_QUOTA, MEDIA_TTL_MS, hoursUntilExpiry, isMediaExpired, kindForMime, limitFor, magicMatches, normalizeMime, sanitizeFileName } from './messenger-media.util.js';
 import { getSettingsRetention, purgeExpiredMedia, purgeOldText } from './messenger-purge.js';
 
 const KIND_LABEL = { IMAGE: 'تصویر', FILE: 'فایل', VIDEO: 'ویدئو' } as const;
@@ -30,8 +30,9 @@ export class MessengerMediaService {
     const kind = kindForMime(mime);
     if (!kind) throw new UnsupportedMediaTypeException('این نوع فایل مجاز نیست (تصویر، ویدئو، PDF، اسناد آفیس، متن و فایل فشرده)');
     if (body.length === 0) throw new BadRequestException('فایل خالی است');
-    if (body.length > MEDIA_LIMITS[kind]) {
-      throw new PayloadTooLargeException(`حجم ${KIND_LABEL[kind]} نباید بیشتر از ${Math.round(MEDIA_LIMITS[kind] / 1024 / 1024)} مگابایت باشد`);
+    const maxBytes = limitFor(kind, mime);
+    if (body.length > maxBytes) {
+      throw new PayloadTooLargeException(`حجم ${mime.startsWith('audio/') ? 'پیام صوتی' : KIND_LABEL[kind]} نباید بیشتر از ${Math.round(maxBytes / 1024 / 1024)} مگابایت باشد`);
     }
     if (!magicMatches(mime, body.subarray(0, 16))) throw new UnsupportedMediaTypeException('محتوای فایل با نوع اعلام‌شده نمی‌خواند');
 
@@ -41,7 +42,7 @@ export class MessengerMediaService {
       throw new ForbiddenException('سهمیه‌ی ارسال فایل شما در ۲۴ ساعت گذشته تمام شده است؛ بعداً دوباره تلاش کنید');
     }
 
-    const fallback = kind === 'IMAGE' ? 'image' : kind === 'VIDEO' ? 'video' : 'file';
+    const fallback = kind === 'IMAGE' ? 'image' : kind === 'VIDEO' ? 'video' : mime.startsWith('audio/') ? 'voice' : 'file';
     let decoded = nameHeader ?? '';
     try {
       decoded = decodeURIComponent(decoded);

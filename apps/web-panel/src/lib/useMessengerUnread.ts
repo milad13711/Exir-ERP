@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { getUnreadSnapshot, subscribeUnread } from "./messenger-api";
+import { getUnreadSnapshot, subscribeUnread } from "./messenger-runtime";
 
 const noop = () => () => {};
 

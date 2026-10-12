@@ -141,3 +141,51 @@ export class SlidingWindowLimiter {
     return true;
   }
 }
+
+// ── پویایی پیام‌رسان: سنجاق/بایگانی، پیش‌نمایش اعلان، وضعیت تیک ─────────────
+
+export const MAX_PINNED_CHATS = 5;
+
+/** ترتیب فهرست: سنجاق‌شده‌ها (به ترتیب سنجاق‌شدن) سپس بر اساس آخرین فعالیت. */
+export function sortConversationList<T extends { pinnedAt: string | null; lastMessageAt: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (!!a.pinnedAt !== !!b.pinnedAt) return a.pinnedAt ? -1 : 1;
+    if (a.pinnedAt && b.pinnedAt && a.pinnedAt !== b.pinnedAt) return a.pinnedAt.localeCompare(b.pinnedAt);
+    return b.lastMessageAt.localeCompare(a.lastMessageAt);
+  });
+}
+
+/** مقایسه‌ی وضعیت تیک آخرین پیام خودم نسبت به دیگر اعضا. */
+export function deliveryStatus(seq: number, others: { lastReadSeq: number; lastDeliveredSeq: number }[]): 'sent' | 'delivered' | 'seen' {
+  if (others.length === 0) return 'sent';
+  if (others.every((o) => o.lastReadSeq >= seq)) return 'seen';
+  if (others.every((o) => o.lastDeliveredSeq >= seq)) return 'delivered';
+  return 'sent';
+}
+
+/** برچسب کوتاه نوع رسانه برای اعلان/پیش‌نمایش (صوت/تصویر/ویدئو/فایل). */
+export function mediaPreviewLabel(media: { kind: string; mime: string; fileName: string } | null | undefined): string {
+  if (!media) return '';
+  if (media.mime.startsWith('audio/')) return '🎤 پیام صوتی';
+  if (media.kind === 'IMAGE') return '📷 تصویر';
+  if (media.kind === 'VIDEO') return '🎞 ویدئو';
+  return `📎 ${media.fileName}`;
+}
+
+/** متن اعلان پوش برای یک پیام جدید؛ title = فرستنده (مستقیم) یا نام گروه، body با نام فرستنده در گروه. */
+export function buildPushText(opts: {
+  conversationType: 'DIRECT' | 'GROUP' | 'SAVED';
+  conversationTitle: string | null;
+  senderName: string;
+  text: string | null;
+  media: { kind: string; mime: string; fileName: string } | null;
+  hidePreview: boolean;
+  mentioned: boolean;
+}): { title: string; body: string } {
+  const group = opts.conversationType === 'GROUP';
+  const title = group ? (opts.conversationTitle ?? 'گروه') : opts.senderName;
+  const label = mediaPreviewLabel(opts.media);
+  const content = opts.hidePreview ? 'پیام جدید' : [label, snippet(opts.text, label ? 60 : 100)].filter(Boolean).join(' — ');
+  if (opts.mentioned && group) return { title, body: `${opts.senderName} شما را منشن کرد${opts.hidePreview ? '' : `: ${content}`}` };
+  return { title, body: group ? `${opts.senderName}: ${content}` : content };
+}

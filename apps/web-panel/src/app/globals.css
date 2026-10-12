@@ -65,3 +65,24 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* پیام‌رسان: ورود اعلان بالای صفحه، پرش واکنش‌ها و نشانگر آنلاین */
+@keyframes msgr-toast-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.msgr-toast-in { animation: msgr-toast-in 0.22s ease-out both; }
+@keyframes msgr-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.msgr-pop { animation: msgr-pop 0.35s ease-out both; }
+@keyframes msgr-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msgr-msg-in { animation: msgr-msg-in 0.18s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .msgr-toast-in, .msgr-pop, .msgr-msg-in { animation: none; }
+}

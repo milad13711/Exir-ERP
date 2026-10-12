@@ -10,6 +10,7 @@ import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { PushPrompt } from "./PushPrompt";
+import { MessengerRuntime } from "@/components/messenger/MessengerRuntime";
 import { TwoFactorGraceBanner } from "./TwoFactorGraceBanner";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon, LogoMark } from "@/components/icons";
@@ -93,6 +94,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         onClose={() => setSupportOpen(false)}
         onUnreadChange={setSupportUnread}
       />
+      {installedModules.has("messenger") ? <MessengerRuntime /> : null}
       <IncomingCallPopup />
       <AiActionApprovalPopup />
       <OnboardingGuide />

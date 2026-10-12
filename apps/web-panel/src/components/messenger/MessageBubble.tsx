@@ -2,33 +2,39 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import type { MessengerMessage } from "@/lib/messenger-api";
+import type { ChatMessage } from "@/lib/messenger-api";
 import { toPersianDigits } from "@/lib/persian";
 import { MediaBlock } from "./MediaBlock";
 import { EmojiPicker } from "./EmojiPicker";
 import { QUICK_REACTIONS, clockFa, renderText, type Ticks } from "./utils";
 
 export type BubbleActions = {
-  onReply: (m: MessengerMessage) => void;
-  onForward: (m: MessengerMessage) => void;
-  onSave: (m: MessengerMessage) => void;
-  onReact: (m: MessengerMessage, emoji: string) => void;
-  onCopy: (m: MessengerMessage) => void;
-  onEdit: (m: MessengerMessage) => void;
-  onPin: (m: MessengerMessage, pinned: boolean) => void;
-  onDelete: (m: MessengerMessage, scope: "me" | "all") => void;
+  onReply: (m: ChatMessage) => void;
+  onForward: (m: ChatMessage) => void;
+  onSave: (m: ChatMessage) => void;
+  onReact: (m: ChatMessage, emoji: string) => void;
+  onCopy: (m: ChatMessage) => void;
+  onEdit: (m: ChatMessage) => void;
+  onPin: (m: ChatMessage, pinned: boolean) => void;
+  onDelete: (m: ChatMessage, scope: "me" | "all") => void;
   onJump: (messageId: string) => void;
+  onRetry: (m: ChatMessage) => void;
+  onDiscard: (m: ChatMessage) => void;
 };
 
-function TicksMark({ ticks }: { ticks: Ticks }) {
+export function TicksMark({ ticks, onDark = true }: { ticks: Ticks; onDark?: boolean }) {
   if (ticks === "none") return null;
-  const label = ticks === "seen" ? "دیده شد" : ticks === "delivered" ? "تحویل داده شد" : "ارسال شد";
+  const label = ticks === "seen" ? "دیده شد" : ticks === "delivered" ? "تحویل داده شد" : ticks === "pending" ? "در انتظار ارسال" : ticks === "failed" ? "ارسال نشد" : "ارسال شد";
+  const tone = ticks === "failed" ? "text-red-200" : ticks === "seen" ? (onDark ? "text-sky-200" : "text-sky-500") : onDark ? "text-white/70" : "text-muted";
   return (
-    <span title={label} aria-label={label} className={clsx("text-[11px] font-bold", ticks === "seen" ? "text-sky-200" : "text-white/70")}>
-      {ticks === "sent" ? "✓" : "✓✓"}
+    <span title={label} aria-label={label} className={clsx("text-[11px] font-bold", tone)}>
+      {ticks === "pending" ? "🕓" : ticks === "failed" ? "❗" : ticks === "sent" ? "✓" : "✓✓"}
     </span>
   );
 }
+
+const SWIPE_TRIGGER = 64;
+const LONG_PRESS_MS = 420;
 
 export function MessageBubble({
   m,
@@ -42,7 +48,7 @@ export function MessageBubble({
   highlight,
   actions,
 }: {
-  m: MessengerMessage;
+  m: ChatMessage;
   mine: boolean;
   showSender: boolean;
   ticks: Ticks;
@@ -55,18 +61,79 @@ export function MessageBubble({
 }) {
   const [menu, setMenu] = useState(false);
   const [more, setMore] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [dx, setDx] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; y: number; moved: boolean; swiping: boolean; timer: ReturnType<typeof setTimeout> | null } | null>(null);
+
+  useEffect(() => {
+    // انیمیشن «پرش» واکنش‌ها فقط برای تغییرهای زنده (نه بارگذاری اولیه‌ی فهرست)
+    const t = setTimeout(() => setReady(true), 900);
+    return () => clearTimeout(t);
+  }, []);
+
+  const local = !!m.local;
+  const canInteract = !m.deleted && !local;
+
+  function clearPress() {
+    if (touch.current?.timer) clearTimeout(touch.current.timer);
+  }
+  function onTouchStart(e: React.TouchEvent) {
+    if (!canInteract || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    touch.current = {
+      x: t.clientX,
+      y: t.clientY,
+      moved: false,
+      swiping: false,
+      timer: setTimeout(() => {
+        if (touch.current && !touch.current.moved) {
+          touch.current.timer = null;
+          try {
+            navigator.vibrate?.(12);
+          } catch {
+            /* بی‌اهمیت */
+          }
+          setMenu(true);
+        }
+      }, LONG_PRESS_MS),
+    };
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    const st = touch.current;
+    if (!st) return;
+    const t = e.touches[0];
+    const ddx = t.clientX - st.x;
+    const ddy = t.clientY - st.y;
+    if (!st.swiping && (Math.abs(ddy) > 14 || Math.abs(ddx) > 10)) {
+      st.moved = true;
+      clearPress();
+      if (Math.abs(ddx) > Math.abs(ddy) * 1.5) st.swiping = true;
+    }
+    if (st.swiping) setDx(Math.max(-90, Math.min(90, ddx)));
+  }
+  function onTouchEnd() {
+    const st = touch.current;
+    clearPress();
+    touch.current = null;
+    if (st?.swiping && Math.abs(dx) >= SWIPE_TRIGGER) actions.onReply(m);
+    setDx(0);
+  }
 
   useEffect(() => {
     if (!menu) return;
-    const close = (e: MouseEvent) => {
+    const close = (e: Event) => {
       if (!ref.current?.contains(e.target as Node)) {
         setMenu(false);
         setMore(false);
       }
     };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("touchstart", close, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
   }, [menu]);
 
   if (m.kind === "SYSTEM") {
@@ -87,14 +154,21 @@ export function MessageBubble({
     <div id={`msg-${m.id}`} className={clsx("flex my-0.5 group", mine ? "justify-start" : "justify-end")} ref={ref}>
       {/* RTL: «من» سمت راست (ابتدا)، دیگران چپ؛ justify-start در RTL یعنی راست */}
       <div className="relative max-w-[82%] md:max-w-[68%]">
+        {dx !== 0 ? <span className="absolute top-1/2 -translate-y-1/2 text-lg text-primary" style={{ [dx < 0 ? "left" : "right"]: -34 }} aria-hidden>↩</span> : null}
         <div
           onContextMenu={(e) => {
             e.preventDefault();
-            setMenu(true);
+            if (canInteract) setMenu(true);
           }}
-          onDoubleClick={() => !m.deleted && actions.onReact(m, "👍")}
+          onDoubleClick={() => canInteract && actions.onReact(m, "👍")}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+          style={{ touchAction: "pan-y", transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? "none" : "transform 0.18s ease-out", WebkitTouchCallout: "none" }}
           className={clsx(
-            "rounded-2xl px-3 py-2 text-[14px] leading-relaxed shadow-sm transition-shadow",
+            "rounded-2xl px-3 py-2 text-[14px] leading-relaxed shadow-sm select-none md:select-text",
+            local && m.local === "pending" && "opacity-80",
             mine ? "bg-primary text-white rounded-te-md" : "bg-surface border border-border rounded-ts-md",
             highlight && "ring-2 ring-warning",
           )}
@@ -137,10 +211,10 @@ export function MessageBubble({
               const iReacted = r.userIds.includes(myId);
               return (
                 <button
-                  key={r.emoji}
+                  key={`${r.emoji}-${r.userIds.length}`}
                   type="button"
                   onClick={() => actions.onReact(m, r.emoji)}
-                  className={clsx("text-[12px] rounded-full px-2 py-0.5 border cursor-pointer", iReacted ? "bg-primary-soft border-primary text-primary font-bold" : "bg-surface border-border")}
+                  className={clsx("text-[12px] rounded-full px-2 py-0.5 border cursor-pointer", ready && "msgr-pop", iReacted ? "bg-primary-soft border-primary text-primary font-bold" : "bg-surface border-border")}
                 >
                   {r.emoji} {toPersianDigits(r.userIds.length)}
                 </button>
@@ -149,7 +223,15 @@ export function MessageBubble({
           </div>
         ) : null}
 
-        {!m.deleted ? (
+        {local && m.local === "failed" ? (
+          <div className="flex items-center gap-2 mt-0.5 text-[11.5px] text-danger" role="alert">
+            <span>ارسال نشد{m.localError ? `: ${m.localError}` : ""}</span>
+            <button type="button" onClick={() => actions.onRetry(m)} className="font-bold underline cursor-pointer">تلاش دوباره</button>
+            <button type="button" onClick={() => actions.onDiscard(m)} className="font-bold underline cursor-pointer">حذف</button>
+          </div>
+        ) : null}
+
+        {canInteract ? (
           <button
             type="button"
             onClick={() => setMenu((v) => !v)}
@@ -158,7 +240,7 @@ export function MessageBubble({
           >
             ⋯
           </button>
-        ) : (
+        ) : m.deleted ? (
           <button
             type="button"
             onClick={() => actions.onDelete(m, "me")}
@@ -166,9 +248,9 @@ export function MessageBubble({
           >
             حذف از نمای من
           </button>
-        )}
+        ) : null}
 
-        {menu ? (
+        {menu && canInteract ? (
           <div className={clsx("absolute z-30 top-8 w-[210px] bg-surface border border-border rounded-2xl shadow-xl p-1.5 text-[13px]", mine ? "start-0" : "end-0")}>
             <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-border mb-1">
               {QUICK_REACTIONS.slice(0, 2).map((e) => (

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Modal } from "@/components/ui/Modal";
+import { getSoundEnabled, setSoundEnabled } from "@/lib/messenger-runtime";
+import { playNotificationSound } from "@/lib/notification-sound";
 import { messengerApi, type ConversationDetail, type ConversationSummary, type MessengerContact, type MessengerSettings } from "@/lib/messenger-api";
 import { Avatar, lastSeenLabel } from "./utils";
 
@@ -210,6 +212,7 @@ const POLICY_LABELS: Record<MessengerSettings["policy"], string> = {
 export function SettingsDialog({ isManager, onClose }: { isManager: boolean; onClose: () => void }) {
   const [s, setS] = useState<MessengerSettings | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [sound, setSound] = useState(() => getSoundEnabled());
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
     messengerApi.settings().then(setS).catch(() => undefined);
@@ -229,6 +232,10 @@ export function SettingsDialog({ isManager, onClose }: { isManager: boolean; onC
       <div className="rounded-xl bg-primary-soft text-primary text-[12.5px] font-semibold px-3.5 py-2.5 mb-4 leading-relaxed">
         🔒 مدیران هم نمی‌توانند گفتگوهای خصوصی دیگران را بخوانند؛ هر گفتگو فقط برای اعضای خودش قابل مشاهده است.
       </div>
+      <label className="flex items-center gap-2 text-[13.5px] mb-4 cursor-pointer">
+        <input type="checkbox" checked={sound} onChange={(e) => { setSound(e.target.checked); setSoundEnabled(e.target.checked); if (e.target.checked) playNotificationSound(); }} />
+        پخش صدا هنگام دریافت پیام جدید (فقط روی همین دستگاه)
+      </label>
       <label className="flex items-center gap-2 text-[13.5px] mb-4 cursor-pointer">
         <input type="checkbox" checked={hidden} onChange={async (e) => { setHidden(e.target.checked); await messengerApi.setPresenceHidden(e.target.checked).catch(() => undefined); }} />
         وضعیت آنلاین و آخرین بازدید من برای دیگران نمایش داده نشود

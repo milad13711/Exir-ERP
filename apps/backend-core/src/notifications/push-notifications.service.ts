@@ -3,7 +3,7 @@ import webpush from 'web-push';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 
-type PushPayload = { title: string; body: string; url?: string; /** هم‌تگ‌ها یکدیگر را جایگزین می‌کنند (مثلاً یک اعلان به‌ازای هر گفتگوی پیام‌رسان). */ tag?: string };
+type PushPayload = { title: string; body: string; url?: string; /** هم‌تگ‌ها یکدیگر را جایگزین می‌کنند (مثلاً یک اعلان به‌ازای هر گفتگوی پیام‌رسان). */ tag?: string; icon?: string; /** دکمه‌های اعلان (مثلاً «پاسخ سریع»). */ actions?: { action: string; title: string }[] };
 
 /**
  * Web Push — for admin-panel staff (support tickets need a fast reply — see

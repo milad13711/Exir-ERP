@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { toPersianDigits } from "@/lib/persian";
-import type { ConversationDetail, MessengerMessage } from "@/lib/messenger-api";
+import type { ChatMessage, ConversationDetail, ConversationSummary, MessengerMedia, MessengerMessage } from "@/lib/messenger-api";
 
 export const MEDIA_WARNING = "فایل‌ها و تصاویر ارسالی فقط ۲۴ ساعت نگهداری و سپس حذف می‌شوند؛ برای نگهداری دائم آن را روی دستگاه خود دانلود کنید.";
 
@@ -44,8 +44,69 @@ export function previewOf(m: MessengerMessage | null): string {
   if (!m) return "";
   if (m.deleted) return "این پیام حذف شد";
   if (m.kind === "SYSTEM") return m.text ?? "";
-  if (m.media) return `${m.media.kind === "IMAGE" ? "🖼" : m.media.kind === "VIDEO" ? "🎞" : "📎"} ${m.text || m.media.fileName}`;
+  if (m.media) return `${mediaLabel(m.media)}${m.text ? ` ${m.text}` : m.media.kind === "FILE" && !isAudio(m.media) ? ` ${m.media.fileName}` : ""}`;
   return m.text ?? "";
+}
+
+export function isAudio(media: Pick<MessengerMedia, "mime">): boolean {
+  return media.mime.startsWith("audio/");
+}
+
+/** «📷 تصویر / 🎞 ویدئو / 🎤 پیام صوتی / 📎 فایل». */
+export function mediaLabel(media: Pick<MessengerMedia, "kind" | "mime">): string {
+  if (isAudio(media)) return "🎤 پیام صوتی";
+  return media.kind === "IMAGE" ? "📷 تصویر" : media.kind === "VIDEO" ? "🎞 ویدئو" : "📎 فایل";
+}
+
+/** مدت پیام صوتی از نام فایل (voice-<ثانیه>.webm)؛ MediaRecorder فرادده‌ی مدت نمی‌نویسد. */
+export function voiceSecondsFromName(fileName: string): number | null {
+  const m = /^voice-(\d+)\./.exec(fileName);
+  return m ? Number(m[1]) : null;
+}
+
+export function formatDuration(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  return toPersianDigits(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+}
+
+/** سنجاق‌شده‌ها بالا (به ترتیب سنجاق شدن)، سپس آخرین فعالیت. */
+export function sortConvs(list: ConversationSummary[]): ConversationSummary[] {
+  return [...list].sort((a, b) => {
+    if (!!a.pinnedAt !== !!b.pinnedAt) return a.pinnedAt ? -1 : 1;
+    if (a.pinnedAt && b.pinnedAt && a.pinnedAt !== b.pinnedAt) return a.pinnedAt.localeCompare(b.pinnedAt);
+    return b.lastMessageAt.localeCompare(a.lastMessageAt);
+  });
+}
+
+// ── پیش‌نویس هر گفتگو (به‌ازای هر کاربر) ──────────────────────────────
+const draftKey = (userId: string, convId: string) => `exir-messenger-draft:${userId}:${convId}`;
+export function loadDraft(userId: string, convId: string): string {
+  try {
+    return localStorage.getItem(draftKey(userId, convId)) ?? "";
+  } catch {
+    return "";
+  }
+}
+export function saveDraft(userId: string, convId: string, text: string) {
+  try {
+    if (text.trim()) localStorage.setItem(draftKey(userId, convId), text);
+    else localStorage.removeItem(draftKey(userId, convId));
+  } catch {
+    /* بی‌اهمیت */
+  }
+}
+export function loadAllDrafts(userId: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    const prefix = `exir-messenger-draft:${userId}:`;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(prefix)) out[k.slice(prefix.length)] = localStorage.getItem(k) ?? "";
+    }
+  } catch {
+    /* بی‌اهمیت */
+  }
+  return out;
 }
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
@@ -66,10 +127,11 @@ export function renderText(text: string): ReactNode[] {
   );
 }
 
-export type Ticks = "none" | "sent" | "delivered" | "seen";
+export type Ticks = "none" | "pending" | "failed" | "sent" | "delivered" | "seen";
 
 /** وضعیت ارسال پیام خودم: مستقیم = طرف مقابل؛ گروه = «همه‌ی دیگران». */
-export function ticksFor(m: MessengerMessage, detail: ConversationDetail | null, myId: string): Ticks {
+export function ticksFor(m: ChatMessage, detail: ConversationDetail | null, myId: string): Ticks {
+  if (m.local) return m.local;
   if (!detail || m.senderId !== myId || detail.type === "SAVED" || m.kind === "SYSTEM") return "none";
   const others = detail.members.filter((x) => x.userId !== myId);
   if (others.length === 0) return "sent";

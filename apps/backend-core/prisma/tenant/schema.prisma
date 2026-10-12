@@ -4659,6 +4659,9 @@ model MessengerMember {
   /// عضو جدید فقط پیام‌های بعد از ورودش را می‌بیند.
   visibleFromSeq   Int                 @default(0)
   joinedAt         DateTime            @default(now())
+  /// سنجاق/بایگانی گفتگو — شخصی برای هر عضو (مثل تلگرام).
+  pinnedAt         DateTime?
+  archivedAt       DateTime?
 
   conversation MessengerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -4683,6 +4686,8 @@ model MessengerMessage {
   editedAt            DateTime?
   deletedForAllAt     DateTime?
   createdAt           DateTime             @default(now())
+  /// شناسه‌ی سمت کلاینت برای ارسال بدون تکرار (صف آفلاین/تلاش دوباره).
+  clientId            String?
 
   conversation MessengerConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   media        MessengerMedia?        @relation(fields: [mediaId], references: [id], onDelete: SetNull)
@@ -4690,6 +4695,7 @@ model MessengerMessage {
   hides        MessengerMessageHide[]
 
   @@unique([conversationId, seq])
+  @@unique([senderId, clientId])
   @@index([conversationId, createdAt])
   @@index([mediaId])
   @@map("messenger_messages")
