@@ -86,3 +86,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .msgr-toast-in, .msgr-pop, .msgr-msg-in { animation: none; }
 }
+
+
+/* موبایل: فونت فیلدها حداقل ۱۶px تا iOS هنگام فوکوس زوم نکند (حس اپ بومی، مثل تلگرام) */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+}

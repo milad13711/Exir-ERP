@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useMessengerUnread } from "@/lib/useMessengerUnread";
+
+import { useEffect, useState, type ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { MobileNavDrawer } from "./MobileNavDrawer";
@@ -24,12 +27,33 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportUnread, setSupportUnread] = useState(false);
   const { loading, license, me, installedModules } = useWorkspace();
+  const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
   const pathname = usePathname();
   const navMatch = primaryNav.filter((i) => i.moduleCode && (pathname === i.href || pathname.startsWith(`${i.href}/`))).sort((a, b) => b.href.length - a.href.length)[0];
   const noAccess =
     !!me &&
     ((navMatch && !canViewModule(me, installedModules, navMatch.moduleCode)) ||
       (pathname.startsWith("/settings/") && !canViewSettingsItem(me, pathname.replace(/\/$/, "")) ));
+
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => {
+      const root = document.documentElement;
+      if (!mq.matches) return root.style.removeProperty("--app-h");
+      root.style.setProperty("--app-h", `${Math.round(vv.height)}px`);
+      if (vv.offsetTop > 0) window.scrollTo(0, 0); // iOS شیفت صفحه هنگام باز شدن کیبورد
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      document.documentElement.style.removeProperty("--app-h");
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -52,7 +76,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh bg-background overflow-hidden">
+    <div className="flex h-[var(--app-h,100dvh)] lg:h-dvh bg-background overflow-hidden">
       <Sidebar />
       <MobileNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
@@ -77,17 +101,20 @@ function AppShellInner({ children }: { children: ReactNode }) {
       </div>
       <PushPrompt />
 
-      <button
-        type="button"
-        onClick={() => setSupportOpen(true)}
-        className="lg:hidden fixed bottom-24 end-4 w-13 h-13 rounded-full bg-gradient-to-br from-indigo-800 to-teal-600 shadow-xl flex items-center justify-center z-30"
-        aria-label="پشتیبانی زنده"
-      >
-        <ChatIcon className="w-[22px] h-[22px] text-white" />
-        {supportUnread ? (
-          <span className="absolute top-1 end-1 w-2.5 h-2.5 rounded-full bg-danger border-2 border-white" />
-        ) : null}
-      </button>
+      {installedModules.has("messenger") && canViewModule(me, installedModules, "messenger") && !pathname.startsWith("/messenger") ? (
+        <Link
+          href="/messenger"
+          className="lg:hidden fixed bottom-24 end-4 w-13 h-13 rounded-full bg-gradient-to-br from-indigo-800 to-teal-600 shadow-xl flex items-center justify-center z-30"
+          aria-label="پیام‌رسان داخلی"
+        >
+          <ChatIcon className="w-[22px] h-[22px] text-white" />
+          {messengerUnread > 0 ? (
+            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
+              {messengerUnread > 99 ? "99+" : messengerUnread}
+            </span>
+          ) : null}
+        </Link>
+      ) : null}
 
       <SupportChat
         open={supportOpen}
