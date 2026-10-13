@@ -100,3 +100,12 @@ body {
     touch-action: manipulation;
   }
 }
+
+
+/* ورودی ساعت در صفحه‌ی RTL بخش دقیقه/ساعت را برعکس نشان می‌داد (۳۰:۱۴ به‌جای ۱۴:۳۰) — همیشه LTR */
+input[type="time"],
+input[type="datetime-local"] {
+  direction: ltr;
+  text-align: center;
+  unicode-bidi: isolate;
+}

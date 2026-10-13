@@ -4670,6 +4670,55 @@ export function replaceMyAvailability(slots: Array<{ weekday: number; startMinut
   return apiFetch<StaffAvailabilitySlot[]>("/booking/my-availability", { method: "PUT", body: JSON.stringify({ slots }) });
 }
 
+// ── ساعت‌های غیرفعال رزرو (دستی + خودکار از وظایف/جلسات/مرخصی) ───────────────
+export type StaffTimeBlock = {
+  id: string;
+  userId: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;
+  startMinute: number | null; // null = تمام روز
+  endMinute: number | null;
+  weekdays: number[]; // خالی = همه‌ی روزها؛ 0=یکشنبه … 6=شنبه
+  reason: string | null;
+};
+export type BookingBlockPreferences = { blockFromTasks: boolean; blockFromCalendar: boolean; blockFromLeave: boolean };
+export type TimeBlocksOverview = { userId: string; canManageOthers: boolean; blocks: StaffTimeBlock[]; preferences: BookingBlockPreferences };
+export type AutoBlockPreviewItem = { startAt: string; endAt: string; source: "task" | "calendar" | "leave"; reason: string; allDay: boolean };
+export type TimeBlockInput = {
+  startDate: string;
+  endDate: string;
+  startMinute?: number | null;
+  endMinute?: number | null;
+  weekdays?: number[];
+  reason?: string | null;
+};
+
+const timeBlocksQuery = (userId?: string) => (userId ? `?userId=${encodeURIComponent(userId)}` : "");
+
+export function fetchTimeBlocks(userId?: string) {
+  return apiFetch<TimeBlocksOverview>(`/booking/time-blocks${timeBlocksQuery(userId)}`);
+}
+
+export function fetchAutoBlockPreview(userId?: string) {
+  return apiFetch<AutoBlockPreviewItem[]>(`/booking/time-blocks/auto-preview${timeBlocksQuery(userId)}`);
+}
+
+export function createTimeBlock(data: TimeBlockInput & { userId?: string }) {
+  return apiFetch<StaffTimeBlock>("/booking/time-blocks", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateTimeBlock(id: string, data: TimeBlockInput) {
+  return apiFetch<StaffTimeBlock>(`/booking/time-blocks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteTimeBlock(id: string) {
+  return apiFetch<{ ok: boolean }>(`/booking/time-blocks/${id}`, { method: "DELETE" });
+}
+
+export function updateBookingBlockPreferences(data: Partial<BookingBlockPreferences> & { userId?: string }) {
+  return apiFetch<BookingBlockPreferences>("/booking/time-blocks/preferences", { method: "PUT", body: JSON.stringify(data) });
+}
+
 // ── رزرو نوبت عمومی (Public booking wizard — no auth) ─────────────────────
 
 export type PublicServiceType = {

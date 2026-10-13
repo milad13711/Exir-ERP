@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { TenantRequestContext } from '../common/request-context.js';
 import { isDateIranHoliday } from './iran-holidays.js';
 import { fromTehran, tehranParts } from './tehran-time.js';
+import { BookingBlocksService } from './booking-blocks.service.js';
+import { isBlocked } from './booking-blocks.js';
 
 /** ساعت کاری پیش‌فرض برای کارشناسی که هیچ وقت آزادی تعریف نکرده: ۹ تا ۱۷، جمعه تعطیل. */
 const DEFAULT_WINDOW = { startMinute: 9 * 60, endMinute: 17 * 60 };
@@ -13,10 +15,13 @@ export type FreeSlot = { startAt: string; time: string; providerIds: string[] };
 /**
  * وقت‌های آزاد رزرو آنلاین — مشتری فقط از همین فهرست انتخاب می‌کند، نه هر زمانی که خواست.
  * وقت آزاد = داخل بازه‌های هفتگی کارشناس (یا ساعت کاری پیش‌فرض)، غیرتعطیل، آینده، و بدون
- * تداخل با نوبت‌های فعال همان کارشناس.
+ * تداخل با نوبت‌های فعال همان کارشناس و بدون «ساعت غیرفعال» (دستی، یا خودکار از وظایف/جلسات/مرخصی).
+ * دلیل مسدودشدن هرگز در خروجی نیست: برای مشتری فقط «وقت آزاد نیست».
  */
 @Injectable()
 export class BookingSlotsService {
+  constructor(private readonly blocks: BookingBlocksService) {}
+
   async listFreeSlots(
     ctx: TenantRequestContext,
     input: { serviceTypeId: string; providerUserId?: string; date: string; excludeAppointmentId?: string },
@@ -37,7 +42,7 @@ export class BookingSlotsService {
       : (await ctx.tenantDb.user.findMany({ where: { status: 'ACTIVE' }, select: { id: true } })).map((u) => u.id);
     const candidates: Array<string | null> = providers.length > 0 ? providers : [null];
 
-    const [slotRows, busy] = await Promise.all([
+    const [slotRows, busy, blocked] = await Promise.all([
       ctx.tenantDb.staffAvailabilitySlot.findMany({ where: { userId: { in: providers } } }),
       ctx.tenantDb.appointment.findMany({
         where: {
@@ -48,6 +53,7 @@ export class BookingSlotsService {
         },
         select: { providerUserId: true, startAt: true, endAt: true },
       }),
+      this.blocks.loadBusyRanges(ctx, providers, dayStart, dayEnd),
     ]);
 
     const earliest = Date.now() + MIN_LEAD_MS;
@@ -62,6 +68,7 @@ export class BookingSlotsService {
             ? []
             : [DEFAULT_WINDOW];
       const providerBusy = busy.filter((b) => b.providerUserId === providerId);
+      const providerBlocks = blocked.filter((b) => b.userId === providerId);
 
       for (const w of windows) {
         for (let m = w.startMinute; m + duration <= w.endMinute; m += step) {
@@ -69,6 +76,7 @@ export class BookingSlotsService {
           const end = new Date(start.getTime() + duration * 60_000);
           if (start.getTime() < earliest) continue;
           if (providerBusy.some((b) => b.startAt < end && b.endAt > start)) continue;
+          if (isBlocked(providerBlocks, start, end)) continue;
           const list = result.get(m) ?? [];
           list.push(providerId ?? '');
           result.set(m, list);

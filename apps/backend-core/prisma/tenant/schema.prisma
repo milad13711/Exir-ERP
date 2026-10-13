@@ -2601,6 +2601,36 @@ model StaffAvailabilitySlot {
   @@map("staff_availability_slots")
 }
 
+/// ساعت‌های غیرفعال دستی کارشناس برای رزرو آنلاین. بازه‌ی تاریخ (میلادیِ YYYY-MM-DD به وقت تهران، دو سر شامل)،
+/// بازه‌ی ساعت (هر دو null = تمام روز)، و فیلتر روز هفته (خالی = همه‌ی روزها؛ ۰=یکشنبه ... ۶=شنبه).
+model StaffTimeBlock {
+  id              String   @id @default(uuid())
+  userId          String
+  startDate       String
+  endDate         String
+  startMinute     Int?
+  endMinute       Int?
+  weekdays        Int[]    @default([])
+  reason          String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, startDate, endDate])
+  @@map("staff_time_blocks")
+}
+
+/// تنظیمات هر کارشناس برای مسدودسازی خودکار ساعت‌ها از ماژول‌های دیگر. نبودنِ ردیف = همه روشن.
+model StaffBookingPreference {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  blockFromTasks    Boolean  @default(true)
+  blockFromCalendar Boolean  @default(true)
+  blockFromLeave    Boolean  @default(true)
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  @@map("staff_booking_preferences")
+}
+
 // ── مدیریت قرارداد ───────────────────────────────────────────────────────
 // امضای دیجیتال دوطرفه: هر قرارداد یک contentHash از متن نهایی نگه می‌دارد
 // (نه رمزگذاری واقعی — چون هدف «غیرقابل‌تغییر بودن پس از امضا»ست، نه محرمانگی؛

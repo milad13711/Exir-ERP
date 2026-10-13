@@ -34,6 +34,7 @@ import { AppointmentDetailModal } from "@/components/booking/AppointmentDetailMo
 import { ManualPaymentModal } from "@/components/booking/ManualPaymentModal";
 import { ServiceTypesModal } from "@/components/booking/ServiceTypesModal";
 import { StaffAvailabilityModal } from "@/components/booking/StaffAvailabilityModal";
+import { TimeBlocksModal } from "@/components/booking/TimeBlocksModal";
 import { AppointmentsReportModal } from "@/components/booking/AppointmentsReportModal";
 import { MessageSettingsModal } from "@/components/booking/MessageSettingsModal";
 
@@ -176,6 +177,7 @@ export default function BookingPage() {
   const [payingFor, setPayingFor] = useState<Appointment | null>(null);
   const [serviceTypesOpen, setServiceTypesOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [timeBlocksOpen, setTimeBlocksOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [messageSettingsOpen, setMessageSettingsOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -285,6 +287,12 @@ export default function BookingPage() {
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
           >
             وقت‌های آزاد من
+          </button>
+          <button
+            onClick={() => setTimeBlocksOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            ساعت‌های غیرفعال
           </button>
           <button
             onClick={copyBookingLink}
@@ -584,6 +592,7 @@ export default function BookingPage() {
         />
       ) : null}
       {availabilityOpen ? <StaffAvailabilityModal onClose={() => setAvailabilityOpen(false)} /> : null}
+      {timeBlocksOpen ? <TimeBlocksModal onClose={() => setTimeBlocksOpen(false)} /> : null}
       {reportOpen ? <AppointmentsReportModal onClose={() => setReportOpen(false)} /> : null}
       {messageSettingsOpen ? <MessageSettingsModal onClose={() => setMessageSettingsOpen(false)} /> : null}
     </div>
