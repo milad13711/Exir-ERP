@@ -172,6 +172,7 @@ export class BackupController {
         db.taskExtensionRequest.createMany({ data: g('taskExtensionRequests') as never[] }),
         db.$executeRaw`SELECT setval('"tasks_number_seq"', COALESCE((SELECT MAX("number") FROM "tasks"), 0) + 1, false)`,
         db.attachment.createMany({ data: g('attachments') as never[] }),
+        db.signatureEvidence.createMany({ data: g('signatureEvidences') as never[] }),
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

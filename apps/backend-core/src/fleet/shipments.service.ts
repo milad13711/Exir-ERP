@@ -18,6 +18,7 @@ const SHIPMENT_INCLUDE = {
     include: { driver: { select: { id: true, name: true, phone: true } } },
   },
   survey: true,
+  loading: { select: { id: true } }, // گردش اعلام بار (ماژول dispatch) — برای هدایت کاربر به صفحه‌ی اعلام بار
 } as const;
 
 export type MatchCandidate = {
@@ -89,6 +90,12 @@ export class ShipmentsService {
       include: SHIPMENT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** بارِ واردشده به گردش «اعلام بار» (ماژول dispatch) فقط از همان صفحه لغو/تحویل می‌شود تا تایم‌لاین، چک‌لیست و دروازه‌ها دور زده نشوند. */
+  private async assertNotInDispatchWorkflow(ctx: TenantRequestContext, id: string): Promise<void> {
+    const loading = await ctx.tenantDb.shipmentLoading.findUnique({ where: { shipmentId: id }, select: { id: true } });
+    if (loading) throw new ConflictException('این بار در گردش «اعلام بار» است؛ لغو و تحویل را از صفحه‌ی اعلام بار انجام دهید');
   }
 
   async detail(ctx: TenantRequestContext, id: string) {
@@ -221,6 +228,13 @@ export class ShipmentsService {
       include: { createdBy: true },
     });
 
+    // گردش اعلام بار (ماژول dispatch): پذیرش راننده در تایم‌لاین بار ثبت شود
+    if (await ctx.tenantDb.shipmentLoading.findUnique({ where: { shipmentId: offer.shipmentId }, select: { id: true } })) {
+      await ctx.tenantDb.shipmentEvent.create({
+        data: { shipmentId: offer.shipmentId, type: 'driver_assigned', toStatus: 'ACCEPTED', actorName: `${offer.driver.name} (راننده)`, note: 'پیشنهاد بار را از طریق لینک پیامکی پذیرفت' },
+      });
+    }
+
     if (shipment.createdBy) {
       const smsSettings = await this.getSmsSettings(ctx);
       if (smsSettings.enabled) {
@@ -266,6 +280,7 @@ export class ShipmentsService {
     const shipment = await ctx.tenantDb.shipment.findUnique({ where: { id } });
     if (!shipment) throw new NotFoundException('بار یافت نشد');
     if (shipment.status === 'DELIVERED') throw new ConflictException('بار تحویل‌شده قابل لغو نیست');
+    await this.assertNotInDispatchWorkflow(ctx, id);
     await ctx.tenantDb.shipmentOffer.updateMany({
       where: { shipmentId: id, status: { in: ['PENDING', 'SCHEDULED'] } },
       data: { status: 'EXPIRED' },
@@ -278,6 +293,7 @@ export class ShipmentsService {
     const shipment = await ctx.tenantDb.shipment.findUnique({ where: { id }, include: { contact: true } });
     if (!shipment) throw new NotFoundException('بار یافت نشد');
     if (shipment.status !== 'ACCEPTED') throw new ConflictException('فقط بار پذیرفته‌شده توسط راننده قابل تحویل است');
+    await this.assertNotInDispatchWorkflow(ctx, id);
 
     await ctx.tenantDb.shipment.update({ where: { id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
 

@@ -12,6 +12,8 @@ import { CostingService } from '../warehouse/costing.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { CreditScoreService } from '../crm/credit-score.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { isModuleEnabled } from '../common/module-enabled.util.js';
+import { invoiceWeighingBlockFor } from '../dispatch/dispatch-gate.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
@@ -489,6 +491,13 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس قابل تأیید است');
+
+    // ماژول «اعلام بار» (dispatch): فاکتوری که بارش «نیاز به وزن‌کشی» دارد تا تأیید وزن نهایی و تعدیل اقلام نهایی نمی‌شود.
+    // فقط وقتی ماژول نصب است؛ فاکتورهای بدون این نیاز دقیقاً مثل قبل عمل می‌کنند.
+    if (await isModuleEnabled(this.controlDb, ctx.tenantId, 'dispatch').catch(() => false)) {
+      const block = await invoiceWeighingBlockFor(ctx.tenantDb, id);
+      if (block) throw new BadRequestException(block);
+    }
 
     const userId = await resolveTenantUserId(ctx);
     const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);

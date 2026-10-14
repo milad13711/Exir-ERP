@@ -1,16 +1,6 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsDateString,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
 
 export class RationCurrentLineDto {
   @IsString()
@@ -77,4 +67,10 @@ export class CreateSampleDto {
   @IsOptional()
   @IsBoolean()
   isIdentityVisibleToLab?: boolean;
+
+  /** شواهد حقوقی امضا از مرورگر؛ اختیاری. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientSignatureEvidenceDto)
+  evidence?: ClientSignatureEvidenceDto;
 }

@@ -1,4 +1,8 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -10,7 +14,10 @@ import { DecideApprovalDto } from './dto/decide-approval.dto.js';
 @Controller('approvals')
 @UseGuards(JwtAuthGuard)
 export class ApprovalsController {
-  constructor(private readonly approvals: ApprovalsService) {}
+  constructor(
+    private readonly approvals: ApprovalsService,
+    private readonly evidence: SignatureEvidenceService,
+  ) {}
 
   @Get()
   list(@Ctx() ctx: TenantRequestContext, @Query('status') status?: string) {
@@ -39,7 +46,21 @@ export class ApprovalsController {
   }
 
   @Post(':id/decision')
-  decide(@Param('id') id: string, @Body() dto: DecideApprovalDto, @Ctx() ctx: TenantRequestContext) {
-    return this.approvals.decide(ctx, id, dto.approved, { withStamp: dto.withStamp, note: dto.note });
+  async decide(@Param('id') id: string, @Body() dto: DecideApprovalDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
+    const result = await this.approvals.decide(ctx, id, dto.approved, { withStamp: dto.withStamp, note: dto.note });
+    // تأیید همراه مهر و امضای شرکت = امضای شرکت؛ مدرک حقوقی ثبت می‌شود (شکست ثبت، تصمیم را خراب نمی‌کند).
+    if (dto.approved && dto.withStamp) {
+      await this.evidence.tryRecord(ctx, {
+        entityType: 'approval',
+        entityId: id,
+        action: 'approve_with_stamp',
+        signerUserId: (await resolveTenantUserId(ctx).catch(() => null)) ?? undefined,
+        signerRole: ctx.auth.role,
+        contentHash: hashContent({ id, entityType: result.entityType, entityId: result.entityId, summary: result.summary }),
+        req,
+        clientEvidence: dto.evidence,
+      });
+    }
+    return result;
   }
 }

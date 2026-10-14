@@ -1,4 +1,5 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { PublicContractsService } from './public-contracts.service.js';
 import { RequestContractSignOtpDto } from './dto/request-contract-sign-otp.dto.js';
 import { VerifyContractSignOtpDto } from './dto/verify-contract-sign-otp.dto.js';
@@ -32,7 +33,7 @@ export class PublicContractsController {
   }
 
   @Post('sign')
-  sign(@Param('slug') slug: string, @Param('publicToken') publicToken: string, @Body() dto: PublicSignContractDto) {
-    return this.publicContracts.sign(slug, publicToken, dto.ticket, dto.signatureDataUrl, dto.signerName, dto.amendmentId);
+  sign(@Param('slug') slug: string, @Param('publicToken') publicToken: string, @Body() dto: PublicSignContractDto, @Req() req: Request) {
+    return this.publicContracts.sign(slug, publicToken, dto.ticket, dto.signatureDataUrl, dto.signerName, dto.amendmentId, req, dto.evidence);
   }
 }

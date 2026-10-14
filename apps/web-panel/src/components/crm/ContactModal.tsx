@@ -25,6 +25,7 @@ import {
 } from "@/lib/api";
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
 import { PartyStatementSection } from "./PartyStatementSection";
+import { ShippingProfileFields } from "./ShippingProfileFields";
 import { PartyHistorySection } from "./PartyHistorySection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -67,6 +68,9 @@ export function ContactModal({
     economicCode: "",
     legalId: "",
     registrationNumber: "",
+    uniqueId: "",
+    postalCode: "",
+    postalAddress: "",
     birthDate: "",
     hasBouncedChecks: false,
     bankAvgMonthlyTurnover: "",
@@ -86,6 +90,9 @@ export function ContactModal({
         economicCode: c.economicCode ?? "",
         legalId: c.legalId ?? "",
         registrationNumber: c.registrationNumber ?? "",
+        uniqueId: c.uniqueId ?? "",
+        postalCode: c.postalCode ?? "",
+        postalAddress: c.postalAddress ?? "",
         birthDate: c.birthDate ? c.birthDate.slice(0, 10) : "",
         hasBouncedChecks: c.hasBouncedChecks,
         bankAvgMonthlyTurnover: c.bankAvgMonthlyTurnover ? String(c.bankAvgMonthlyTurnover) : "",
@@ -111,6 +118,9 @@ export function ContactModal({
         economicCode: form.economicCode || undefined,
         legalId: form.legalId || undefined,
         registrationNumber: form.registrationNumber || undefined,
+        uniqueId: form.uniqueId || undefined,
+        postalCode: form.postalCode || undefined,
+        postalAddress: form.postalAddress || undefined,
         birthDate: form.birthDate || undefined,
       });
       const newCredit = await updateContactCreditInputs(contactId, {
@@ -251,6 +261,9 @@ export function ContactModal({
                 ) : contact.nationalId ? (
                   <div>کد ملی: {contact.nationalId}</div>
                 ) : null}
+                {contact.uniqueId ? <div>شناسه یکتا: {contact.uniqueId}</div> : null}
+                {contact.postalCode ? <div>کد پستی: {contact.postalCode}</div> : null}
+                {contact.postalAddress ? <div>آدرس پستی: {contact.postalAddress}</div> : null}
                 {contact.birthDate ? <div>تاریخ تولد: {formatJalaliDate(contact.birthDate)}</div> : null}
                 {contact.hasBouncedChecks ? <div className="text-danger">دارای سابقه‌ی چک برگشتی</div> : null}
               </div>
@@ -327,6 +340,18 @@ export function ContactModal({
                     className="w-full text-[12.5px] outline-none bg-white border border-border rounded-lg px-3 py-2"
                   />
                 )}
+
+                <details className="text-[12.5px]" open={!!(form.uniqueId || form.postalCode || form.postalAddress)}>
+                  <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر (اطلاعات ارسال بار)</summary>
+                  <div className="mt-2.5">
+                    <ShippingProfileFields
+                      value={{ uniqueId: form.uniqueId, nationalId: "", postalCode: form.postalCode, postalAddress: form.postalAddress }}
+                      onChange={(v) => setForm((p) => ({ ...p, uniqueId: v.uniqueId, postalCode: v.postalCode, postalAddress: v.postalAddress }))}
+                      showNational={false}
+                    />
+                    <div className="text-[11px] text-muted mt-1.5">کد ملی/شناسه ملی در همین فرم (بالا) ثبت می‌شود و در بارنامه از همان خوانده می‌شود.</div>
+                  </div>
+                </details>
 
                 <div>
                   <label className="text-[11px] text-muted mb-1 block">تاریخ تولد</label>

@@ -1,3 +1,7 @@
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../../common/signature-evidence/signature-evidence.service.js';
+import type { ClientSignatureEvidence } from '../../common/signature-evidence/signature-evidence.dto.js';
+import { hashContent } from '../../common/signature-evidence/signature-evidence.util.js';
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -30,6 +34,7 @@ export class PublicLabReviewService {
     private readonly jwt: JwtService,
     private readonly sms: TenantSmsService,
     private readonly notifications: NotificationsService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -119,7 +124,7 @@ export class PublicLabReviewService {
   }
 
   /** تأیید دریافت فیزیکی یک یا چند نمونه در آزمایشگاه — بر اساس شماره (id)، نه جست‌وجوی تکی. */
-  async confirmReceipt(slug: string, labToken: string, sampleIds: string[]) {
+  async confirmReceipt(slug: string, labToken: string, sampleIds: string[], req?: Request, clientEvidence?: ClientSignatureEvidence) {
     const { tenantDb } = await this.resolveTenant(slug);
     const phone = await this.resolveLabPhone(slug, labToken);
 
@@ -127,6 +132,24 @@ export class PublicLabReviewService {
       where: { id: { in: sampleIds }, status: { in: [...PENDING_STATUSES] } },
       data: { status: 'LAB_CONFIRMED', labConfirmedByPhone: phone, labConfirmedAt: new Date() },
     });
+    if (req && result.count > 0) {
+      const confirmed = await tenantDb.rationSample.findMany({
+        where: { id: { in: sampleIds }, status: 'LAB_CONFIRMED', labConfirmedByPhone: phone },
+        select: { id: true, sampleNo: true, collectedAt: true },
+      });
+      for (const smp of confirmed) {
+        await this.evidence.tryRecord(tenantDb, {
+          entityType: 'ration_sample',
+          entityId: smp.id,
+          action: 'lab_confirm_receipt',
+          signerPhone: phone,
+          signerRole: 'lab',
+          contentHash: hashContent({ sampleNo: smp.sampleNo, collectedAt: smp.collectedAt }),
+          req,
+          clientEvidence,
+        });
+      }
+    }
     return { confirmedCount: result.count };
   }
 

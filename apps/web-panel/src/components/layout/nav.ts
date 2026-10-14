@@ -103,6 +103,7 @@ export const primaryNav: NavItem[] = [
   // عملیات
   { href: "/operations", label: "داشبورد عملیات", icon: DashboardIcon, moduleCode: "operations", category: "عملیات" },
   { href: "/fleet", label: "ناوگان حمل و نقل", icon: TruckIcon, moduleCode: "fleet", category: "عملیات" },
+  { href: "/dispatch", label: "اعلام بار و اسناد حمل", icon: ClipboardCheckIcon, moduleCode: "dispatch", category: "عملیات" },
 
   // عمومی (بقیه)
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation", category: "عمومی" },

@@ -1,5 +1,6 @@
 "use client";
 
+import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -255,6 +256,8 @@ export function ProposalDetailModal({
           {locked ? <div className="text-[11.5px] text-muted mb-1">پروپوزال پذیرفته‌شده قفل است؛ افزودن/حذف پیوست غیرفعال است.</div> : null}
           <AttachmentsSection entityType="Proposal" entityId={id} />
         </div>
+
+        <SignatureEvidencePanel entityType="proposal" entityId={id} />
 
         <div>
           <div className="text-[12.5px] font-bold mb-2">گفتگو با مشتری</div>

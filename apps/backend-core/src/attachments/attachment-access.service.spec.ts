@@ -17,6 +17,11 @@ function make(opts: { role?: string; matrix?: Record<string, any>; scope?: Recor
       user: { findUnique: vi.fn(async () => ({ id: 'me' })) },
       dailyChecklistDayClose: { findFirst: vi.fn(async () => ((opts as any).dayCloseOwner ? { userId: (opts as any).dayCloseOwner } : null)) },
       employee: { findUnique: vi.fn(async () => null), findFirst: vi.fn(async () => null) },
+      task: {
+        findFirst: vi.fn(async () => ((opts as any).docsHandler ? { id: 't1' } : null)),
+        findMany: vi.fn(async () => []),
+      },
+      shipment: { findFirst: vi.fn(async () => (opts.found === false ? null : { id: 's1' })) },
       proposal: {
         findFirst: vi.fn(async () => (opts.found === false ? null : { id: 'p1' })),
         findUnique: vi.fn(async () => ({ status: (opts as any).proposalStatus ?? 'SENT' })),
@@ -53,9 +58,27 @@ describe('AttachmentAccessService', () => {
     await expect(svc.assertAccess(ctx, 'CrmContact', 'c1', 'delete')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('view-all-only entities require view-all on their module', async () => {
+  it('shipments without dispatch fall back to fleet view-all', async () => {
     const { svc, ctx } = make({ matrix: { fleet: { canViewOwn: true } } });
     await expect(svc.assertAccess(ctx, 'Shipment', 's1', 'read')).rejects.toBeInstanceOf(ForbiddenException);
+    const ok = make({ matrix: { fleet: { canViewAll: true, canEdit: true } } });
+    await expect(ok.svc.assertAccess(ok.ctx, 'Shipment', 's1', 'write')).resolves.toBeUndefined();
+  });
+
+  it('dispatch view-own user: in-scope shipment ok, out-of-scope is 404, write needs edit', async () => {
+    const mine = make({ matrix: { dispatch: { canViewOwn: true, canEdit: true } } });
+    await expect(mine.svc.assertAccess(mine.ctx, 'ShipmentLoading', 's1', 'write')).resolves.toBeUndefined();
+    const other = make({ matrix: { dispatch: { canViewOwn: true, canEdit: true } }, found: false });
+    await expect(other.svc.assertAccess(other.ctx, 'Shipment', 's1', 'read')).rejects.toBeInstanceOf(NotFoundException);
+    const readOnly = make({ matrix: { dispatch: { canViewOwn: true } } });
+    await expect(readOnly.svc.assertAccess(readOnly.ctx, 'Shipment', 's1', 'write')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('the docs-task handler can read and add shipment attachments without any dispatch matrix, but not delete', async () => {
+    const h = make({ docsHandler: true } as any);
+    await expect(h.svc.assertAccess(h.ctx, 'Shipment', 's1', 'read')).resolves.toBeUndefined();
+    await expect(h.svc.assertAccess(h.ctx, 'Shipment', 's1', 'write')).resolves.toBeUndefined();
+    await expect(h.svc.assertAccess(h.ctx, 'Shipment', 's1', 'delete')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('proposal attachments follow the proposal scope (created-by OR assigned-to) and 404 outside it', async () => {

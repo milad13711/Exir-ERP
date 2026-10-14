@@ -1,3 +1,7 @@
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import type { ClientSignatureEvidence } from '../common/signature-evidence/signature-evidence.dto.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -39,6 +43,7 @@ export class PublicContractsService {
     private readonly auth: AuthService,
     private readonly contracts: ContractsService,
     private readonly jwt: JwtService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -131,7 +136,7 @@ export class PublicContractsService {
     };
   }
 
-  private async resolveTicket(slug: string, publicToken: string, ticket: string): Promise<{ contractId: string; side: 'PARTY_A' | 'PARTY_B' | 'WITNESS'; witnessId?: string }> {
+  private async resolveTicket(slug: string, publicToken: string, ticket: string): Promise<{ contractId: string; side: 'PARTY_A' | 'PARTY_B' | 'WITNESS'; witnessId?: string; phone?: string }> {
     let payload: ContractSignTicketPayload;
     try {
       payload = await this.jwt.verifyAsync<ContractSignTicketPayload>(ticket);
@@ -141,7 +146,7 @@ export class PublicContractsService {
     if (payload.type !== 'contract_sign_ticket' || payload.tenantSlug !== slug) {
       throw new UnauthorizedException('نشست امضا نامعتبر است');
     }
-    return { contractId: payload.contractId, side: payload.side, witnessId: payload.witnessId };
+    return { contractId: payload.contractId, side: payload.side, witnessId: payload.witnessId, phone: payload.phone };
   }
 
   async view(slug: string, publicToken: string, ticket: string) {
@@ -164,23 +169,42 @@ export class PublicContractsService {
     return tenantDb.contractEditRequest.create({ data: { contractId, side, text } });
   }
 
-  async sign(slug: string, publicToken: string, ticket: string, signatureDataUrl: string, signerName: string, amendmentId: string | undefined) {
+  async sign(slug: string, publicToken: string, ticket: string, signatureDataUrl: string, signerName: string, amendmentId: string | undefined, req?: Request, clientEvidence?: ClientSignatureEvidence) {
     const { tenant, tenantDb } = await this.resolveTenant(slug);
     const contract = await this.getContractByToken(tenantDb, publicToken);
-    const { contractId, side, witnessId } = await this.resolveTicket(slug, publicToken, ticket);
+    const { contractId, side, witnessId, phone } = await this.resolveTicket(slug, publicToken, ticket);
     if (contractId !== contract.id) throw new UnauthorizedException('نشست امضا نامعتبر است');
 
     const ctx = this.buildCtx(tenant.id, slug, tenantDb);
+    const sideRole = side === 'PARTY_A' ? 'party_a' : side === 'PARTY_B' ? 'party_b' : 'witness';
+    const record = async (entityType: string, entityId: string, content: unknown) => {
+      if (!req) return;
+      await this.evidence.tryRecord(tenantDb, {
+        entityType,
+        entityId,
+        action: 'public_sign',
+        signerName,
+        signerPhone: phone,
+        signerRole: sideRole,
+        contentHash: hashContent(content),
+        signatureData: signatureDataUrl,
+        req,
+        clientEvidence,
+      });
+    };
+    const contractSnapshot = { title: contract.title, value: contract.value, startDate: contract.startDate, endDate: contract.endDate, terms: contract.terms ?? '' };
 
     if (side === 'WITNESS') {
       if (!witnessId) throw new UnauthorizedException('نشست امضا نامعتبر است');
       const witness = await tenantDb.contractWitness.findUnique({ where: { id: witnessId } });
       if (!witness || witness.contractId !== contract.id) throw new NotFoundException('شاهد یافت نشد');
       if (witness.signedAt) throw new BadRequestException('این شاهد قبلاً امضا کرده است');
-      return tenantDb.contractWitness.update({
+      const updated = await tenantDb.contractWitness.update({
         where: { id: witnessId },
         data: { signedAt: new Date(), signatureDataUrl },
       });
+      await record('contract_witness', witnessId, contractSnapshot);
+      return updated;
     }
 
     if (amendmentId) {
@@ -195,6 +219,7 @@ export class PublicContractsService {
         if (amendment.partyBSignedAt) throw new BadRequestException('این طرف قبلاً این الحاقیه را امضا کرده است');
         await tenantDb.contractAmendment.update({ where: { id: amendmentId }, data: { partyBSignedAt: new Date(), partyBSignatureDataUrl: signatureDataUrl } });
       }
+      await record('contract_amendment', amendmentId, { contractId: amendment.contractId, text: amendment.text });
       return this.contracts.finalizeAmendmentIfComplete(ctx, amendmentId);
     }
 
@@ -217,6 +242,7 @@ export class PublicContractsService {
       });
     }
 
+    await record('contract', contract.id, contractSnapshot);
     return this.contracts.finalizeIfComplete(ctx, contract.id);
   }
 }

@@ -1,4 +1,7 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
+
 
 export class PublicSignContractDto {
   @IsString()
@@ -16,4 +19,10 @@ export class PublicSignContractDto {
   @IsOptional()
   @IsString()
   amendmentId?: string;
+
+  /** شواهد حقوقی امضا از مرورگر (IP/زمان سرور را خود سرور ثبت می‌کند). اختیاری. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientSignatureEvidenceDto)
+  evidence?: ClientSignatureEvidenceDto;
 }

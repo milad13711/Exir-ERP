@@ -6,6 +6,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
+import { DispatchTaskPanel } from "@/components/dispatch/DispatchTaskPanel";
+import { useWorkspace } from "@/lib/workspace-context";
 import { TaskFormModal, AssigneePicker } from "@/components/tasks/TaskFormModal";
 import { CheckIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
@@ -39,6 +41,7 @@ const BTN = "px-3.5 py-2 rounded-xl text-[12.5px] font-bold cursor-pointer disab
 
 /** پنجره‌ی جزئیات و گردش‌کار وظیفه: وضعیت، اقدام‌های مجاز نقش، نتیجه، مشکل، تمدید و تاریخچه. */
 export function TaskDetailModal({ task: initial, onClose, onChanged }: { task: ApiTask; onClose: () => void; onChanged: (t: ApiTask) => void }) {
+  const { installedModules } = useWorkspace();
   const [task, setTask] = useState<ApiTaskDetail | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
@@ -210,6 +213,8 @@ export function TaskDetailModal({ task: initial, onClose, onChanged }: { task: A
           ) : null}
 
           <AttachmentsSection entityType="Task" entityId={t.id} readOnly={!role?.canManage || closed} />
+
+          {t.relatedModule === "Shipment" && t.relatedEntityId && installedModules.has("dispatch") ? <DispatchTaskPanel shipmentId={t.relatedEntityId} /> : null}
 
           {/* ── اقدام‌ها ── */}
           {error ? <div className="text-[12px] text-danger font-semibold">{error}</div> : null}

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { SignatureConsentNotice } from "./SignatureConsentNotice";
 
 export function SignaturePad({ onDone, onCancel }: { onDone: (dataUrl: string) => void; onCancel?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,6 +77,7 @@ export function SignaturePad({ onDone, onCancel }: { onDone: (dataUrl: string) =
         className="w-full bg-slate-50 border border-border rounded-xl touch-none cursor-crosshair"
         style={{ height: 140 }}
       />
+      <SignatureConsentNotice />
       <div className="flex items-center gap-2">
         <button
           type="button"

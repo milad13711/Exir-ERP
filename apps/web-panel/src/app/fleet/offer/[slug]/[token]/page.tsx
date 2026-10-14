@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { LogoMark, TruckIcon, CheckIcon } from "@/components/icons";
 import { toPersianDigits, formatJalaliDateTime } from "@/lib/persian";
+import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { viewPublicFleetOffer, acceptPublicFleetOffer, ApiError, type PublicOfferView } from "@/lib/api";
 
 export default function PublicFleetOfferPage({ params }: { params: Promise<{ slug: string; token: string }> }) {
@@ -102,6 +103,7 @@ export default function PublicFleetOfferPage({ params }: { params: Promise<{ slu
                 </div>
               </div>
 
+              <SignatureConsentNotice />
               <button
                 onClick={handleAccept}
                 disabled={accepting}

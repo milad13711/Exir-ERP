@@ -1,5 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import type { ClientSignatureEvidenceDto } from '../common/signature-evidence/signature-evidence.dto.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
+import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -27,6 +31,7 @@ export class InvoicesController {
     private readonly permissions: PermissionsService,
     private readonly pdf: SalesInvoicePdfService,
     private readonly controlDb: ControlPrismaService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   /** کاربر «فقط خودم» فقط روی فاکتورهای خودش می‌تواند عملیات انجام دهد؛ خارج از دامنه → ۴۰۴. */
@@ -138,11 +143,39 @@ export class InvoicesController {
     return this.invoices.recordPayment(ctx, id, dto);
   }
 
+  /** مدرک حقوقی امضا/تأیید تحویل — شکست ثبت مدرک، عملیات انجام‌شده را خراب نمی‌کند. */
+  private async recordEvidence(
+    ctx: TenantRequestContext,
+    req: Request,
+    id: string,
+    entityType: 'invoice' | 'invoice_delivery',
+    action: string,
+    signerName: string | undefined,
+    signatureData: string | undefined,
+    clientEvidence: ClientSignatureEvidenceDto | undefined,
+  ) {
+    const inv = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { lines: true } });
+    await this.evidence.tryRecord(ctx, {
+      entityType,
+      entityId: id,
+      action,
+      signerName,
+      signerUserId: (await resolveTenantUserId(ctx).catch(() => null)) ?? undefined,
+      signerRole: ctx.auth.role,
+      contentHash: hashContent(inv && { invoiceNo: inv.invoiceNo, officialInvoiceNo: inv.officialInvoiceNo, contactId: inv.contactId, issuedAt: inv.issuedAt, subtotal: inv.subtotal, discount: inv.discount, taxAmount: inv.taxAmount, total: inv.total, lines: inv.lines }),
+      signatureData,
+      req,
+      clientEvidence,
+    });
+  }
+
   @Post(':id/sign')
-  async sign(@Param('id') id: string, @Body() dto: SignInvoiceDto, @Ctx() ctx: TenantRequestContext) {
+  async sign(@Param('id') id: string, @Body() dto: SignInvoiceDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
     await this.permissions.assertEdit(ctx, 'sales');
     await this.assertInvoiceInScope(ctx, id);
-    return this.invoices.sign(ctx, id, dto);
+    const result = await this.invoices.sign(ctx, id, dto);
+    await this.recordEvidence(ctx, req, id, 'invoice', 'invoice_sign', result.signedByName ?? undefined, dto.signatureDataUrl, dto.evidence);
+    return result;
   }
 
   /** لینک عمومی مشاهده/پرداخت آنلاین فاکتور را با پیامک برای مشتری می‌فرستد. */
@@ -178,10 +211,12 @@ export class InvoicesController {
 
   @Post(':id/delivery/confirm')
   @RequireModule('delivery-signature')
-  async confirmDelivery(@Param('id') id: string, @Body() dto: ConfirmDeliveryDto, @Ctx() ctx: TenantRequestContext) {
+  async confirmDelivery(@Param('id') id: string, @Body() dto: ConfirmDeliveryDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
     await this.permissions.assertEdit(ctx, 'sales');
     await this.assertInvoiceInScope(ctx, id);
-    return this.invoices.confirmDelivery(ctx, id, dto);
+    const result = await this.invoices.confirmDelivery(ctx, id, dto);
+    await this.recordEvidence(ctx, req, id, 'invoice_delivery', `delivery_confirm_${dto.method.toLowerCase()}`, dto.confirmerName, dto.signatureDataUrl, dto.evidence);
+    return result;
   }
 
   @Get(':id/pdf')

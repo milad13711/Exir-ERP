@@ -1,33 +1,23 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { toPersianDigits, formatJalaliDateTime } from "@/lib/persian";
+import { DISPATCH_STATUS_LABELS, DISPATCH_STATUS_TONES } from "@/lib/dispatch-api";
 import {
   fetchMatchCandidates,
   sendShipmentOffers,
   cancelShipment,
   deliverShipment,
   type Shipment,
-  type ShipmentStatus,
   type ShipmentOfferStatus,
   type MatchCandidate,
 } from "@/lib/api";
 
-const STATUS_LABELS: Record<ShipmentStatus, string> = {
-  DRAFT: "ثبت‌شده",
-  OFFERED: "در حال پیشنهاد به راننده‌ها",
-  ACCEPTED: "پذیرفته‌شده",
-  DELIVERED: "تحویل‌شده",
-  CANCELLED: "لغوشده",
-};
-const STATUS_TONES: Record<ShipmentStatus, "primary" | "success" | "warning" | "neutral" | "danger"> = {
-  DRAFT: "neutral",
-  OFFERED: "warning",
-  ACCEPTED: "primary",
-  DELIVERED: "success",
-  CANCELLED: "danger",
-};
+const STATUS_LABELS = DISPATCH_STATUS_LABELS;
+const STATUS_TONES = DISPATCH_STATUS_TONES;
 const OFFER_STATUS_LABELS: Record<ShipmentOfferStatus, string> = {
   SCHEDULED: "در نوبت ارسال",
   PENDING: "ارسال‌شده — منتظر پاسخ",
@@ -44,6 +34,8 @@ export function ShipmentDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { installedModules } = useWorkspace();
+  const inDispatch = !!shipment.loading;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<MatchCandidate[] | null>(null);
@@ -132,7 +124,7 @@ export function ShipmentDetailModal({
 
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
-        {shipment.status === "DRAFT" && !matchOpen && (
+        {(shipment.status === "DRAFT" || shipment.status === "AWAITING_DRIVER") && !matchOpen && (
           <button
             onClick={() => setMatchOpen(true)}
             className="py-2.5 rounded-xl bg-primary text-white text-[12.5px] font-bold cursor-pointer"
@@ -223,8 +215,14 @@ export function ShipmentDetailModal({
           </div>
         )}
 
+        {installedModules.has("dispatch") ? (
+          <Link href={`/dispatch/${shipment.id}`} className="py-2.5 rounded-xl bg-primary-soft text-primary text-[12.5px] font-bold text-center">
+            {inDispatch ? "مدیریت در اعلام بار (چک‌لیست، وزن، اسناد) ←" : "شروع گردش اعلام بار ←"}
+          </Link>
+        ) : null}
+
         <div className="flex items-center gap-2">
-          {shipment.status === "ACCEPTED" && (
+          {shipment.status === "ACCEPTED" && !inDispatch && (
             <button
               onClick={() => runAction(() => deliverShipment(shipment.id))}
               disabled={busy}
@@ -233,7 +231,7 @@ export function ShipmentDetailModal({
               ثبت تحویل بار
             </button>
           )}
-          {(shipment.status === "DRAFT" || shipment.status === "OFFERED" || shipment.status === "ACCEPTED") && (
+          {!inDispatch && (shipment.status === "DRAFT" || shipment.status === "OFFERED" || shipment.status === "ACCEPTED") && (
             <button
               onClick={() => runAction(() => cancelShipment(shipment.id))}
               disabled={busy}

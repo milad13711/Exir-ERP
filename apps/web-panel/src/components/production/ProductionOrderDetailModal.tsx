@@ -18,6 +18,7 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES, STAGE_STATUS_LABELS } from "./
 import { QualityControlSection } from "./QualityControlSection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
+import { SourceDispatch } from "@/components/dispatch/SourceDispatch";
 
 const btnBase = "text-[12.5px] font-bold px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50";
 
@@ -91,6 +92,10 @@ export function ProductionOrderDetailModal({
             {order.quantityProduced != null ? ` · مقدار واقعی: ${formatNumber(order.quantityProduced)}` : ""}
           </div>
         </div>
+
+        {installedModules.has("dispatch") && ["IN_PROGRESS", "QC_PENDING", "COMPLETED"].includes(order.status) ? (
+          <SourceDispatch sourceType="PRODUCTION_ORDER" sourceId={order.id} label="اعلام بار برای این دستور تولید" />
+        ) : null}
 
         {relatedInvoice ? (
           <div className="text-[12px] bg-primary/5 text-primary rounded-lg px-3 py-2">

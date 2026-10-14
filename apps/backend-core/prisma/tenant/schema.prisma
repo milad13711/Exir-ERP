@@ -646,6 +646,11 @@ model CrmContact {
   legalId            String? // شناسه ملی — اشخاص حقوقی
   registrationNumber String? // شماره ثبت شرکت — اشخاص حقوقی
 
+  // پروفایل ارسال بار (برای بارنامه — ماژول dispatch) — کد ملی از nationalId بالا خوانده می‌شود
+  uniqueId      String? // شناسه یکتا
+  postalCode    String? // کد پستی
+  postalAddress String? // آدرس پستی
+
   // ورودی‌های اعتبارسنجی برای مشتری بدون سابقه‌ی خرید — سوابق خرید واقعی
   // مستقیماً از روی SalesInvoice/SalesPayment محاسبه می‌شود (نه ذخیره‌شده).
   hasBouncedChecks       Boolean @default(false) // سابقه‌ی چک برگشتی
@@ -3039,6 +3044,7 @@ enum ShipmentSourceType {
   MANUAL
   STOCK_MOVEMENT
   SALES_INVOICE
+  PRODUCTION_ORDER // ماژول dispatch — اعلام بار از دستور تولید
 }
 
 enum ShipmentStatus {
@@ -3047,6 +3053,18 @@ enum ShipmentStatus {
   ACCEPTED // یک راننده پذیرفته
   DELIVERED
   CANCELLED
+  // ── گردش‌کار اعلام بار (ماژول dispatch) — افزایشی؛ مقادیر قدیمی همچنان کار می‌کنند ──
+  AWAITING_DRIVER // در انتظار راننده
+  VEHICLE_ARRIVED // ماشین رسیده
+  CLEANLINESS_APPROVED // نظافت تأیید شد
+  TARE_RECORDED // وزن خالی ثبت شد
+  LOADED // بارگیری شده
+  WEIGHED // وزن‌کشی شد
+  AWAITING_DOCS // در انتظار اسناد
+  FINAL_CHECK // کنترل نهایی
+  READY_TO_DEPART // آماده حرکت
+  IN_TRANSIT // در مسیر
+  SUSPENDED // متوقف
 }
 
 model Shipment {
@@ -3075,6 +3093,12 @@ model Shipment {
   createdBy User?           @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   offers    ShipmentOffer[]
   survey    DeliverySurvey?
+
+  // ماژول dispatch (گردش‌کار اعلام بار) — فقط وقتی ماژول نصب باشد پر می‌شوند
+  loading   ShipmentLoading?
+  events    ShipmentEvent[]
+  documents ShipmentDocument[]
+  receipt   DispatchReceipt?
 
   @@index([status])
   @@index([createdAt])
@@ -4808,4 +4832,275 @@ model MessengerPresence {
   hidden     Boolean  @default(false)
 
   @@map("messenger_presence")
+}
+
+// ── Signature evidence (legal audit trail for every e-signature / public "I accept") ──
+
+/// مدرک حقوقی هر امضای الکترونیک/تأیید لینک عمومی: هویت، زمان، IP، دستگاه، موقعیت، هش محتوا/امضا و هش یکپارچگی (HMAC).
+model SignatureEvidence {
+  id            String   @id @default(uuid())
+  entityType    String
+  entityId      String
+  action        String
+  signerName    String?
+  signerPhone   String?
+  signerUserId  String?
+  signerRole    String?
+  ip            String?
+  userAgent     String?
+  device        Json?
+  geoStatus     String   @default("unavailable") // granted | denied | unavailable
+  lat           Float?
+  lng           Float?
+  geoAccuracy   Float?
+  clientTime    DateTime?
+  serverTime    DateTime @default(now())
+  contentHash   String?
+  signatureHash String?
+  integrityHash String
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("signature_evidences")
+}
+
+
+// ── ماژول اعلام بار، بارنامه و برگ قرنطینه (dispatch) ─────────────────────
+// روی Shipment ماژول fleet یک گردش‌کار لایه می‌کند: چک‌لیست بارگیری مرحله‌ای،
+// قوانین اسناد (بارنامه/قرنطینه/...)، تأیید وزن نهایی و تعدیل فاکتور، رسید راننده.
+// هیچ جدول fleet تغییر نمی‌کند؛ همه‌چیز افزایشی و با Shipment یک‌به‌یک/یک‌به‌چند است.
+
+/// وضعیت مرحله‌ای بارگیری — یک‌به‌یک با Shipment. هر مرحله هم کاربر و هم زمان را ثبت می‌کند.
+model ShipmentLoading {
+  id         String @id @default(uuid())
+  shipmentId String @unique
+
+  // اعلام بار
+  needsWeighing     Boolean  @default(false) // نیاز به وزن‌کشی → نهایی‌شدن فاکتور مشروط به وزن تأییدشده
+  productionOrderId String?
+  expectedWeightKg  Float?
+  weighLineIds      String[] @default([]) // ردیف‌های فاکتور که مقدارشان وزنی است (خالی = همه)
+  kgPerUnit         Float    @default(1) // هر واحد ردیف فاکتور چند کیلوگرم است
+
+  // اسنپ‌شات پروفایل ارسال مشتری در لحظه‌ی ثبت
+  customerName  String?
+  uniqueId      String?
+  nationalId    String?
+  postalCode    String?
+  postalAddress String?
+
+  // ۱) رسیدن ماشین
+  arrivedAt       DateTime?
+  arrivedByUserId String?
+  arrivedByName   String?
+  // ۲) نظافت
+  cleanlinessResult String? // PASS | FAIL
+  cleanlinessNote   String?
+  cleanlinessAt     DateTime?
+  cleanlinessByUserId String?
+  cleanlinessByName   String?
+  // ۳) وزن خالی
+  tareKg        Float?
+  tareAt        DateTime?
+  tareByUserId  String?
+  tareByName    String?
+  // ۴) بارگیری
+  loadedAt       DateTime?
+  loaderUserId   String?
+  loaderName     String?
+  // ۵) وزن پر و خالص
+  grossKg        Float?
+  grossAt        DateTime?
+  grossByUserId  String?
+  grossByName    String?
+  netKg          Float?
+  netEdited      Boolean  @default(false)
+  netEditReason  String?
+  // تأیید وزن نهایی (برای فاکتور)
+  weightConfirmedAt     DateTime?
+  weightConfirmedByUserId String?
+  weightConfirmedByName   String?
+  // ۶) اسناد
+  requiredDocTypes   String[] @default([])
+  matchedRuleIds     String[] @default([])
+  docsTaskId         String?
+  docsOverrideReason String?
+  docsOverrideByName String?
+  docsOverrideAt     DateTime?
+  // ۷) کنترل نهایی (چشم دوم)
+  finalCheckResult   String? // PASS | FAIL
+  finalCheckNote     String?
+  loadingCorrect     Boolean?
+  tarpInstalled      Boolean?
+  finalCheckAt       DateTime?
+  finalCheckByUserId String?
+  finalCheckByName   String?
+  // ۸) آماده حرکت / حرکت
+  readyGrantedAt       DateTime?
+  readyGrantedByUserId String?
+  readyGrantedByName   String?
+  departedAt           DateTime?
+  departedByName       String?
+  receiptOverrideReason String?
+  /// وضعیتِ قبل از «متوقف» تا با ازسرگیری برگردد
+  suspendedFrom String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([productionOrderId])
+  @@map("dispatch_shipment_loadings")
+}
+
+/// تایم‌لاین کامل: چه کسی، چه چیزی، کی، از چه وضعیتی به چه وضعیتی، با چه دلیلی (تغییر دستی دلیل اجباری دارد).
+model ShipmentEvent {
+  id          String   @id @default(uuid())
+  shipmentId  String
+  type        String
+  fromStatus  String?
+  toStatus    String?
+  actorUserId String? // null = سیستم / راننده (لینک عمومی)
+  actorName   String?
+  note        String?
+  reason      String?
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+  @@index([actorUserId])
+  @@map("dispatch_shipment_events")
+}
+
+/// نوع سند حمل (بارنامه، برگ قرنطینه، ...) — داده‌محور تا ماژول مستقل بعدی هم از آن استفاده کند.
+model DispatchDocType {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  isSystem  Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("dispatch_doc_types")
+}
+
+/// قانون سند: شرط (وزن خالص ≥ X و/یا نوع بار و/یا منطقه — همه‌ی شروط پرشده باید برقرار باشد) → اسناد لازم + مسئول (نقش یا کاربر).
+model DispatchDocRule {
+  id            String   @id @default(uuid())
+  name          String
+  isActive      Boolean  @default(true)
+  minNetKg      Float?
+  cargoTypes    String[] @default([])
+  regions       String[] @default([])
+  docTypeCodes  String[] @default([])
+  handlerRoleId String?
+  handlerUserId String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("dispatch_doc_rules")
+}
+
+/// فایل سند حمل — پیوست عمومی (Attachment) + نوع سند و مرحله‌ی مرتبط.
+model ShipmentDocument {
+  id              String   @id @default(uuid())
+  shipmentId      String
+  docTypeCode     String
+  step            String? // TARE | GROSS | null
+  attachmentId    String
+  createdByUserId String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, docTypeCode])
+  @@map("dispatch_shipment_documents")
+}
+
+/// رسید بار راننده — لینک عمومی با توکن یکتا (بدون OTP) یا رسید کاغذیِ اسکن‌شده.
+model DispatchReceipt {
+  id            String    @id @default(uuid())
+  shipmentId    String    @unique
+  publicToken   String    @unique @default(uuid())
+  status        String    @default("PENDING") // PENDING | SIGNED | PAPER
+  sentAt        DateTime?
+  signedAt      DateTime?
+  signerName    String?
+  signerPhone   String?
+  signatureData String?
+  evidenceId    String?
+  paperAttachmentId String?
+  paperByUserId String?
+  paperByName   String?
+  pdfAttachmentId   String?
+  archivedDocumentId String?
+  createdAt     DateTime  @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("dispatch_receipts")
+}
+
+/// پیشنهاد اعلام بار از یک منبع — یکتا به‌ازای هر منبع (ضدتکرار).
+model DispatchSuggestion {
+  id          String    @id @default(uuid())
+  sourceType  String // PRODUCTION_ORDER | SALES_INVOICE | STOCK_MOVEMENT
+  sourceId    String
+  status      String    @default("OPEN") // OPEN | CREATED | DISMISSED
+  shipmentId  String?
+  title       String?
+  notifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([sourceType, sourceId])
+  @@index([status])
+  @@map("dispatch_suggestions")
+}
+
+/// جایگزین ماشه‌ی اعلام بار برای یک دستور تولید (N مرحله‌ی مانده به پایان؛ ۰ = آخرین مرحله).
+model DispatchProductionTrigger {
+  id                String   @id @default(uuid())
+  productionOrderId String   @unique
+  stagesBeforeEnd   Int
+  updatedAt         DateTime @updatedAt
+
+  @@map("dispatch_production_triggers")
+}
+
+/// پیشنهاد تعدیل اقلام فاکتور بر اساس وزن واقعی؛ پس از تأیید مدیر/حسابدار اعمال و فاکتور خودکار نهایی می‌شود.
+model DispatchInvoiceAdjustment {
+  id                String    @id @default(uuid())
+  invoiceId         String
+  shipmentId        String
+  status            String    @default("PROPOSED") // PROPOSED | APPLIED | REJECTED | NO_CHANGE
+  netWeightKg       Float
+  lineChanges       Json
+  oldSubtotal       Int
+  newSubtotal       Int
+  oldDiscount       Int
+  newDiscount       Int
+  oldTaxAmount      Int
+  newTaxAmount      Int
+  oldTotal          Int
+  newTotal          Int
+  proposedByUserId  String?
+  decidedByUserId   String?
+  decidedByName     String?
+  decisionNote      String?
+  decidedAt         DateTime?
+  appliedAt         DateTime?
+  finalizedAt       DateTime?
+  finalizeError     String?
+  createdAt         DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@index([shipmentId])
+  @@map("dispatch_invoice_adjustments")
 }

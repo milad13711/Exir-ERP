@@ -1,3 +1,4 @@
+import { collectSignatureEvidence, type ClientSignatureEvidence } from "./signature-evidence";
 // Client components run in the browser and use the relative NEXT_PUBLIC_API_URL
 // (baked in as "/api" — see apps/web-panel/Dockerfile — proxied same-origin by
 // nginx). Server components (the public /shop storefront's generateMetadata
@@ -11,6 +12,15 @@ export const API_URL =
     ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api")
     : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api");
 export const TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG ?? "exir-demo";
+
+/**
+ * شواهد حقوقی امضا (IP/دستگاه/زمان/موقعیت): هر تابع ثبت امضا این را صدا می‌زند تا `evidence` همراه درخواست برود.
+ * هرگز throw نمی‌کند و امضا را بلاک نمی‌کند؛ کنار دکمه‌ی امضا باید <SignatureConsentNotice /> نمایش داده شود.
+ */
+async function withEvidence<T extends object>(data: T): Promise<T & { evidence: ClientSignatureEvidence }> {
+  const existing = (data as { evidence?: ClientSignatureEvidence }).evidence;
+  return { ...data, evidence: existing ?? (await collectSignatureEvidence()) };
+}
 
 const TOKEN_KEY = "exir_access_token";
 
@@ -1301,6 +1311,9 @@ export type CrmContact = {
   economicCode: string | null;
   legalId: string | null;
   registrationNumber: string | null;
+  uniqueId?: string | null;
+  postalCode?: string | null;
+  postalAddress?: string | null;
   hasBouncedChecks: boolean;
   bankAvgMonthlyTurnover: number | null;
   creditLimitOverride: number | null;
@@ -1376,6 +1389,9 @@ export function createCrmContact(data: {
   economicCode?: string;
   legalId?: string;
   registrationNumber?: string;
+  uniqueId?: string;
+  postalCode?: string;
+  postalAddress?: string;
   birthDate?: string;
   tags?: string[];
   source?: string;
@@ -1398,6 +1414,9 @@ export function updateCrmContact(
     economicCode: string;
     legalId: string;
     registrationNumber: string;
+    uniqueId: string;
+    postalCode: string;
+    postalAddress: string;
     birthDate: string;
     tags: string[];
     isCustomer: boolean;
@@ -2424,7 +2443,7 @@ export function fetchRationSample(id: string) {
   return apiFetch<RationSample>(`/ration-lab/samples/${id}`);
 }
 
-export function createRationSample(data: {
+export async function createRationSample(data: {
   contactId: string;
   collectedAt: string;
   herdSize?: number;
@@ -2439,7 +2458,7 @@ export function createRationSample(data: {
   discountCode?: string;
   isIdentityVisibleToLab?: boolean;
 }) {
-  return apiFetch<RationSample>("/ration-lab/samples", { method: "POST", body: JSON.stringify(data) });
+  return apiFetch<RationSample>("/ration-lab/samples", { method: "POST", body: JSON.stringify(await withEvidence(data)) });
 }
 
 export function rationSamplePdfUrl(id: string) {
@@ -3276,10 +3295,10 @@ export function recordSalesPayment(
   });
 }
 
-export function signSalesInvoice(id: string, signatureDataUrl: string) {
+export async function signSalesInvoice(id: string, signatureDataUrl: string) {
   return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}/sign`, {
     method: "POST",
-    body: JSON.stringify({ signatureDataUrl }),
+    body: JSON.stringify(await withEvidence({ signatureDataUrl })),
   });
 }
 
@@ -3290,13 +3309,13 @@ export function sendDeliveryCode(id: string) {
   );
 }
 
-export function confirmDelivery(
+export async function confirmDelivery(
   id: string,
   data: { method: "CODE" | "SIGNATURE"; code?: string; signatureDataUrl?: string; confirmerName: string },
 ) {
   return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}/delivery/confirm`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(await withEvidence(data)),
   });
 }
 
@@ -3642,10 +3661,10 @@ export function fetchPublicQuotation(slug: string, token: string) {
   return publicFetch<PublicQuotation>(`/public/tenants/${slug}/quotations/${token}`);
 }
 
-export function acceptPublicQuotation(slug: string, token: string, data: { name: string; signatureDataUrl: string }) {
+export async function acceptPublicQuotation(slug: string, token: string, data: { name: string; signatureDataUrl: string }) {
   return publicFetch<{ success: boolean }>(`/public/tenants/${slug}/quotations/${token}/accept`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(await withEvidence(data)),
   });
 }
 
@@ -5034,8 +5053,8 @@ export function updateContract(id: string, data: Partial<Pick<Parameters<typeof 
   return apiFetch<Contract>(`/contracts/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function signContract(id: string, data: { signatureDataUrl: string; signerName: string }) {
-  return apiFetch<Contract>(`/contracts/${id}/sign`, { method: "POST", body: JSON.stringify(data) });
+export async function signContract(id: string, data: { signatureDataUrl: string; signerName: string }) {
+  return apiFetch<Contract>(`/contracts/${id}/sign`, { method: "POST", body: JSON.stringify(await withEvidence(data)) });
 }
 
 export function terminateContract(id: string, reason?: string) {
@@ -5078,8 +5097,8 @@ export function createContractAmendment(contractId: string, text: string) {
   return apiFetch<ContractAmendment>(`/contracts/${contractId}/amendments`, { method: "POST", body: JSON.stringify({ text }) });
 }
 
-export function signContractAmendmentAsCompany(amendmentId: string, data: { signatureDataUrl: string; signerName: string }) {
-  return apiFetch<ContractAmendment>(`/contracts/amendments/${amendmentId}/sign`, { method: "POST", body: JSON.stringify(data) });
+export async function signContractAmendmentAsCompany(amendmentId: string, data: { signatureDataUrl: string; signerName: string }) {
+  return apiFetch<ContractAmendment>(`/contracts/amendments/${amendmentId}/sign`, { method: "POST", body: JSON.stringify(await withEvidence(data)) });
 }
 
 // ── امضای دیجیتال عمومی قرارداد (بدون نیاز به لاگین) ───────────────────────
@@ -5109,14 +5128,14 @@ export function submitPublicContractEditRequest(slug: string, publicToken: strin
   });
 }
 
-export function signPublicContract(
+export async function signPublicContract(
   slug: string,
   publicToken: string,
   data: { ticket: string; signatureDataUrl: string; signerName: string; amendmentId?: string },
 ) {
   return apiFetch<Contract | ContractAmendment | ContractWitness>(`/public/contracts/${slug}/${publicToken}/sign`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(await withEvidence(data)),
   });
 }
 
@@ -5524,10 +5543,10 @@ export function fetchPendingLabSamples(slug: string, labToken: string) {
   });
 }
 
-export function confirmLabReceipt(slug: string, labToken: string, sampleIds: string[]) {
+export async function confirmLabReceipt(slug: string, labToken: string, sampleIds: string[]) {
   return apiFetch<{ confirmedCount: number }>(`/public/ration-lab/${slug}/samples/confirm-receipt`, {
     method: "POST",
-    body: JSON.stringify({ labToken, sampleIds }),
+    body: JSON.stringify(await withEvidence({ labToken, sampleIds })),
   });
 }
 
@@ -5665,8 +5684,25 @@ export function deactivateDriver(id: string) {
   return apiFetch<Driver>(`/fleet/drivers/${id}`, { method: "DELETE" });
 }
 
-export type ShipmentSourceType = "MANUAL" | "STOCK_MOVEMENT" | "SALES_INVOICE";
-export type ShipmentStatus = "DRAFT" | "OFFERED" | "ACCEPTED" | "DELIVERED" | "CANCELLED";
+export type ShipmentSourceType = "MANUAL" | "STOCK_MOVEMENT" | "SALES_INVOICE" | "PRODUCTION_ORDER";
+export type ShipmentStatus =
+  | "DRAFT"
+  | "OFFERED"
+  | "ACCEPTED"
+  | "DELIVERED"
+  | "CANCELLED"
+  // گردش‌کار اعلام بار (ماژول dispatch)
+  | "AWAITING_DRIVER"
+  | "VEHICLE_ARRIVED"
+  | "CLEANLINESS_APPROVED"
+  | "TARE_RECORDED"
+  | "LOADED"
+  | "WEIGHED"
+  | "AWAITING_DOCS"
+  | "FINAL_CHECK"
+  | "READY_TO_DEPART"
+  | "IN_TRANSIT"
+  | "SUSPENDED";
 export type ShipmentOfferStatus = "SCHEDULED" | "PENDING" | "ACCEPTED" | "EXPIRED";
 
 export type ShipmentOffer = {
@@ -5717,6 +5753,8 @@ export type Shipment = {
   createdBy: { id: string; name: string } | null;
   offers: ShipmentOffer[];
   survey: DeliverySurvey | null;
+  /** وجود یعنی بار وارد گردش «اعلام بار» (ماژول dispatch) شده */
+  loading?: { id: string } | null;
 };
 
 export type MatchCandidate = {
@@ -5800,10 +5838,10 @@ export function viewPublicFleetOffer(slug: string, token: string) {
   return apiFetch<PublicOfferView>(`/public/fleet/offer/${slug}/${token}`);
 }
 
-export function acceptPublicFleetOffer(slug: string, token: string) {
+export async function acceptPublicFleetOffer(slug: string, token: string) {
   return apiFetch<{ status: string; shipment?: Shipment; driver?: { name: string; phone: string } }>(
     `/public/fleet/offer/${slug}/${token}/accept`,
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify(await withEvidence({})) },
   );
 }
 
@@ -7665,7 +7703,7 @@ export function fetchPublicJobOffer(tenantSlug: string, token: string) {
   return apiFetch<PublicJobOfferView>(`/public/recruitment/${tenantSlug}/offer/${token}`);
 }
 
-export function respondToPublicJobOffer(
+export async function respondToPublicJobOffer(
   tenantSlug: string,
   token: string,
   accepted: boolean,
@@ -7675,7 +7713,8 @@ export function respondToPublicJobOffer(
 ) {
   return apiFetch<{ success: true; accepted: boolean }>(`/public/recruitment/${tenantSlug}/offer/${token}/respond`, {
     method: "POST",
-    body: JSON.stringify({ accepted, signature, nationalId, idCardImage }),
+    // رد پیشنهاد امضایی ندارد؛ شواهد فقط هنگام پذیرش (امضا) جمع می‌شود
+    body: JSON.stringify(accepted ? await withEvidence({ accepted, signature, nationalId, idCardImage }) : { accepted, signature, nationalId, idCardImage }),
   });
 }
 
@@ -7988,8 +8027,9 @@ export function fetchPendingApprovalCount() {
   return apiFetch<{ count: number }>("/approvals/pending-count");
 }
 
-export function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string }) {
-  return apiFetch<ApprovalRequest>(`/approvals/${id}/decision`, { method: "POST", body: JSON.stringify(data) });
+export async function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string }) {
+  const body = data.approved && data.withStamp ? await withEvidence(data) : data;
+  return apiFetch<ApprovalRequest>(`/approvals/${id}/decision`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export function grantEmployeeAccess(employeeId: string, data: { roleId: string; phone?: string }) {
@@ -8593,8 +8633,8 @@ export function fetchPublicProposal(slug: string, token: string, headers?: Recor
 export function publicProposalFileUrl(slug: string, token: string, attachmentId: string) {
   return `${API_URL}/public/tenants/${slug}/proposals/${token}/files/${attachmentId}`;
 }
-export function acceptPublicProposal(slug: string, token: string, data: { name: string; signatureDataUrl: string; confirmed: boolean }) {
-  return apiFetch<{ success: boolean }>(`/public/tenants/${slug}/proposals/${token}/accept`, { method: "POST", body: JSON.stringify(data) });
+export async function acceptPublicProposal(slug: string, token: string, data: { name: string; signatureDataUrl: string; confirmed: boolean }) {
+  return apiFetch<{ success: boolean }>(`/public/tenants/${slug}/proposals/${token}/accept`, { method: "POST", body: JSON.stringify(await withEvidence(data)) });
 }
 export function rejectPublicProposal(slug: string, token: string, data: { reason?: string; name?: string }) {
   return apiFetch<{ success: boolean }>(`/public/tenants/${slug}/proposals/${token}/reject`, { method: "POST", body: JSON.stringify(data) });

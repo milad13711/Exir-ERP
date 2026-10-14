@@ -1,5 +1,6 @@
 "use client";
 
+import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { use, useRef, useState } from "react";
 import { LogoMark } from "@/components/icons";
 import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
@@ -321,6 +322,7 @@ export default function PublicLabReviewPage({ params }: { params: Promise<{ slug
                 </div>
               )}
 
+              {pending.length > 0 && <SignatureConsentNotice className="mb-2" />}
               {pending.length > 0 && (
                 <button
                   onClick={handleConfirmReceipt}

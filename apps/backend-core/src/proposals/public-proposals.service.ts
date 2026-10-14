@@ -1,3 +1,6 @@
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -48,6 +51,7 @@ export class PublicProposalsService {
     private readonly controlDb: ControlPrismaService,
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
+    private readonly evidence?: SignatureEvidenceService,
   ) {}
 
   /** `allowDraft`: فقط برای مشاهده/فایل — پیش‌نمایش لینک پیش‌نویس برای خودِ تننت؛ پاسخ مشتری (قبول/رد/نظر) هرگز روی پیش‌نویس مجاز نیست. */
@@ -201,7 +205,7 @@ export class PublicProposalsService {
     if (!(CUSTOMER_OPEN_STATUSES as readonly string[]).includes(p.status)) throw new ForbiddenException('این پروپوزال در حال حاضر قابل پاسخ نیست');
   }
 
-  async accept(t: PublicTenantCtx, token: string, dto: PublicAcceptProposalDto, meta: ClientMeta) {
+  async accept(t: PublicTenantCtx, token: string, dto: PublicAcceptProposalDto, meta: ClientMeta, req?: Request) {
     const p = await this.findByToken(t, token);
     this.assertAnswerable(p);
     if (dto.confirmed !== true) throw new BadRequestException('برای پذیرش باید «تمام موارد فوق بررسی و تأیید شد» را تأیید کنید');
@@ -227,6 +231,29 @@ export class PublicProposalsService {
       },
     });
     if (res.count === 0) throw new ConflictException('وضعیت پروپوزال تغییر کرده است؛ صفحه را دوباره باز کنید');
+
+    if (req) {
+      await this.evidence?.tryRecord(t.tenantDb, {
+        entityType: 'proposal',
+        entityId: p.id,
+        action: 'public_accept',
+        signerName: name,
+        signerRole: 'customer',
+        contentHash: hashContent({
+          proposalNo: p.proposalNo,
+          title: p.title,
+          content: p.content,
+          durationText: p.durationText,
+          amount: p.amount,
+          paymentTerms: p.paymentTerms,
+          paymentMethodText: p.paymentMethodText,
+          invoiceLines: p.invoiceLines,
+        }),
+        signatureData: dto.signatureDataUrl,
+        req,
+        clientEvidence: dto.evidence,
+      });
+    }
 
     await recordProposalEvent(t.tenantDb, { proposalId: p.id, contactId: p.contactId, proposalNo: p.proposalNo, type: 'ACCEPTED', body: `پذیرفته‌شده توسط ${name}${meta.ip ? ` (IP ${meta.ip})` : ''}` });
     await this.notify(t, p, 'proposals.proposal.accepted', `پروپوزال شماره ${p.proposalNo} توسط مشتری پذیرفته شد`, `پذیرفته‌شده توسط ${name}`);

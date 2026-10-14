@@ -1,4 +1,6 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
+import { Type } from 'class-transformer';
 import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class AcceptOfferDto {
@@ -22,4 +24,10 @@ export class AcceptOfferDto {
   @IsString()
   @IsUploadDataUri('image')
   idCardImage?: string;
+
+  /** شواهد حقوقی امضا از مرورگر؛ اختیاری. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientSignatureEvidenceDto)
+  evidence?: ClientSignatureEvidenceDto;
 }

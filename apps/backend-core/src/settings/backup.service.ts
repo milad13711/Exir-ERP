@@ -120,6 +120,7 @@ export class BackupService {
       taskResults,
       taskExtensionRequests,
       attachments,
+      signatureEvidences,
     ] = await Promise.all([
       db.user.findMany(),
       db.role.findMany(),
@@ -154,6 +155,7 @@ export class BackupService {
       db.taskResult.findMany(),
       db.taskExtensionRequest.findMany(),
       db.attachment.findMany(),
+      db.signatureEvidence.findMany(),
     ]);
 
     return {
@@ -193,6 +195,7 @@ export class BackupService {
         taskResults,
         taskExtensionRequests,
         attachments,
+        signatureEvidences,
       },
     };
   }

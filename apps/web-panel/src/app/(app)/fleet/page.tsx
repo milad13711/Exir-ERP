@@ -16,20 +16,9 @@ import { DriversModal } from "@/components/fleet/DriversModal";
 import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-const STATUS_LABELS: Record<ShipmentStatus, string> = {
-  DRAFT: "ثبت‌شده",
-  OFFERED: "در حال پیشنهاد",
-  ACCEPTED: "پذیرفته‌شده",
-  DELIVERED: "تحویل‌شده",
-  CANCELLED: "لغوشده",
-};
-const STATUS_TONES: Record<ShipmentStatus, "primary" | "success" | "warning" | "neutral" | "danger"> = {
-  DRAFT: "neutral",
-  OFFERED: "warning",
-  ACCEPTED: "primary",
-  DELIVERED: "success",
-  CANCELLED: "danger",
-};
+import { DISPATCH_STATUS_LABELS, DISPATCH_STATUS_TONES } from "@/lib/dispatch-api";
+const STATUS_LABELS = DISPATCH_STATUS_LABELS;
+const STATUS_TONES = DISPATCH_STATUS_TONES;
 
 type StatusFilter = "همه" | ShipmentStatus;
 

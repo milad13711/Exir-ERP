@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDataURI, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
 import { ProposalInvoiceLineDto } from './proposal-fields.dto.js';
 
 export const PROPOSAL_STATUSES = ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED', 'REVISION_REQUESTED', 'EXPIRED'] as const;
@@ -72,6 +73,8 @@ export class PublicAcceptProposalDto {
   @IsString() @MinLength(2) @MaxLength(100) name!: string;
   @IsString() @MaxLength(MAX_SIGNATURE_CHARS) @IsDataURI() signatureDataUrl!: string;
   @IsBoolean() confirmed!: boolean;
+  /** شواهد حقوقی امضا از مرورگر؛ اختیاری. */
+  @IsOptional() @ValidateNested() @Type(() => ClientSignatureEvidenceDto) evidence?: ClientSignatureEvidenceDto;
 }
 
 export class PublicRejectProposalDto {

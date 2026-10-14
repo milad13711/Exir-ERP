@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
 
 export class RequestLabOtpDto {
   @IsString()
@@ -34,6 +35,12 @@ export class ConfirmReceiptDto {
   @IsArray()
   @IsString({ each: true })
   sampleIds!: string[];
+
+  /** شواهد حقوقی تأیید دریافت از مرورگر؛ اختیاری. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientSignatureEvidenceDto)
+  evidence?: ClientSignatureEvidenceDto;
 }
 
 export class FinalizeReportDto {

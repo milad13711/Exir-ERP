@@ -48,10 +48,13 @@ export function AttachmentsSection({
   entityId,
   readOnly = false,
   onToggleCustomerVisibility,
+  capture = false,
 }: {
   entityType: string;
   entityId: string;
   readOnly?: boolean;
+  /** دکمه‌ی «عکس / اسکن» با دوربین گوشی (برای اسناد حمل، قبض باسکول و ...) */
+  capture?: boolean;
   /** اگر داده شود، کنار هر پیوست کلید «نمایش به مشتری» نشان داده می‌شود (فقط پیوست‌های مرحله‌ی پروژه) */
   onToggleCustomerVisibility?: (attachmentId: string, visible: boolean) => Promise<unknown>;
 }) {
@@ -75,6 +78,7 @@ export function AttachmentsSection({
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   function reload() {
     fetchAttachments(entityType, entityId).then(setAttachments).catch(() => setAttachments([]));
@@ -187,6 +191,17 @@ export function AttachmentsSection({
         {readOnly ? null : (
         <div className="flex items-center gap-3">
           <input ref={fileInputRef} type="file" onChange={handlePickFile} className="hidden" />
+          {capture ? <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePickFile} className="hidden" /> : null}
+          {capture ? (
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1 text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50"
+            >
+              عکس / اسکن
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

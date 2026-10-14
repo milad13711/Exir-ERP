@@ -10,10 +10,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -45,6 +48,7 @@ export class RationSamplesController {
     private readonly permissions: PermissionsService,
     private readonly controlDb: ControlPrismaService,
     private readonly pdf: RationReportPdfService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   @Get()
@@ -66,7 +70,7 @@ export class RationSamplesController {
   }
 
   @Post()
-  async create(@Body() dto: CreateSampleDto, @Ctx() ctx: TenantRequestContext) {
+  async create(@Body() dto: CreateSampleDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
     await this.permissions.assertCreate(ctx, 'ration-lab');
 
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: dto.contactId } });
@@ -119,6 +123,20 @@ export class RationSamplesController {
           : undefined,
       },
       include: SAMPLE_INCLUDE,
+    });
+
+    await this.evidence.tryRecord(ctx, {
+      entityType: 'ration_sample',
+      entityId: sample.id,
+      action: 'consent_sign',
+      signerName: contact.name,
+      signerPhone: contact.phone ?? undefined,
+      signerUserId: userId ?? undefined,
+      signerRole: 'herd_owner_consent',
+      contentHash: hashContent({ sampleNo: sample.sampleNo, contactId: dto.contactId, collectedAt: dto.collectedAt, herdSize: dto.herdSize, analysisFeeAmount, discountPercent, finalFeeAmount }),
+      signatureData: dto.consentSignatureDataUrl,
+      req,
+      clientEvidence: dto.evidence,
     });
 
     return sample;

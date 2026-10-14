@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { createCrmContact, fetchCrmContacts, type CrmContact } from "@/lib/api";
+import { ShippingProfileFields, type ShippingProfileValue } from "./ShippingProfileFields";
 
 const SOURCE_OPTIONS = ["اینستاگرام", "معرفی", "وب‌سایت", "تلفنی", "حضوری", "سایر"];
 
@@ -30,6 +31,7 @@ export function NewContactModal({
   const [referrerOptions, setReferrerOptions] = useState<CrmContact[]>([]);
   const [referrer, setReferrer] = useState<CrmContact | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [shipping, setShipping] = useState<ShippingProfileValue>({ uniqueId: "", nationalId: "", postalCode: "", postalAddress: "" });
 
   async function searchReferrer(q: string) {
     setReferrerQuery(q);
@@ -57,6 +59,10 @@ export function NewContactModal({
         birthDate: birthDate || undefined,
         acquisitionCost: acquisitionCost.trim() ? Number(acquisitionCost) : undefined,
         referredById: referrer?.id,
+        uniqueId: shipping.uniqueId.trim() || undefined,
+        postalCode: shipping.postalCode.trim() || undefined,
+        postalAddress: shipping.postalAddress.trim() || undefined,
+        ...(shipping.nationalId.trim() ? (type === "COMPANY" ? { legalId: shipping.nationalId.trim() } : { nationalId: shipping.nationalId.trim() }) : {}),
       });
       onCreated(contact);
       onClose();
@@ -144,6 +150,7 @@ export function NewContactModal({
                 ))}
               </div>
             </div>
+            <ShippingProfileFields value={shipping} onChange={setShipping} company={type === "COMPANY"} />
             <div>
               <label className={labelClass}>تاریخ تولد (اختیاری)</label>
               <JalaliDateInput value={birthDate} onChange={setBirthDate} placeholder="انتخاب تاریخ تولد" />

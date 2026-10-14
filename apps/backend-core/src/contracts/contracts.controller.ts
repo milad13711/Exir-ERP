@@ -1,5 +1,7 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -29,6 +31,7 @@ export class ContractsController {
     private readonly permissions: PermissionsService,
     private readonly pdf: ContractPdfService,
     private readonly controlDb: ControlPrismaService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   /** «مشاهده‌ی همه» = همه‌ی قراردادها؛ «فقط خودم» = قراردادهایی که خودش ساخته، امضای شرکتشان به او ارجاع شده یا قرارداد داخلی خودش است. */
@@ -163,11 +166,41 @@ export class ContractsController {
     return this.contracts.update(ctx, id, dto);
   }
 
+  /** مدرک حقوقی امضای داخلی (IP/دستگاه/موقعیت/هش‌ها) — شکست ثبت مدرک، امضای انجام‌شده را خراب نمی‌کند. */
+  private async recordSignEvidence(
+    ctx: TenantRequestContext,
+    req: Request,
+    p: { entityType: 'contract' | 'contract_amendment'; entityId: string; action: string; dto: SignContractDto },
+  ) {
+    let snapshot: unknown = null;
+    if (p.entityType === 'contract') {
+      const c = await ctx.tenantDb.contract.findUnique({ where: { id: p.entityId } });
+      snapshot = c && { title: c.title, value: c.value, startDate: c.startDate, endDate: c.endDate, terms: c.terms ?? '' };
+    } else {
+      const a = await ctx.tenantDb.contractAmendment.findUnique({ where: { id: p.entityId } });
+      snapshot = a && { contractId: a.contractId, text: a.text };
+    }
+    await this.evidence.tryRecord(ctx, {
+      entityType: p.entityType,
+      entityId: p.entityId,
+      action: p.action,
+      signerName: p.dto.signerName,
+      signerUserId: (await resolveTenantUserId(ctx)) ?? undefined,
+      signerRole: ctx.auth.role,
+      contentHash: hashContent(snapshot),
+      signatureData: p.dto.signatureDataUrl,
+      req,
+      clientEvidence: p.dto.evidence,
+    });
+  }
+
   @Post(':id/sign')
-  async sign(@Param('id') id: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext) {
+  async sign(@Param('id') id: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
     await this.permissions.assertEdit(ctx, 'contracts');
     await this.assertContractInScope(ctx, id);
-    return this.contracts.signAsCompany(ctx, id, dto);
+    const result = await this.contracts.signAsCompany(ctx, id, dto);
+    await this.recordSignEvidence(ctx, req, { entityType: 'contract', entityId: id, action: 'company_sign', dto });
+    return result;
   }
 
   @Post(':id/terminate')
@@ -211,10 +244,12 @@ export class ContractsController {
   }
 
   @Post('amendments/:amendmentId/sign')
-  async signAmendment(@Param('amendmentId') amendmentId: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext) {
+  async signAmendment(@Param('amendmentId') amendmentId: string, @Body() dto: SignContractDto, @Ctx() ctx: TenantRequestContext, @Req() req: Request) {
     await this.permissions.assertEdit(ctx, 'contracts');
     await this.assertChildInScope(ctx, ctx.tenantDb.contractAmendment, amendmentId);
-    return this.contracts.signAmendmentAsCompany(ctx, amendmentId, dto);
+    const result = await this.contracts.signAmendmentAsCompany(ctx, amendmentId, dto);
+    await this.recordSignEvidence(ctx, req, { entityType: 'contract_amendment', entityId: amendmentId, action: 'company_sign', dto });
+    return result;
   }
 
   @Get(':id/witnesses')

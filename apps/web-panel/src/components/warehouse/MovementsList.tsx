@@ -6,6 +6,7 @@ import { formatJalaliDateTime, formatNumber } from "@/lib/persian";
 import { fetchStockMovements, type StockMovementRecord } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
+import { SourceDispatch } from "@/components/dispatch/SourceDispatch";
 
 const TYPE_LABELS: Record<string, string> = {
   RECEIPT: "رسید ورودی",
@@ -87,7 +88,9 @@ export function MovementsList() {
               <div className="text-[11.5px] text-muted w-[150px] text-left shrink-0 hidden sm:block">
                 {formatJalaliDateTime(m.createdAt)}
               </div>
-              {m.type === "ISSUE" && installedModules.has("fleet") ? (
+              {m.type === "ISSUE" && installedModules.has("dispatch") ? (
+                <SourceDispatch sourceType="STOCK_MOVEMENT" sourceId={m.id} compact label="اعلام بار" />
+              ) : m.type === "ISSUE" && installedModules.has("fleet") ? (
                 <button
                   onClick={() => setShipmentPrefillFor(m)}
                   className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer shrink-0"

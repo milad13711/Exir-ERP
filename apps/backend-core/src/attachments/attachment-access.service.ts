@@ -7,6 +7,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { assertTaskAttachmentAccess, TASK_ATTACHMENT_ENTITIES } from '../tasks/task-attachment-access.js';
+import { assertShipmentAttachmentAccess, DISPATCH_ATTACHMENT_ENTITIES } from '../dispatch/dispatch-attachment-access.js';
 
 export type AttachmentMode = 'read' | 'write' | 'delete';
 
@@ -21,7 +22,6 @@ const OWNED: Record<string, { module: string; ownerField: string; model: 'salesQ
 
 /** Entities in modules whose list is view-all only (no per-record owner scope). */
 const VIEW_ALL_ONLY: Record<string, string> = {
-  Shipment: 'fleet',
   Report: 'reports',
   production_order: 'production',
 };
@@ -62,6 +62,12 @@ export class AttachmentAccessService {
 
     if (TASK_ATTACHMENT_ENTITIES.has(entityType)) {
       await assertTaskAttachmentAccess(this.permissions, ctx, entityType, entityId, mode);
+      return;
+    }
+
+    // بار (Shipment) و پیوست‌های مراحل اعلام بار: با ماژول dispatch دامنه‌ی «فقط خودم»/مسئول وظیفه؛ بدون آن، همان قاعده‌ی قبلیِ ناوگان (مشاهده‌ی همه)
+    if (DISPATCH_ATTACHMENT_ENTITIES.has(entityType)) {
+      await assertShipmentAttachmentAccess(this.permissions, ctx, entityType, entityId, mode);
       return;
     }
 

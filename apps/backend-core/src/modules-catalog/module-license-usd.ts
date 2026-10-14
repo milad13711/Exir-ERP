@@ -45,6 +45,7 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "warranty": 255,
   "after-sales-service": 270,
   "fleet": 520,
+  "dispatch": 280,
   "online-store": 450,
   "marketing": 415,
   "tax": 450,

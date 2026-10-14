@@ -1,4 +1,6 @@
-import { IsDataURI, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDataURI, IsIn, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ClientSignatureEvidenceDto } from '../../common/signature-evidence/signature-evidence.dto.js';
 
 const METHODS = ['CODE', 'SIGNATURE'] as const;
 
@@ -18,4 +20,10 @@ export class ConfirmDeliveryDto {
   @IsString()
   @MinLength(1)
   confirmerName!: string;
+
+  /** شواهد حقوقی امضا از مرورگر؛ اختیاری. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientSignatureEvidenceDto)
+  evidence?: ClientSignatureEvidenceDto;
 }

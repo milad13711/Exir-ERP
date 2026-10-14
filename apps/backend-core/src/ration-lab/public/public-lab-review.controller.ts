@@ -1,4 +1,5 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { PublicLabReviewService } from './public-lab-review.service.js';
 import {
   RequestLabOtpDto,
@@ -31,8 +32,8 @@ export class PublicLabReviewController {
   }
 
   @Post('samples/confirm-receipt')
-  confirmReceipt(@Param('slug') slug: string, @Body() dto: ConfirmReceiptDto) {
-    return this.labReview.confirmReceipt(slug, dto.labToken, dto.sampleIds);
+  confirmReceipt(@Param('slug') slug: string, @Body() dto: ConfirmReceiptDto, @Req() req: Request) {
+    return this.labReview.confirmReceipt(slug, dto.labToken, dto.sampleIds, req, dto.evidence);
   }
 
   @Post('samples/search')

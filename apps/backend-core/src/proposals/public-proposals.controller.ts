@@ -55,7 +55,7 @@ export class PublicProposalsController {
 
   @Post(':token/accept')
   async accept(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: PublicAcceptProposalDto, @Req() req: Request) {
-    return this.publicProposals.accept(await this.resolveTenant(slug), token, dto, this.meta(req));
+    return this.publicProposals.accept(await this.resolveTenant(slug), token, dto, this.meta(req), req);
   }
 
   @Post(':token/reject')

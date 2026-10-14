@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { PublicRecruitmentService } from './public-recruitment.service.js';
 import { AcceptOfferDto } from './dto/accept-offer.dto.js';
 
@@ -13,7 +14,7 @@ export class PublicRecruitmentController {
   }
 
   @Post('respond')
-  respond(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: AcceptOfferDto) {
-    return this.recruitment.respondToOffer(slug, token, dto);
+  respond(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: AcceptOfferDto, @Req() req: Request) {
+    return this.recruitment.respondToOffer(slug, token, dto, req);
   }
 }

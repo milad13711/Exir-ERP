@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsISO8601, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsISO8601, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateContactDto {
   @IsOptional()
@@ -45,6 +45,22 @@ export class UpdateContactDto {
   @IsOptional()
   @IsISO8601()
   birthDate?: string;
+
+  // پروفایل ارسال بار (برای بارنامه) — اختیاری
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  uniqueId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(600)
+  postalAddress?: string;
 
   @IsOptional()
   @IsArray()

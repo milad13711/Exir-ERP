@@ -49,6 +49,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     contracts: FULL_ACCESS,
     projects: FULL_ACCESS,
     fleet: FULL_ACCESS,
+    dispatch: FULL_ACCESS,
   },
   'کارشناس فروش': {
     crm: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
@@ -66,6 +67,8 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
   },
   انباردار: {
     warehouse: OWN_CONTRIBUTOR,
+    // باسکول/بارگیری — ثبت مراحل اعلام بار (دامنه‌ی «همه» تا بارهای ثبت‌شده توسط دیگران را هم ببیند)
+    dispatch: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
     purchasing: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
     tasks: OWN_CONTRIBUTOR,
   },

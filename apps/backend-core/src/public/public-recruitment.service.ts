@@ -1,3 +1,6 @@
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -16,6 +19,7 @@ export class PublicRecruitmentService {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly recruitment: RecruitmentService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   private async resolveTenantCtx(slug: string): Promise<TenantRequestContext> {
@@ -93,7 +97,7 @@ export class PublicRecruitmentService {
     };
   }
 
-  async respondToOffer(slug: string, token: string, dto: AcceptOfferDto) {
+  async respondToOffer(slug: string, token: string, dto: AcceptOfferDto, req?: Request) {
     const ctx = await this.resolveTenantCtx(slug);
     const offer = await ctx.tenantDb.jobOffer.findUnique({ where: { publicToken: token } });
     if (!offer) throw new NotFoundException('این لینک یافت نشد');
@@ -116,6 +120,21 @@ export class PublicRecruitmentService {
         idCardImage: dto.idCardImage,
       },
     });
+    if (req) {
+      const applicant = await ctx.tenantDb.jobApplicant.findUnique({ where: { id: offer.applicantId }, select: { name: true, phone: true } });
+      await this.evidence.tryRecord(ctx, {
+        entityType: 'recruitment_offer',
+        entityId: offer.id,
+        action: 'public_accept',
+        signerName: applicant?.name,
+        signerPhone: applicant?.phone,
+        signerRole: 'applicant',
+        contentHash: hashContent({ applicantId: offer.applicantId, jobDescription: offer.jobDescription, collaborationType: offer.collaborationType, workingHours: offer.workingHours, salary: offer.salary, benefits: offer.benefits, durationMonths: offer.durationMonths, startDate: offer.startDate }),
+        signatureData: dto.signature,
+        req,
+        clientEvidence: dto.evidence,
+      });
+    }
     await this.recruitment.onOfferAccepted(ctx, offer.applicantId);
     return { success: true, accepted: true };
   }

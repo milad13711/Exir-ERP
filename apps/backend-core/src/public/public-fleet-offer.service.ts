@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { Request } from 'express';
+import { SignatureEvidenceService, type ClientSignatureEvidence } from '../common/signature-evidence/index.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ShipmentsService } from '../fleet/shipments.service.js';
@@ -17,6 +19,7 @@ export class PublicFleetOfferService {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly shipments: ShipmentsService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   private async resolveCtx(slug: string): Promise<TenantRequestContext> {
@@ -37,8 +40,25 @@ export class PublicFleetOfferService {
     return this.shipments.viewOfferByToken(ctx, token);
   }
 
-  async accept(slug: string, token: string) {
+  async accept(slug: string, token: string, req?: Request, clientEvidence?: ClientSignatureEvidence) {
     const ctx = await this.resolveCtx(slug);
-    return this.shipments.acceptOfferByToken(ctx, token);
+    const result = await this.shipments.acceptOfferByToken(ctx, token);
+    // مدرک حقوقی «پذیرش پیشنهاد بار» (فقط پذیرش تازه؛ نه نمایش مجدد) — بدون‌پرتاب تا پذیرش را خراب نکند
+    if (result.status === 'accepted' && req) {
+      const offer = await ctx.tenantDb.shipmentOffer.findUnique({ where: { publicToken: token }, select: { id: true, shipmentId: true, driver: { select: { name: true, phone: true } } } });
+      if (offer) {
+        await this.evidence.tryRecord(ctx, {
+          entityType: 'shipment_offer',
+          entityId: offer.id,
+          action: 'driver_offer_accepted',
+          signerName: offer.driver.name,
+          signerPhone: offer.driver.phone,
+          signerRole: 'DRIVER',
+          req,
+          clientEvidence,
+        });
+      }
+    }
+    return result;
   }
 }

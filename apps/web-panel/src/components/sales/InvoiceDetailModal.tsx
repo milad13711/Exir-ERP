@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
+import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { SignaturePad } from "@/components/ui/SignaturePad";
@@ -31,6 +33,7 @@ import { NewInvoiceModal } from "./NewInvoiceModal";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { cancelSalesInvoice, deleteSalesInvoice } from "@/lib/api";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
+import { SourceDispatch } from "@/components/dispatch/SourceDispatch";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -537,6 +540,7 @@ export function InvoiceDetailModal({
                 </div>
               ) : deliveryMethod === "CODE" ? (
                 <form onSubmit={handleConfirmDeliveryByCode} className="flex flex-col gap-2">
+                  <SignatureConsentNotice />
                   <input
                     value={confirmerName}
                     onChange={(e) => setConfirmerName(e.target.value)}
@@ -758,7 +762,9 @@ export function InvoiceDetailModal({
               </div>
             )}
 
-            {installedModules.has("fleet") ? (
+            {installedModules.has("dispatch") && invoice.status !== "CANCELLED" ? (
+              <SourceDispatch sourceType="SALES_INVOICE" sourceId={invoice.id} label={invoice.status === "DRAFT" ? "اعلام بار (قبل از نهایی‌شدن فاکتور)" : "اعلام بار برای این فاکتور"} />
+            ) : installedModules.has("fleet") ? (
               <button
                 onClick={() => setShipmentModalOpen(true)}
                 className="w-full py-2.5 rounded-xl border border-border text-ink-soft text-[13px] font-bold cursor-pointer"
@@ -783,6 +789,8 @@ export function InvoiceDetailModal({
             )}
 
             <AttachmentsSection entityType="SalesInvoice" entityId={invoice.id} />
+            <SignatureEvidencePanel entityType="invoice" entityId={invoice.id} />
+            <SignatureEvidencePanel entityType="invoice_delivery" entityId={invoice.id} />
 
             <TasksSection relatedModule="sales" relatedEntityId={invoice.id} />
           </div>

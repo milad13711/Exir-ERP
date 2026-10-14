@@ -48,6 +48,7 @@ import { BookingModule } from './booking/booking.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
+import { DispatchModule } from './dispatch/dispatch.module.js';
 import { OnlineStoreModule } from './online-store/online-store.module.js';
 import { MarketingModule } from './marketing/marketing.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
@@ -73,6 +74,7 @@ import { ReferralMarketingModule } from './referral-marketing/referral-marketing
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { BackupDrModule } from './backup-dr/backup-dr.module.js';
 import { MonitoringModule } from './monitoring/monitoring.module.js';
+import { SignatureEvidenceModule } from './common/signature-evidence/signature-evidence.module.js';
 
 @Module({
   imports: [
@@ -87,6 +89,7 @@ import { MonitoringModule } from './monitoring/monitoring.module.js';
     }),
     PrismaModule,
     SecurityModule,
+    SignatureEvidenceModule,
     AuthModule,
     TenantsModule,
     PublicModule,
@@ -94,6 +97,7 @@ import { MonitoringModule } from './monitoring/monitoring.module.js';
     ContractsModule,
     ProjectsModule,
     FleetModule,
+    DispatchModule,
     OnlineStoreModule,
     MarketingModule,
     OnboardingModule,

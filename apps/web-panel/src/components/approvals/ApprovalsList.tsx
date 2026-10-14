@@ -1,5 +1,6 @@
 "use client";
 
+import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
@@ -146,6 +147,7 @@ export function ApprovalsList({
             {detail.request.status === "PENDING" ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={() => { decide(detail.request, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-success text-white cursor-pointer">تأیید</button>
+                {detail.request.isOfficial && <SignatureConsentNotice className="w-full" />}
                 {detail.request.isOfficial && (
                   <button onClick={() => { decide(detail.request, true, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white cursor-pointer">تأیید و اجازه‌ی درج مهر و امضا</button>
                 )}

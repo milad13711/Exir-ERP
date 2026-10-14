@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
+import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
@@ -334,6 +336,7 @@ export function ContractDetailModal({
         {signing ? (
           <div className="bg-primary-soft rounded-xl p-3.5">
             <div className="text-[12px] font-semibold text-primary mb-2">امضای طرف شرکت</div>
+            {savedSignature?.signatureImage && <SignatureConsentNotice className="mb-2" />}
             {savedSignature?.signatureImage && (
               <button
                 type="button"
@@ -517,6 +520,13 @@ export function ContractDetailModal({
 
         <TasksSection relatedModule="contract" relatedEntityId={contract.id} />
         <AttachmentsSection entityType="Contract" entityId={contract.id} />
+        <SignatureEvidencePanel entityType="contract" entityId={contract.id} />
+        {amendments.map((a) => (
+          <SignatureEvidencePanel key={`ev-a-${a.id}`} entityType="contract_amendment" entityId={a.id} />
+        ))}
+        {witnesses.map((w) => (
+          <SignatureEvidencePanel key={`ev-w-${w.id}`} entityType="contract_witness" entityId={w.id} />
+        ))}
       </div>
     </Modal>
   );

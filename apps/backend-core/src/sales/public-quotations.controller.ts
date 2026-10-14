@@ -1,4 +1,7 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
+import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -23,6 +26,7 @@ export class PublicQuotationsController {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
     private readonly automation: AutomationEngineService,
+    private readonly evidence: SignatureEvidenceService,
   ) {}
 
   private async resolveTenantDb(slug: string) {
@@ -78,7 +82,7 @@ export class PublicQuotationsController {
   }
 
   @Post(':token/accept')
-  async accept(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: AcceptPublicQuotationDto) {
+  async accept(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: AcceptPublicQuotationDto, @Req() req: Request) {
     const { tenant, tenantDb } = await this.resolveTenantDb(slug);
     const quotation = await tenantDb.salesQuotation.findFirst({ where: { publicToken: token } });
     if (!quotation) throw new NotFoundException('پیش‌فاکتور یافت نشد');
@@ -95,6 +99,19 @@ export class PublicQuotationsController {
         acceptedByName: dto.name.trim(),
         acceptedSignatureDataUrl: dto.signatureDataUrl,
       },
+    });
+
+    const lines = await tenantDb.salesQuotationLine.findMany({ where: { quotationId: quotation.id } }).catch(() => []);
+    await this.evidence.tryRecord(tenantDb, {
+      entityType: 'quotation',
+      entityId: quotation.id,
+      action: 'public_accept',
+      signerName: dto.name.trim(),
+      signerRole: 'customer',
+      contentHash: hashContent({ quotationNo: quotation.quotationNo, contactId: quotation.contactId, issuedAt: quotation.issuedAt, subtotal: quotation.subtotal, discount: quotation.discount, total: quotation.total, notes: quotation.notes, lines }),
+      signatureData: dto.signatureDataUrl,
+      req,
+      clientEvidence: dto.evidence,
     });
 
     if (quotation.createdByUserId) {
