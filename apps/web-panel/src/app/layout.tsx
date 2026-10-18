@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: "اکسیر ERP",
   description: "سامانه مدیریت یکپارچه کسب‌وکار اکسیر",
   manifest: "/manifest.webmanifest",
+  // تأیید مالکیت وب‌سایت برای مجوز ساماندهی / بازار اپلیکیشن ایرانی
+  other: { "platform-verification": "wumtwucakk" },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
