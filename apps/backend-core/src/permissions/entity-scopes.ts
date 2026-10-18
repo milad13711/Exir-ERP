@@ -15,6 +15,7 @@ export async function contractScope(permissions: PermissionsService, ctx: Tenant
   if (matrix.canViewAll) return {};
   if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
   const userId = await resolveTenantUserId(ctx);
+  if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
   return { OR: [{ createdByUserId: userId }, { referredSignerUserId: userId }, { employee: { userId } }] };
 }
 
@@ -24,6 +25,7 @@ export async function projectScope(permissions: PermissionsService, ctx: TenantR
   if (matrix.canViewAll) return {};
   if (!matrix.canViewOwn) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
   const userId = await resolveTenantUserId(ctx);
+  if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
   return {
     OR: [
       { managerUserId: userId },

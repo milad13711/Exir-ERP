@@ -10,6 +10,7 @@ import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
 import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals, type MyTenant, type ModuleRenewalNotice } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { NotificationBell } from "./NotificationBell";
+import { ReminderAlarm } from "./ReminderAlarm";
 import { PhoneWidget } from "@/components/voip/PhoneWidget";
 import { SmsCreditChip } from "@/components/sms/SmsCreditChip";
 
@@ -168,6 +169,7 @@ export function Header({
         <SmsCreditChip />
         <PhoneWidget />
         <NotificationBell />
+        <ReminderAlarm />
 
         <div className="relative">
           <button

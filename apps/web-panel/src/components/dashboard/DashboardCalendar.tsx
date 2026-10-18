@@ -8,12 +8,20 @@ import {
   fetchDashboardCalendar,
   createDashboardReminder,
   deleteDashboardReminder,
+  updateDashboardReminder,
+  markReminderDone,
+  reopenReminder,
+  snoozeReminder,
+  type DashboardReminder,
+  type ReminderChannelName,
+  type ReminderRepeat,
   type DashboardCalendarDay,
   type DashboardCalendarEvent,
   type DashboardCalendarEventType,
 } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
+import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   CakeIcon,
   TasksIcon,
@@ -53,6 +61,7 @@ export function DashboardCalendar() {
   const [data, setData] = useState<{ monthLength: number; days: DashboardCalendarDay[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editing, setEditing] = useState<DashboardReminder | null>(null);
 
   function load(year: number, month: number) {
     setLoading(true);
@@ -114,6 +123,14 @@ export function DashboardCalendar() {
   function refreshAndSelect(day: number) {
     load(viewYear, viewMonth);
     setSelectedDay(day);
+  }
+
+  async function runReminderAction(fn: () => Promise<unknown>) {
+    try {
+      await fn();
+    } finally {
+      load(viewYear, viewMonth);
+    }
   }
 
   async function handleDeleteReminder(id: string) {
@@ -239,21 +256,33 @@ export function DashboardCalendar() {
           ) : (
             <div className="flex flex-col gap-1.5">
               {selected.events.map((e) => (
-                <CalendarEventRow key={`${e.type}-${e.id}`} event={e} onDelete={e.type === "reminder" ? () => handleDeleteReminder(e.id) : undefined} />
+                <CalendarEventRow
+                  key={`${e.type}-${e.id}`}
+                  event={e}
+                  onDelete={e.type === "reminder" ? () => handleDeleteReminder(e.id) : undefined}
+                  onEdit={e.reminder ? () => setEditing(e.reminder!) : undefined}
+                  onDone={e.reminder ? () => runReminderAction(() => (e.reminder!.status === "DONE" ? reopenReminder(e.id) : markReminderDone(e.id))) : undefined}
+                  onSnooze={e.reminder && e.reminder.status === "PENDING" ? () => runReminderAction(() => snoozeReminder(e.id, 10)) : undefined}
+                />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {showAddModal ? (
-        <AddReminderModal
+      {showAddModal || editing ? (
+        <ReminderModal
           jalaliYear={viewYear}
           jalaliMonth={viewMonth}
           day={selectedDay}
-          onClose={() => setShowAddModal(false)}
+          existing={editing}
+          onClose={() => {
+            setShowAddModal(false);
+            setEditing(null);
+          }}
           onSaved={() => {
             setShowAddModal(false);
+            setEditing(null);
             refreshAndSelect(selectedDay);
           }}
         />
@@ -262,26 +291,61 @@ export function DashboardCalendar() {
   );
 }
 
-function CalendarEventRow({ event, onDelete }: { event: DashboardCalendarEvent; onDelete?: () => void }) {
+function CalendarEventRow({
+  event,
+  onDelete,
+  onEdit,
+  onDone,
+  onSnooze,
+}: {
+  event: DashboardCalendarEvent;
+  onDelete?: () => void;
+  onEdit?: () => void;
+  onDone?: () => void;
+  onSnooze?: () => void;
+}) {
   const meta = EVENT_META[event.type];
   const Icon = meta.icon;
+  const r = event.reminder;
+  const done = r?.status === "DONE";
+  const small = "text-[10.5px] font-bold px-2 py-1 rounded-lg border border-border cursor-pointer shrink-0";
+  const stop = (fn?: () => void) => (ev: React.MouseEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    fn?.();
+  };
   const content = (
-    <div className="flex items-center gap-2.5 py-2 px-2.5 rounded-xl bg-slate-50">
+    <div className="flex items-center gap-2.5 py-2 px-2.5 rounded-xl bg-slate-50 flex-wrap">
       <div className="w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 bg-primary-soft text-primary">
         <Icon className="w-3.5 h-3.5" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[12.5px] font-bold truncate">{event.title}</div>
-        <div className="text-[10.5px] text-muted">{meta.label}</div>
+        <div className={clsx("text-[12.5px] font-bold truncate", done && "line-through text-muted")}>{event.title}</div>
+        <div className="text-[10.5px] text-muted">
+          {meta.label}
+          {r ? ` — ${r.time ? `ساعت ${toPersianDigits(r.time)}` : "تمام‌روز"}` : ""}
+          {r && r.repeatRule !== "NONE" ? " — تکرارشونده" : ""}
+        </div>
       </div>
+      {onDone ? (
+        <button type="button" onClick={stop(onDone)} className={small}>
+          {done ? "بازگشایی" : "انجام شد"}
+        </button>
+      ) : null}
+      {onSnooze ? (
+        <button type="button" onClick={stop(onSnooze)} className={small}>
+          ۱۰ دقیقه دیگر
+        </button>
+      ) : null}
+      {onEdit ? (
+        <button type="button" onClick={stop(onEdit)} className={small}>
+          ویرایش
+        </button>
+      ) : null}
       {onDelete ? (
         <button
           type="button"
-          onClick={(ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            onDelete();
-          }}
+          onClick={stop(onDelete)}
           className="w-6.5 h-6.5 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer shrink-0"
           aria-label="حذف یادآوری"
         >
@@ -300,62 +364,154 @@ function CalendarEventRow({ event, onDelete }: { event: DashboardCalendarEvent; 
   return content;
 }
 
-function AddReminderModal({
+const LEAD_OPTIONS: Array<{ min: number; label: string }> = [
+  { min: 0, label: "در لحظه‌ی موعد" },
+  { min: 10, label: "۱۰ دقیقه قبل" },
+  { min: 60, label: "۱ ساعت قبل" },
+  { min: 1440, label: "۱ روز قبل" },
+];
+const REPEAT_OPTIONS: Array<{ v: ReminderRepeat; label: string }> = [
+  { v: "NONE", label: "بدون تکرار" },
+  { v: "DAILY", label: "هر روز" },
+  { v: "WEEKLY", label: "هر هفته" },
+  { v: "MONTHLY", label: "هر ماه" },
+];
+
+function ReminderModal({
   jalaliYear,
   jalaliMonth,
   day,
+  existing,
   onClose,
   onSaved,
 }: {
   jalaliYear: number;
   jalaliMonth: number;
   day: number;
+  existing: DashboardReminder | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [note, setNote] = useState(existing?.note ?? "");
+  const [date, setDate] = useState(existing?.dateKey ?? toGregorianIso(jalaliYear, jalaliMonth, day));
+  const [allDay, setAllDay] = useState(existing?.allDay ?? false);
+  const [time, setTime] = useState(existing?.time ?? "09:00");
+  const [leads, setLeads] = useState<number[]>(existing?.leadMinutes ?? [0]);
+  const [repeat, setRepeat] = useState<ReminderRepeat>(existing?.repeatRule ?? "NONE");
+  const [channels, setChannels] = useState<ReminderChannelName[]>(existing?.channels ?? ["IN_APP", "PUSH"]);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  function toggle<T>(list: T[], v: T): T[] {
+    return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+  }
 
   async function handleSubmit() {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed || !date) return;
     setSubmitting(true);
+    setError("");
     try {
-      const g = toGregorianIso(jalaliYear, jalaliMonth, day);
-      await createDashboardReminder({ date: g, title: trimmed, note: note.trim() || undefined });
+      const payload = {
+        date,
+        time: allDay ? undefined : time,
+        allDay,
+        title: trimmed,
+        note: note.trim(),
+        channels: channels.includes("IN_APP") ? channels : [...channels, "IN_APP" as const],
+        leadMinutes: leads.length ? leads : [0],
+        repeatRule: repeat,
+      };
+      if (existing) await updateDashboardReminder(existing.id, payload);
+      else await createDashboardReminder({ ...payload, note: payload.note || undefined });
       onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ذخیره انجام نشد");
     } finally {
       setSubmitting(false);
     }
   }
 
+  const chip = (on: boolean) =>
+    clsx("px-3 py-1.5 rounded-lg text-[12px] font-bold border cursor-pointer", on ? "bg-primary text-white border-primary" : "border-border text-ink-soft");
+  const label = "text-[12px] font-bold text-ink-soft block mb-1.5";
+  const field = "w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary";
+
   return (
-    <Modal title={`یادآوری برای ${toPersianDigits(day)} ${JALALI_MONTHS[jalaliMonth - 1]}`} onClose={onClose}>
+    <Modal title={existing ? "ویرایش یادآوری" : "افزودن یادآوری"} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <div>
-          <label className="text-[12px] font-bold text-ink-soft block mb-1.5">عنوان</label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary"
-            placeholder="مثلاً: تماس با تأمین‌کننده"
-            autoFocus
-          />
+          <label className={label}>عنوان</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className={field} placeholder="مثلاً: تماس با تأمین‌کننده" autoFocus />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={label}>تاریخ</label>
+            <JalaliDateInput value={date} onChange={setDate} />
+          </div>
+          <div>
+            <label className={label}>ساعت</label>
+            <input
+              type="time"
+              dir="ltr"
+              value={time}
+              disabled={allDay}
+              onChange={(e) => setTime(e.target.value)}
+              className={clsx(field, allDay && "opacity-50")}
+            />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-[12.5px] font-bold cursor-pointer">
+          <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+          تمام‌روز (هشدار ساعت ۰۸:۰۰ صبح)
+        </label>
+        <div>
+          <label className={label}>هشدار</label>
+          <div className="flex flex-wrap gap-1.5">
+            {LEAD_OPTIONS.map((o) => (
+              <button key={o.min} type="button" className={chip(leads.includes(o.min))} onClick={() => setLeads(toggle(leads, o.min))}>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div>
-          <label className="text-[12px] font-bold text-ink-soft block mb-1.5">توضیح (اختیاری)</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary resize-none"
-          />
+          <label className={label}>تکرار</label>
+          <div className="flex flex-wrap gap-1.5">
+            {REPEAT_OPTIONS.map((o) => (
+              <button key={o.v} type="button" className={chip(repeat === o.v)} onClick={() => setRepeat(o.v)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <div>
+          <label className={label}>روش اطلاع‌رسانی</label>
+          <div className="flex flex-wrap gap-1.5">
+            <span className={chip(true)}>درون‌برنامه</span>
+            {(
+              [
+                ["PUSH", "اعلان پوش گوشی"],
+                ["SMS", "پیامک"],
+                ["EMAIL", "ایمیل"],
+              ] as Array<[ReminderChannelName, string]>
+            ).map(([v, l]) => (
+              <button key={v} type="button" className={chip(channels.includes(v))} onClick={() => setChannels(toggle(channels, v))}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className={label}>توضیح (اختیاری)</label>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className={clsx(field, "resize-none")} />
+        </div>
+        {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!title.trim() || submitting}
+          disabled={!title.trim() || !date || submitting}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold cursor-pointer disabled:opacity-50"
         >
           ذخیره

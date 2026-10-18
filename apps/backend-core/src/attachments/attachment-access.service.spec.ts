@@ -16,7 +16,8 @@ function make(opts: { role?: string; matrix?: Record<string, any>; scope?: Recor
       crmContact: { findFirst: vi.fn(async () => (opts.found === false ? null : { id: 'c1' })) },
       user: { findUnique: vi.fn(async () => ({ id: 'me' })) },
       dailyChecklistDayClose: { findFirst: vi.fn(async () => ((opts as any).dayCloseOwner ? { userId: (opts as any).dayCloseOwner } : null)) },
-      employee: { findUnique: vi.fn(async () => null), findFirst: vi.fn(async () => null) },
+      employee: { findUnique: vi.fn(async () => null), findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      report: { findFirst: vi.fn(async () => ((opts as any).reportInScope ? { id: 'rep-1' } : null)) },
       task: {
         findFirst: vi.fn(async () => ((opts as any).docsHandler ? { id: 't1' } : null)),
         findMany: vi.fn(async () => []),
@@ -109,7 +110,7 @@ describe('AttachmentAccessService', () => {
   it('daily-report attachments cannot be added/removed by the plain owner (write needs the reports matrix)', async () => {
     const own = make({ matrix: { reports: { canViewOwn: true } }, dayCloseOwner: 'me' } as any);
     await expect(own.svc.assertAccess(own.ctx, 'Report', 'rep-1', 'write')).rejects.toBeInstanceOf(ForbiddenException);
-    const admin = make({ matrix: { reports: { canViewAll: true, canEdit: true } } });
+    const admin = make({ matrix: { reports: { canViewAll: true, canEdit: true } }, reportInScope: true } as any);
     await expect(admin.svc.assertAccess(admin.ctx, 'Report', 'rep-1', 'write')).resolves.toBeUndefined();
   });
 });

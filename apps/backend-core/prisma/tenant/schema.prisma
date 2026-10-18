@@ -4288,10 +4288,27 @@ model DashboardReminder {
   note            String?
   createdByUserId String?
   createdAt       DateTime @default(now())
+  // ── آلارم یادآوری (افزودنی): remindAt لحظه‌ی مطلق (UTC) معادل ساعت وقت تهران است ──
+  remindAt        DateTime? // زمان اصلی یادآوری؛ برای «تمام‌روز» ساعت ۰۸:۰۰ تهران
+  allDay          Boolean  @default(false)
+  channels        String[] @default(["IN_APP", "PUSH"]) // IN_APP | PUSH | SMS | EMAIL
+  leadMinutes     Int[]    @default([0]) // پیش‌هشدارها: چند دقیقه قبل از موعد (۰ = خودِ موعد)
+  alertsSentMin   Int[]    @default([]) // پیش‌هشدارهای ارسال‌شده‌ی همین رخداد (تضمین یک‌بارمصرف)
+  repeatRule      String   @default("NONE") // NONE | DAILY | WEEKLY | MONTHLY
+  seriesId        String? // شناسه‌ی رخداد اول زنجیره‌ی تکرار
+  nextSpawned     Boolean  @default(false) // رخداد بعدیِ تکرار ساخته شده است
+  status          String   @default("PENDING") // PENDING | DONE
+  snoozedUntil    DateTime?
+  firedAt         DateTime? // اولین لحظه‌ی صدور آلارم اصلی
+  lastFiredAt     DateTime?
+  smsSentAt       DateTime?
+  doneAt          DateTime?
 
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([date])
+  @@index([status, remindAt])
+  @@index([createdByUserId, remindAt])
   @@map("dashboard_reminders")
 }
 

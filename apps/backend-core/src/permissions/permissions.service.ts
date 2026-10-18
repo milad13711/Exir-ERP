@@ -152,6 +152,8 @@ export class PermissionsService {
     if (matrix.canViewAll) return {};
     if (matrix.canViewOwn) {
       const userId = await resolveTenantUserId(ctx);
+      // بدون شناسه‌ی کاربری تننت (کلید API غیرمدیر) «خودم» وجود ندارد؛ وگرنه `{owner: null}` با رکوردهای بی‌صاحب یکی می‌شد.
+      if (!userId) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
       return { [ownerField]: userId };
     }
     throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');

@@ -102,7 +102,9 @@ export function UserPermissionsModal({
     setOverrides((prev) => {
       const cur = prev?.[code];
       if (!cur) return prev;
-      return { ...prev, [code]: { ...cur, [key]: !cur[key] } };
+      const next = { ...cur, [key]: !cur[key] };
+      if (key === "canViewAll" && next.canViewAll) next.canViewOwn = true;
+      return { ...prev, [code]: next };
     });
   }
 
@@ -127,6 +129,11 @@ export function UserPermissionsModal({
         به‌صورت پیش‌فرض دسترسی این کاربر از نقش‌هایش ({user.roles.join("، ") || "بدون نقش"}) می‌آید. برای هر بخش که
         «دستی» را روشن کنید، دقیقاً همین تیک‌ها جای دسترسی نقش می‌نشیند — هم می‌توانید چیزی اضافه کنید، هم کم.
         مالک و مدیر تننت همیشه دسترسی کامل دارند و از این تنظیم مستثنا هستند.
+      </p>
+      <p className="text-[11.5px] text-muted mb-4 leading-relaxed rounded-lg bg-primary-soft/40 px-3 py-2">
+        «فقط خودم» = رکوردهایی که خودتان ساخته‌اید یا به شما ارجاع شده. «مشاهده همه» = همه‌ی رکوردهای آن بخش
+        (در «گزارش‌ها» و «منابع انسانی»: خودتان و زیردستان‌تان در زنجیره‌ی مدیریتی، نه بالادست‌ها). فقط ماژول‌هایی که
+        دامنه‌ی «فقط خودم» دارند با آن کار می‌کنند؛ برای بقیه، صفحه فقط با «مشاهده همه» باز می‌شود.
       </p>
       {loading ? (
         <div className="py-8 text-center text-muted text-sm">در حال بارگذاری...</div>

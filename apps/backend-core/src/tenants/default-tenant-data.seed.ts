@@ -52,9 +52,10 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     dispatch: FULL_ACCESS,
   },
   'کارشناس فروش': {
-    crm: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
+    // «فقط خودم»: کارشناس فروش مشتریان/فاکتورهای خودش را می‌بیند، نه کل شرکت (مالک هر زمان می‌تواند «مشاهده‌ی همه» بدهد).
+    crm: OWN_CONTRIBUTOR,
     tasks: OWN_CONTRIBUTOR,
-    sales: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
+    sales: OWN_CONTRIBUTOR,
     // View-only: needed to browse the product catalog when picking line items for an invoice.
     warehouse: { canViewAll: true, canViewOwn: true, canCreate: false, canEdit: false, canDelete: false },
   },

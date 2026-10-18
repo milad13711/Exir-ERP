@@ -65,7 +65,9 @@ export function RolePermissionsModal({
   function toggle(code: string, key: ActionKey) {
     setMatrix((prev) => {
       const cur = prev[code] ?? emptyEntry(code);
-      return { ...prev, [code]: { ...cur, [key]: !cur[key] } };
+      const next = { ...cur, [key]: !cur[key] };
+      if (key === "canViewAll" && next.canViewAll) next.canViewOwn = true; // مشاهده‌ی همه شاملِ مشاهده‌ی خود هم هست
+      return { ...prev, [code]: next };
     });
   }
 
@@ -104,9 +106,13 @@ export function RolePermissionsModal({
   return (
     <Modal title={`سطح دسترسی نقش «${role.name}»`} onClose={onClose} width="max-w-[720px]">
       <p className="text-[12px] text-muted mb-4">
-        مشخص کنید کاربران این نقش در هر بخش چه کاری می‌توانند انجام دهند. «مشاهده خودم» یعنی فقط رکوردهایی که
-        خودشان ثبت کرده‌اند را می‌بینند. فقط ماژول‌های نصب‌شده‌ی این محیط کاری نمایش داده می‌شوند — با نصب
+        مشخص کنید کاربران این نقش در هر بخش چه کاری می‌توانند انجام دهند. فقط ماژول‌های نصب‌شده‌ی این محیط کاری نمایش داده می‌شوند — با نصب
         هر ماژول جدید، همین‌جا ردیف آن ظاهر می‌شود.
+      </p>
+      <p className="text-[11.5px] text-muted mb-4 leading-relaxed rounded-lg bg-primary-soft/40 px-3 py-2">
+        «فقط خودم» = رکوردهایی که خودتان ساخته‌اید یا به شما ارجاع شده. «مشاهده همه» = همه‌ی رکوردهای آن بخش
+        (در «گزارش‌ها» و «منابع انسانی»: خودتان و زیردستان‌تان در زنجیره‌ی مدیریتی، نه بالادست‌ها). فقط ماژول‌هایی که
+        دامنه‌ی «فقط خودم» دارند با آن کار می‌کنند؛ برای بقیه، صفحه فقط با «مشاهده همه» باز می‌شود.
       </p>
       {catalog === null ? (
         <div className="py-8 text-center text-muted text-sm">در حال بارگذاری...</div>

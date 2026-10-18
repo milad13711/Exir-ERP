@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -42,13 +42,19 @@ export class ReportsService {
 
   // ── گزارش‌ها ───────────────────────────────────────────────────────────
 
+  /**
+   * `scope` = خروجی reportScope() (کنترلر همیشه می‌فرستد). فقط فراخوانی‌های داخلیِ سرور (مثل چک‌لیست روزانه)
+   * بدون scope کار می‌کنند.
+   */
   async list(
     ctx: TenantRequestContext,
     filters: { categoryId?: string; isArchived?: boolean; isKnowledge?: boolean; referredToMe?: boolean },
+    scope: Record<string, unknown> = {},
   ) {
     const userId = filters.referredToMe ? await resolveTenantUserId(ctx).catch(() => undefined) : undefined;
     return ctx.tenantDb.report.findMany({
       where: {
+        ...scope,
         categoryId: filters.categoryId,
         isArchived: filters.isArchived,
         isKnowledge: filters.isKnowledge,
@@ -59,14 +65,15 @@ export class ReportsService {
     });
   }
 
-  async detail(ctx: TenantRequestContext, id: string) {
-    const report = await ctx.tenantDb.report.findUnique({ where: { id }, include: REPORT_INCLUDE });
+  async detail(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    const report = await ctx.tenantDb.report.findFirst({ where: { id, ...scope }, include: REPORT_INCLUDE });
     if (!report) throw new NotFoundException('این گزارش یافت نشد');
     return report;
   }
 
-  async create(ctx: TenantRequestContext, dto: CreateReportDto) {
-    const createdByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
+  /** `authorUserId` فقط برای تجمیع خودکار (مثلاً مدیر برای زیردست گزارش روزانه می‌سازد) — نویسنده همان صاحب چک‌لیست است. */
+  async create(ctx: TenantRequestContext, dto: CreateReportDto, authorUserId?: string) {
+    const createdByUserId = authorUserId ?? (await resolveTenantUserId(ctx).catch(() => undefined));
     const report = await ctx.tenantDb.report.create({
       data: {
         title: dto.title.trim(),
@@ -80,8 +87,8 @@ export class ReportsService {
     return report;
   }
 
-  async update(ctx: TenantRequestContext, id: string, dto: UpdateReportDto) {
-    await this.detail(ctx, id);
+  async update(ctx: TenantRequestContext, id: string, dto: UpdateReportDto, scope: Record<string, unknown> = {}) {
+    await this.detail(ctx, id, scope);
     return ctx.tenantDb.report.update({
       where: { id },
       data: {
@@ -94,25 +101,27 @@ export class ReportsService {
     });
   }
 
-  async remove(ctx: TenantRequestContext, id: string) {
-    await this.detail(ctx, id);
+  async remove(ctx: TenantRequestContext, id: string, scope: Record<string, unknown> = {}) {
+    await this.detail(ctx, id, scope);
     await ctx.tenantDb.report.delete({ where: { id } });
     return { ok: true };
   }
 
-  async setArchived(ctx: TenantRequestContext, id: string, isArchived: boolean) {
-    await this.detail(ctx, id);
+  async setArchived(ctx: TenantRequestContext, id: string, isArchived: boolean, scope: Record<string, unknown> = {}) {
+    await this.detail(ctx, id, scope);
     return ctx.tenantDb.report.update({ where: { id }, data: { isArchived }, include: REPORT_INCLUDE });
   }
 
-  async setKnowledge(ctx: TenantRequestContext, id: string, isKnowledge: boolean) {
-    await this.detail(ctx, id);
+  async setKnowledge(ctx: TenantRequestContext, id: string, isKnowledge: boolean, scope: Record<string, unknown> = {}) {
+    await this.detail(ctx, id, scope);
     return ctx.tenantDb.report.update({ where: { id }, data: { isKnowledge }, include: REPORT_INCLUDE });
   }
 
   /** ارجاع به یک یا چند نفر — قابل تکرار روی همان گزارش (ویرایش و ارسال مجدد). */
-  async refer(ctx: TenantRequestContext, id: string, dto: ReferReportDto) {
-    const report = await this.detail(ctx, id);
+  async refer(ctx: TenantRequestContext, id: string, dto: ReferReportDto, scope: Record<string, unknown> = {}) {
+    const report = await this.detail(ctx, id, scope);
+    const targets = await ctx.tenantDb.user.findMany({ where: { id: { in: dto.toUserIds } }, select: { id: true } });
+    if (targets.length !== new Set(dto.toUserIds).size) throw new NotFoundException('یکی از گیرندگان یافت نشد');
     const fromUserId = await resolveTenantUserId(ctx).catch(() => undefined);
     const emailCcValue = dto.emailCc?.length ? dto.emailCc.join(',') : undefined;
 
@@ -137,16 +146,22 @@ export class ReportsService {
       });
     }
 
-    return this.detail(ctx, id);
+    return this.detail(ctx, id, scope);
   }
 
-  async paraphReferral(ctx: TenantRequestContext, reportId: string, referralId: string) {
+  /** پاراف فقط توسط گیرنده‌ی همین ارجاع (یا مدیر)؛ گزارش هم باید در دامنه‌ی دید کاربر باشد. */
+  async paraphReferral(ctx: TenantRequestContext, reportId: string, referralId: string, scope: Record<string, unknown> = {}) {
+    await this.detail(ctx, reportId, scope);
     const referral = await ctx.tenantDb.reportReferral.findUnique({ where: { id: referralId } });
     if (!referral || referral.reportId !== reportId) throw new NotFoundException('این ارجاع یافت نشد');
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
+      const me = await resolveTenantUserId(ctx).catch(() => null);
+      if (!me || referral.toUserId !== me) throw new ForbiddenException('فقط گیرنده‌ی این ارجاع می‌تواند پاراف کند');
+    }
     await ctx.tenantDb.reportReferral.update({
       where: { id: referralId },
       data: { paraphed: true, paraphedAt: new Date() },
     });
-    return this.detail(ctx, reportId);
+    return this.detail(ctx, reportId, scope);
   }
 }

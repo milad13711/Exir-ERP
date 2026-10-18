@@ -971,11 +971,33 @@ export type DashboardCalendarEventType =
   | "contract-end"
   | "reminder";
 
+export type ReminderRepeat = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+export type ReminderChannelName = "IN_APP" | "PUSH" | "SMS" | "EMAIL";
+
+export type DashboardReminder = {
+  id: string;
+  title: string;
+  note: string | null;
+  remindAt: string;
+  time: string | null; // "HH:mm" به وقت تهران؛ null = تمام‌روز
+  dateKey: string; // YYYY-MM-DD (روز تهران)
+  allDay: boolean;
+  channels: ReminderChannelName[];
+  leadMinutes: number[];
+  repeatRule: ReminderRepeat;
+  status: "PENDING" | "DONE";
+  snoozedUntil: string | null;
+  firedAt: string | null;
+  effectiveAt: string;
+};
+
 export type DashboardCalendarEvent = {
   id: string;
   type: DashboardCalendarEventType;
   title: string;
   link: string | null;
+  time?: string | null;
+  reminder?: DashboardReminder;
 };
 
 export type DashboardCalendarDay = {
@@ -998,8 +1020,39 @@ export function fetchDashboardCalendar(jalaliYear: number, jalaliMonth: number) 
   return apiFetch<DashboardCalendarMonth>(`/dashboard/calendar?year=${jalaliYear}&month=${jalaliMonth}`);
 }
 
-export function createDashboardReminder(data: { date: string; title: string; note?: string }) {
-  return apiFetch<{ id: string }>("/dashboard/reminders", { method: "POST", body: JSON.stringify(data) });
+export type DashboardReminderInput = {
+  date: string;
+  time?: string;
+  allDay?: boolean;
+  title: string;
+  note?: string;
+  channels?: ReminderChannelName[];
+  leadMinutes?: number[];
+  repeatRule?: ReminderRepeat;
+};
+
+export function createDashboardReminder(data: DashboardReminderInput) {
+  return apiFetch<DashboardReminder>("/dashboard/reminders", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateDashboardReminder(id: string, data: Partial<DashboardReminderInput>) {
+  return apiFetch<DashboardReminder>(`/dashboard/reminders/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function fetchActiveReminders() {
+  return apiFetch<DashboardReminder[]>("/dashboard/reminders/active");
+}
+
+export function markReminderDone(id: string) {
+  return apiFetch<DashboardReminder>(`/dashboard/reminders/${id}/done`, { method: "POST" });
+}
+
+export function reopenReminder(id: string) {
+  return apiFetch<DashboardReminder>(`/dashboard/reminders/${id}/reopen`, { method: "POST" });
+}
+
+export function snoozeReminder(id: string, minutes = 10) {
+  return apiFetch<DashboardReminder>(`/dashboard/reminders/${id}/snooze`, { method: "POST", body: JSON.stringify({ minutes }) });
 }
 
 export function deleteDashboardReminder(id: string) {

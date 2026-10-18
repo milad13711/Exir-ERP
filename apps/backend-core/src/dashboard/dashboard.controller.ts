@@ -1,14 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { assertInScope } from '../permissions/scope.util.js';
 import { DashboardService } from './dashboard.service.js';
 import { DashboardCalendarService, type CalendarAccess, type CalendarEvent, type CalendarScope } from './dashboard-calendar.service.js';
 import { InvoiceDueRemindersService } from './invoice-due-reminders.service.js';
 import { CreateInvoiceFollowUpDto } from './dto/create-invoice-follow-up.dto.js';
-import { CreateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
+import { CreateDashboardReminderDto, SnoozeDashboardReminderDto, UpdateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
+import { DashboardRemindersService } from './dashboard-reminders.service.js';
 
 // نوع رویداد تقویم -> کد ماژولی که مجوز مشاهده‌اش (همه/فقط خودم) را کنترل می‌کند.
 // یادآوری دستی شخصی است و جدا (فقط برای سازنده) مدیریت می‌شود.
@@ -31,7 +33,14 @@ export class DashboardController {
     private readonly calendar: DashboardCalendarService,
     private readonly permissions: PermissionsService,
     private readonly dueReminders: InvoiceDueRemindersService,
+    private readonly reminders: DashboardRemindersService,
   ) {}
+
+  /** فاکتور باید در دامنه‌ی «فقط خودم/همه»ی ماژول فروش کاربر باشد؛ خارج از دامنه = ۴۰۴. */
+  private async assertInvoiceInScope(ctx: TenantRequestContext, invoiceId: string): Promise<void> {
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    await assertInScope(ctx.tenantDb.salesInvoice, scope, { id: invoiceId }, { message: 'فاکتور یافت نشد' });
+  }
 
   /** تقویم ماهانه‌ی داشبورد — تولد/وظیفه/مصاحبه/جلسه/سررسید فاکتور و چک/پایان قرارداد/یادآوری دستی، به تفکیک روز. */
   @Get('calendar')
@@ -52,16 +61,42 @@ export class DashboardController {
     return this.calendar.monthCalendar(ctx, Number(year), Number(month), { userId, scope });
   }
 
-  /** ایجاد یادآوری دستی روی یک روز مشخص از تقویم داشبورد. */
+  /** ایجاد یادآوری شخصی با ساعت مشخص، پیش‌هشدار و تکرار. */
   @Post('reminders')
   async createReminder(@Body() dto: CreateDashboardReminderDto, @Ctx() ctx: TenantRequestContext) {
-    return this.calendar.createReminder(ctx, dto);
+    return this.reminders.create(ctx, dto);
   }
 
-  /** حذف یک یادآوری دستی. */
+  /** آلارم‌های فعال (سررسیدشده و انجام‌نشده) برای پاپ‌آپ داخل برنامه — فقط یادآوری‌های خودِ کاربر. */
+  @Get('reminders/active')
+  async activeReminders(@Ctx() ctx: TenantRequestContext) {
+    return this.reminders.active(ctx);
+  }
+
+  @Patch('reminders/:id')
+  async updateReminder(@Param('id') id: string, @Body() dto: UpdateDashboardReminderDto, @Ctx() ctx: TenantRequestContext) {
+    return this.reminders.update(ctx, id, dto);
+  }
+
+  @Post('reminders/:id/done')
+  async doneReminder(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    return this.reminders.markDone(ctx, id);
+  }
+
+  @Post('reminders/:id/reopen')
+  async reopenReminder(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    return this.reminders.reopen(ctx, id);
+  }
+
+  @Post('reminders/:id/snooze')
+  async snoozeReminder(@Param('id') id: string, @Body() dto: SnoozeDashboardReminderDto, @Ctx() ctx: TenantRequestContext) {
+    return this.reminders.snooze(ctx, id, dto.minutes);
+  }
+
+  /** حذف یک یادآوری شخصی. */
   @Delete('reminders/:id')
   async deleteReminder(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.calendar.deleteReminder(ctx, id);
+    return this.reminders.remove(ctx, id);
   }
 
   /** خلاصه‌ی داشبورد — هر بخش فقط اگر کاربر مجوز مشاهده‌ی ماژول مربوطه را دارد پر می‌شود (بقیه خالی/صفر). */
@@ -69,7 +104,9 @@ export class DashboardController {
   async summary(@Ctx() ctx: TenantRequestContext) {
     const [data, acl] = await Promise.all([this.dashboard.summary(ctx), this.permissions.effectiveMatrix(ctx)]);
     if (acl.manager) return data;
-    const can = (code: string) => !!acl.modules[code] && (acl.modules[code].canViewAll || acl.modules[code].canViewOwn);
+    // این خلاصه جمع‌های کل شرکت است (موجودی نقد، فاکتورها، چک‌ها، موجودی انبار)؛ قابل تفکیک به «فقط خودم» نیست،
+    // پس فقط «مشاهده‌ی همه» آن را می‌بیند — کاربر «فقط خودم» نباید با داشبورد آمار کل شرکت را ببیند.
+    const can = (code: string) => !!acl.modules[code]?.canViewAll;
     return {
       ...data,
       cashBalance: can('accounting') ? data.cashBalance : 0,
@@ -88,7 +125,7 @@ export class DashboardController {
   /** یادآوری پیامکی دستی برای یک فاکتور مشخص — از ردیف ویجت فاکتورهای نزدیک به سررسید/معوق داشبورد. */
   @Post('overdue-invoices/:invoiceId/remind-sms')
   async remindSms(@Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, invoiceId);
     return this.dueReminders.remindSms(ctx, invoiceId);
   }
 
@@ -100,13 +137,14 @@ export class DashboardController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, invoiceId);
     return this.dueReminders.createFollowUp(ctx, invoiceId, dto);
   }
 
   /** تاریخچه‌ی پیگیری‌های تلفنی یک فاکتور مشخص. */
   @Get('overdue-invoices/:invoiceId/follow-ups')
   async listFollowUps(@Param('invoiceId') invoiceId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertView(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, invoiceId);
     return this.dueReminders.listFollowUps(ctx, invoiceId);
   }
 }

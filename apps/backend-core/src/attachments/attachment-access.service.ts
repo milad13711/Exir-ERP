@@ -5,6 +5,7 @@ import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
 import { contractScope, projectScope, proposalScope } from '../permissions/entity-scopes.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
+import { reportEditScope, reportScope } from '../reports/report-scope.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { assertTaskAttachmentAccess, TASK_ATTACHMENT_ENTITIES } from '../tasks/task-attachment-access.js';
 import { assertShipmentAttachmentAccess, DISPATCH_ATTACHMENT_ENTITIES } from '../dispatch/dispatch-attachment-access.js';
@@ -22,7 +23,6 @@ const OWNED: Record<string, { module: string; ownerField: string; model: 'salesQ
 
 /** Entities in modules whose list is view-all only (no per-record owner scope). */
 const VIEW_ALL_ONLY: Record<string, string> = {
-  Report: 'reports',
   production_order: 'production',
 };
 
@@ -108,11 +108,16 @@ export class AttachmentAccessService {
       return;
     }
 
-    // گزارش روزانه‌ی چک‌لیست: صاحبش (یا مدیرِ بالادستش) فایل‌های بایگانی‌شده‌ی همان گزارش را می‌بیند،
-    // حتی بدون «مشاهده‌ی همه» در ماژول گزارش‌ها؛ هر گزارش دیگری فقط با view-all. نوشتن/حذف فقط با ماتریس گزارش‌ها.
-    if (entityType === 'Report' && mode === 'read') {
-      const m = await this.permissions.getEffective(ctx, 'reports');
-      if (!m.canViewAll) {
+    // گزارش‌ها: دامنه‌ی سلسله‌مراتبی (report-scope.ts) — خواندن: نویسنده/گیرنده/مدیر بالادست؛ نوشتن/حذف: نویسنده یا مدیر بالادست.
+    // استثنا (فقط خواندن): صاحب چک‌لیست روزانه (یا مدیر بالادستش) فایل‌های بایگانی‌شده‌ی همان گزارش را حتی بدون دسترسی ماژول گزارش‌ها می‌بیند.
+    if (entityType === 'Report') {
+      try {
+        const scope = mode === 'read' ? await reportScope(this.permissions, ctx) : await reportEditScope(this.permissions, ctx);
+        await this.assertWriteMatrix(ctx, 'reports', mode);
+        await assertInScope(ctx.tenantDb.report, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
+        return;
+      } catch (e) {
+        if (mode !== 'read') throw e;
         const close = await ctx.tenantDb.dailyChecklistDayClose.findFirst({ where: { reportId: entityId }, select: { userId: true } });
         if (!close) throw new ForbiddenException('اجازه‌ی دسترسی به پیوست‌های این بخش را ندارید');
         await this.assertChecklistOwnerVisible(ctx, close.userId);

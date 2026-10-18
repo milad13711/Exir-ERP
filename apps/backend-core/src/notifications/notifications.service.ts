@@ -12,6 +12,11 @@ export type NotifyInput = {
   link?: string;
   /** رونوشت ایمیل — فقط وقتی کانال ایمیل برای این کاربر فعال و پیکربندی‌شده باشد ارسال می‌شود. */
   emailCc?: string[];
+  /**
+   * انتخاب صریح کانال‌های بیرونی؛ اگر مقدار بدهند جایگزین ترجیح‌های کاربر می‌شود
+   * (مثلاً یادآوری تقویم: فقط همان کانالی که کاربر انتخاب کرده). بدون آن رفتار قبلی حفظ می‌شود.
+   */
+  channels?: { push?: boolean; email?: boolean; sms?: boolean };
 };
 
 /**
@@ -45,11 +50,14 @@ export class NotificationsService {
   }
 
   private async deliverExternal(tenantDb: TenantPrismaClient, input: NotifyInput): Promise<void> {
-    const pushPromise = this.push.sendToTenantUser(tenantDb, input.userId, {
-      title: input.title,
-      body: input.body ?? '',
-      url: input.link,
-    });
+    const pushPromise =
+      input.channels?.push === false
+        ? Promise.resolve()
+        : this.push.sendToTenantUser(tenantDb, input.userId, {
+            title: input.title,
+            body: input.body ?? '',
+            url: input.link,
+          });
 
     const [user, preference] = await Promise.all([
       tenantDb.user.findUnique({ where: { id: input.userId } }),
@@ -60,8 +68,8 @@ export class NotificationsService {
       return;
     }
 
-    const emailEnabled = preference?.emailEnabled ?? true;
-    const smsEnabled = preference?.smsEnabled ?? false;
+    const emailEnabled = input.channels?.email ?? preference?.emailEnabled ?? true;
+    const smsEnabled = input.channels?.sms ?? preference?.smsEnabled ?? false;
 
     const emailPromise =
       emailEnabled && user.email && this.email.isConfigured()

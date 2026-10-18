@@ -67,3 +67,49 @@ export async function getVisibleEmployeeIds(
 
   return visible;
 }
+
+/**
+ * Employee ids ABOVE `employeeId` in the management chain (direct manager,
+ * their manager, ...). Bounded like the other walkers against cyclic data.
+ */
+export async function getAncestorEmployeeIds(
+  tenantDb: TenantRequestContext['tenantDb'],
+  employeeId: string,
+): Promise<Set<string>> {
+  const ancestors = new Set<string>();
+  let currentId: string | null = employeeId;
+  for (let depth = 0; depth < 20 && currentId; depth++) {
+    const current: { managerId: string | null } | null = await tenantDb.employee.findUnique({
+      where: { id: currentId },
+      select: { managerId: true },
+    });
+    const next: string | null = current?.managerId ?? null;
+    if (!next || next === employeeId || ancestors.has(next)) break;
+    ancestors.add(next);
+    currentId = next;
+  }
+  return ancestors;
+}
+
+/**
+ * Tenant-User ids of everyone BELOW the given user in the organisation:
+ * all generations of direct reports plus members of departments the user
+ * heads (see getVisibleEmployeeIds). The user themself is excluded, and so is
+ * anyone who is also ABOVE them in the chain (a corrupted/odd setup where a
+ * department head is the user's own boss must never reveal the boss's data).
+ * A user without a linked Employee record has no subordinates.
+ * Used for the hierarchical «مشاهده‌ی همه» of the reports module.
+ */
+export async function getSubordinateUserIds(
+  tenantDb: TenantRequestContext['tenantDb'],
+  userId: string,
+): Promise<string[]> {
+  const self = await tenantDb.employee.findUnique({ where: { userId }, select: { id: true } });
+  if (!self) return [];
+  const [visible, ancestors] = await Promise.all([getVisibleEmployeeIds(tenantDb, self.id), getAncestorEmployeeIds(tenantDb, self.id)]);
+  visible.delete(self.id);
+  for (const a of ancestors) visible.delete(a);
+  if (visible.size === 0) return [];
+  const rows = await tenantDb.employee.findMany({ where: { id: { in: [...visible] }, userId: { not: null } }, select: { userId: true } });
+  return rows.map((r) => r.userId as string).filter((id) => id !== userId);
+}

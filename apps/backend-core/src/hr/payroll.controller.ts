@@ -29,6 +29,7 @@ export class PayrollController {
 
   @Get('settings/tax-insurance')
   async getTaxSettings(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertViewAll(ctx, 'hr'); // نرخ‌های مالیات/بیمه حقوق — فقط «مشاهده‌ی همه»
     return getPayrollTaxSettings(ctx.tenantDb);
   }
 

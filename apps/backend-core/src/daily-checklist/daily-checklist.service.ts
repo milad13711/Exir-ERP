@@ -229,7 +229,7 @@ export class DailyChecklistService {
     const marker = await ctx.tenantDb.dailyChecklistDayClose.findUnique({ where: { userId_date: { userId: targetUserId, date } } });
     const report = marker?.reportId
       ? await this.reports.update(ctx, marker.reportId, { title, body, executionAt: date.toISOString() })
-      : await this.reports.create(ctx, { title, body, executionAt: date.toISOString() });
+      : await this.reports.create(ctx, { title, body, executionAt: date.toISOString() }, targetUserId); // نویسنده = صاحب چک‌لیست، نه مدیری که ثبتش کرده
     // فایل‌های پیوست‌شده‌ی آیتم‌های این روز هم در بایگانیِ همین گزارش نگه‌داری می‌شوند (idempotent).
     await archiveFilesToReport(ctx.tenantDb, report.id, files, targetUserId);
 

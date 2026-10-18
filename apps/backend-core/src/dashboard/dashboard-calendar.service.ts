@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { jalaliMonthGregorianRange, jalaliMonthLength, toJalaliDate } from '../common/jalali.js';
 import { iranHolidaysForYear } from '../booking/iran-holidays.js';
-import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { tehranParts } from '../booking/tehran-time.js';
+import { toReminderView } from './dashboard-reminders.service.js';
 import { taskScopeWhere } from '../tasks/task-scope.js';
-import type { CreateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
 
 export type CalendarEventType =
   | 'birthday-employee'
@@ -22,6 +22,9 @@ export type CalendarEvent = {
   type: CalendarEventType;
   title: string;
   link: string | null;
+  /** فقط برای type='reminder': ساعت «HH:mm» وقت تهران (null = تمام‌روز) و جزئیات برای ویرایش/تعویق. */
+  time?: string | null;
+  reminder?: ReturnType<typeof toReminderView>;
 };
 
 /**
@@ -132,8 +135,15 @@ export class DashboardCalendarService {
       ),
       ctx.tenantDb.dashboardReminder.findMany({
         // یادآوری دستی شخصی است: هر کس فقط یادآوری‌های خودش را می‌بیند (حتی مدیر).
-        where: { date: { gte: start, lt: end }, createdByUserId: me ?? '__none__' },
-        select: { id: true, title: true, note: true, date: true },
+        // remindAt لحظه‌ی مطلق است؛ یک روز حاشیه می‌گیریم و بعداً به روز تهران می‌بریم.
+        where: {
+          createdByUserId: me ?? '__none__',
+          OR: [
+            { remindAt: { gte: new Date(start.getTime() - 86_400_000), lt: new Date(end.getTime() + 86_400_000) } },
+            { remindAt: null, date: { gte: start, lt: end } },
+          ],
+        },
+        orderBy: { remindAt: 'asc' },
       }),
     ]);
 
@@ -182,8 +192,16 @@ export class DashboardCalendarService {
       push(day, { id: c.id, type: 'contract-end', title: `پایان قرارداد #${c.contractNo}`, link: '/contracts' });
     }
     for (const r of reminders) {
-      const { day } = toJalaliDate(r.date);
-      push(day, { id: r.id, type: 'reminder', title: r.title, link: null });
+      const at = r.remindAt ?? r.date;
+      const [ty, tm, td] = tehranParts(at).dateKey.split('-').map(Number);
+      const { year, month, day } = toJalaliDate(new Date(ty, tm - 1, td));
+      if (year !== jalaliYear || month !== jalaliMonth) continue;
+      const view = toReminderView(r);
+      push(day, { id: r.id, type: 'reminder', title: r.title, link: null, time: view.time, reminder: view });
+    }
+    // یادآوری‌ها به ترتیب ساعت (تمام‌روزها اول) در هر روز
+    for (const d of days.values()) {
+      d.events.sort((a, b) => (a.type === 'reminder' && b.type === 'reminder' ? (a.time ?? '').localeCompare(b.time ?? '') : 0));
     }
 
     return {
@@ -192,24 +210,6 @@ export class DashboardCalendarService {
       monthLength,
       days: Array.from(days.values()).sort((a, b) => a.day - b.day),
     };
-  }
-
-  async createReminder(ctx: TenantRequestContext, dto: CreateDashboardReminderDto) {
-    const createdByUserId = await resolveTenantUserId(ctx);
-    // فقط بخش تاریخ معنا دارد — مثل بقیه‌ی فیلدهای date-only این پروژه، ساعت صفر ذخیره می‌شود.
-    const date = new Date(`${dto.date.slice(0, 10)}T00:00:00`);
-    return ctx.tenantDb.dashboardReminder.create({
-      data: { date, title: dto.title.trim(), note: dto.note?.trim() || null, createdByUserId },
-    });
-  }
-
-  async deleteReminder(ctx: TenantRequestContext, id: string) {
-    const existing = await ctx.tenantDb.dashboardReminder.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('یادآوری یافت نشد');
-    const me = await resolveTenantUserId(ctx).catch(() => null);
-    if (existing.createdByUserId !== me) throw new NotFoundException('یادآوری یافت نشد');
-    await ctx.tenantDb.dashboardReminder.delete({ where: { id } });
-    return { ok: true };
   }
 }
 
