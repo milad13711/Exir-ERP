@@ -14,6 +14,8 @@ export const metadata: Metadata = {
     template: `%s | ${GROUP_BRAND.name}`,
   },
   description: `${GROUP_BRAND.claim}. ${GROUP_BRAND.subClaim}`,
+  // تأیید مالکیت وب‌سایت برای مجوز ساماندهی / بازار اپلیکیشن ایرانی
+  other: { "platform-verification": "wumtwucakk" },
   keywords: [
     "نرم‌افزار ERP فارسی",
     "بهترین ERP ایرانی",
