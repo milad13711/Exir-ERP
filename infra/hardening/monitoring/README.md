@@ -46,4 +46,17 @@
 - فرمت لاگ nginx باید combined (پیش‌فرض) یا مشابه باشد (کد وضعیت بعد از رشته‌ی درخواست).
 
 ## متغیرهای محیطی بک‌اند (نام‌ها؛ مقدارها فقط روی سرور)
-`MONITOR_ALERT_PHONE` (fallback: `BACKUP_ALERT_PHONE` ← `ON_PREM_OWNER_PHONE`)، `MONITOR_URLS`، `MONITOR_TLS_HOSTS`، `INTERNAL_ALERT_TOKEN`، اختیاری: `MONITOR_MAX_SMS_PER_DAY` (۱۲)، `MONITOR_SMS_MIN_COUNT` (۲۰۰)، `MONITOR_APP_DISK_PATH` (`/app`)، `INTERNAL_ALERT_RATE_PER_10MIN` (۶۰)، `MONITOR_DISABLED=true`.
+`MONITOR_ALERT_PHONE` (fallback: `BACKUP_ALERT_PHONE` ← `ON_PREM_OWNER_PHONE`)، `MONITOR_URLS`، `MONITOR_TLS_HOSTS`، `INTERNAL_ALERT_TOKEN`، اختیاری: `MONITOR_MAX_SMS_PER_DAY` (۱۲)، `MONITOR_SMS_MIN_COUNT` (۲۰۰)، `MONITOR_APP_DISK_PATH` (`/app`)، `INTERNAL_ALERT_RATE_PER_10MIN` (۶۰)، `MONITOR_DISABLED=true`، `MONITOR_BOOT_GRACE_MIN` (۵؛ ۰ = بدون مهلت).
+
+## حالت نگه‌داری (deploy) و مهلت پس از بوت
+هدف: ری‌استارت/دیپلوی بک‌اند نباید پیامک کاذب به مالک بدهد (۲۰۲۶-۱۰-۱۹: هر ری‌استارت چند SMS کاذب).
+
+- **`POST /api/internal/maintenance`** با هدر `X-Internal-Alert-Token` (همان `INTERNAL_ALERT_TOKEN`، همان لایه‌های امنیتی `/internal/alert`: loopback/شبکه‌ی docker، بدون X-Forwarded-For، سقف نرخ، nginx بلاک بیرونی):
+  - `{"minutes": 20, "reason": "deploy"}` (۱ تا ۱۲۰ دقیقه، خودکار منقضی می‌شود) ؛ `{"clear": true}` پنجره را می‌بندد.
+  - وضعیت در `_monitor.json` (روی `./backups`) ذخیره می‌شود، پس از recreate کانتینر هم پابرجاست.
+  - `scripts/deploy-remote.sh` قبل از recreate بک‌اند آن را برای ۲۰ دقیقه می‌گذارد (با `docker exec ... node -e` داخل کانتینر؛ توکن از env خودِ کانتینر خوانده می‌شود و هرگز چاپ/argv نمی‌شود) و بعد از PASS شدن smoke suite پاک می‌کند. اگر smoke FAIL شود پنجره تا انقضا می‌ماند.
+- **مهلت بوت**: هر بار که سرویس پایش بالا می‌آید ۵ دقیقه (`MONITOR_BOOT_GRACE_MIN`) SMS خاموش است.
+- **در طول پنجره/مهلت**: چک‌های ناسالم ثبت نمی‌شوند (شمارنده‌ی پیاپی صفر می‌ماند) و فقط در لاگ (`[maintenance] ...`) و بخش «اخیر» صفحه‌ی ادمین (reason=maintenance) می‌آیند؛ dedupe روزانه مصرف نمی‌شود. اگر مشکل بعد از پایان پنجره پابرجا باشد، با همان قانون ۲ شکست پیاپی، هشدار عادی می‌رود. خبر «برطرف شد» و چک‌ها همچنان کار می‌کنند. ضربان `host-watch` هم در پنجره «warn» نمی‌دهد.
+- **چه چیزی هرگز خاموش نمی‌شود**: هشدارهای امنیتی host-watch (ورود SSH، کلید/IP جدید، fail2ban، reboot، گواهی، disk، systemd)؛ فقط `nginx-5xx`، `docker-unhealthy`، `docker-cli` از host در پنجره خاموش‌اند (host-watch آن‌ها را فقط هنگام تغییر وضعیت می‌فرستد؛ اگر در پنجره بد شد و بد ماند، فقط در لاگ است و smoke suite دیپلوی باید آن را بگیرد).
+- **پایشگر بیرونی «سرور مرده»** (`EXTERNAL-UPTIME.md`) کاملاً مستقل است: روی سرویس خارجی اجرا می‌شود، به این API دسترسی ندارد و هیچ پنجره‌ای آن را ساکت نمی‌کند. اگر سرور واقعاً بمیرد (یا بک‌اند هرگز بالا نیاید) مالک از آن کانال خبردار می‌شود. پنجره‌ی نگه‌داری فقط SMS **داخلیِ برنامه** را خاموش می‌کند — عمداً هیچ endpoint عمومی/خارجی‌ای برای خاموش کردن پایشگر بیرونی وجود ندارد.
+- مالک در لاگ بک‌اند می‌بیند: `[maintenance] SMS alerts SUPPRESSED until ...` / `window cleared` / `boot grace ...` / `alert suppressed ...`؛ در صفحه‌ی ادمین «پایش و هشدار»، `config.suppression` وضعیت فعلی را نشان می‌دهد (API).

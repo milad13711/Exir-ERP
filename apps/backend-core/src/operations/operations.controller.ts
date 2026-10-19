@@ -22,6 +22,12 @@ export class OperationsController {
     return this.ops.overview(ctx, from, to);
   }
 
+  /** فقط شمارنده‌ها — سبک، برای ویجت داشبورد. */
+  @Get('counters')
+  counters(@Ctx() ctx: TenantRequestContext) {
+    return this.ops.counters(ctx);
+  }
+
   @Get('workload')
   workload(
     @Query('from') from: string | undefined,

@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { toDateTimeLocalValue } from "@/lib/persian";
 import {
   createAppointment,
   updateAppointment,
-  fetchCrmContacts,
+  fetchCrmContact,
   fetchUsers,
   type ServiceType,
   type Appointment,
-  type CrmContact,
   type TenantUser,
 } from "@/lib/api";
 
@@ -36,7 +36,6 @@ export function NewAppointmentModal({
 }) {
   const [serviceTypeId, setServiceTypeId] = useState(appointment?.serviceTypeId ?? serviceTypes[0]?.id ?? "");
   const [contactId, setContactId] = useState(appointment?.contactId ?? "");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [providerUserId, setProviderUserId] = useState(appointment?.providerUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [customerName, setCustomerName] = useState(appointment?.customerName ?? "");
@@ -50,17 +49,18 @@ export function NewAppointmentModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
   function pickContact(id: string) {
     setContactId(id);
-    const c = contacts.find((x) => x.id === id);
-    if (c) {
-      setCustomerName(c.name);
-      setCustomerPhone(c.phone ?? "");
-    }
+    if (!id) return;
+    fetchCrmContact(id)
+      .then((c) => {
+        setCustomerName(c.name);
+        setCustomerPhone(c.phone ?? "");
+      })
+      .catch(() => {});
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -105,15 +105,14 @@ export function NewAppointmentModal({
 
         <div>
           <label className={labelClass}>مخاطب (اختیاری)</label>
-          <select value={contactId} onChange={(e) => pickContact(e.target.value)} className={inputClass}>
-            <option value="">بدون مخاطب — مشتری جدید</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.company ? ` (${c.company})` : ""}
-              </option>
-            ))}
-          </select>
+          <ContactCombobox
+            value={contactId}
+            onChange={(id) => pickContact(id)}
+            source="customer"
+            allowCreate={false}
+            initialLabel={appointment?.contact?.name}
+            placeholder="بدون مخاطب — جستجوی مشتری"
+          />
         </div>
 
         <div className="flex gap-2.5">

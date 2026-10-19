@@ -4,7 +4,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { isModuleEnabled } from '../common/module-enabled.util.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
-import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
+import { ensureDefaultChartOfAccounts, ensureOpeningBalanceAccount, OPENING_BALANCE_ACCOUNT_CODE } from '../accounting/default-chart-of-accounts.js';
 import { buildExcelBuffer, parseExcelBuffer } from '../common/excel.js';
 import { ensureDefaultWarehouse } from './default-warehouse.js';
 import { CostingService, refreshProductCost } from './costing.service.js';
@@ -13,7 +13,8 @@ import { STOCK_IMPORT_HEADERS, STOCK_IMPORT_MAX_ROWS, planOpeningStockImport, ty
 
 const OPENING_REFERENCE = 'موجودی اولیه — ورود اکسل';
 const INVENTORY = '1040';
-const OPENING_EQUITY = '3010';
+const OPENING_EQUITY = OPENING_BALANCE_ACCOUNT_CODE; // حساب افتتاحیه ۳۰۲۰
+const LEGACY_EQUITY = '3010'; // سرمایه — فقط جایگزین اگر ۳۰۲۰ نبود
 
 export function hashFile(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
@@ -22,7 +23,7 @@ export function hashFile(buffer: Buffer): string {
 /**
  * ورود موجودی اولیه از اکسل (مهاجرت از نرم‌افزار قبلی): قالب، پیش‌نمایش (dry-run) با خطاهای فارسی، و ثبت اتمیک.
  * ثبت = یک تراکنش: کالاهای جدید (اختیاری) + دسته (StockImportBatch) + حرکت‌های RECEIPT «موجودی اولیه» + سند افتتاحیه
- * (بدهکار موجودی کالا ۱۰۴۰ / بستانکار سرمایه ۳۰۱۰) اگر ماژول حسابداری نصب باشد.
+ * (بدهکار موجودی کالا ۱۰۴۰ / بستانکار حساب افتتاحیه ۳۰۲۰؛ در نبودِ آن ۳۰۱۰ سرمایه) اگر ماژول حسابداری نصب باشد.
  * ایدمپوتنسی: هش فایل — فایل یکسان دوباره وارد نمی‌شود مگر دسته‌ی قبلی باطل شده باشد.
  */
 @Injectable()
@@ -109,10 +110,13 @@ export class StockImportService {
     const totalValue = plan.rows.reduce((s, r) => s + r.quantity * (r.unitCost ?? 0), 0);
     if (accounting && totalValue > 0) {
       await ensureDefaultChartOfAccounts(ctx.tenantDb);
-      const [inv, eq] = await Promise.all([
+      await ensureOpeningBalanceAccount(ctx.tenantDb).catch(() => undefined);
+      const [inv, openingEq, legacyEq] = await Promise.all([
         ctx.tenantDb.account.findUnique({ where: { code: INVENTORY } }),
         ctx.tenantDb.account.findUnique({ where: { code: OPENING_EQUITY } }),
+        ctx.tenantDb.account.findUnique({ where: { code: LEGACY_EQUITY } }),
       ]);
+      const eq = openingEq?.type === 'EQUITY' ? openingEq : legacyEq; // اگر ۳۰۲۰ قبلاً با معنای دیگری ساخته شده باشد، به ۳۰۱۰ برمی‌گردیم
       if (!inv || !eq) throw new BadRequestException(`کدینگ حسابداری ${INVENTORY} یا ${OPENING_EQUITY} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
       inventoryId = inv.id;
       equityId = eq.id;

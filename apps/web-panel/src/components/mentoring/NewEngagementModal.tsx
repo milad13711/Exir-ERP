@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
+import { useWorkspace } from "@/lib/workspace-context";
+import { canViewModule } from "@/lib/access";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   createMentoringEngagement,
   updateMentoringEngagement,
-  fetchCrmContacts,
   fetchUsers,
   fetchContracts,
   fetchProjects,
-  type CrmContact,
   type TenantUser,
   type Contract,
   type Project,
@@ -40,7 +41,6 @@ export function NewEngagementModal({
   const editing = !!engagement;
   const [title, setTitle] = useState(engagement?.title ?? "");
   const [contactId, setContactId] = useState(engagement?.contactId ?? "");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [advisorUserId, setAdvisorUserId] = useState(engagement?.advisorUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [pricingModel, setPricingModel] = useState<MentoringPricingModel>(engagement?.pricingModel ?? "HOURLY");
@@ -61,12 +61,28 @@ export function NewEngagementModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { me, installedModules } = useWorkspace();
+  const canContracts = canViewModule(me, installedModules, "contracts");
+  const canProjects = canViewModule(me, installedModules, "projects");
+
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
-    fetchUsers().then(setUsers).catch(() => setUsers([]));
-    fetchContracts().then(setContracts).catch(() => setContracts([]));
-    fetchProjects().then(setProjects).catch(() => setProjects([]));
+    fetchUsers()
+      .then(setUsers)
+      .catch(() => setUsers([]));
   }, []);
+  // قرارداد/پروژه فقط وقتی ماژولشان نصب و برای کاربر مجاز است گرفته می‌شود (وگرنه ۴۰۳ بی‌اثر).
+  useEffect(() => {
+    if (!canContracts) return;
+    fetchContracts()
+      .then(setContracts)
+      .catch(() => setContracts([]));
+  }, [canContracts]);
+  useEffect(() => {
+    if (!canProjects) return;
+    fetchProjects()
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  }, [canProjects]);
 
   const pricingValid =
     pricingModel === "HOURLY"
@@ -100,7 +116,11 @@ export function NewEngagementModal({
       if (editing) {
         await updateMentoringEngagement(engagement.id, payload);
       } else {
-        await createMentoringEngagement({ ...payload, contactId, startDate: startDate || undefined });
+        await createMentoringEngagement({
+          ...payload,
+          contactId,
+          startDate: startDate || undefined,
+        });
       }
       onCreated();
       onClose();
@@ -116,7 +136,12 @@ export function NewEngagementModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>عنوان همکاری</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثلاً کوچینگ کسب‌وکار — سه‌ماهه پاییز" className={inputClass} />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="مثلاً کوچینگ کسب‌وکار — سه‌ماهه پاییز"
+            className={inputClass}
+          />
         </div>
 
         <div className="flex gap-2.5">
@@ -125,15 +150,13 @@ export function NewEngagementModal({
             {editing ? (
               <input value={engagement.contact.name} disabled className={`${inputClass} opacity-60`} />
             ) : (
-              <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
-                <option value="">انتخاب کنید</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {!c.phone ? " — بدون شماره موبایل" : ""}
-                  </option>
-                ))}
-              </select>
+              <ContactCombobox
+                value={contactId}
+                onChange={(id) => setContactId(id)}
+                source="customer"
+                allowCreate={false}
+                placeholder="جستجوی مشتری (نام، شرکت، موبایل)..."
+              />
             )}
           </div>
           <div className="flex-1">
@@ -168,7 +191,12 @@ export function NewEngagementModal({
         {pricingModel === "HOURLY" && (
           <div>
             <label className={labelClass}>نرخ ساعتی (تومان)</label>
-            <input value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className={inputClass} />
+            <input
+              value={hourlyRate}
+              onChange={(e) => setHourlyRate(e.target.value.replace(/[^0-9]/g, ""))}
+              inputMode="numeric"
+              className={inputClass}
+            />
           </div>
         )}
         {pricingModel === "PACKAGE" && (
@@ -184,7 +212,12 @@ export function NewEngagementModal({
             </div>
             <div className="flex-1">
               <label className={labelClass}>قیمت کل بسته (تومان)</label>
-              <input value={packagePrice} onChange={(e) => setPackagePrice(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className={inputClass} />
+              <input
+                value={packagePrice}
+                onChange={(e) => setPackagePrice(e.target.value.replace(/[^0-9]/g, ""))}
+                inputMode="numeric"
+                className={inputClass}
+              />
             </div>
           </div>
         )}
@@ -204,28 +237,32 @@ export function NewEngagementModal({
           <summary className="cursor-pointer text-primary font-bold">جزئیات بیشتر</summary>
           <div className="flex flex-col gap-3.5 mt-3">
             <div className="flex gap-2.5">
-              <div className="flex-1">
-                <label className={labelClass}>قرارداد مرتبط (اختیاری)</label>
-                <select value={contractId} onChange={(e) => setContractId(e.target.value)} className={inputClass}>
-                  <option value="">بدون قرارداد</option>
-                  {contracts.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      #{c.contractNo} {c.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className={labelClass}>پروژه‌ی مرتبط (اختیاری)</label>
-                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
-                  <option value="">بدون پروژه</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      #{p.projectNo} {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {canContracts ? (
+                <div className="flex-1">
+                  <label className={labelClass}>قرارداد مرتبط (اختیاری)</label>
+                  <select value={contractId} onChange={(e) => setContractId(e.target.value)} className={inputClass}>
+                    <option value="">بدون قرارداد</option>
+                    {contracts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        #{c.contractNo} {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              {canProjects ? (
+                <div className="flex-1">
+                  <label className={labelClass}>پروژه‌ی مرتبط (اختیاری)</label>
+                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
+                    <option value="">بدون پروژه</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        #{p.projectNo} {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
 
             {!editing && (
@@ -244,7 +281,11 @@ export function NewEngagementModal({
 
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
-        <button type="submit" disabled={saving || !formValid} className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={saving || !formValid}
+          className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50"
+        >
           {saving ? "در حال ذخیره..." : editing ? "ذخیره تغییرات" : "ثبت همکاری"}
         </button>
       </form>

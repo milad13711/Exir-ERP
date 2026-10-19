@@ -7,6 +7,8 @@ export type AccountSeed = {
   isCashAccount?: boolean;
 };
 
+export const OPENING_BALANCE_ACCOUNT_CODE = '3020';
+
 /** A standard Iranian SMB chart of accounts — seeded once, the first time the tenant opens Accounting. */
 export const DEFAULT_ACCOUNTS: AccountSeed[] = [
   { code: '1010', name: 'صندوق', type: 'ASSET', isCashAccount: true },
@@ -16,6 +18,8 @@ export const DEFAULT_ACCOUNTS: AccountSeed[] = [
   { code: '2010', name: 'حساب‌های پرداختنی (تأمین‌کنندگان)', type: 'LIABILITY' },
   { code: '2020', name: 'مالیات پرداختنی', type: 'LIABILITY' },
   { code: '3010', name: 'سرمایه', type: 'EQUITY' },
+  // حساب موازنه‌ی افتتاحیه (Opening Balance Equity) — طرف مقابل اسناد افتتاحیه (مثلاً ورود موجودی اولیه از اکسل)
+  { code: OPENING_BALANCE_ACCOUNT_CODE, name: 'موجودی افتتاحیه / حساب افتتاحیه', type: 'EQUITY' },
   { code: '4010', name: 'درآمد فروش', type: 'REVENUE' },
   { code: '5010', name: 'بهای تمام‌شده کالای فروش‌رفته', type: 'EXPENSE' },
   { code: '5020', name: 'هزینه‌های اداری و عمومی', type: 'EXPENSE' },
@@ -38,5 +42,21 @@ export async function ensureDefaultChartOfAccounts(db: TenantPrismaClient): Prom
     const isUniqueConstraintViolation =
       typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'P2002';
     if (!isUniqueConstraintViolation) throw err;
+  }
+}
+
+/**
+ * حساب افتتاحیه (۳۰۲۰) را فقط در صورت نبودن می‌سازد؛ هرگز حساب موجود را تغییر نمی‌دهد.
+ * برای تننت‌های قدیمی که چارت پیش‌فرض‌شان پیش از این حساب ساخته شده است.
+ */
+export async function ensureOpeningBalanceAccount(db: TenantPrismaClient): Promise<void> {
+  const seed = DEFAULT_ACCOUNTS.find((a) => a.code === OPENING_BALANCE_ACCOUNT_CODE)!;
+  const exists = await db.account.findUnique({ where: { code: seed.code }, select: { id: true } });
+  if (exists) return;
+  try {
+    await db.account.create({ data: { ...seed, isSystem: true } });
+  } catch (err) {
+    const dup = typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'P2002';
+    if (!dup) throw err;
   }
 }

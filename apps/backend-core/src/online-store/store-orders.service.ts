@@ -99,7 +99,7 @@ export class StoreOrdersService {
 
     if (order.contactId) {
       if (createdNewContact) await this.funnel.initLead(ctx, order.contactId);
-      await this.funnel.recordPurchase(ctx, order.contactId, order.subtotal, 'خرید مجدد از فروشگاه آنلاین');
+      await this.funnel.recordPurchase(ctx, order.contactId, order.subtotal, 'خرید مجدد از فروشگاه آنلاین', { type: 'STORE_ORDER', id: order.id });
     }
 
     return order;

@@ -688,6 +688,7 @@ model CrmContact {
   referredBy                CrmContact?                  @relation("ContactReferral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals                 CrmContact[]                 @relation("ContactReferral")
   funnelStageEvents         CrmFunnelStageEvent[]
+  purchaseEvents            CrmPurchaseEvent[]
   campaignRecipients        MarketingCampaignRecipient[]
   rationSamples             RationSample[]
   resellerProfile           ResellerProfile?
@@ -718,6 +719,25 @@ model CrmFunnelStageEvent {
   @@index([contactId])
   @@index([toStage, occurredAt])
   @@map("crm_funnel_stage_events")
+}
+
+/// کلید منبعِ هر «خرید» شمارش‌شده در قیف — هر سند (فاکتور فروش، سفارش فروشگاه، بلیط، سفارش کتاب، نوبت)
+/// برای هر مخاطب فقط یک‌بار شمرده می‌شود (یکتا روی contactId+sourceType+sourceId). ابطال سند،
+/// رویداد را حذف نمی‌کند بلکه voidedAt می‌زند (ردپای حسابرسی) و شمارنده را برمی‌گرداند.
+model CrmPurchaseEvent {
+  id         String    @id @default(uuid())
+  contactId  String
+  sourceType String
+  sourceId   String
+  amount     Int       @default(0)
+  occurredAt DateTime  @default(now())
+  voidedAt   DateTime?
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, sourceType, sourceId])
+  @@index([contactId, voidedAt])
+  @@map("crm_purchase_events")
 }
 
 enum CrmDealStage {

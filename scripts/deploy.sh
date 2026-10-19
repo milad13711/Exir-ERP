@@ -15,6 +15,11 @@
 #   ./scripts/deploy.sh                  # deploy backend, web, admin
 #   ./scripts/deploy.sh web               # deploy only web-panel
 #   ./scripts/deploy.sh backend admin     # deploy only these two, in order
+#   ./scripts/deploy.sh --smoke-only      # no deploy: run the post-deploy smoke suite on the live stack
+#
+# The remote run now includes: pre-deploy image smoke test (backend), monitoring maintenance window, proxy nginx reload,
+# post-deploy smoke suite. A failing suite makes the remote exit non-zero => this script exits 1 and prints the failing check.
+# Rollback: ./scripts/rollback.sh  (docs/ops/deploy.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -84,6 +89,8 @@ rsync -az .dockerignore "${HOST}:${REMOTE_DIR}/.dockerignore"
 
 echo "==> Pushing deploy script..."
 rsync -az scripts/deploy-remote.sh "${HOST}:${REMOTE_DIR}/deploy-remote.sh"
+rsync -az scripts/deploy-lib.sh "${HOST}:${REMOTE_DIR}/deploy-lib.sh"
+rsync -az scripts/rollback.sh "${HOST}:${REMOTE_DIR}/rollback.sh"
 
 echo "==> Launching detached remote build ($*)..."
 ssh_retry "cd ${REMOTE_DIR} && nohup bash -c 'bash deploy-remote.sh $*; echo \$? > ${REMOTE_DONE_MARKER}' > ${REMOTE_LOG} 2>&1 & disown; echo launched"
@@ -108,5 +115,8 @@ if [ "$exit_code" = "0" ]; then
   echo "==> Deploy succeeded."
 else
   echo "==> Deploy FAILED (remote exit code ${exit_code}). Full log: ${REMOTE_LOG} on ${HOST}"
+  echo "==> Failing checks (from the remote log):"
+  ssh_retry "grep -E '^(FAIL|RESULT: FAIL|  \\* |ERROR|==> .*FAILED)' ${REMOTE_LOG} | tail -n 20" || true
+  echo "==> To roll back the backend: ./scripts/rollback.sh"
   exit 1
 fi

@@ -349,7 +349,6 @@ export default function CrmPage() {
 
       {newDealFor ? (
         <NewDealModal
-          contacts={allContacts ?? contacts ?? []}
           defaultContactId={newDealFor.contactId}
           onClose={() => setNewDealFor(null)}
           onCreated={upsertDeal}

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
-import { fetchCrmContacts, type CrmContact } from "@/lib/api";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
+import { fetchCrmContact } from "@/lib/api";
 import { declareDispatch, fetchDispatchDrivers, fetchDispatchPrefill, type DispatchDriver, type DispatchPrefill, type DispatchSourceType } from "@/lib/dispatch-api";
 import { toPersianDigits } from "@/lib/persian";
 import { BTN_PRIMARY, INPUT, LABEL, errText } from "./dispatch-ui";
@@ -30,7 +31,6 @@ export function DeclareShipmentModal({
   const [loading, setLoading] = useState(!!source);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [drivers, setDrivers] = useState<DispatchDriver[]>([]);
 
   const [contactId, setContactId] = useState("");
@@ -49,8 +49,7 @@ export function DeclareShipmentModal({
 
   useEffect(() => {
     fetchDispatchDrivers().then(setDrivers).catch(() => {});
-    if (!source) fetchCrmContacts().then(setContacts).catch(() => {});
-  }, [source]);
+  }, []);
 
   useEffect(() => {
     if (!source) return;
@@ -126,25 +125,23 @@ export function DeclareShipmentModal({
           {!source ? (
             <div>
               <label className={LABEL}>مشتری (اختیاری)</label>
-              <select
+              <ContactCombobox
                 value={contactId}
-                onChange={(e) => {
-                  setContactId(e.target.value);
-                  const c = contacts.find((x) => x.id === e.target.value);
-                  if (c) {
-                    setProfile({ uniqueId: c.uniqueId ?? "", nationalId: (c.type === "COMPANY" ? c.legalId : c.nationalId) ?? "", postalCode: c.postalCode ?? "", postalAddress: c.postalAddress ?? c.address ?? "" });
-                    if (!deliveryAddress && (c.postalAddress ?? c.address)) setDeliveryAddress((c.postalAddress ?? c.address) as string);
-                  }
+                source="customer"
+                allowCreate={false}
+                placeholder="بدون مشتری — جستجوی مشتری"
+                onChange={(id) => {
+                  setContactId(id);
+                  if (!id) return;
+                  fetchCrmContact(id)
+                    .then((c) => {
+                      setProfile({ uniqueId: c.uniqueId ?? "", nationalId: (c.type === "COMPANY" ? c.legalId : c.nationalId) ?? "", postalCode: c.postalCode ?? "", postalAddress: c.postalAddress ?? c.address ?? "" });
+                      const addr = c.postalAddress ?? c.address;
+                      if (addr) setDeliveryAddress((cur) => cur || addr);
+                    })
+                    .catch(() => {});
                 }}
-                className={INPUT}
-              >
-                <option value="">بدون مشتری</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company ? `${c.company} (${c.name})` : c.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           ) : pre?.contactName ? (
             <div className="text-[12.5px]">مشتری: <b>{pre.contactName}</b></div>

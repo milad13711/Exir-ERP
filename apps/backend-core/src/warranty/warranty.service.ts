@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { logInitialFunnelEvent } from '../crm/funnel-events.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -429,13 +430,15 @@ export class WarrantyService {
       const phone = row.clientPhone?.trim();
       if (phone) {
         const contact = await ctx.tenantDb.crmContact.findFirst({ where: { phone } });
-        contactId = contact
-          ? contact.id
-          : (
-              await ctx.tenantDb.crmContact.create({
-                data: { name: row.clientName?.trim() || phone, phone, isCustomer: true, source: 'وارد شده از سیستم قبلی گارانتی' },
-              })
-            ).id;
+        if (contact) {
+          contactId = contact.id;
+        } else {
+          const created = await ctx.tenantDb.crmContact.create({
+            data: { name: row.clientName?.trim() || phone, phone, isCustomer: true, source: 'وارد شده از سیستم قبلی گارانتی' },
+          });
+          await logInitialFunnelEvent(ctx.tenantDb, created.id);
+          contactId = created.id;
+        }
       }
 
       await ctx.tenantDb.warrantyCode.create({

@@ -7,13 +7,17 @@ const req = (o: { ip?: string; headers?: Record<string, string> } = {}) =>
   ({ socket: { remoteAddress: o.ip ?? '127.0.0.1' }, headers: { 'x-internal-alert-token': TOKEN, ...(o.headers ?? {}) } }) as any;
 
 let notify: ReturnType<typeof vi.fn>;
+let startM: ReturnType<typeof vi.fn>;
+let clearM: ReturnType<typeof vi.fn>;
 let heartbeat: ReturnType<typeof vi.fn>;
 let ctl: InternalAlertController;
 beforeEach(() => {
   process.env.INTERNAL_ALERT_TOKEN = TOKEN;
   notify = vi.fn(async () => ({ sent: true }));
   heartbeat = vi.fn(async () => {});
-  ctl = new InternalAlertController({ notify, recordHostHeartbeat: heartbeat } as any);
+  startM = vi.fn(async () => ({ until: '2026-01-01T00:00:00.000Z' }));
+  clearM = vi.fn(async () => ({ wasActive: true }));
+  ctl = new InternalAlertController({ notify, recordHostHeartbeat: heartbeat, startMaintenance: startM, clearMaintenance: clearM } as any);
 });
 afterEach(() => {
   delete process.env.INTERNAL_ALERT_TOKEN;
@@ -68,5 +72,29 @@ describe('POST /internal/alert', () => {
   it('resolved flag is forwarded for recovery notices', async () => {
     await ctl.alert(req(), { kind: 'nginx-5xx', message: 'back to normal', resolved: true });
     expect(notify).toHaveBeenCalledWith('host:nginx-5xx', 'back to normal', { source: 'host', resolved: true });
+  });
+});
+
+describe('POST /internal/maintenance', () => {
+  it('starts a window with validated minutes/reason', async () => {
+    await expect(ctl.maintenance(req(), { minutes: 20, reason: 'deploy' })).resolves.toMatchObject({ ok: true, until: expect.any(String) });
+    expect(startM).toHaveBeenCalledWith(20, 'deploy');
+  });
+  it('clear:true closes the window', async () => {
+    await expect(ctl.maintenance(req(), { clear: true })).resolves.toMatchObject({ cleared: true, wasActive: true });
+    expect(clearM).toHaveBeenCalled();
+  });
+  it('rejects out-of-range minutes (400)', async () => {
+    await expect(ctl.maintenance(req(), { minutes: 500 })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(ctl.maintenance(req(), {})).rejects.toBeInstanceOf(BadRequestException);
+    expect(startM).not.toHaveBeenCalled();
+  });
+  it('shares the auth layers: 404 without token env, 401 wrong token, 403 public/proxied peer', async () => {
+    await expect(ctl.maintenance(req({ headers: { 'x-internal-alert-token': 'b'.repeat(40) } }), { minutes: 5 })).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(ctl.maintenance(req({ ip: '203.0.113.9' }), { minutes: 5 })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(ctl.maintenance(req({ headers: { 'x-real-ip': '1.2.3.4' } }), { minutes: 5 })).rejects.toBeInstanceOf(ForbiddenException);
+    delete process.env.INTERNAL_ALERT_TOKEN;
+    await expect(ctl.maintenance(req(), { minutes: 5 })).rejects.toBeInstanceOf(NotFoundException);
+    expect(startM).not.toHaveBeenCalled();
   });
 });

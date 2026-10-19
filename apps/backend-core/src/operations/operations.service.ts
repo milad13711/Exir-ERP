@@ -83,6 +83,32 @@ export class OperationsService {
     };
   }
 
+  /**
+   * فقط شمارنده‌ها (بدون آمار بازه‌ای و بدون خواندن ردیف) برای ویجت داشبورد؛ همان دامنه‌ی overview.
+   * خروجی `counters` با overview یکی است تا کلاینت یک نوع داشته باشد.
+   */
+  async counters(ctx: TenantRequestContext) {
+    const { actor, where } = await this.scope(ctx);
+    const now = new Date();
+    const db = ctx.tenantDb;
+    const published: Where = { isPublished: true };
+    const [byStatus, overdue, scheduled, extensionPending, doneToday, doneWeek] = await Promise.all([
+      db.task.groupBy({ by: ['status'], where: { AND: [where, published] } as never, _count: { _all: true } }),
+      db.task.count({ where: { AND: [where, published, { dueAt: { lt: now }, status: { in: ACTIVE_STATUSES } }] } as never }),
+      db.task.count({ where: { AND: [where, { isPublished: false }] } as never }),
+      db.taskExtensionRequest.count({ where: { status: 'PENDING', task: where } as never }),
+      db.task.count({ where: { AND: [where, { status: { in: FINISHED_STATUSES }, completedAt: { gte: startOfTehranDay(now) } }] } as never }),
+      db.task.count({ where: { AND: [where, { status: { in: FINISHED_STATUSES }, completedAt: { gte: startOfTehranWeek(now) } }] } as never }),
+    ]);
+    const counts: StatusCounts = {};
+    for (const g of byStatus) counts[g.status as TaskStatusValue] = g._count._all;
+    return {
+      scope: actor.manager ? 'all' : 'own',
+      counters: { ...counterFromStatuses(counts, { overdue, extensionPending, scheduled }), doneToday, doneThisWeek: doneWeek },
+      generatedAt: now.toISOString(),
+    };
+  }
+
   // ── ۲) بار کاری ───────────────────────────────────────────────────────
 
   async workload(ctx: TenantRequestContext, q: { from?: string; to?: string; sort?: string; dir?: string }) {

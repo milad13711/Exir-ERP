@@ -64,7 +64,7 @@ describe('availableWidgets (module + permission filtering)', () => {
 
   it('user with no module access sees only no-permission widgets', () => {
     const k = keys(availableWidgets(ALL_MODULES, { manager: false, modules: {} }));
-    expect(k.sort()).toEqual(['approvals', 'calendar', 'messenger-unread', 'recent-activity']);
+    expect(k.sort()).toEqual(['approvals', 'calendar', 'messenger-unread', 'operations-overview', 'recent-activity']);
   });
 
   it('permits(): null perm is open, missing module denies', () => {
@@ -104,6 +104,32 @@ describe('layout validation', () => {
     expect(l.items).toHaveLength(1);
     expect(l.items[0]).toMatchObject({ size: 'S', variant: 'card' });
     expect(parseStoredCompanyLayout('garbage')).toBeNull();
+  });
+});
+
+describe('operations + dispatch count widgets', () => {
+  it('are registered, off by default for existing companies, and need their module installed', () => {
+    for (const key of ['operations-overview', 'dispatch-active']) {
+      const d = WIDGET_REGISTRY.find((x) => x.key === key)!;
+      expect(d).toBeDefined();
+      expect(d.defaultEnabled).toBe(false);
+    }
+    const none = keys(availableWidgets(new Set(['sales']), manager));
+    expect(none).not.toContain('operations-overview');
+    expect(none).not.toContain('dispatch-active');
+    const both = keys(availableWidgets(new Set(['operations', 'dispatch']), manager));
+    expect(both).toEqual(expect.arrayContaining(['operations-overview', 'dispatch-active']));
+  });
+
+  it('operations is scope-filtered by the endpoint (no matrix), dispatch needs view permission on the dispatch module', () => {
+    const noDispatch: AclLike = { manager: false, modules: { sales: m(true) } };
+    const k1 = keys(availableWidgets(new Set(['operations', 'dispatch']), noDispatch));
+    expect(k1).toContain('operations-overview');
+    expect(k1).not.toContain('dispatch-active');
+    const own: AclLike = { manager: false, modules: { dispatch: m(false, true) } };
+    expect(keys(availableWidgets(new Set(['dispatch']), own))).toContain('dispatch-active');
+    const none: AclLike = { manager: false, modules: { dispatch: m(false, false) } };
+    expect(keys(availableWidgets(new Set(['dispatch']), none))).not.toContain('dispatch-active');
   });
 });
 

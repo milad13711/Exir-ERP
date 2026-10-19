@@ -718,7 +718,7 @@ export class InvoicesService {
       remaining: updatedInvoice.total - updatedInvoice.paidAmount,
     });
     if (newStatus === 'PAID') {
-      await this.funnel.recordPurchase(ctx, updatedInvoice.contactId, updatedInvoice.total, 'خرید مجدد (فاکتور فروش)');
+      await this.funnel.recordPurchase(ctx, updatedInvoice.contactId, updatedInvoice.total, 'خرید مجدد (فاکتور فروش)', { type: 'SALES_INVOICE', id: updatedInvoice.id });
       try {
         await this.warranty.issueForInvoicePaid(ctx, updatedInvoice.id);
       } catch (err) {
@@ -850,12 +850,25 @@ export class InvoicesService {
     return { lines, subtotal, discount, taxRate, taxAmount, total: subtotal - discount + taxAmount, paymentMethod, paymentBankInfo };
   }
 
+  /**
+   * ویرایش پیش‌نویس ردیف‌ها را از نو می‌سازد (شناسه‌ی ردیف‌ها عوض می‌شود)؛ اصلاحیه‌ی در انتظارِ حمل
+   * (DispatchInvoiceAdjustment با وضعیت PROPOSED) به همان ردیف‌ها ارجاع دارد و یتیم می‌شد.
+   * پس تا تعیین تکلیف اصلاحیه (تأیید/رد در بخش حمل)، ویرایش/حذف پیش‌نویس مسدود است.
+   */
+  private async assertNoPendingDispatchAdjustment(ctx: TenantRequestContext, invoiceId: string): Promise<void> {
+    const pending = await ctx.tenantDb.dispatchInvoiceAdjustment.count({ where: { invoiceId, status: 'PROPOSED' } });
+    if (pending > 0) {
+      throw new BadRequestException('برای این فاکتور یک اصلاحیه‌ی مبتنی بر وزن واقعی بار در انتظار تأیید است؛ ابتدا آن را در بخش حمل تأیید یا رد کنید، سپس فاکتور را ویرایش کنید');
+    }
+  }
+
   /** ویرایش فاکتور پیش‌نویس (اقلام، تخفیف، سررسید، یادداشت). فاکتور تأییدشده از مسیر editConfirmed ویرایش می‌شود. */
   async updateDraft(ctx: TenantRequestContext, id: string, dto: CreateInvoiceDto) {
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     await assertNotTaxLocked(ctx.tenantDb, id, 'ویرایش فاکتور');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس با این مسیر قابل ویرایش است؛ فاکتور تأییدشده را با «ویرایش با ثبت دلیل» اصلاح کنید');
+    await this.assertNoPendingDispatchAdjustment(ctx, id);
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
 
     const f = await this.prepareFields(ctx, dto, invoice);
@@ -1042,6 +1055,7 @@ export class InvoicesService {
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     await assertNotTaxLocked(ctx.tenantDb, id, 'حذف فاکتور');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس حذف می‌شود؛ فاکتور تأییدشده را باطل کنید');
+    await this.assertNoPendingDispatchAdjustment(ctx, id);
     await ctx.tenantDb.salesInvoice.delete({ where: { id } });
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
     return { success: true };
@@ -1136,6 +1150,16 @@ export class InvoicesService {
     ]);
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE_CANCEL', id, 'APPROVED');
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
+    await this.reverseFunnelPurchase(ctx, invoice.contactId, id, invoice.status === 'PAID');
     return { success: true };
+  }
+
+  /** ابطال/حذف سند ⇒ خریدِ شمارش‌شده‌اش در قیف برمی‌گردد (ایدمپوتنت؛ شکستش ابطال را خراب نمی‌کند). */
+  private async reverseFunnelPurchase(ctx: TenantRequestContext, contactId: string, invoiceId: string, legacyCounted: boolean): Promise<void> {
+    try {
+      await this.funnel.reversePurchase(ctx, contactId, { type: 'SALES_INVOICE', id: invoiceId }, { legacyCounted });
+    } catch (err) {
+      this.logger.error(`Funnel purchase reversal failed for invoice ${invoiceId}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 }

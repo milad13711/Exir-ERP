@@ -85,6 +85,8 @@ const qs = (o: Record<string, string | number | undefined>) => {
 };
 
 export const fetchOpsOverview = (from?: string, to?: string) => apiFetch<OpsOverview>(`/operations/overview${qs({ from, to })}`);
+/** فقط شمارنده‌ها (سبک) — برای ویجت داشبورد. */
+export const fetchOpsCounters = () => apiFetch<{ scope: OpsScope; counters: OpsOverview["counters"]; generatedAt: string }>("/operations/counters");
 export const fetchOpsWorkload = (o: { from?: string; to?: string; sort?: OpsWorkloadSort; dir?: "asc" | "desc" }) => apiFetch<OpsWorkload>(`/operations/workload${qs(o)}`);
 export const fetchOpsAttention = () => apiFetch<OpsAttention>("/operations/attention");
 export const fetchOpsActivity = (cursor?: string) => apiFetch<OpsActivity>(`/operations/activity${qs({ cursor, limit: 25 })}`);

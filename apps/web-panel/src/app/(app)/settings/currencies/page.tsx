@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useWorkspace } from "@/lib/workspace-context";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -18,7 +19,7 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export default function CurrenciesSettingsPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetched, setFetched] = useState(false);
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -31,12 +32,16 @@ export default function CurrenciesSettingsPage() {
   const [editRate, setEditRate] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  const { installedModules, loading: workspaceLoading } = useWorkspace();
+  const hasCurrencyModule = installedModules.has("currency-exchange");
   function reload() {
+    if (!hasCurrencyModule) return;
     fetchCurrencies()
       .then(setCurrencies)
-      .finally(() => setLoading(false));
+      .finally(() => setFetched(true));
   }
-  useEffect(reload, []);
+  useEffect(reload, [hasCurrencyModule]);
+  const loading = workspaceLoading || (hasCurrencyModule && !fetched);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

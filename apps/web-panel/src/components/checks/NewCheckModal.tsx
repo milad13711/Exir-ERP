@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { fetchCrmContacts, fetchSuppliers, createCheck, ApiError, type CrmContact, type Supplier, type Check, type CheckDirection } from "@/lib/api";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
+import { createCheck, ApiError, type Check, type CheckDirection } from "@/lib/api";
 
 export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onCreated: (check: Check) => void }) {
   const [direction, setDirection] = useState<CheckDirection>("RECEIVED");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [partyId, setPartyId] = useState("");
   const [sayadId, setSayadId] = useState("");
   const [amount, setAmount] = useState("");
@@ -15,11 +14,6 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
   const [reminderDaysBefore, setReminderDaysBefore] = useState("3");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
-    fetchSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,19 +74,14 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">
             {direction === "RECEIVED" ? "مشتری" : "تأمین‌کننده"}
           </label>
-          <select
+          <ContactCombobox
+            key={direction}
             value={partyId}
-            onChange={(e) => setPartyId(e.target.value)}
-            required
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          >
-            <option value="">انتخاب کنید...</option>
-            {(direction === "RECEIVED" ? contacts : suppliers).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.company || p.name}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => setPartyId(id)}
+            source={direction === "RECEIVED" ? "customer" : "supplier"}
+            allowCreate={false}
+            placeholder={direction === "RECEIVED" ? "جستجوی مشتری (نام، شرکت، موبایل)..." : "جستجوی تأمین‌کننده (نام، شرکت، موبایل)..."}
+          />
         </div>
 
         <div className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { logInitialFunnelEvent } from '../crm/funnel-events.js';
 import QRCode from 'qrcode';
 import { publicRef } from '../common/tenant-public-key.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -122,7 +123,9 @@ export class PublicFormsService {
   private async resolveOrCreateContact(ctx: TenantRequestContext, name: string, phone: string) {
     const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone } });
     if (existing) return existing;
-    return ctx.tenantDb.crmContact.create({ data: { name: name || phone, phone, isCustomer: true, source: 'فرم آنلاین' } });
+    const created = await ctx.tenantDb.crmContact.create({ data: { name: name || phone, phone, isCustomer: true, source: 'فرم آنلاین' } });
+    await logInitialFunnelEvent(ctx.tenantDb, created.id);
+    return created;
   }
 
   async submit(slug: string, formSlug: string, rawBody: unknown, req: { ip?: string | null; origin?: string; referer?: string } = {}) {

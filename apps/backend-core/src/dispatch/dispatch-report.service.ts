@@ -4,7 +4,7 @@ import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 import { faDate, faTime } from '../common/persian.js';
 import { resolveActor } from './dispatch-common.js';
 import { DispatchService } from './dispatch.service.js';
-import { STATUS_LABELS_FA } from './dispatch-state.js';
+import { STATUS_LABELS_FA, TERMINAL_STATUSES } from './dispatch-state.js';
 
 export type ReportFilters = {
   status?: string;
@@ -52,6 +52,44 @@ export type ReportRow = {
 @Injectable()
 export class DispatchReportService {
   constructor(private readonly dispatch: DispatchService) {}
+
+  /**
+   * شمارنده‌ی ارزان برای ویجت داشبورد: تعداد بارهای فعال (غیر تحویل‌شده/لغو) به تفکیک وضعیت، در دامنه‌ی دید کاربر.
+   * فقط یک groupBy؛ بدون خواندن ردیف. دامنه همان scopeWhere فهرست است (بدون دسترسی ۴۰۳).
+   */
+  async activeCounts(ctx: TenantRequestContext): Promise<{
+    active: number;
+    awaitingDriver: number;
+    awaitingDocs: number;
+    readyToDepart: number;
+    inTransit: number;
+    suspended: number;
+    byStatus: Record<string, number>;
+  }> {
+    const actor = await resolveActor(ctx);
+    const scope = await this.dispatch.scopeWhere(ctx, actor);
+    const groups = await ctx.tenantDb.shipment.groupBy({
+      by: ['status'],
+      where: { AND: [scope, { loading: { isNot: null } }, { status: { notIn: [...TERMINAL_STATUSES] } }] } as never,
+      _count: { _all: true },
+    });
+    const byStatus: Record<string, number> = {};
+    let active = 0;
+    for (const g of groups as Array<{ status: string; _count: { _all: number } }>) {
+      byStatus[g.status] = g._count._all;
+      active += g._count._all;
+    }
+    const c = (s: string) => byStatus[s] ?? 0;
+    return {
+      active,
+      awaitingDriver: c('AWAITING_DRIVER') + c('OFFERED'),
+      awaitingDocs: c('AWAITING_DOCS'),
+      readyToDepart: c('READY_TO_DEPART'),
+      inTransit: c('IN_TRANSIT'),
+      suspended: c('SUSPENDED'),
+      byStatus,
+    };
+  }
 
   async query(ctx: TenantRequestContext, f: ReportFilters): Promise<{ rows: ReportRow[]; summary: { count: number; totalNetKg: number; withWeight: number; byStatus: Record<string, number> } }> {
     const actor = await resolveActor(ctx);

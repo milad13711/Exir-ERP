@@ -4,7 +4,7 @@ import { isInternalCall } from '../security/client-ip.js';
 import { RateLimitStore } from '../security/rate-limit.js';
 import { safeEqual } from '../security/safe-compare.js';
 import { MonitoringService } from './monitoring.service.js';
-import { KIND_RE, sanitizeAlertText } from './monitoring-logic.js';
+import { KIND_RE, normalizeMaintenanceInput, sanitizeAlertText } from './monitoring-logic.js';
 
 const MIN_TOKEN_LEN = 32;
 
@@ -20,9 +20,8 @@ export class InternalAlertController {
 
   constructor(private readonly monitoring: MonitoringService) {}
 
-  @Post('alert')
-  @HttpCode(200)
-  async alert(@Req() req: Request, @Body() body: unknown) {
+  /** احراز مشترک endpointهای داخلی: توکن قوی، همتای داخلی، سقف نرخ، توکن ثابت‌زمان. */
+  private authorize(req: Request): void {
     const token = process.env.INTERNAL_ALERT_TOKEN ?? '';
     if (token.length < MIN_TOKEN_LEN) throw new NotFoundException();
     if (!isInternalCall(req)) throw new ForbiddenException();
@@ -32,7 +31,31 @@ export class InternalAlertController {
     }
     const given = req.headers['x-internal-alert-token'];
     if (!safeEqual(typeof given === 'string' ? given : undefined, token)) throw new UnauthorizedException();
+  }
 
+  /**
+   * POST /api/internal/maintenance {minutes:1..120, reason} — خاموش کردن SMS هشدارهای پایش داخلی تا minutes دقیقه (لاگ ادامه دارد، خودکار منقضی می‌شود).
+   * {clear:true} پنجره را زودتر می‌بندد. هشدارهای امنیتی host-watch و پایشگر بیرونی «سرور مرده» هرگز تحت تأثیر نیستند.
+   */
+  @Post('maintenance')
+  @HttpCode(200)
+  async maintenance(@Req() req: Request, @Body() body: unknown) {
+    this.authorize(req);
+    const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+    if (b.clear === true) {
+      const r = await this.monitoring.clearMaintenance();
+      return { ok: true, cleared: true, wasActive: r.wasActive };
+    }
+    const input = normalizeMaintenanceInput(b.minutes, b.reason);
+    if (!input) throw new BadRequestException('minutes باید عدد صحیح ۱ تا ۱۲۰ باشد');
+    const r = await this.monitoring.startMaintenance(input.minutes, input.reason);
+    return { ok: true, until: r.until };
+  }
+
+  @Post('alert')
+  @HttpCode(200)
+  async alert(@Req() req: Request, @Body() body: unknown) {
+    this.authorize(req);
     const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
     if (b.heartbeat === true) {
       await this.monitoring.recordHostHeartbeat();

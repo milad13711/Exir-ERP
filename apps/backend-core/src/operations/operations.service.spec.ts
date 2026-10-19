@@ -46,6 +46,21 @@ describe('OperationsService scope', () => {
     expect(asJson(db.taskEvent.findMany.mock.calls[0][0])).toContain(asJson(scope));
   });
 
+  it('counters: scoped like overview, counts only (no row reads), same counter shape', async () => {
+    const { svc, db, ctx } = make({ userId: 'u1', manager: false });
+    const r = await svc.counters(ctx);
+    expect(r.scope).toBe('own');
+    expect(Object.keys(r.counters)).toEqual(expect.arrayContaining(['new', 'overdue', 'awaitingApproval', 'doneToday', 'doneThisWeek']));
+    expect(db.task.findMany).not.toHaveBeenCalled();
+    const scope = { OR: [{ createdByUserId: 'u1' }, { isPublished: true, assignedUserId: 'u1' }, { isPublished: true, assignees: { some: { userId: 'u1' } } }] };
+    for (const fn of [db.task.groupBy, db.task.count]) {
+      for (const call of fn.mock.calls) expect(JSON.stringify(call[0])).toContain(JSON.stringify(scope));
+    }
+    expect(JSON.stringify(db.taskExtensionRequest.count.mock.calls[0][0])).toContain(JSON.stringify(scope));
+    const mgr = make({ userId: 'm', manager: true });
+    expect((await mgr.svc.counters(mgr.ctx)).scope).toBe('all');
+  });
+
   it('non-manager workload returns only the caller row; activity pagination cursor', async () => {
     const { svc, db, ctx } = make({ userId: 'u1', manager: false });
     db.task.findMany.mockResolvedValueOnce([

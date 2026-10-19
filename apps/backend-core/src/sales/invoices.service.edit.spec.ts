@@ -77,7 +77,7 @@ function setup(opts: { invoice?: ReturnType<typeof baseInvoice>; counts?: Partia
   };
   const gateway = { isConfigured: async () => false };
   const service = new InvoicesService(
-    { sendSms: vi.fn() } as never, { assess: vi.fn() } as never, new CostingService(), { emit: vi.fn() } as never, {} as never,
+    { sendSms: vi.fn() } as never, { assess: vi.fn() } as never, new CostingService(), { emit: vi.fn() } as never, { reversePurchase: vi.fn(async () => false) } as never,
     gateway as never, {} as never, { moduleDefinition: { findUnique: vi.fn() }, tenantModule: { findUnique: vi.fn() } } as never, {} as never,
     { registerHandler: () => {}, closeForEntity: vi.fn(), request: vi.fn(), runOrRequest: vi.fn() } as never, {} as never,
   );

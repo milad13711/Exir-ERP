@@ -7,12 +7,15 @@ import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { BackupDrService } from '../backup-dr/backup-dr.service.js';
 import { writeJsonAtomic } from '../backup-dr/backup-state.js';
 import {
+  activeSuppression,
   applyResult,
+  bootGraceMinutes,
   classifyDbLatency,
   classifyDisk,
   classifyErrorRate,
   classifyTls,
   classifyUrlStatus,
+  isSuppressibleAlert,
   emptyMonitorState,
   pushHistory,
   recordSent,
@@ -21,6 +24,7 @@ import {
   shouldSend,
   type CheckResult,
   type MonitorState,
+  type Suppression,
   type Notify,
 } from './monitoring-logic.js';
 import { HOST_RE, diskFreePct, httpStatus, tlsDaysLeft } from './monitoring-probes.js';
@@ -39,12 +43,39 @@ export class MonitoringService {
   private readonly logger = new Logger('Monitoring');
   private running = false;
   private lock: Promise<void> = Promise.resolve();
+  /** مهلت پس از هر استارت بک‌اند: 502 های لحظه‌ای هنگام بالا آمدن نباید به مالک SMS بدهند. هشدار پایدارتر از مهلت همچنان می‌رود. */
+  private readonly bootGraceUntilMs: number;
 
   constructor(
     private readonly controlDb: ControlPrismaService,
     @Optional() private readonly sms?: ExirSmsService,
     @Optional() private readonly backups?: BackupDrService,
-  ) {}
+  ) {
+    const graceMin = bootGraceMinutes();
+    this.bootGraceUntilMs = this.now().getTime() + graceMin * 60_000;
+    if (graceMin > 0) this.logger.warn(`[maintenance] boot grace: SMS alerts suppressed for ${graceMin} min after start (still logged). Persisting problems will alert afterwards.`);
+  }
+
+  // ── حالت نگه‌داری ──────────────────────────────────────────────────────
+  async getSuppression(): Promise<Suppression> {
+    return activeSuppression(await this.readState(), this.bootGraceUntilMs, this.now().getTime());
+  }
+  async startMaintenance(minutes: number, reason: string): Promise<{ until: string }> {
+    const now = this.now();
+    const until = new Date(now.getTime() + minutes * 60_000).toISOString();
+    await this.patch((s) => void (s.maintenance = { until, reason, setAt: now.toISOString() }));
+    this.logger.warn(`[maintenance] SMS alerts SUPPRESSED until ${until} (${minutes} min): ${reason}. Alerts are still logged. The external uptime monitor is NOT affected.`);
+    return { until };
+  }
+  async clearMaintenance(): Promise<{ wasActive: boolean }> {
+    const was = await this.patch((s) => {
+      const active = !!s.maintenance && Date.parse(s.maintenance.until) > this.now().getTime();
+      delete s.maintenance;
+      return active;
+    });
+    this.logger.warn(`[maintenance] window cleared (wasActive=${was}); SMS alerts resume${this.bootGraceUntilMs > this.now().getTime() ? ' after the boot grace' : ''}.`);
+    return { wasActive: was };
+  }
 
   // ── پیکربندی (lazy، برای تست و تغییر env) ──────────────────────────────
   protected get statePath(): string {
@@ -238,11 +269,17 @@ export class MonitoringService {
         results.push({ spec, result });
       }
       const nowIso = this.now().toISOString();
+      const suppressed = await this.getSuppression();
       const notifications: { spec: CheckSpec; result: CheckResult; notify: Notify }[] = [];
       await this.patch((s) => {
         const known = new Set(specs.map((x) => x.key));
         for (const k of Object.keys(s.checks)) if (!known.has(k)) delete s.checks[k];
         for (const { spec, result } of results) {
+          // در نگه‌داری/مهلت بوت، نتیجه‌ی ناسالم ثبت نمی‌شود (شمارنده‌ی پیاپی صفر می‌ماند)؛ بعد از مهلت اگر مشکل پابرجا بود از نو شمرده و هشدار می‌دهد.
+          if (suppressed && (result.level === 'warn' || result.level === 'crit')) {
+            this.logger.warn(`[maintenance] suppressed (${suppressed.kind}) ${spec.key}: ${result.level} - ${result.detail}`);
+            continue;
+          }
           const { next, notify } = applyResult(s.checks[spec.key], result, nowIso, spec.failuresBeforeAlert);
           s.checks[spec.key] = next;
           if (notify) notifications.push({ spec, result, notify });
@@ -268,8 +305,18 @@ export class MonitoringService {
     kind: string,
     message: string,
     opts: { source: 'checker' | 'host' | 'test'; resolved?: boolean } = { source: 'checker' },
-  ): Promise<{ sent: boolean; reason?: 'dedupe' | 'cap' | 'no-recipient' | 'sms-failed' }> {
+  ): Promise<{ sent: boolean; reason?: 'dedupe' | 'cap' | 'no-recipient' | 'sms-failed' | 'maintenance' }> {
     const text = sanitizeAlertText(message);
+    if (!opts.resolved && isSuppressibleAlert(kind, opts.source)) {
+      const sup = await this.getSuppression();
+      if (sup) {
+        // فقط لاگ + ثبت در recent؛ recordSent نمی‌شود تا dedupe روزانه مصرف نشود و هشدار پس از مهلت بتواند برود.
+        this.logger.warn(`[maintenance] alert suppressed (${sup.kind} until ${sup.until}) ${kind}: ${text}`);
+        const at = this.now().toISOString();
+        await this.patch((s) => void (s.recent = [{ at, kind, message: text, source: opts.source, delivered: false, reason: 'maintenance' }, ...(s.recent ?? [])].slice(0, 20)));
+        return { sent: false, reason: 'maintenance' };
+      }
+    }
     const day = this.now().toISOString().slice(0, 10);
     const nowIso = this.now().toISOString();
     const decision = await this.patch((s) => {
@@ -350,6 +397,7 @@ export class MonitoringService {
         maxSmsPerDay: this.maxSmsPerDay,
         smsSentToday: s.smsToday?.day === this.now().toISOString().slice(0, 10) ? s.smsToday.count : 0,
         internalAlertEnabled: !!process.env.INTERNAL_ALERT_TOKEN,
+        suppression: await this.getSuppression(),
       },
       checks,
       history: s.history.filter((h) => Date.parse(h.at) >= this.now().getTime() - 24 * 3_600_000),

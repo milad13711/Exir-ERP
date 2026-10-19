@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
@@ -9,10 +10,8 @@ import {
   cancelCheck,
   endorseCheck,
   updateCheckReminderDays,
-  fetchCrmContacts,
   ApiError,
   type Check,
-  type CrmContact,
 } from "@/lib/api";
 
 const STATUS_LABELS_BY_DIRECTION: Record<Check["direction"], Record<Check["status"], string>> = {
@@ -56,14 +55,9 @@ export function CheckDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [reminderDays, setReminderDays] = useState(String(check.reminderDaysBefore));
   const [endorseOpen, setEndorseOpen] = useState(false);
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [endorseToId, setEndorseToId] = useState("");
 
   const party = check.contact;
-
-  useEffect(() => {
-    if (endorseOpen) fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
-  }, [endorseOpen]);
 
   async function run(action: () => Promise<Check>) {
     setBusy(true);
@@ -191,20 +185,16 @@ export function CheckDetailModal({
               </button>
             ) : (
               <div className="flex flex-col gap-2 bg-slate-50 border border-border rounded-xl p-3">
-                <select
+                <ContactCombobox
                   value={endorseToId}
-                  onChange={(e) => setEndorseToId(e.target.value)}
-                  className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
-                >
-                  <option value="">واگذاری به...</option>
-                  {contacts
-                    .filter((c) => c.id !== check.contact?.id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company || c.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={(id) => setEndorseToId(id)}
+                  source="customer"
+                  allowCreate={false}
+                  placeholder="واگذاری به... (جستجوی نام، شرکت، موبایل)"
+                />
+                {endorseToId && endorseToId === check.contact?.id ? (
+                  <div className="text-[11.5px] text-danger">چک را نمی‌توان به صادرکننده‌ی همان چک واگذار کرد.</div>
+                ) : null}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setEndorseOpen(false)}
@@ -214,7 +204,7 @@ export function CheckDetailModal({
                   </button>
                   <button
                     onClick={() => run(() => endorseCheck(check.id, endorseToId))}
-                    disabled={busy || !endorseToId}
+                    disabled={busy || !endorseToId || endorseToId === check.contact?.id}
                     className="flex-1 py-2 rounded-lg bg-accent text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
                   >
                     تأیید پشت‌نویسی

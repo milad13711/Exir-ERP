@@ -79,6 +79,13 @@ export class DispatchController {
     return this.report.query(ctx, filtersFrom(query));
   }
 
+  /** شمارنده‌ی بارهای فعال به تفکیک وضعیت (ویجت داشبورد) — در دامنه‌ی دید کاربر. */
+  @Get('shipments/active-counts')
+  async activeCounts(@Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'dispatch');
+    return this.report.activeCounts(ctx);
+  }
+
   @Get('shipments/export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Cache-Control', 'no-store')

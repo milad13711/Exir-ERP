@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatNumber, formatJalaliDate, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
@@ -62,8 +63,15 @@ export function ProductModal({
       setWarehouses(list);
       setWarehouseId((prev) => prev || list.find((w) => w.isDefault)?.id || list[0]?.id || "");
     });
-    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive))).catch(() => setCurrencies([]));
   }, []);
+
+  const { installedModules } = useWorkspace();
+  const hasCurrencyModule = installedModules.has("currency-exchange");
+  useEffect(() => {
+    // بدون ماژول ارز، سرور ۴۰۳ می‌دهد؛ پیش‌فرض همان ارز پایه (تومان) است.
+    if (!hasCurrencyModule) return;
+    fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive))).catch(() => setCurrencies([]));
+  }, [hasCurrencyModule]);
 
   const editSelectedCurrency = currencies.find((c) => c.id === editCurrencyId);
 

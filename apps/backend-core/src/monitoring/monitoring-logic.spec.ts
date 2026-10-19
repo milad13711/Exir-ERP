@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeSuppression,
+  bootGraceMinutes,
+  isSuppressibleAlert,
+  normalizeMaintenanceInput,
   applyResult,
   classifyDbLatency,
   classifyDisk,
@@ -145,5 +149,34 @@ describe('helpers', () => {
   it('sanitizeAlertText strips control chars and truncates', () => {
     expect(sanitizeAlertText('a\nb\u0000c')).toBe('a b c');
     expect(sanitizeAlertText('x'.repeat(500))).toHaveLength(300);
+  });
+});
+
+describe('maintenance logic', () => {
+  it('normalizes input and rejects bad minutes', () => {
+    expect(normalizeMaintenanceInput(20, 'deploy\nx')).toEqual({ minutes: 20, reason: 'deploy x' });
+    expect(normalizeMaintenanceInput('15', '')).toEqual({ minutes: 15, reason: 'maintenance' });
+    for (const bad of [0, -1, 121, 1.5, NaN, 'abc', '', null, undefined]) expect(normalizeMaintenanceInput(bad, 'x')).toBeNull();
+  });
+  it('activeSuppression picks the latest expiry and ignores expired windows', () => {
+    const now = Date.UTC(2026, 9, 19, 10, 0);
+    const iso = (m: number) => new Date(now + m * 60_000).toISOString();
+    expect(activeSuppression({}, 0, now)).toBeNull();
+    expect(activeSuppression({ maintenance: { until: iso(-1), reason: 'r', setAt: iso(-20) } }, 0, now)).toBeNull();
+    expect(activeSuppression({ maintenance: { until: iso(10), reason: 'r', setAt: iso(0) } }, now + 5 * 60_000, now)?.kind).toBe('maintenance');
+    expect(activeSuppression({ maintenance: { until: iso(2), reason: 'r', setAt: iso(0) } }, now + 5 * 60_000, now)?.kind).toBe('boot-grace');
+  });
+  it('only availability alerts are suppressible', () => {
+    expect(isSuppressibleAlert('url:x:crit', 'checker')).toBe(true);
+    expect(isSuppressibleAlert('host:docker-unhealthy', 'host')).toBe(true);
+    expect(isSuppressibleAlert('host:ssh-new-ip:1.1.1.1', 'host')).toBe(false);
+    expect(isSuppressibleAlert('host:fail2ban-spike', 'host')).toBe(false);
+    expect(isSuppressibleAlert('test:1', 'test')).toBe(false);
+  });
+  it('bootGraceMinutes defaults to 5 and validates env', () => {
+    expect(bootGraceMinutes({})).toBe(5);
+    expect(bootGraceMinutes({ MONITOR_BOOT_GRACE_MIN: '0' })).toBe(0);
+    expect(bootGraceMinutes({ MONITOR_BOOT_GRACE_MIN: '99' })).toBe(5);
+    expect(bootGraceMinutes({ MONITOR_BOOT_GRACE_MIN: 'x' })).toBe(5);
   });
 });

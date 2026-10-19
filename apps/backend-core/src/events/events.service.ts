@@ -343,7 +343,7 @@ export class EventsService {
       data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId },
     });
     // خرید بلیط پولی = خرید واقعی ⇒ سرنخ مشتری می‌شود / خرید تکراری (قیف فروش)
-    if (totalAmount > 0) await this.funnel.recordPurchase(ctx, contact.id, totalAmount, 'خرید مجدد (بلیط رویداد)');
+    if (totalAmount > 0) await this.funnel.recordPurchase(ctx, contact.id, totalAmount, 'خرید مجدد (بلیط رویداد)', invoiceId ? { type: 'SALES_INVOICE', id: invoiceId } : { type: 'EVENT_ORDER', id: orderGroupId });
 
     if (publicWebUrl) {
       const smsSettings = await this.getSmsSettings(ctx);

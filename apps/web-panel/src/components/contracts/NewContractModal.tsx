@@ -1,10 +1,10 @@
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { useEffect, useRef, useState } from "react";
 import { PlaceholderPalette, CONTRACT_PLACEHOLDERS } from "@/components/contracts/PlaceholderPalette";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   createContract,
-  fetchCrmContacts,
   fetchEmployees,
   fetchContractTemplates,
   fetchContractCategories,
@@ -13,7 +13,6 @@ import {
   type ContractPartyMode,
   type ContractLegalCategory,
   type ContractTemplate,
-  type CrmContact,
   type Employee,
   type TenantUser,
 } from "@/lib/api";
@@ -111,7 +110,6 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
   const [legalCategory, setLegalCategory] = useState<ContractLegalCategory>("GENERAL");
 
   const [contactId, setContactId] = useState("");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [secondPartyContactId, setSecondPartyContactId] = useState("");
@@ -144,7 +142,6 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchEmployees().then(setEmployees).catch(() => setEmployees([]));
     fetchContractTemplates().then(setTemplates).catch(() => setTemplates([]));
     fetchContractCategories().then(setCategories).catch(() => setCategories([]));
@@ -273,16 +270,13 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
         {(partyMode === "EXTERNAL" || partyMode === "THIRD_PARTY") && (
           <div>
             <label className={labelClass}>{partyMode === "THIRD_PARTY" ? "طرف اول" : "طرف قرارداد"}</label>
-            <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
-              <option value="">انتخاب کنید</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.company ? ` (${c.company})` : ""}
-                  {!c.phone ? " — بدون شماره موبایل" : ""}
-                </option>
-              ))}
-            </select>
+            <ContactCombobox
+              value={contactId}
+              onChange={(id) => setContactId(id)}
+              source="customer"
+              allowCreate={false}
+              placeholder="جستجوی طرف قرارداد (نام، شرکت، موبایل)..."
+            />
           </div>
         )}
 
@@ -306,15 +300,13 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
               </button>
             </div>
             {secondPartyMode === "existing" ? (
-              <select value={secondPartyContactId} onChange={(e) => setSecondPartyContactId(e.target.value)} className={inputClass}>
-                <option value="">انتخاب کنید</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {!c.phone ? " — بدون شماره موبایل" : ""}
-                  </option>
-                ))}
-              </select>
+              <ContactCombobox
+                value={secondPartyContactId}
+                onChange={(id) => setSecondPartyContactId(id)}
+                source="customer"
+                allowCreate={false}
+                placeholder="جستجوی طرف دوم (نام، شرکت، موبایل)..."
+              />
             ) : (
               <div className="flex flex-wrap gap-2">
                 <input

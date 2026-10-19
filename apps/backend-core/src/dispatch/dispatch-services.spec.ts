@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { invoiceWeighingBlockFor } from './dispatch-gate.js';
-import { csvCell } from './dispatch-report.service.js';
+import { csvCell, DispatchReportService } from './dispatch-report.service.js';
 import { DispatchSuggestionsService } from './dispatch-suggestions.service.js';
 import { DispatchService } from './dispatch.service.js';
 
@@ -96,5 +96,38 @@ describe('DispatchService scope (out-of-scope => 404, no access => 403)', () => 
     const { svc, ctx, actor } = make({}, false);
     await expect(svc.scopeWhere(ctx, actor)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(svc.load(ctx, actor, 's1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('DispatchReportService.activeCounts (dashboard widget)', () => {
+  const make = (scope: Record<string, unknown> | Error) => {
+    const groupBy = vi.fn(async (_args: unknown) => [
+      { status: 'AWAITING_DRIVER', _count: { _all: 2 } },
+      { status: 'OFFERED', _count: { _all: 1 } },
+      { status: 'IN_TRANSIT', _count: { _all: 4 } },
+      { status: 'SUSPENDED', _count: { _all: 1 } },
+    ]);
+    const tenantDb = { shipment: { groupBy, findMany: vi.fn() }, user: { findUnique: vi.fn(async () => ({ id: 'u1', name: 'x' })) }, userRole: { findMany: vi.fn(async () => []) } };
+    const dispatch = { scopeWhere: vi.fn(async () => { if (scope instanceof Error) throw scope; return scope; }) };
+    const ctx = { tenantDb, auth: { type: 'jwt', sub: 'g1', role: 'MEMBER' } } as any;
+    return { svc: new DispatchReportService(dispatch as any), ctx, groupBy, dispatch, tenantDb };
+  };
+
+  it('aggregates active statuses with one groupBy, scoped, excluding terminal statuses', async () => {
+    const scope = { OR: [{ createdByUserId: 'u1' }] };
+    const { svc, ctx, groupBy, tenantDb } = make(scope);
+    const r = await svc.activeCounts(ctx);
+    expect(r).toMatchObject({ active: 8, awaitingDriver: 3, inTransit: 4, suspended: 1, readyToDepart: 0, awaitingDocs: 0 });
+    const arg = groupBy.mock.calls[0][0] as any;
+    expect(arg.by).toEqual(['status']);
+    expect(JSON.stringify(arg.where)).toContain(JSON.stringify(scope));
+    expect(arg.where.AND).toContainEqual({ status: { notIn: expect.arrayContaining(['DELIVERED', 'CANCELLED']) } });
+    expect(tenantDb.shipment.findMany).not.toHaveBeenCalled();
+  });
+
+  it('propagates the permission failure (no access -> no counts)', async () => {
+    const { svc, ctx, groupBy } = make(new ForbiddenException('x'));
+    await expect(svc.activeCounts(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(groupBy).not.toHaveBeenCalled();
   });
 });

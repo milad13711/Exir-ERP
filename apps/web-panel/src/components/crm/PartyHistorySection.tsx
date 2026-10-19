@@ -16,6 +16,8 @@ import {
   ProposalIcon,
 } from "@/components/icons";
 import { PROPOSAL_STATUS_LABELS, PROPOSAL_STATUS_TONES } from "@/components/proposals/constants";
+import { useWorkspace } from "@/lib/workspace-context";
+import { canViewModule } from "@/lib/access";
 import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
 import {
   fetchContracts,
@@ -85,25 +87,30 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
   const [warrantyCodes, setWarrantyCodes] = useState<WarrantyCode[]>([]);
   const [proposals, setProposals] = useState<ProposalListItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const { me, installedModules, loading: workspaceLoading } = useWorkspace();
 
   useEffect(() => {
+    // ماژولی که نصب نیست یا کاربر مجوز دیدنش را ندارد اصلاً درخواست نمی‌زند (وگرنه ۴۰۳ بی‌اثر در لاگ سرور می‌ماند).
+    const gate = <T,>(code: string, run: () => Promise<T[]>): Promise<T[]> => (canViewModule(me, installedModules, code) ? run() : Promise.resolve([] as T[]));
+    // مجموعه‌ی ماژول‌های نصب‌شده هنوز بارگذاری نشده — منتظر می‌مانیم تا درخواست بی‌جا نرود.
+    if (workspaceLoading) return;
     // contactId عوض شده — وضعیت «در حال بارگذاری» عمداً همین‌جا صفر می‌شود، نه در callback، وگرنه لحظه‌ی کوتاهی داده‌های مخاطب قبلی نمایش داده می‌شود
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoaded(false);
     Promise.allSettled([
-      fetchContracts({ contactId }),
-      fetchProjects({ contactId }),
-      fetchAppointments({ contactId }),
-      fetchMentoringSessions({ contactId }),
-      fetchEventTicketsByContact(contactId),
-      fetchSalesInvoices(contactId),
-      fetchSalesQuotations(contactId),
-      fetchChecks({ contactId }),
-      fetchShipments(undefined, contactId),
-      fetchStoreOrders(undefined, contactId),
-      fetchFormSubmissionsByContact(contactId),
-      fetchWarrantyCodes({ contactId }),
-      fetchProposals({ contactId }),
+      gate("contracts", () => fetchContracts({ contactId })),
+      gate("projects", () => fetchProjects({ contactId })),
+      gate("booking", () => fetchAppointments({ contactId })),
+      gate("mentoring", () => fetchMentoringSessions({ contactId })),
+      gate("events", () => fetchEventTicketsByContact(contactId)),
+      gate("sales", () => fetchSalesInvoices(contactId)),
+      gate("sales", () => fetchSalesQuotations(contactId)),
+      gate("checks", () => fetchChecks({ contactId })),
+      gate("fleet", () => fetchShipments(undefined, contactId)),
+      gate("online-store", () => fetchStoreOrders(undefined, contactId)),
+      gate("forms", () => fetchFormSubmissionsByContact(contactId)),
+      gate("warranty", () => fetchWarrantyCodes({ contactId })),
+      gate("proposals", () => fetchProposals({ contactId })),
     ]).then(([c, p, a, s, t, inv, q, chk, sh, so, fs, wc, pr]) => {
       setContracts(c.status === "fulfilled" ? c.value : []);
       setProjects(p.status === "fulfilled" ? p.value : []);
@@ -120,7 +127,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
       setProposals(pr.status === "fulfilled" ? pr.value : []);
       setLoaded(true);
     });
-  }, [contactId]);
+  }, [contactId, me, installedModules, workspaceLoading]);
 
   const hasAny =
     contracts.length > 0 ||

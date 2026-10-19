@@ -95,7 +95,7 @@ const controlDbStub = { moduleDefinition: { findUnique: vi.fn().mockResolvedValu
 describe('InvoicesService.confirm — double-entry posting', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, { request: async () => ({}), closeForEntity: async () => {}, registerHandler: () => {} } as never, { getStamp: async () => ({}) } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {}, reversePurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, { request: async () => ({}), closeForEntity: async () => {}, registerHandler: () => {} } as never, { getStamp: async () => ({}) } as never);
   });
 
   it('posts a balanced Dr AR / Cr Revenue entry for a simple invoice with no tax or COGS', async () => {
@@ -176,7 +176,7 @@ describe('InvoicesService.confirm — double-entry posting', () => {
 describe('InvoicesService.recordPayment', () => {
   let service: InvoicesService;
   beforeEach(() => {
-    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, { request: async () => ({}), closeForEntity: async () => {}, registerHandler: () => {} } as never, { getStamp: async () => ({}) } as never);
+    service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {}, reversePurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, { request: async () => ({}), closeForEntity: async () => {}, registerHandler: () => {} } as never, { getStamp: async () => ({}) } as never);
   });
 
   function invoiceStub(overrides: Record<string, unknown> = {}) {
@@ -294,7 +294,7 @@ describe('InvoicesService.recordPayment', () => {
 describe('InvoicesService — lock while a Moodian tax invoice is in flight/accepted', () => {
   function build(lockStatus: string | null) {
     const approvalsStub = { request: vi.fn(async () => ({})), closeForEntity: vi.fn(async () => {}), registerHandler: () => {}, isManager: () => true, runOrRequest: vi.fn() };
-    const service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, approvalsStub as never, { getStamp: async () => ({}) } as never);
+    const service = new InvoicesService(smsStub as never, creditScoreStub as never, new CostingService(), automationStub as never, { recordPurchase: async () => {}, reversePurchase: async () => {} } as never, { isConfigured: async () => false, createPayment: vi.fn(), verifyPayment: vi.fn() } as never, { issueForInvoicePaid: async () => {} } as never, controlDbStub as never, { bookCommission: async () => {} } as never, approvalsStub as never, { getStamp: async () => ({}) } as never);
     const tenantDb = {
       salesInvoice: { findUnique: vi.fn(async () => ({ id: 'inv-1', status: 'CONFIRMED', paidAmount: 0, invoiceNo: 3 })), delete: vi.fn(), update: vi.fn() },
       taxInvoice: { findFirst: vi.fn(async (args: { where: { status?: unknown; subject?: unknown } }) => (args.where.status === 'ACCEPTED' ? null : lockStatus ? { id: 't1' } : null)) },

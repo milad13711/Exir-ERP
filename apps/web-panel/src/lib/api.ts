@@ -620,7 +620,19 @@ export const PERMISSION_GATED_MODULE_CODES = [
   "automation",
   "reports",
   "logs",
+  "dispatch",
+  "proposals",
+  "tax",
+  "certificates",
+  "book-store",
 ] as const;
+
+/**
+ * ماژول‌هایی که عمداً در ماتریس نیستند چون بک‌اند با ماتریس گیتشان نمی‌کند:
+ * messenger (سیاست مدیر/عضو در messenger-policy)، operations (مدیر = همه، بقیه = نمای شخصی)،
+ * checks (زیرمجموعه‌ی دسترسی فروش/خرید). تست parity بک‌اند این فهرست را هم می‌خواند.
+ */
+export const PERMISSION_MATRIX_EXEMPT_MODULE_CODES = ["messenger", "operations", "checks"] as const;
 
 export type ModulePermissionEntry = {
   moduleCode: string;

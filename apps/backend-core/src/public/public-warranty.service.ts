@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { logInitialFunnelEvent } from '../crm/funnel-events.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
@@ -101,7 +102,9 @@ export class PublicWarrantyService {
   private async resolveOrCreateContact(ctx: TenantRequestContext, name: string, phone: string) {
     const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone } });
     if (existing) return existing;
-    return ctx.tenantDb.crmContact.create({ data: { name: name || phone, phone, isCustomer: true, source: 'فعال‌سازی گارانتی' } });
+    const created = await ctx.tenantDb.crmContact.create({ data: { name: name || phone, phone, isCustomer: true, source: 'فعال‌سازی گارانتی' } });
+    await logInitialFunnelEvent(ctx.tenantDb, created.id);
+    return created;
   }
 
   async activate(slug: string, dto: ActivateWarrantyDto) {

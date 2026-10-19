@@ -27,7 +27,9 @@ export function SupportChat({
   open,
   onClose,
   onUnreadChange,
+  focusTicketId,
 }: {
+  focusTicketId?: string | null;
   open: boolean;
   onClose: () => void;
   onUnreadChange?: (unread: boolean) => void;
@@ -52,7 +54,7 @@ export function SupportChat({
     fetchTickets()
       .then(async (list) => {
         setTickets(list);
-        const latest = list[0] ?? null;
+        const latest = (focusTicketId ? list.find((x) => x.id === focusTicketId) : null) ?? list[0] ?? null;
         setTicket(latest);
         if (latest) {
           const res = await fetchTicketMessages(latest.id);
@@ -60,7 +62,15 @@ export function SupportChat({
         }
       })
       .finally(() => setLoaded(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- فقط بار اول
   }, [open, loaded]);
+
+  // لینک اعلان (/support?ticket=ID) پس از بارگذاری لیست: همان تیکت را باز کن
+  useEffect(() => {
+    if (!open || !loaded || !focusTicketId || ticketIdRef.current === focusTicketId) return;
+    const target = tickets.find((x) => x.id === focusTicketId);
+    if (target) void openTicketThread(target);
+  }, [open, loaded, focusTicketId, tickets]);
 
   async function openTicketThread(t: SupportTicket) {
     setView("thread");

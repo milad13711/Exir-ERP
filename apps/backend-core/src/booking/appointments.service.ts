@@ -673,7 +673,7 @@ export class AppointmentsService {
     const actor = await resolveTenantUserId(ctx).catch(() => null);
     if (updated.contactId && (updated.depositAmount ?? 0) > 0) {
       try {
-        await this.funnel.recordPurchase(ctx, updated.contactId, updated.depositAmount ?? 0, 'خرید مجدد (نوبت‌دهی)');
+        await this.funnel.recordPurchase(ctx, updated.contactId, updated.depositAmount ?? 0, 'خرید مجدد (نوبت‌دهی)', { type: 'APPOINTMENT', id: updated.id });
       } catch {
         /* قیف هرگز نباید ثبت پرداخت نوبت را خراب کند */
       }

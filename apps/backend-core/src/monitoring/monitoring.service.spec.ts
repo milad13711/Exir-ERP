@@ -15,7 +15,7 @@ import { MonitoringService } from './monitoring.service.js';
 let dir: string;
 let sms: string[];
 let clock: number;
-const ENV_KEYS = ['BACKUP_DIR', 'MONITOR_URLS', 'MONITOR_TLS_HOSTS', 'MONITOR_ALERT_PHONE', 'BACKUP_ALERT_PHONE', 'ON_PREM_OWNER_PHONE', 'MONITOR_MAX_SMS_PER_DAY', 'EXIR_SMS_API_KEY'];
+const ENV_KEYS = ['BACKUP_DIR', 'MONITOR_URLS', 'MONITOR_TLS_HOSTS', 'MONITOR_ALERT_PHONE', 'BACKUP_ALERT_PHONE', 'ON_PREM_OWNER_PHONE', 'MONITOR_MAX_SMS_PER_DAY', 'EXIR_SMS_API_KEY', 'MONITOR_BOOT_GRACE_MIN'];
 
 class TestSvc extends MonitoringService {
   protected override now() {
@@ -38,6 +38,7 @@ beforeEach(async () => {
   probe.status = 200;
   for (const k of ENV_KEYS) delete process.env[k];
   process.env.BACKUP_DIR = dir;
+  process.env.MONITOR_BOOT_GRACE_MIN = '0';
   process.env.MONITOR_URLS = 'https://app.example.test';
   process.env.MONITOR_TLS_HOSTS = 'app.example.test';
   process.env.MONITOR_ALERT_PHONE = '09120000000';
@@ -134,5 +135,68 @@ describe('MonitoringService (fakes)', () => {
     expect(st.history.length).toBe(2);
     expect(st.lastAlert?.delivered).toBe(true);
     expect(st.config.alertPhoneMasked).toBe('0912***00');
+  });
+
+  describe('maintenance window / boot grace', () => {
+    it('suppresses checker SMS during maintenance, then alerts if the problem persists after expiry', async () => {
+      const svc = make();
+      await svc.startMaintenance(20, 'deploy');
+      probe.status = 503;
+      for (let i = 0; i < 3; i++) await tick(svc); // 15 min, inside window
+      expect(sms).toHaveLength(0);
+      const st = await svc.getStatus();
+      expect(st.config.suppression?.kind).toBe('maintenance');
+      clock += 10 * 60_000; // window over
+      await tick(svc); // failure 1
+      await tick(svc); // failure 2 -> alert
+      expect(sms).toHaveLength(1);
+    });
+
+    it('does not alert if the service recovered inside the window', async () => {
+      const svc = make();
+      await svc.startMaintenance(20, 'deploy');
+      probe.status = 503;
+      await tick(svc);
+      await tick(svc);
+      probe.status = 200;
+      await tick(svc);
+      clock += 30 * 60_000;
+      await tick(svc);
+      expect(sms).toHaveLength(0);
+    });
+
+    it('suppressed host availability alerts do not consume the daily dedupe slot', async () => {
+      const svc = make();
+      await svc.startMaintenance(10, 'deploy');
+      expect(await svc.notify('host:nginx-5xx', 'x', { source: 'host' })).toEqual({ sent: false, reason: 'maintenance' });
+      expect(sms).toHaveLength(0);
+      clock += 11 * 60_000;
+      expect((await svc.notify('host:nginx-5xx', 'x', { source: 'host' })).sent).toBe(true);
+    });
+
+    it('never silences host security alerts or recoveries', async () => {
+      const svc = make();
+      await svc.startMaintenance(10, 'deploy');
+      expect((await svc.notify('host:ssh-new-ip:1.2.3.4', 'login', { source: 'host' })).sent).toBe(true);
+      expect((await svc.notify('host:nginx-5xx', 'back', { source: 'host', resolved: true })).sent).toBe(true);
+    });
+
+    it('clearMaintenance ends the window immediately', async () => {
+      const svc = make();
+      await svc.startMaintenance(60, 'deploy');
+      expect(await svc.clearMaintenance()).toEqual({ wasActive: true });
+      expect(await svc.getSuppression()).toBeNull();
+      expect(await svc.clearMaintenance()).toEqual({ wasActive: false });
+    });
+
+    it('boot grace suppresses for 5 minutes by default after construction, then lets alerts through', async () => {
+      delete process.env.MONITOR_BOOT_GRACE_MIN;
+      const svc = make();
+      expect((await svc.getSuppression())?.kind).toBe('boot-grace');
+      expect(await svc.notify('url:x:crit', 'down', { source: 'checker' })).toMatchObject({ sent: false, reason: 'maintenance' });
+      clock += 5 * 60_000 + 1;
+      expect(await svc.getSuppression()).toBeNull();
+      expect((await svc.notify('url:x:crit', 'down', { source: 'checker' })).sent).toBe(true);
+    });
   });
 });

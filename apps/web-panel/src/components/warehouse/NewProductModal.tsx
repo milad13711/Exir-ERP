@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { createProduct, fetchCurrencies, type Currency, type Product } from "@/lib/api";
 
@@ -26,9 +27,13 @@ export function NewProductModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { installedModules } = useWorkspace();
+  const hasCurrencyModule = installedModules.has("currency-exchange");
   useEffect(() => {
+    // بدون ماژول ارز، سرور ۴۰۳ می‌دهد؛ پیش‌فرض همان ارز پایه (تومان) است.
+    if (!hasCurrencyModule) return;
     fetchCurrencies().then((list) => setCurrencies(list.filter((c) => c.isActive))).catch(() => setCurrencies([]));
-  }, []);
+  }, [hasCurrencyModule]);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId);
 

@@ -283,6 +283,17 @@ const qs = (f: Record<string, string | undefined>) => {
 
 const post = <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 
+export type DispatchActiveCounts = {
+  active: number;
+  awaitingDriver: number;
+  awaitingDocs: number;
+  readyToDepart: number;
+  inTransit: number;
+  suspended: number;
+  byStatus: Record<string, number>;
+};
+/** شمارنده‌ی بارهای فعال در دامنه‌ی دید کاربر — برای ویجت داشبورد. */
+export const fetchDispatchActiveCounts = () => apiFetch<DispatchActiveCounts>("/dispatch/shipments/active-counts");
 export const fetchDispatchReport = (f: DispatchFilters = {}) => apiFetch<DispatchReport>(`/dispatch/shipments${qs(f as Record<string, string | undefined>)}`);
 export const fetchDispatchDetail = (id: string) => apiFetch<DispatchDetail>(`/dispatch/shipments/${id}`);
 export const declareDispatch = (body: DeclareBody) => post<{ shipment: { id: string; shipmentNo: number }; alreadyExisted: boolean }>("/dispatch/shipments", body);

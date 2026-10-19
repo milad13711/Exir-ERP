@@ -36,6 +36,8 @@ export type MonitorState = {
   recent?: { at: string; kind: string; message: string; source: 'checker' | 'host' | 'test'; delivered: boolean; reason?: string }[];
   /** آخرین ضربان host-watch (dead-man switch) */
   hostHeartbeatAt?: string;
+  /** پنجره‌ی نگه‌داری (deploy): هشدار SMS تا `until` خاموش است (ثبت در لاگ ادامه دارد) */
+  maintenance?: { until: string; reason: string; setAt: string };
 };
 
 export const emptyMonitorState = (): MonitorState => ({ version: 1, checks: {}, history: [], alertsSent: {} });
@@ -154,4 +156,48 @@ export const KIND_RE = /^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,79}$/;
 
 export function resolveAlertPhone(env: NodeJS.ProcessEnv = process.env): string | null {
   return (env.MONITOR_ALERT_PHONE || env.BACKUP_ALERT_PHONE || env.ON_PREM_OWNER_PHONE || '').trim() || null;
+}
+
+// ── حالت نگه‌داری / مهلت پس از بوت ──────────────────────────────────────────
+export const MAINTENANCE_MAX_MIN = 120;
+export const BOOT_GRACE_DEFAULT_MIN = 5;
+
+/** minutes باید عدد صحیح 1..MAINTENANCE_MAX_MIN باشد؛ reason متن پاک‌سازی‌شده. null = ورودی نامعتبر. */
+export function normalizeMaintenanceInput(minutes: unknown, reason: unknown): { minutes: number; reason: string } | null {
+  const m = typeof minutes === 'number' ? minutes : typeof minutes === 'string' && minutes.trim() ? Number(minutes) : NaN;
+  if (!Number.isInteger(m) || m < 1 || m > MAINTENANCE_MAX_MIN) return null;
+  return { minutes: m, reason: sanitizeAlertText(reason, 120) || 'maintenance' };
+}
+
+export type Suppression = { kind: 'maintenance' | 'boot-grace'; until: string; reason: string } | null;
+
+/**
+ * آیا اکنون ارسال هشدار (SMS) باید خاموش باشد؟ پنجره‌ی نگه‌داری و مهلت بوت هر دو را بررسی می‌کند؛ دیرترین `until` برنده است.
+ * توجه: این فقط هشدارهای داخلی برنامه را خاموش می‌کند؛ پایشگر بیرونی «سرور مرده» (EXTERNAL-UPTIME.md) مستقل از این است.
+ */
+export function activeSuppression(state: Pick<MonitorState, 'maintenance'>, bootGraceUntilMs: number, nowMs: number): Suppression {
+  const cands: NonNullable<Suppression>[] = [];
+  const m = state.maintenance;
+  if (m && Date.parse(m.until) > nowMs) cands.push({ kind: 'maintenance', until: m.until, reason: m.reason });
+  if (bootGraceUntilMs > nowMs) cands.push({ kind: 'boot-grace', until: new Date(bootGraceUntilMs).toISOString(), reason: 'backend restart grace' });
+  if (!cands.length) return null;
+  return cands.reduce((a, b) => (Date.parse(b.until) > Date.parse(a.until) ? b : a));
+}
+
+export function bootGraceMinutes(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.MONITOR_BOOT_GRACE_MIN;
+  if (raw === undefined || raw === '') return BOOT_GRACE_DEFAULT_MIN;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 30 ? n : BOOT_GRACE_DEFAULT_MIN;
+}
+
+/**
+ * کدام هشدارها در نگه‌داری خاموش می‌شوند: همه‌ی چک‌های خودِ برنامه، و از host-watch فقط هشدارهای «دردسترس‌بودن» (5xx/کانتینر).
+ * هشدارهای امنیتی میزبان (ورود SSH، fail2ban، …) و هر چیز دیگر هرگز خاموش نمی‌شوند.
+ */
+export const HOST_SUPPRESSIBLE_RE = /^host:(nginx-5xx|docker-unhealthy|docker-cli)$/;
+export function isSuppressibleAlert(kind: string, source: 'checker' | 'host' | 'test'): boolean {
+  if (source === 'checker') return true;
+  if (source === 'host') return HOST_SUPPRESSIBLE_RE.test(kind);
+  return false;
 }

@@ -3,6 +3,11 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { canManuallyTransition, isConverted, stageAfterPurchase, type ManualLeadStage } from './funnel-lifecycle.js';
 
+/** منبع یک خرید؛ کلید ایدمپوتنسی (contactId, type, id). */
+export type PurchaseSource = { type: PurchaseSourceType; id: string };
+export type PurchaseSourceType = 'SALES_INVOICE' | 'STORE_ORDER' | 'EVENT_ORDER' | 'BOOK_ORDER' | 'APPOINTMENT';
+const REPEAT_DEMOTABLE = ['REPEAT_CUSTOMER', 'CHURN_RISK', 'CHURNED'] as const;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 // پس از موعد پیش‌بینی‌شده‌ی خرید بعدی (میانگین فاصله‌ی خریدهای قبلی)، ابتدا
 // ریسک ریزش نمایش داده می‌شود؛ اگر ۲ ماه دیگر هم خرید نکرد، غیرفعال می‌شود.
@@ -33,6 +38,74 @@ export class FunnelService {
   /** اولین رویداد قیف هر مخاطب — بلافاصله پس از ساخت رکورد صدا زده می‌شود. */
   async initLead(ctx: TenantRequestContext, contactId: string): Promise<void> {
     await this.logStageEvent(ctx, contactId, null, 'NEW_LEAD');
+  }
+
+  /**
+   * برگرداندن اثر یک خرید شمارش‌شده (ابطال/حذف سند منبع). رویداد خرید حذف نمی‌شود، voidedAt می‌خورد.
+   * شمارنده هرگز زیر صفر نمی‌رود؛ اولین/آخرین خرید بازمحاسبه می‌شود؛ فقط مراحل «خرید تکراری»
+   * (و ریزش) در صورت کمتر از ۲ خرید به «مشتری» برمی‌گردند — سفیر برند (وابسته به معرفی) و خودِ
+   * مشتری‌بودن دست‌نخورده می‌مانند و مشتری هرگز خودکار به سرنخ برنمی‌گردد.
+   * legacyCounted: سند پیش از وجود جدول رویدادها (مثلاً فاکتور PAID قدیمی) شمرده شده بوده است.
+   */
+  async reversePurchase(
+    ctx: TenantRequestContext,
+    contactId: string,
+    source: PurchaseSource,
+    opts: { legacyCounted?: boolean } = {},
+  ): Promise<boolean> {
+    const db = ctx.tenantDb;
+    const now = new Date();
+    let voidedAt: Date | null = null;
+    const existing = await db.crmPurchaseEvent.findUnique({
+      where: { contactId_sourceType_sourceId: { contactId, sourceType: source.type, sourceId: source.id } },
+    });
+    if (existing) {
+      if (existing.voidedAt) return false; // قبلاً برگردانده شده
+      const res = await db.crmPurchaseEvent.updateMany({ where: { id: existing.id, voidedAt: null }, data: { voidedAt: now } });
+      if (res.count === 0) return false;
+      voidedAt = existing.occurredAt;
+    } else if (opts.legacyCounted) {
+      // سند قدیمی بدون رویداد: برای جلوگیری از شمارش دوباره، یک رویدادِ ابطال‌شده ثبت می‌کنیم.
+      try {
+        await db.crmPurchaseEvent.create({ data: { contactId, sourceType: source.type, sourceId: source.id, voidedAt: now } });
+      } catch {
+        return false;
+      }
+      voidedAt = null;
+    } else {
+      return false; // این سند هرگز شمرده نشده
+    }
+
+    const contact = await db.crmContact.findUnique({ where: { id: contactId } });
+    if (!contact) return false;
+    const newCount = Math.max(0, contact.purchaseCount - 1);
+    const active = await db.crmPurchaseEvent.findMany({ where: { contactId, voidedAt: null }, select: { occurredAt: true } });
+    const times = active.map((e) => e.occurredAt.getTime());
+    let firstPurchaseAt = contact.firstPurchaseAt;
+    let lastPurchaseAt = contact.lastPurchaseAt;
+    if (newCount === 0) {
+      firstPurchaseAt = null;
+      lastPurchaseAt = null;
+    } else if (times.length > 0) {
+      if (voidedAt && contact.firstPurchaseAt && voidedAt.getTime() <= contact.firstPurchaseAt.getTime()) firstPurchaseAt = new Date(Math.min(...times));
+      if (voidedAt && contact.lastPurchaseAt && voidedAt.getTime() >= contact.lastPurchaseAt.getTime()) lastPurchaseAt = new Date(Math.max(...times));
+    }
+
+    let newStage = contact.funnelStage as string;
+    if (newCount < 2 && (REPEAT_DEMOTABLE as readonly string[]).includes(contact.funnelStage)) newStage = 'CUSTOMER';
+
+    await db.crmContact.update({
+      where: { id: contactId },
+      data: {
+        purchaseCount: newCount,
+        firstPurchaseAt,
+        lastPurchaseAt,
+        ...(newCount < 2 ? { avgPurchaseGapDays: null, churnWarningAt: null } : {}),
+        ...(newStage !== contact.funnelStage ? { funnelStage: newStage as never } : {}),
+      },
+    });
+    if (newStage !== contact.funnelStage) await this.logStageEvent(ctx, contactId, contact.funnelStage, newStage);
+    return true;
   }
 
   /**
@@ -137,9 +210,22 @@ export class FunnelService {
     contactId: string,
     amount: number,
     dealTitlePrefix = 'خرید مجدد',
+    source?: PurchaseSource,
   ): Promise<void> {
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: contactId } });
     if (!contact) return;
+
+    // ایدمپوتنسی به‌ازای سند منبع: همان سند دوباره (مثلاً فاکتور بلیط/کتاب که بعداً پرداخت می‌شود) نمی‌شمارد.
+    if (source) {
+      try {
+        await ctx.tenantDb.crmPurchaseEvent.create({
+          data: { contactId, sourceType: source.type, sourceId: source.id, amount: Math.max(0, Math.round(amount)) },
+        });
+      } catch (err) {
+        if (typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002') return;
+        throw err;
+      }
+    }
 
     const now = new Date();
     const isFirstPurchase = contact.purchaseCount === 0;

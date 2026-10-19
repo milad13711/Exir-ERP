@@ -119,7 +119,7 @@ export class BookStoreService {
     });
 
     // خرید کتاب = خرید واقعی ⇒ سرنخ مشتری می‌شود / خرید تکراری (قیف فروش)
-    if (order.unitPrice > 0) await this.funnel.recordPurchase(ctx, contact.id, order.unitPrice, 'خرید مجدد (فروشگاه کتاب)');
+    if (order.unitPrice > 0) await this.funnel.recordPurchase(ctx, contact.id, order.unitPrice, 'خرید مجدد (فروشگاه کتاب)', { type: 'SALES_INVOICE', id: invoice.id });
 
     const deliveryNote = format.needsShipping
       ? 'سفارش شما ثبت شد و به‌زودی ارسال می‌شود.'

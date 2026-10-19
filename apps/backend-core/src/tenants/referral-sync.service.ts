@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { logInitialFunnelEvent } from '../crm/funnel-events.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ReferralCommissionService } from '../referral-marketing/referral-commission.service.js';
@@ -112,8 +113,10 @@ export class ReferralSyncService {
       const existing = await registryDb.crmContact.findFirst({ where: { phone, isSupplier: false } });
       if (existing) return existing;
     }
-    return registryDb.crmContact.create({
+    const created = await registryDb.crmContact.create({
       data: { name, company, phone: phone || undefined, isCustomer: true, isSupplier: false, source: 'ثبت‌نام در exirerp.ir' },
     });
+    await logInitialFunnelEvent(registryDb, created.id);
+    return created;
   }
 }

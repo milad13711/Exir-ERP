@@ -101,6 +101,8 @@ services:
       MONITOR_URLS: ${MONITOR_URLS:-}
       MONITOR_TLS_HOSTS: ${MONITOR_TLS_HOSTS:-}
       MONITOR_DISABLED: ${MONITOR_DISABLED:-}
+      # مهلت (دقیقه) پس از هر استارت که SMS هشدار خاموش است (پیش‌فرض ۵؛ ۰ = غیرفعال). docs/ops/deploy.md
+      MONITOR_BOOT_GRACE_MIN: ${MONITOR_BOOT_GRACE_MIN:-}
       INTERNAL_ALERT_TOKEN: ${INTERNAL_ALERT_TOKEN:-}
       # Zarinpal — real online payment for invoices (see ZarinpalService).
       # Empty ZARINPAL_MERCHANT_ID means the gateway is simply unavailable

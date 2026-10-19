@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
 import {
@@ -6,12 +7,10 @@ import {
   createPartyTransaction,
   createPartyTransfer,
   updateCrmContact,
-  fetchCrmContacts,
   sendPartyStatementSms,
   ApiError,
   type PartyStatement,
   type CrmContactDetail,
-  type CrmContact,
 } from "@/lib/api";
 
 const KIND_LABELS: Record<string, string> = {
@@ -43,7 +42,6 @@ export function PartyStatementSection({
   const [error, setError] = useState<string | null>(null);
 
   const [transferOpen, setTransferOpen] = useState(false);
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [transferOtherId, setTransferOtherId] = useState("");
   const [transferDirection, setTransferDirection] = useState<"THIS_PAYS_OTHER" | "OTHER_PAYS_THIS">(
     "THIS_PAYS_OTHER",
@@ -56,13 +54,9 @@ export function PartyStatementSection({
   const [smsSending, setSmsSending] = useState(false);
   const [smsResult, setSmsResult] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (transferOpen) fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
-  }, [transferOpen]);
-
   async function handleSubmitTransfer(e: React.FormEvent) {
     e.preventDefault();
-    if (!transferOtherId || !Number(transferAmount)) return;
+    if (!transferOtherId || transferOtherId === contact.id || !Number(transferAmount)) return;
     setTransferSubmitting(true);
     setTransferError(null);
     try {
@@ -257,20 +251,16 @@ export function PartyStatementSection({
             <option value="THIS_PAYS_OTHER">این مخاطب مستقیم به طرف زیر پرداخت کرد</option>
             <option value="OTHER_PAYS_THIS">طرف زیر مستقیم به این مخاطب پرداخت کرد</option>
           </select>
-          <select
+          <ContactCombobox
             value={transferOtherId}
-            onChange={(e) => setTransferOtherId(e.target.value)}
-            className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
-          >
-            <option value="">انتخاب طرف دیگر...</option>
-            {contacts
-              .filter((c) => c.id !== contact.id)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company || c.name}
-                </option>
-              ))}
-          </select>
+            onChange={(id) => setTransferOtherId(id)}
+            source="customer"
+            allowCreate={false}
+            placeholder="انتخاب طرف دیگر... (جستجوی نام، شرکت، موبایل)"
+          />
+          {transferOtherId && transferOtherId === contact.id ? (
+            <div className="text-[11.5px] text-danger">طرف دیگر نمی‌تواند همین مخاطب باشد.</div>
+          ) : null}
           <input
             value={transferAmount}
             onChange={(e) => setTransferAmount(e.target.value.replace(/[^0-9]/g, ""))}
@@ -287,7 +277,7 @@ export function PartyStatementSection({
           {transferError ? <div className="text-[11.5px] text-danger">{transferError}</div> : null}
           <button
             type="submit"
-            disabled={transferSubmitting || !transferOtherId || !Number(transferAmount)}
+            disabled={transferSubmitting || !transferOtherId || transferOtherId === contact.id || !Number(transferAmount)}
             className="py-2 rounded-lg bg-accent text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
           >
             {transferSubmitting ? "در حال ثبت..." : "ثبت تسویه"}

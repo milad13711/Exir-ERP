@@ -50,12 +50,18 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     projects: FULL_ACCESS,
     fleet: FULL_ACCESS,
     dispatch: FULL_ACCESS,
+    proposals: FULL_ACCESS,
+    tax: FULL_ACCESS,
+    certificates: FULL_ACCESS,
+    'book-store': FULL_ACCESS,
   },
   'کارشناس فروش': {
     // «فقط خودم»: کارشناس فروش مشتریان/فاکتورهای خودش را می‌بیند، نه کل شرکت (مالک هر زمان می‌تواند «مشاهده‌ی همه» بدهد).
     crm: OWN_CONTRIBUTOR,
     tasks: OWN_CONTRIBUTOR,
     sales: OWN_CONTRIBUTOR,
+    // پیشنهادها: فقط موارد خودش (بدون مشاهده‌ی همه/حذف)
+    proposals: OWN_CONTRIBUTOR,
     // View-only: needed to browse the product catalog when picking line items for an invoice.
     warehouse: { canViewAll: true, canViewOwn: true, canCreate: false, canEdit: false, canDelete: false },
   },

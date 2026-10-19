@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import {
   createProject,
   updateProject,
   type Project,
-  fetchCrmContacts,
   fetchUsers,
   fetchStageTemplates,
-  type CrmContact,
   type TenantUser,
   type StageTemplate,
 } from "@/lib/api";
@@ -21,7 +20,6 @@ export function NewProjectModal({ project, onClose, onCreated }: { project?: Pro
   const editing = !!project;
   const [name, setName] = useState(project?.name ?? "");
   const [contactId, setContactId] = useState(project?.contactId ?? "");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [managerUserId, setManagerUserId] = useState(project?.managerUserId ?? "");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [memberUserIds, setMemberUserIds] = useState<string[]>(project?.members.map((m) => m.userId) ?? []);
@@ -35,7 +33,6 @@ export function NewProjectModal({ project, onClose, onCreated }: { project?: Pro
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchUsers().then(setUsers).catch(() => setUsers([]));
     fetchStageTemplates().then(setStageTemplates).catch(() => setStageTemplates([]));
   }, []);
@@ -78,15 +75,14 @@ export function NewProjectModal({ project, onClose, onCreated }: { project?: Pro
 
         <div>
           <label className={labelClass}>کارفرما / مشتری (اختیاری)</label>
-          <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
-            <option value="">بدون مخاطب — پروژه داخلی</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.company ? ` (${c.company})` : ""}
-              </option>
-            ))}
-          </select>
+          <ContactCombobox
+            value={contactId}
+            onChange={(id) => setContactId(id)}
+            source="customer"
+            allowCreate={false}
+            initialLabel={project?.contact ? project.contact.company || project.contact.name : undefined}
+            placeholder="بدون مخاطب — پروژه داخلی (جستجوی مشتری)"
+          />
         </div>
 
         <div>

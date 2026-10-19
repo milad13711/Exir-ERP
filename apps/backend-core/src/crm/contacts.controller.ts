@@ -176,7 +176,8 @@ export class ContactsController {
         await ctx.tenantDb.crmContact.update({ where: { id: existing.id }, data });
         results.push({ row: rowNumber, status: 'UPDATED' });
       } else {
-        await ctx.tenantDb.crmContact.create({ data: { ...data, ownerUserId } });
+        const created = await ctx.tenantDb.crmContact.create({ data: { ...data, ownerUserId } });
+        await this.funnel.initLead(ctx, created.id);
         results.push({ row: rowNumber, status: 'CREATED' });
       }
     }

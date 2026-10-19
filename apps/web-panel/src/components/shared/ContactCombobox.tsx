@@ -166,7 +166,7 @@ export function ContactCombobox({
             </div>
           ) : null}
         </div>
-        <button type="button" onClick={clear} className="text-[12px] font-bold text-primary cursor-pointer shrink-0 px-2 py-1.5">
+        <button type="button" onClick={clear} className="text-[12px] font-bold text-primary cursor-pointer shrink-0 px-3 min-h-10">
           تغییر
         </button>
       </div>
@@ -200,7 +200,7 @@ export function ContactCombobox({
           autoComplete="off"
           inputMode="search"
           enterKeyHint="search"
-          className="w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl pr-10 pl-9 py-2.5 focus:border-primary transition-colors"
+          className="w-full text-base sm:text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl pr-10 pl-9 py-2.5 focus:border-primary transition-colors"
         />
         {searching ? (
           <span aria-hidden className="absolute top-1/2 -translate-y-1/2 left-3 w-3.5 h-3.5 rounded-full border-2 border-border border-t-primary animate-spin" />

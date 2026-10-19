@@ -30,6 +30,8 @@ import {
   type Contract,
   type DashboardSummary,
 } from "@/lib/api";
+import { fetchOpsCounters, type OpsOverview } from "@/lib/operations-api";
+import { fetchDispatchActiveCounts, type DispatchActiveCounts } from "@/lib/dispatch-api";
 import { ApprovalsList } from "@/components/approvals/ApprovalsList";
 import { DailyChecklistWidget } from "@/components/dashboard/DailyChecklistWidget";
 import { FormsInboxWidget } from "@/components/dashboard/FormsInboxWidget";
@@ -450,6 +452,69 @@ function ApprovalsWidget({ variant }: WidgetProps) {
   );
 }
 
+// ── شمارنده‌های عملیات و اعلام بار (endpoint سبک و مخصوص ماژول؛ دامنه‌ی دید سمت سرور اعمال می‌شود) ──
+
+type CountTile = { key: string; label: string; value: number; tone: string; href: string };
+
+function CountTiles({ tiles, compact }: { tiles: CountTile[]; compact: boolean }) {
+  const shown = compact ? tiles.filter((t) => t.value > 0).slice(0, 4) : tiles;
+  if (shown.length === 0) return empty("موردی برای نمایش نیست");
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {shown.map((t) => (
+        <Link key={t.key} href={t.href} className="block min-h-11 rounded-xl bg-slate-50 border border-border px-3 py-2.5 min-w-0">
+          <div className={clsx("text-[18px] font-extrabold leading-tight", t.tone)}>{formatNumber(t.value)}</div>
+          <div className="text-[11.5px] text-ink-soft mt-0.5 break-words">{t.label}</div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function OperationsOverviewWidget({ variant }: WidgetProps) {
+  const [data, setData] = useState<OpsOverview["counters"] | null | false>(null);
+  useEffect(() => {
+    fetchOpsCounters().then((r) => setData(r.counters)).catch(() => setData(false));
+  }, []);
+  const tiles: CountTile[] = data
+    ? [
+        { key: "new", label: "جدید", value: data.new, tone: "text-primary", href: "/operations" },
+        { key: "prog", label: "در حال انجام", value: data.inProgress, tone: "text-accent", href: "/operations" },
+        { key: "over", label: "دارای تأخیر", value: data.overdue, tone: "text-danger", href: "/operations" },
+        { key: "appr", label: "منتظر تأیید", value: data.awaitingApproval, tone: "text-warning", href: "/operations" },
+        { key: "prob", label: "دارای مشکل", value: data.hasProblem, tone: "text-danger", href: "/operations" },
+        { key: "today", label: "انجام‌شده‌ی امروز", value: data.doneToday, tone: "text-success", href: "/operations" },
+      ]
+    : [];
+  return (
+    <WidgetCard title="وضعیت عملیات" href="/operations">
+      {data === null ? LOADING : data === false ? empty("بارگذاری ناموفق بود") : <CountTiles tiles={tiles} compact={variant === "compact"} />}
+    </WidgetCard>
+  );
+}
+
+function DispatchActiveWidget({ variant }: WidgetProps) {
+  const [data, setData] = useState<DispatchActiveCounts | null | false>(null);
+  useEffect(() => {
+    fetchDispatchActiveCounts().then(setData).catch(() => setData(false));
+  }, []);
+  const tiles: CountTile[] = data
+    ? [
+        { key: "active", label: "کل بارهای فعال", value: data.active, tone: "text-primary", href: "/dispatch" },
+        { key: "driver", label: "در انتظار راننده", value: data.awaitingDriver, tone: "text-warning", href: "/dispatch" },
+        { key: "docs", label: "در انتظار اسناد", value: data.awaitingDocs, tone: "text-warning", href: "/dispatch" },
+        { key: "ready", label: "آماده حرکت", value: data.readyToDepart, tone: "text-accent", href: "/dispatch" },
+        { key: "transit", label: "در مسیر", value: data.inTransit, tone: "text-success", href: "/dispatch" },
+        { key: "susp", label: "متوقف", value: data.suspended, tone: "text-danger", href: "/dispatch" },
+      ]
+    : [];
+  return (
+    <WidgetCard title="بارهای فعال (اعلام بار)" href="/dispatch">
+      {data === null ? LOADING : data === false ? empty("بارگذاری ناموفق بود") : <CountTiles tiles={tiles} compact={variant === "compact"} />}
+    </WidgetCard>
+  );
+}
+
 // ── رجیستری کلاینت: key ← کامپوننت ─────────────────────────────────────────────
 
 export const WIDGET_RENDERERS: Record<string, ComponentType<WidgetProps>> = {
@@ -473,6 +538,8 @@ export const WIDGET_RENDERERS: Record<string, ComponentType<WidgetProps>> = {
   "customer-followups": CustomerFollowUpsWidget,
   "production-capacity": ProductionCapacityWidget,
   "production-trend": ProductionTrendWidget,
+  "operations-overview": OperationsOverviewWidget,
+  "dispatch-active": DispatchActiveWidget,
   "recent-activity": RecentActivityWidget,
 };
 

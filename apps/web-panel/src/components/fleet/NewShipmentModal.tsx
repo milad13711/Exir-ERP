@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
-import { createShipment, fetchCrmContacts, type CrmContact } from "@/lib/api";
+import { createShipment, fetchCrmContact } from "@/lib/api";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -25,7 +26,6 @@ export function NewShipmentModal({
   };
 }) {
   const [contactId, setContactId] = useState(prefill?.contactId ?? "");
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [cargoType, setCargoType] = useState(prefill?.cargoType ?? "");
   const [quantity, setQuantity] = useState(prefill?.quantity?.toString() ?? "");
   const [unit, setUnit] = useState("کیلوگرم");
@@ -35,14 +35,14 @@ export function NewShipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
-  }, []);
-
   function pickContact(id: string) {
     setContactId(id);
-    const c = contacts.find((x) => x.id === id);
-    if (c?.address && !deliveryAddress) setDeliveryAddress(c.address);
+    if (!id) return;
+    fetchCrmContact(id)
+      .then((c) => {
+        if (c.address) setDeliveryAddress((cur) => cur || c.address || "");
+      })
+      .catch(() => {});
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -77,15 +77,13 @@ export function NewShipmentModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>مشتری/گیرنده (اختیاری)</label>
-          <select value={contactId} onChange={(e) => pickContact(e.target.value)} className={inputClass}>
-            <option value="">بدون مخاطب</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.company ? ` (${c.company})` : ""}
-              </option>
-            ))}
-          </select>
+          <ContactCombobox
+            value={contactId}
+            onChange={(id) => pickContact(id)}
+            source="customer"
+            allowCreate={false}
+            placeholder="بدون مخاطب — جستجوی مشتری/گیرنده"
+          />
         </div>
 
         <div className="flex gap-2.5">

@@ -21,11 +21,21 @@ import { usePathname } from "next/navigation";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
 import { canViewModule, canViewSettingsItem } from "@/lib/access";
 import { primaryNav } from "./nav";
+import { subscribeSupportOpen } from "@/lib/support-open";
 
 function AppShellInner({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportUnread, setSupportUnread] = useState(false);
+  const [supportFocusTicket, setSupportFocusTicket] = useState<string | null>(null);
+  useEffect(
+    () =>
+      subscribeSupportOpen((r) => {
+        setSupportFocusTicket(r.ticketId);
+        setSupportOpen(true);
+      }),
+    [],
+  );
   const { loading, license, me, installedModules } = useWorkspace();
   const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
   const pathname = usePathname();
@@ -120,6 +130,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         open={supportOpen}
         onClose={() => setSupportOpen(false)}
         onUnreadChange={setSupportUnread}
+        focusTicketId={supportFocusTicket}
       />
       {installedModules.has("messenger") ? <MessengerRuntime /> : null}
       <IncomingCallPopup />

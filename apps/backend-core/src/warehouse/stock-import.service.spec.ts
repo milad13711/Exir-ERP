@@ -39,7 +39,7 @@ function setup(opts: { accounting?: boolean; liveBatch?: boolean; batchMovements
       findUnique: vi.fn(async () => ({ id: 'b1', voidedAt: null, journalEntryId: 'je1', movements: opts.batchMovements ?? [] })),
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
-    account: { count: vi.fn(async () => 5), findUnique: vi.fn(async ({ where }: any) => ({ id: `acc-${where.code}`, code: where.code })) },
+    account: { count: vi.fn(async () => 5), findUnique: vi.fn(async ({ where }: any) => ({ id: `acc-${where.code}`, code: where.code, type: 'EQUITY' })) },
     journalEntry: {
       create: vi.fn(async ({ data }: any) => { journalCreates.push(data); return { id: `je-${journalCreates.length}` }; }),
       findUnique: vi.fn(async () => ({ id: 'je1', lines: [{ accountId: 'acc-1040', debit: 100n, credit: 0n, description: null }, { accountId: 'acc-3010', debit: 0n, credit: 100n, description: null }] })),
@@ -100,9 +100,19 @@ describe('StockImportService.commit', () => {
     expect(t.journalCreates).toHaveLength(1);
     const lines = t.journalCreates[0].lines.create;
     expect(lines.find((l: any) => l.accountId === 'acc-1040').debit).toBe(2000n);
-    expect(lines.find((l: any) => l.accountId === 'acc-3010').credit).toBe(2000n);
+    expect(lines.find((l: any) => l.accountId === 'acc-3020').credit).toBe(2000n);
     expect(r).toMatchObject({ rows: 1, totalValue: 2000, journalPosted: true });
     expect(t.batchCreates[0]).toMatchObject({ fileHash: f.hash, rowCount: 1, totalQuantity: 10 });
+  });
+
+  it('falls back to 3010 capital when the opening account 3020 is missing', async () => {
+    const t = setup({ accounting: true });
+    t.db.account.findUnique = vi.fn(async ({ where }: any) => (where.code === '3020' ? null : { id: `acc-${where.code}`, code: where.code }));
+    t.db.account.create = vi.fn(async () => { throw new Error('boom'); }); // ensure fails -> still falls back
+    const f = await xlsx(good);
+    await t.svc.commit(t.ctx, { fileBase64: f.base64, fileName: 'x.xlsx', fileHash: f.hash, createMissing: false, confirm: true });
+    const lines = t.journalCreates[0].lines.create;
+    expect(lines.find((l: any) => l.accountId === 'acc-3010').credit).toBe(2000n);
   });
 
   it('posts no journal when the accounting module is not installed', async () => {
