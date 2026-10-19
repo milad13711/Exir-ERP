@@ -6,7 +6,10 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../../generated/control-client/index.js';
-import { MODULE_LICENSE_USD } from '../../src/modules-catalog/module-license-usd.js';
+// ایمیج تولید فقط dist دارد (نه src)؛ در توسعه (tsx) از src می‌خوانیم. مسیر متغیر است تا tsc دنبال dist نگردد.
+const LICENSE_USD_DIST = '../../dist/modules-catalog/module-license-usd.js';
+const LICENSE_USD_SRC = '../../src/modules-catalog/module-license-usd.js';
+const { MODULE_LICENSE_USD } = (await import(LICENSE_USD_DIST).catch(() => import(LICENSE_USD_SRC))) as typeof import('../../src/modules-catalog/module-license-usd.js');
 
 const db = new PrismaClient({ datasources: { db: { url: process.env.CONTROL_DATABASE_URL } } });
 
