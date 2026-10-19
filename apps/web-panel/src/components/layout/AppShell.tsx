@@ -72,7 +72,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   // mirrors that so the app shows a clear reason instead of blank pages
   // full of failed requests.
   if (license?.mode === "on_premise" && (license.state === "invalid" || license.state === "expired")) {
-    return <LicenseBlockedScreen reason={license.reason} />;
+    return <LicenseBlockedScreen reason={license.reason} installationId={license.installationId} />;
   }
 
   return (

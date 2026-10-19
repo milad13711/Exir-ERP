@@ -20,6 +20,7 @@ import { WebhooksService } from '../webhooks/webhooks.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { FunnelService } from './funnel.service.js';
 import { CreateDealDto } from './dto/create-deal.dto.js';
 import { UpdateDealStageDto } from './dto/update-deal-stage.dto.js';
 import { UpdateDealDto } from './dto/update-deal.dto.js';
@@ -42,6 +43,7 @@ export class DealsController {
     private readonly webhooks: WebhooksService,
     private readonly permissions: PermissionsService,
     private readonly notifications: NotificationsService,
+    private readonly funnel: FunnelService,
   ) {}
 
   /** عملیات روی یک فرصت فروش مشخص: کاربر «فقط خودم» فقط فرصت‌های خودش؛ خارج از دامنه → ۴۰۴. */
@@ -111,6 +113,8 @@ export class DealsController {
       value: Number(deal.value),
       stage: deal.stage,
     });
+    // فرصت فروش برای سرنخ = واجد شرایط شدن او
+    await this.funnel.onDealOpened(ctx, deal.contactId);
     return deal;
   }
 
@@ -134,6 +138,10 @@ export class DealsController {
       },
       include: { contact: { select: { id: true, name: true, company: true } } },
     });
+
+    // برد فرصت ⇒ سرنخ به مشتری تبدیل می‌شود
+    if (dto.stage === 'WON') await this.funnel.onDealWon(ctx, deal.contactId);
+    else if (dto.stage !== 'LOST') await this.funnel.onDealOpened(ctx, deal.contactId);
 
     await ctx.tenantDb.crmActivity.create({
       data: {

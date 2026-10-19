@@ -4,10 +4,11 @@ import { SupportModule } from '../support/support.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { PlatformManagementController } from './platform-management.controller.js';
 import { PlatformManagementService } from './platform-management.service.js';
+import { TenantInvoiceApprovalModule } from './tenant-invoice-approval.module.js';
 import { PlatformOwnerGuard } from '../common/guards/platform-owner.guard.js';
 
 @Module({
-  imports: [TenantsModule, SupportModule, NotificationsModule],
+  imports: [TenantsModule, SupportModule, NotificationsModule, TenantInvoiceApprovalModule],
   controllers: [PlatformManagementController],
   providers: [PlatformManagementService, PlatformOwnerGuard],
 })

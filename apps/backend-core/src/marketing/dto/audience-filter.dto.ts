@@ -10,6 +10,7 @@ const FUNNEL_STAGES = [
   'BRAND_AMBASSADOR',
   'CHURN_RISK',
   'CHURNED',
+  'DISQUALIFIED',
 ];
 
 /**

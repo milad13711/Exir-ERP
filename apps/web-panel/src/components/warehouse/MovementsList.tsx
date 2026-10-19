@@ -7,6 +7,7 @@ import { fetchStockMovements, type StockMovementRecord } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { SourceDispatch } from "@/components/dispatch/SourceDispatch";
+import { MovementDetailModal } from "./MovementDetailModal";
 
 const TYPE_LABELS: Record<string, string> = {
   RECEIPT: "رسید ورودی",
@@ -35,6 +36,7 @@ export function MovementsList() {
   const [movements, setMovements] = useState<StockMovementRecord[] | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("همه");
   const [shipmentPrefillFor, setShipmentPrefillFor] = useState<StockMovementRecord | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const { installedModules } = useWorkspace();
 
   function reload(type?: string) {
@@ -74,7 +76,10 @@ export function MovementsList() {
               )}
             >
               <Badge tone={TYPE_TONES[m.type] ?? "neutral"}>{TYPE_LABELS[m.type] ?? m.type}</Badge>
-              <div className="flex-1 min-w-[160px]">
+              {m.voidedAt ? <Badge tone="danger">باطل‌شده</Badge> : null}
+              {m.reversalOfId ? <Badge tone="neutral">معکوس</Badge> : null}
+              {m.editCount && !m.voidedAt ? <Badge tone="warning">ویرایش‌شده</Badge> : null}
+              <div className={clsx("flex-1 min-w-[160px]", m.voidedAt && "opacity-60 line-through decoration-1")}>
                 <div className="text-[13px] font-bold">{m.product.name}</div>
                 <div className="text-[11.5px] text-muted mt-0.5">
                   {m.warehouse.name}
@@ -88,7 +93,15 @@ export function MovementsList() {
               <div className="text-[11.5px] text-muted w-[150px] text-left shrink-0 hidden sm:block">
                 {formatJalaliDateTime(m.createdAt)}
               </div>
-              {m.type === "ISSUE" && installedModules.has("dispatch") ? (
+              {!m.reversalOfId && ["RECEIPT", "ISSUE", "ADJUSTMENT"].includes(m.type) ? (
+                <button
+                  onClick={() => setDetailId(m.id)}
+                  className="text-[11px] font-bold text-ink-soft bg-slate-100 px-2.5 py-1.5 rounded-lg cursor-pointer shrink-0"
+                >
+                  {m.amendBlock || m.voidedAt ? "جزئیات" : "ویرایش / ابطال"}
+                </button>
+              ) : null}
+              {m.type === "ISSUE" && !m.voidedAt && installedModules.has("dispatch") ? (
                 <SourceDispatch sourceType="STOCK_MOVEMENT" sourceId={m.id} compact label="اعلام بار" />
               ) : m.type === "ISSUE" && installedModules.has("fleet") ? (
                 <button
@@ -102,6 +115,8 @@ export function MovementsList() {
           ))
         )}
       </Card>
+
+      {detailId ? <MovementDetailModal movementId={detailId} onClose={() => setDetailId(null)} onChanged={() => reload(typeFilter === "همه" ? undefined : typeFilter)} /> : null}
 
       {shipmentPrefillFor ? (
         <NewShipmentModal

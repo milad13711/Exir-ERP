@@ -32,7 +32,7 @@ export class LicenseCheckinController {
   @Post('check-in')
   async checkIn(@Body() dto: CheckInDto, @Req() req: Request) {
     const license = await this.controlDb.license.findUnique({ where: { signedKey: dto.licenseKey } });
-    if (!license) return { valid: false, reason: 'لایسنس یافت نشد' };
+    if (!license || license.deletedAt) return { valid: false, reason: 'لایسنس یافت نشد' };
 
     await this.controlDb.license.update({
       where: { id: license.id },
@@ -42,7 +42,10 @@ export class LicenseCheckinController {
     if (license.status === 'REVOKED') {
       return { valid: false, reason: license.revokedReason ?? 'لایسنس ابطال شده است' };
     }
-    if (license.expiresAt < new Date()) {
+    if (license.status === 'SUSPENDED') {
+      return { valid: false, reason: license.suspendedReason ?? 'لایسنس معلق شده است' };
+    }
+    if (license.expiresAt && license.expiresAt < new Date()) {
       return { valid: false, reason: 'لایسنس منقضی شده است' };
     }
     return { valid: true };

@@ -23,14 +23,15 @@ export function ProjectsProgressWidget() {
       .catch(() => setHidden(true));
   }, []);
 
-  if (hidden || !projects) return null;
+  if (hidden) return null;
+  if (!projects) return <div className="h-[140px] rounded-2xl bg-slate-100 animate-pulse" aria-busy="true" />;
   const open = projects
     .filter((p) => OPEN.has(p.status))
     .sort((a, b) => (a.endDate ? new Date(a.endDate).getTime() : Infinity) - (b.endDate ? new Date(b.endDate).getTime() : Infinity))
     .slice(0, 6);
 
   return (
-    <Card className="p-5 mb-5" data-testid="projects-progress-widget">
+    <Card className="p-4 sm:p-5 min-w-0" data-testid="projects-progress-widget">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[14.5px] font-bold">پروژه‌های در جریان</span>
         <Link href="/projects" className="text-[12px] font-bold text-primary">

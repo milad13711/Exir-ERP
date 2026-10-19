@@ -3,6 +3,9 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import { SupportGateway } from '../support/support.gateway.js';
+import { SupportAlertsService } from '../support/support-alerts.service.js';
+import { TenantInvoiceApprovalService } from './tenant-invoice-approval.service.js';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { getManagerUsers } from '../common/manager-users.js';
 import { moduleLicensePrice, modulePriceForMode, moduleYearlyPrice } from '../modules-catalog/module-pricing.js';
@@ -26,6 +29,9 @@ export class PlatformManagementService {
     private readonly tenants: TenantsService,
     private readonly gateway: SupportGateway,
     private readonly notifications: NotificationsService,
+    private readonly ticketAlerts: SupportAlertsService,
+    private readonly invoiceApproval: TenantInvoiceApprovalService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   // ── audit ────────────────────────────────────────────────────────────
@@ -122,7 +128,7 @@ export class PlatformManagementService {
 
   // ── invoices ─────────────────────────────────────────────────────────
   async listInvoices(filter: { status?: string; tenantId?: string; recurring?: boolean }) {
-    const status = ['PENDING', 'PAID', 'FAILED'].includes(filter.status ?? '') ? (filter.status as InvoiceStatus) : undefined;
+    const status = ['PENDING', 'PAID', 'FAILED', 'AWAITING_APPROVAL'].includes(filter.status ?? '') ? (filter.status as InvoiceStatus) : undefined;
     return this.controlDb.invoice.findMany({
       where: {
         ...(status ? { status } : {}),
@@ -175,7 +181,7 @@ export class PlatformManagementService {
     });
     const amount = lineItems.reduce((sum, l) => sum + l.amount, 0);
     const invoice = await this.controlDb.invoice.create({
-      data: { tenantId, amount, purpose: 'MODULE_PURCHASE', items: lineItems, status: 'PENDING', dueAt: dto.dueAt ? new Date(dto.dueAt) : new Date(Date.now() + 7 * 86_400_000) },
+      data: { tenantId, amount, purpose: 'MODULE_PURCHASE', items: lineItems, status: 'PENDING', issueSource: 'MANUAL', approvedAt: new Date(), dueAt: dto.dueAt ? new Date(dto.dueAt) : new Date(Date.now() + 7 * 86_400_000) },
     });
     await this.audit(ctx, tenantId, 'invoice.module_issued', 'Invoice', invoice.id, { items: lineItems, amount });
 
@@ -217,8 +223,30 @@ export class PlatformManagementService {
     const updated = await this.controlDb.invoice.update({ where: { id: invoiceId }, data: { status: 'FAILED', paidAt: null, paymentRefId: null } });
     // اگر فاکتور تمدید خودکار بود، قفل pendingRenewalInvoiceId آزاد شود تا cron بتواند دوباره بسازد
     await this.controlDb.tenantModule.updateMany({ where: { pendingRenewalInvoiceId: invoiceId }, data: { pendingRenewalInvoiceId: null } });
+    if (invoice.status === 'AWAITING_APPROVAL') await this.approvals.closeForEntity(ctx, 'TENANT_INVOICE', invoiceId, 'REJECTED').catch(() => undefined);
     await this.audit(ctx, invoice.tenantId, 'invoice.updated', 'Invoice', invoiceId, { before: { amount: invoice.amount, status: invoice.status }, after: { status: 'FAILED' }, cancelled: true });
     return updated;
+  }
+
+  /** ویرایش مبلغ/سررسید فاکتورِ در انتظار تأیید قبل از تصمیم مدیر. */
+  editAwaitingInvoice(ctx: TenantRequestContext, invoiceId: string, input: { amount?: number; dueAt?: string; lines?: Array<{ index: number; amount: number }> }) {
+    return this.invoiceApproval.editAwaiting({ sub: ctx.auth.sub, tenantSlug: ctx.tenantSlug }, invoiceId, {
+      amount: input.amount,
+      lines: input.lines,
+      dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
+    });
+  }
+
+  // ── settings (اعلان تیکت‌ها + تأیید فاکتور) در تنظیمات تننت مادر ──
+  async getSettings(ctx: TenantRequestContext) {
+    const [ticketAlerts, invoiceApproval] = await Promise.all([this.ticketAlerts.getSettings(ctx.tenantDb), this.invoiceApproval.getSettings(ctx.tenantDb)]);
+    return { ticketAlerts, invoiceApproval };
+  }
+
+  async saveSettings(ctx: TenantRequestContext, input: { ticketAlerts?: unknown; invoiceApproval?: unknown }) {
+    if (input.ticketAlerts) await this.ticketAlerts.saveSettings(ctx.tenantDb, input.ticketAlerts);
+    if (input.invoiceApproval) await this.invoiceApproval.saveSettings(ctx.tenantDb, input.invoiceApproval);
+    return this.getSettings(ctx);
   }
 
   // ── support tickets ──────────────────────────────────────────────────
@@ -255,6 +283,7 @@ export class PlatformManagementService {
     if (!ticket) throw new NotFoundException('تیکت یافت نشد');
     const message = await this.controlDb.supportMessage.create({ data: { ticketId, senderType: 'ADMIN', senderId: ctx.auth.sub, body } });
     this.gateway.notifyNewMessage(ticket, message);
+    void this.ticketAlerts.onStaffReply(ticket, body);
     await this.audit(ctx, ticket.tenantId, 'support_ticket.replied', 'SupportTicket', ticketId, { messageId: message.id });
     return message;
   }
@@ -272,6 +301,7 @@ export class PlatformManagementService {
     });
     await this.audit(ctx, ticket.tenantId, status === 'RESOLVED' ? 'support_ticket.resolved' : 'support_ticket.status_changed', 'SupportTicket', ticketId, { from: existing.status, to: status, resolutionNote });
     this.gateway.notifyTicketUpdated(ticket);
+    if (status === 'RESOLVED') void this.ticketAlerts.onStaffReply(ticket, `تیکت رفع شد${resolutionNote ? `: ${resolutionNote}` : ''}`);
     return ticket;
   }
 }

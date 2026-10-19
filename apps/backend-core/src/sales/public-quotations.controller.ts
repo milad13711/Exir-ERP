@@ -78,6 +78,7 @@ export class PublicQuotationsController {
       contact: quotation.contact,
       lines: quotation.lines,
       acceptedByName: quotation.acceptedByName,
+      cancelReason: quotation.status === 'CANCELLED' ? quotation.cancelReason : null,
     };
   }
 

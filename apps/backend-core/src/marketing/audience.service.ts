@@ -22,7 +22,9 @@ export class AudienceService {
     const now = Date.now();
     const where: Record<string, unknown> = {};
 
+    // سرنخ ردصلاحیت‌شده فقط وقتی هدف کمپین می‌شود که صریحاً انتخاب شده باشد
     if (filter.funnelStages?.length) where.funnelStage = { in: filter.funnelStages };
+    else where.funnelStage = { not: 'DISQUALIFIED' };
     if (filter.minPurchaseCount != null) where.purchaseCount = { gte: filter.minPurchaseCount };
     if (filter.isBrandAmbassador != null) where.isBrandAmbassador = filter.isBrandAmbassador;
     if (filter.source) where.source = { contains: filter.source, mode: 'insensitive' };

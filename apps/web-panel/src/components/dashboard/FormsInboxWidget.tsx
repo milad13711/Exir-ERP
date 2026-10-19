@@ -39,10 +39,11 @@ export function FormsInboxWidget() {
     };
   }, [load]);
 
-  if (hidden || !data) return null;
+  if (hidden) return null;
+  if (!data) return <div className="h-[140px] rounded-2xl bg-slate-100 animate-pulse" aria-busy="true" />;
 
   return (
-    <Card className="p-5 mb-5" data-testid="forms-inbox-widget">
+    <Card className="p-4 sm:p-5 min-w-0" data-testid="forms-inbox-widget">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-[14.5px] font-bold">درخواست‌های جدید فرم‌ها</span>

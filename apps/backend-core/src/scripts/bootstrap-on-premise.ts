@@ -22,7 +22,7 @@ import { Logger } from '@nestjs/common';
 import { AppModule } from '../app.module.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
-import { verifyLicenseToken, InvalidLicenseError } from '../licensing/license-token.js';
+import { LicenseRuntimeService } from '../licensing/license-runtime.service.js';
 
 const logger = new Logger('BootstrapOnPremise');
 
@@ -32,19 +32,8 @@ async function main() {
     return;
   }
 
-  const licenseKey = process.env.LICENSE_KEY;
-  const publicKeyPem = process.env.LICENSE_PUBLIC_KEY_PEM?.replace(/\\n/g, '\n');
-  if (!licenseKey || !publicKeyPem) {
+  if (!process.env.LICENSE_KEY || !process.env.LICENSE_PUBLIC_KEY_PEM) {
     logger.error('LICENSE_KEY / LICENSE_PUBLIC_KEY_PEM missing — cannot bootstrap without a valid license.');
-    process.exit(1);
-  }
-
-  let license;
-  try {
-    license = verifyLicenseToken(licenseKey, publicKeyPem);
-  } catch (err) {
-    const reason = err instanceof InvalidLicenseError ? err.message : (err as Error).message;
-    logger.error(`License is not valid, refusing to bootstrap: ${reason}`);
     process.exit(1);
   }
 
@@ -53,11 +42,23 @@ async function main() {
     const controlDb = app.get(ControlPrismaService);
     const tenants = app.get(TenantsService);
 
+
     const existingCount = await controlDb.tenant.count();
     if (existingCount > 0) {
       logger.log('A tenant already exists in this deployment — skipping bootstrap.');
       return;
     }
+
+    // مجوز از روی توکن امضاشده (فعال‌سازی آنلاین یا توکن آفلاین) گرفته می‌شود؛ بدون لایسنس معتبر هیچ تننتی ساخته نمی‌شود.
+    const licenseRuntime = app.get(LicenseRuntimeService);
+    await licenseRuntime.ready();
+    const licensedModules = licenseRuntime.licensedModules();
+    const licensedOrg = licenseRuntime.licensedOrgName();
+    if (licenseRuntime.isBlocked() || !licensedModules || !licensedOrg) {
+      logger.error(`License is not valid, refusing to bootstrap: ${JSON.stringify(licenseRuntime.getStatus())}`);
+      process.exit(1);
+    }
+    const license = { modules: licensedModules, orgName: licensedOrg };
 
     const ownerPhone = process.env.ON_PREM_OWNER_PHONE;
     const ownerName = process.env.ON_PREM_OWNER_NAME;

@@ -6,8 +6,17 @@
 # over the Docker ENV set from --build-arg. This file exists specifically
 # so that mistake can't happen again, for any app in this monorepo.
 **/.env
+**/.env.*
 **/.env.local
 **/.env.*.local
+
+# کلیدهای امضای لایسنس و هر راز دیگر هرگز وارد build context نشوند
+**/keys
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+!**/license-signing-*.public.pem
 
 **/node_modules
 **/.next

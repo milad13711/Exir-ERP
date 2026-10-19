@@ -19,6 +19,7 @@ import { TransferStockModal } from "@/components/warehouse/TransferStockModal";
 import { CostingMethodModal } from "@/components/warehouse/CostingMethodModal";
 import { SalesPricingSettingsModal } from "@/components/warehouse/SalesPricingSettingsModal";
 import { MovementsList } from "@/components/warehouse/MovementsList";
+import { StockImportModal } from "@/components/warehouse/StockImportModal";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 export default function WarehousePage() {
@@ -33,6 +34,7 @@ export default function WarehousePage() {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [costingModalOpen, setCostingModalOpen] = useState(false);
   const [salesPricingModalOpen, setSalesPricingModalOpen] = useState(false);
+  const [stockImportOpen, setStockImportOpen] = useState(false);
   const [view, setView] = useState<"products" | "movements">("products");
 
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -95,6 +97,13 @@ export default function WarehousePage() {
           >
             <OrdersIcon className="w-4 h-4" />
             انتقال موجودی
+          </button>
+          <button
+            onClick={() => setStockImportOpen(true)}
+            className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
+          >
+            <WarehouseIcon className="w-4 h-4" />
+            موجودی اولیه از اکسل
           </button>
           <button
             onClick={() => setCostingModalOpen(true)}
@@ -250,6 +259,8 @@ export default function WarehousePage() {
       {costingModalOpen ? <CostingMethodModal onClose={() => setCostingModalOpen(false)} /> : null}
 
       {salesPricingModalOpen ? <SalesPricingSettingsModal onClose={() => setSalesPricingModalOpen(false)} /> : null}
+
+      {stockImportOpen ? <StockImportModal onClose={() => setStockImportOpen(false)} onImported={reload} /> : null}
     </div>
   );
 }

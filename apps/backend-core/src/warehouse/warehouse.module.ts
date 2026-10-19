@@ -9,6 +9,9 @@ import { WarehousesController } from './warehouses.controller.js';
 import { CostingSettingsController } from './costing-settings.controller.js';
 import { SalesPricingSettingsController } from './sales-pricing-settings.controller.js';
 import { CostingService } from './costing.service.js';
+import { MovementAmendmentService } from './movement-amendment.service.js';
+import { StockImportController } from './stock-import.controller.js';
+import { StockImportService } from './stock-import.service.js';
 
 @Module({
   imports: [WebhooksModule, PermissionsModule, ModuleGuardModule],
@@ -19,8 +22,9 @@ import { CostingService } from './costing.service.js';
     WarehousesController,
     CostingSettingsController,
     SalesPricingSettingsController,
+    StockImportController,
   ],
-  providers: [CostingService],
+  providers: [CostingService, MovementAmendmentService, StockImportService],
   exports: [CostingService],
 })
 export class WarehouseModule {}

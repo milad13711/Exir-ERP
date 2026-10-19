@@ -20,6 +20,7 @@ const STATUS_LABELS: Record<Invoice['status'], string> = {
   PENDING: 'در انتظار پرداخت',
   PAID: 'پرداخت‌شده',
   FAILED: 'ناموفق',
+  AWAITING_APPROVAL: 'در انتظار تأیید',
 };
 
 /**

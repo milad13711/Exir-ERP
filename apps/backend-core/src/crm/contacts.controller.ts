@@ -17,12 +17,14 @@ import { SupplierRiskService } from './supplier-risk.service.js';
 import { PartyStatementService } from './party-statement.service.js';
 import { PartyTransactionsService } from './party-transactions.service.js';
 import { FunnelService } from './funnel.service.js';
+import { andWhere, groupWhere, parseGroup } from './funnel-lifecycle.js';
 import { CreatePartyTransactionDto } from './dto/create-party-transaction.dto.js';
 import { CreatePartyTransferDto } from './dto/create-party-transfer.dto.js';
 import { CreateContactDto } from './dto/create-contact.dto.js';
 import { UpdateContactDto } from './dto/update-contact.dto.js';
 import { UpdateCreditInputsDto } from './dto/update-credit-inputs.dto.js';
 import { AddActivityDto } from './dto/add-activity.dto.js';
+import { searchContacts } from './contact-search.js';
 import { normalizeSearchTerm } from '../common/search.js';
 
 const CONTACT_EXCEL_HEADERS = ['نام', 'نوع', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
@@ -51,15 +53,22 @@ export class ContactsController {
   async list(
     @Query('q') q: string | undefined,
     @Query('isSupplier') isSupplier: string | undefined,
+    @Query('group') group: string | undefined,
+    @Query('stage') stage: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
     q = normalizeSearchTerm(q);
     const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    // بدون group/stage همیشه «همه‌ی مخاطبین» برمی‌گردد (هیچ مرحله‌ای پنهان نمی‌شود)؛
+    // group = leads | customers | repeat | lost، و stage = یک یا چند مرحله‌ی جداشده با ویرگول.
+    const stages = (stage ?? '').split(',').map((x) => x.trim()).filter(Boolean);
     return ctx.tenantDb.crmContact.findMany({
-      where: {
-        ...scope,
-        ...(isSupplier === 'true' ? { isSupplier: true } : {}),
-        ...(q
+      where: andWhere(
+        scope,
+        isSupplier === 'true' ? { isSupplier: true } : null,
+        groupWhere(parseGroup(group)),
+        stages.length ? { funnelStage: { in: stages as never[] } } : null,
+        q
           ? {
               OR: [
                 { name: { contains: q, mode: 'insensitive' } },
@@ -68,11 +77,23 @@ export class ContactsController {
                 { email: { contains: q, mode: 'insensitive' } },
               ],
             }
-          : {}),
-      },
+          : null,
+      ),
       include: { _count: { select: { deals: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** جستجوی سبک برای انتخاب‌گر مشتری در فرم‌ها (فاکتور، پیش‌فاکتور، …): محدود، با دامنه‌ی مشاهده‌ی کاربر. */
+  @Get('search')
+  async search(
+    @Query('q') q: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('kind') kind: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    return searchContacts(ctx.tenantDb, { q, limit, scope, kind: kind === 'supplier' || kind === 'customer' ? kind : 'all' });
   }
 
   @Get('export')

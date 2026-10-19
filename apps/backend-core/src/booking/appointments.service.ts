@@ -9,6 +9,7 @@ import { PaymentGatewayService } from '../payment-gateway/payment-gateway.servic
 import { StaffAvailabilityService } from './staff-availability.service.js';
 import { BookingSlotsService } from './booking-slots.service.js';
 import { CrmOpportunityService } from '../crm/crm-opportunity.service.js';
+import { FunnelService } from '../crm/funnel.service.js';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import type { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import type { ApproveCoordinationDto } from './dto/approve-coordination.dto.js';
@@ -57,6 +58,7 @@ export class AppointmentsService {
     private readonly staffAvailability: StaffAvailabilityService,
     private readonly slots: BookingSlotsService,
     private readonly crmOpportunity: CrmOpportunityService,
+    private readonly funnel: FunnelService,
   ) {}
 
 
@@ -74,6 +76,7 @@ export class AppointmentsService {
     const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone: { contains: normalized.slice(-10) } }, select: { id: true } });
     if (existing) return existing.id;
     const created = await ctx.tenantDb.crmContact.create({ data: { name, phone, source: 'رزرو نوبت' }, select: { id: true } });
+    await this.funnel.initLead(ctx, created.id);
     return created.id;
   }
 
@@ -506,8 +509,17 @@ export class AppointmentsService {
     return appointment;
   }
 
-  complete(ctx: TenantRequestContext, id: string) {
-    return this.transition(ctx, id, ['SCHEDULED', 'CONFIRMED'], { status: 'COMPLETED' });
+  async complete(ctx: TenantRequestContext, id: string) {
+    const appointment = await this.transition(ctx, id, ['SCHEDULED', 'CONFIRMED'], { status: 'COMPLETED' });
+    // نوبتِ انجام‌شده = خدمت ارائه شده ⇒ سرنخ به مشتری تبدیل می‌شود (قیف فروش)
+    if (appointment.contactId) {
+      try {
+        await this.funnel.convertToCustomer(ctx, appointment.contactId);
+      } catch {
+        /* تبدیل قیف هرگز نباید تکمیل نوبت را خراب کند */
+      }
+    }
+    return appointment;
   }
 
   noShow(ctx: TenantRequestContext, id: string) {
@@ -659,6 +671,13 @@ export class AppointmentsService {
     });
 
     const actor = await resolveTenantUserId(ctx).catch(() => null);
+    if (updated.contactId && (updated.depositAmount ?? 0) > 0) {
+      try {
+        await this.funnel.recordPurchase(ctx, updated.contactId, updated.depositAmount ?? 0, 'خرید مجدد (نوبت‌دهی)');
+      } catch {
+        /* قیف هرگز نباید ثبت پرداخت نوبت را خراب کند */
+      }
+    }
     await this.logContactHistory(ctx, updated.contactId, `پرداخت ${updated.isFullPayment ? 'کامل' : 'بیعانه'} نوبت «${updated.serviceType.name}» (${(updated.depositAmount ?? 0).toLocaleString('en-US')} تومان) ثبت شد`, actor);
 
     await this.automation.emit(ctx, 'booking.appointment.deposit_paid', {

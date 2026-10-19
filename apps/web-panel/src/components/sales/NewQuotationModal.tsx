@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import {
-  fetchCrmContacts,
   fetchProducts,
   createSalesQuotation,
   updateSalesQuotation,
   ApiError,
-  type CrmContact,
   type Product,
   type SalesQuotationDetail,
 } from "@/lib/api";
@@ -34,10 +33,11 @@ export function NewQuotationModal({
 }: {
   onClose: () => void;
   onCreated: (quotation: SalesQuotationDetail) => void;
-  /** حالت ویرایش پیش‌فاکتور پیش‌نویس */
+  /** حالت ویرایش پیش‌فاکتور (پیش‌نویس آزاد؛ ارسال‌شده/پذیرفته با دلیل الزامی و بازگشت به پیش‌نویس) */
   quotation?: SalesQuotationDetail;
 }) {
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
+  const revising = !!editing && editing.status !== "DRAFT";
+  const [reason, setReason] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [contactId, setContactId] = useState(editing?.contact.id ?? "");
   const [validUntil, setValidUntil] = useState(editing?.validUntil ? editing.validUntil.slice(0, 10) : "");
@@ -52,7 +52,6 @@ export function NewQuotationModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchProducts().then(setProducts).catch(() => setProducts([]));
   }, []);
 
@@ -81,6 +80,10 @@ export function NewQuotationModal({
     setError(null);
     const validLines = lines.filter((l) => l.description.trim() && Number(l.quantity) > 0);
     if (!contactId || validLines.length === 0) return;
+    if (revising && reason.trim().length < 3) {
+      setError("دلیل ویرایش را بنویسید");
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -88,6 +91,7 @@ export function NewQuotationModal({
         validUntil: validUntil || undefined,
         discount: discountNum || undefined,
         notes: notes.trim() || undefined,
+        ...(revising ? { reason: reason.trim() } : {}),
         lines: validLines.map((l) => ({
           productId: l.productId || undefined,
           description: l.description.trim(),
@@ -111,21 +115,19 @@ export function NewQuotationModal({
   return (
     <Modal title={editing ? `ویرایش پیش‌فاکتور ${editing.quotationNo}` : "پیش‌فاکتور جدید"} onClose={onClose} width="max-w-[640px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {revising ? (
+          <div className="text-[12px] leading-6 bg-warning-soft border border-border rounded-xl px-3.5 py-3 text-ink-soft">
+            این پیش‌فاکتور قبلاً برای مشتری ارسال شده است. پس از ذخیره به «پیش‌نویس» برمی‌گردد (پذیرش قبلی بی‌اعتبار می‌شود) و باید دوباره ارسال شود؛
+            تغییرات و دلیل آن در تاریخچه ثبت می‌شود.
+          </div>
+        ) : null}
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>
-          <select
+          <ContactCombobox
             value={contactId}
-            onChange={(e) => setContactId(e.target.value)}
-            required
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          >
-            <option value="">انتخاب مشتری...</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company || c.name}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => setContactId(id)}
+            initialLabel={editing ? editing.contact.company || editing.contact.name : undefined}
+          />
         </div>
 
         <div>
@@ -222,11 +224,22 @@ export function NewQuotationModal({
           />
         </div>
 
+        {revising ? (
+          <div>
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">دلیل ویرایش (الزامی)</label>
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+            />
+          </div>
+        ) : null}
+
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 
         <button
           type="submit"
-          disabled={submitting || !contactId}
+          disabled={submitting || !contactId || (revising && reason.trim().length < 3)}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
           {submitting ? "در حال ثبت..." : editing ? "ذخیره‌ی تغییرات" : "ثبت پیش‌فاکتور"}

@@ -6,6 +6,7 @@ import { AutomationEngineService } from '../automation/automation-engine.service
 import { quotationCreatedPayload } from './sales-automation.triggers.js';
 import type { CreateQuotationDto } from './dto/create-quotation.dto.js';
 import type { UpdateQuotationDto } from './dto/update-quotation.dto.js';
+import { quotationEditBlock, quotationVoidBlock } from './quotation-rules.js';
 
 const QUOTATION_INCLUDE = {
   contact: { select: { id: true, name: true, company: true, phone: true, email: true } },
@@ -78,11 +79,19 @@ export class QuotationsService {
     return quotation;
   }
 
+  /**
+   * ویرایش پیش‌فاکتور. پیش‌نویس آزاد است؛ پیش‌فاکتور ارسال‌شده/پذیرفته/ردشده/منقضی فقط با ثبت «دلیل» ویرایش می‌شود،
+   * تصویر قبل/بعد در تاریخچه می‌ماند و وضعیت به پیش‌نویس برمی‌گردد (چون مشتری نسخه‌ی قبلی را دیده/پذیرفته است و
+   * باید نسخه‌ی تازه دوباره ارسال شود). تبدیل‌شده به فاکتور یا باطل‌شده قابل ویرایش نیست.
+   */
   async update(ctx: TenantRequestContext, id: string, dto: UpdateQuotationDto, scope: Record<string, unknown>) {
-    const existing = await this.findOwnedDraft(ctx, id, scope);
-    if (existing.status !== 'DRAFT') {
-      throw new ForbiddenException('فقط پیش‌فاکتورهای پیش‌نویس قابل ویرایش هستند');
-    }
+    const existing = await ctx.tenantDb.salesQuotation.findFirst({ where: { id, ...scope }, include: { lines: true } });
+    if (!existing) throw new NotFoundException('پیش‌فاکتور یافت نشد');
+    const block = quotationEditBlock(existing.status);
+    if (block) throw new ForbiddenException(block);
+    const isDraft = existing.status === 'DRAFT';
+    const reason = (dto.reason ?? '').trim();
+    if (!isDraft && reason.length < 3) throw new BadRequestException('برای ویرایش پیش‌فاکتور ارسال‌شده، دلیل ویرایش را بنویسید');
     if (dto.contactId) {
       await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: dto.contactId } });
     }
@@ -93,21 +102,64 @@ export class QuotationsService {
     } else if (dto.discount !== undefined && dto.discount > existing.subtotal) {
       throw new BadRequestException('تخفیف نمی‌تواند از جمع اقلام بیشتر باشد');
     }
+    const newDiscount = dto.discount ?? existing.discount;
+    const newSubtotal = totals?.subtotal ?? existing.subtotal;
+    const newTotal = newSubtotal - newDiscount;
 
-    return ctx.tenantDb.salesQuotation.update({
-      where: { id },
-      data: {
-        contactId: dto.contactId,
-        dealId: dto.dealId,
-        ...(dto.validUntil !== undefined ? { validUntil: dto.validUntil ? new Date(dto.validUntil) : null } : {}),
-        notes: dto.notes,
-        discount: totals ? dto.discount ?? existing.discount : dto.discount,
-        subtotal: totals?.subtotal,
-        total: totals?.total,
-        ...(dto.lines ? { lines: { deleteMany: {}, create: totals!.lines } } : {}),
-      },
-      include: QUOTATION_INCLUDE,
+    const data = {
+      contactId: dto.contactId,
+      dealId: dto.dealId,
+      ...(dto.validUntil !== undefined ? { validUntil: dto.validUntil ? new Date(dto.validUntil) : null } : {}),
+      notes: dto.notes,
+      discount: newDiscount,
+      subtotal: newSubtotal,
+      total: newTotal,
+      ...(dto.lines ? { lines: { deleteMany: {}, create: totals!.lines } } : {}),
+    };
+    if (isDraft) {
+      return ctx.tenantDb.salesQuotation.update({ where: { id }, data, include: QUOTATION_INCLUDE });
+    }
+
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const user = userId ? await ctx.tenantDb.user.findUnique({ where: { id: userId }, select: { name: true } }) : null;
+    const snap = (q: { contactId: string; discount: number; subtotal: number; total: number; notes: string | null; validUntil: Date | null; lines: Array<{ description: string; quantity: number; unitPrice: number }> }) => ({
+      contactId: q.contactId, discount: q.discount, subtotal: q.subtotal, total: q.total, notes: q.notes,
+      validUntil: q.validUntil ? q.validUntil.toISOString() : null,
+      lines: q.lines.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice })),
     });
+    const before = snap(existing);
+    const after = snap({
+      contactId: dto.contactId ?? existing.contactId,
+      discount: newDiscount,
+      subtotal: newSubtotal,
+      total: newTotal,
+      notes: dto.notes !== undefined ? dto.notes : existing.notes,
+      validUntil: dto.validUntil !== undefined ? (dto.validUntil ? new Date(dto.validUntil) : null) : existing.validUntil,
+      lines: totals ? totals.lines : existing.lines,
+    });
+    const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
+    for (const [k, label] of [['contactId', 'مشتری'], ['discount', 'تخفیف'], ['subtotal', 'جمع اقلام'], ['total', 'مبلغ نهایی'], ['notes', 'یادداشت'], ['validUntil', 'اعتبار تا']] as const) {
+      if (before[k] !== after[k]) changes.push({ field: label, from: before[k], to: after[k] });
+    }
+    if (JSON.stringify(before.lines) !== JSON.stringify(after.lines)) {
+      changes.push({ field: 'اقلام', from: before.lines.map((l) => `${l.description} ×${l.quantity}@${l.unitPrice}`).join('، '), to: after.lines.map((l) => `${l.description} ×${l.quantity}@${l.unitPrice}`).join('، ') });
+    }
+    if (changes.length === 0) throw new BadRequestException('هیچ تغییری نسبت به پیش‌فاکتور فعلی انجام نشده است');
+
+    const [updated] = await ctx.tenantDb.$transaction([
+      ctx.tenantDb.salesQuotation.update({
+        where: { id },
+        data: { ...data, status: 'DRAFT', respondedAt: null, acceptedByName: null, acceptedSignatureDataUrl: null, revisionCount: { increment: 1 } },
+        include: QUOTATION_INCLUDE,
+      }),
+      ctx.tenantDb.documentRevision.create({
+        data: {
+          entityType: 'sales_quotation', entityId: id, revisionNo: existing.revisionCount + 1, action: 'EDIT', reason,
+          before: before as never, after: after as never, changes: changes as never, userId, userName: user?.name ?? null,
+        },
+      }),
+    ]);
+    return updated;
   }
 
   async send(ctx: TenantRequestContext, id: string, scope: Record<string, unknown>) {
@@ -130,13 +182,47 @@ export class QuotationsService {
     });
   }
 
+  /** حذف واقعی فقط برای پیش‌نویس؛ سایر وضعیت‌ها با cancel (ابطال نرم) انجام می‌شود. */
   async remove(ctx: TenantRequestContext, id: string, scope: Record<string, unknown>) {
     const existing = await this.findOwnedDraft(ctx, id, scope);
     if (existing.status !== 'DRAFT') {
-      throw new ForbiddenException('فقط پیش‌فاکتورهای پیش‌نویس قابل حذف هستند');
+      throw new ForbiddenException('فقط پیش‌فاکتورهای پیش‌نویس حذف می‌شوند؛ برای بقیه از «ابطال» با ثبت دلیل استفاده کنید');
     }
     await ctx.tenantDb.salesQuotation.delete({ where: { id } });
     return { success: true };
+  }
+
+  /** ابطال نرم پیش‌فاکتور ارسال‌شده/پاسخ‌داده‌شده: رکورد می‌ماند، لینک عمومی «باطل‌شده» نشان می‌دهد و پذیرش بسته می‌شود. */
+  async cancel(ctx: TenantRequestContext, id: string, reason: string, scope: Record<string, unknown>) {
+    const existing = await this.findOwnedDraft(ctx, id, scope);
+    const block = quotationVoidBlock(existing.status);
+    if (block) throw new ForbiddenException(block);
+    const userId = await resolveTenantUserId(ctx).catch(() => null);
+    const user = userId ? await ctx.tenantDb.user.findUnique({ where: { id: userId }, select: { name: true } }) : null;
+    const [updated] = await ctx.tenantDb.$transaction([
+      ctx.tenantDb.salesQuotation.update({
+        where: { id },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason, revisionCount: { increment: 1 } },
+        include: QUOTATION_INCLUDE,
+      }),
+      ctx.tenantDb.documentRevision.create({
+        data: {
+          entityType: 'sales_quotation', entityId: id, revisionNo: existing.revisionCount + 1, action: 'VOID', reason,
+          before: { status: existing.status, total: existing.total } as never, after: { status: 'CANCELLED' } as never,
+          changes: [{ field: 'وضعیت', from: existing.status, to: 'CANCELLED' }] as never, userId, userName: user?.name ?? null,
+        },
+      }),
+    ]);
+    return updated;
+  }
+
+  async revisions(ctx: TenantRequestContext, id: string, scope: Record<string, unknown>) {
+    await this.findOwnedDraft(ctx, id, scope);
+    return ctx.tenantDb.documentRevision.findMany({
+      where: { entityType: 'sales_quotation', entityId: id },
+      orderBy: { revisionNo: 'desc' },
+      select: { id: true, revisionNo: true, action: true, reason: true, changes: true, userName: true, createdAt: true },
+    });
   }
 
   /** Creates a real SalesInvoice from this quotation's current lines and marks the quotation CONVERTED. */
@@ -149,8 +235,8 @@ export class QuotationsService {
     if (quotation.status === 'CONVERTED') {
       throw new ForbiddenException('این پیش‌فاکتور قبلاً به فاکتور تبدیل شده است');
     }
-    if (quotation.status === 'REJECTED' || quotation.status === 'EXPIRED') {
-      throw new ForbiddenException('پیش‌فاکتور رد‌شده یا منقضی قابل تبدیل به فاکتور نیست');
+    if (quotation.status === 'REJECTED' || quotation.status === 'EXPIRED' || quotation.status === 'CANCELLED') {
+      throw new ForbiddenException('پیش‌فاکتور رد‌شده، منقضی یا باطل‌شده قابل تبدیل به فاکتور نیست');
     }
 
     const createdByUserId = await resolveTenantUserId(ctx);

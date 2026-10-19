@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { LicenseRuntimeService } from '../licensing/license-runtime.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -14,6 +15,7 @@ export class UsersService implements OnModuleInit {
     private readonly controlDb: ControlPrismaService,
     private readonly sms: ExirSmsService,
     private readonly approvals: ApprovalsService,
+    @Optional() private readonly license?: LicenseRuntimeService,
   ) {}
 
   onModuleInit(): void {
@@ -134,6 +136,11 @@ export class UsersService implements OnModuleInit {
   }
 
   async inviteUser(ctx: TenantRequestContext, name: string, phone: string, roleId: string) {
+    // سقف کاربر لایسنس (استقرار اختصاصی) — سمت سرور؛ برای عضو موجود شمرده نمی‌شود.
+    if (this.license) {
+      const already = await this.controlDb.tenantMembership.count({ where: { tenantId: ctx.tenantId, globalUser: { phone } } });
+      if (already === 0) this.license.assertUserCapacity(await this.controlDb.tenantMembership.count({ where: { tenantId: ctx.tenantId } }));
+    }
     const globalUser = await this.controlDb.globalUser.upsert({
       where: { phone },
       create: { phone, name },

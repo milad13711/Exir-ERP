@@ -10,6 +10,10 @@ import { useWorkspace } from "@/lib/workspace-context";
 import {
   cancelPlatformInvoice,
   createPlatformModuleInvoice,
+  editPlatformInvoice,
+  fetchPlatformSettings,
+  savePlatformSettings,
+  type PlatformSettings,
   fetchPlatformInvoices,
   fetchPlatformModules,
   fetchPlatformRenewals,
@@ -36,6 +40,7 @@ const INV_STATUS: Record<string, { label: string; tone: Tone }> = {
   PENDING: { label: "در انتظار پرداخت", tone: "warning" },
   PAID: { label: "پرداخت‌شده", tone: "success" },
   FAILED: { label: "لغو/ناموفق", tone: "danger" },
+  AWAITING_APPROVAL: { label: "در انتظار تأیید مدیر", tone: "accent" },
 };
 const TICKET_STATUS: Record<PlatformTicketStatus, { label: string; tone: Tone }> = {
   OPEN: { label: "باز", tone: "warning" },
@@ -48,12 +53,19 @@ const TABS = [
   { id: "tenants", label: "تننت‌ها" },
   { id: "invoices", label: "فاکتورها" },
   { id: "tickets", label: "تیکت‌های پشتیبانی" },
+  { id: "settings", label: "تنظیمات اعلان و تأیید" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 export default function PlatformPage() {
   const { isPlatformOwner, loading } = useWorkspace();
-  const [tab, setTab] = useState<TabId>("catalog");
+  // لینک اعلان‌ها و کارتابل: /platform?tab=tickets&ticket=ID
+  const [query] = useState(() => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search)));
+  const [tab, setTab] = useState<TabId>(() => {
+    const t = query.get("tab");
+    return TABS.some((x) => x.id === t) ? (t as TabId) : "catalog";
+  });
+  const openTicketId = query.get("ticket");
 
   if (loading) return null;
   if (!isPlatformOwner) return <div className="p-7 text-muted text-[14px]">شما به این بخش دسترسی ندارید.</div>;
@@ -77,7 +89,8 @@ export default function PlatformPage() {
         {tab === "catalog" && <CatalogTab />}
         {tab === "tenants" && <TenantsTab />}
         {tab === "invoices" && <InvoicesTab />}
-        {tab === "tickets" && <TicketsTab />}
+        {tab === "tickets" && <TicketsTab initialOpenId={openTicketId} />}
+        {tab === "settings" && <SettingsTab />}
       </div>
     </div>
   );
@@ -250,6 +263,22 @@ function TenantDetailModal({ id, onClose }: { id: string; onClose: () => void })
 // ── Invoices ─────────────────────────────────────────────────────────────
 function InvoiceTable({ rows, onChanged, showTenant }: { rows: PlatformInvoice[]; onChanged: () => void; showTenant?: boolean }) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  async function edit(i: PlatformInvoice) {
+    const hasLines = !!i.items?.length;
+    const raw = window.prompt(hasLines ? "مبلغ جدید اولین ردیف (تومان) — جمع کل خودکار محاسبه می‌شود" : "مبلغ جدید فاکتور (تومان)", String(hasLines ? i.items![0]!.amount : i.amount));
+    if (raw == null) return;
+    const amount = Number(raw.replace(/[,٬\s]/g, ""));
+    if (!Number.isFinite(amount) || amount < 0) return window.alert("مبلغ نامعتبر است");
+    setBusyId(i.id);
+    try {
+      await editPlatformInvoice(i.id, hasLines ? { lines: [{ index: 0, amount }] } : { amount });
+      onChanged();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusyId(null);
+    }
+  }
   async function act(id: string, kind: "pay" | "cancel") {
     if (!window.confirm(kind === "pay" ? "ثبت پرداخت این فاکتور؟ ماژول‌ها فعال می‌شوند." : "این فاکتور لغو شود؟")) return;
     setBusyId(id);
@@ -288,7 +317,14 @@ function InvoiceTable({ rows, onChanged, showTenant }: { rows: PlatformInvoice[]
                     <button disabled={busyId === i.id} onClick={() => act(i.id, "cancel")} className={`${btn} bg-danger-soft text-danger`}>لغو</button>
                   </>
                 )}
-                {i.status === "FAILED" && <span className="text-[12px] text-muted">—</span>}
+                {i.status === "AWAITING_APPROVAL" && (
+                  <>
+                    <a href="/approvals" className={`${btn} bg-primary-soft text-primary me-1.5 inline-block`}>کارتابل تأیید</a>
+                    <button disabled={busyId === i.id} onClick={() => edit(i)} className={`${btn} bg-slate-100 text-ink-soft me-1.5`}>ویرایش مبلغ</button>
+                    <button disabled={busyId === i.id} onClick={() => act(i.id, "cancel")} className={`${btn} bg-danger-soft text-danger`}>لغو</button>
+                  </>
+                )}
+                {i.status === "FAILED" && <span className="text-[12px] text-muted">{i.approvalNote ?? "—"}</span>}
               </td>
             </tr>
           ))}
@@ -319,6 +355,7 @@ function InvoicesTab() {
         {view !== "renewals" && (
           <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${inputClass} !w-auto`}>
             <option value="">همه‌ی وضعیت‌ها</option>
+            <option value="AWAITING_APPROVAL">در انتظار تأیید مدیر</option>
             <option value="PENDING">در انتظار پرداخت</option>
             <option value="PAID">پرداخت‌شده</option>
             <option value="FAILED">لغو/ناموفق</option>
@@ -355,10 +392,10 @@ function InvoicesTab() {
 }
 
 // ── Tickets ──────────────────────────────────────────────────────────────
-function TicketsTab() {
+function TicketsTab({ initialOpenId }: { initialOpenId?: string | null }) {
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<PlatformTicket[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   function load() {
     fetchPlatformTickets({ status: status || undefined }).then(setRows).catch(() => setRows([]));
   }
@@ -455,5 +492,73 @@ function TicketModal({ id, onClose, onChanged }: { id: string; onClose: () => vo
         </div>
       )}
     </Modal>
+  );
+}
+
+function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex items-center gap-2 text-[13px] cursor-pointer"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />{label}</label>
+  );
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────
+function SettingsTab() {
+  const [s, setS] = useState<PlatformSettings | null>(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    fetchPlatformSettings().then(setS).catch(() => setMsg("بارگذاری تنظیمات ناموفق بود"));
+  }, []);
+  if (!s) return <Empty text={msg || "در حال بارگذاری…"} />;
+  const t = s.ticketAlerts;
+  const setT = (patch: Partial<typeof t>) => setS({ ...s, ticketAlerts: { ...t, ...patch } });
+  const toggleRole = (r: "OWNER" | "ADMIN") => setT({ roles: t.roles.includes(r) ? t.roles.filter((x) => x !== r) : [...t.roles, r] });
+  async function save() {
+    if (!s) return;
+    setBusy(true);
+    try {
+      setS(await savePlatformSettings(s));
+      setMsg("ذخیره شد");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <h3 className="text-[14px] font-extrabold mb-1">اعلان تیکت‌های پشتیبانی</h3>
+        <p className="text-[12.5px] text-muted mb-3">وقتی مشتری تیکت یا پیام تازه می‌فرستد، گیرندگان زیر اعلان درون‌برنامه، پوش گوشی و پیامک می‌گیرند. هشدارهای پایش سرور جداست و فقط به شماره‌ی مالک می‌رود.</p>
+        <div className="space-y-2.5">
+          <Check checked={t.enabled} onChange={(v) => setT({ enabled: v })} label="ارسال اعلان تیکت فعال باشد" />
+          <div className="flex gap-4 flex-wrap items-center">
+            <span className="text-[12.5px] text-muted">گیرندگان:</span>
+            <Check checked={t.roles.includes("OWNER")} onChange={() => toggleRole("OWNER")} label="مالک" />
+            <Check checked={t.roles.includes("ADMIN")} onChange={() => toggleRole("ADMIN")} label="مدیران" />
+          </div>
+          <div className="flex gap-4 flex-wrap">
+            <Check checked={t.push} onChange={(v) => setT({ push: v })} label="پوش روی گوشی" />
+            <Check checked={t.sms} onChange={(v) => setT({ sms: v })} label="پیامک" />
+            <Check checked={t.notifyCreatorOnReply} onChange={(v) => setT({ notifyCreatorOnReply: v })} label="اعلان به ثبت‌کننده هنگام پاسخ کارشناس" />
+          </div>
+          <div className="flex gap-4 flex-wrap items-center text-[13px]">
+            <label className="flex items-center gap-2">سقف پیامک روزانه برای هر نفر<input type="number" min={0} max={200} value={t.smsDailyCap} onChange={(e) => setT({ smsDailyCap: Number(e.target.value) })} className={`${inputClass} !w-20`} /></label>
+            <label className="flex items-center gap-2">فاصله‌ی حداقل بین دو اعلان یک تیکت (ثانیه)<input type="number" min={0} max={3600} value={t.replyCooldownSec} onChange={(e) => setT({ replyCooldownSec: Number(e.target.value) })} className={`${inputClass} !w-24`} /></label>
+          </div>
+        </div>
+      </Card>
+      <Card className="p-5">
+        <h3 className="text-[14px] font-extrabold mb-1">نیاز به تأیید مدیر برای فاکتور تننت‌ها</h3>
+        <p className="text-[12.5px] text-muted mb-3">فاکتورهای خودکار (مثل تمدید ماژول) ابتدا در «کارتابل تأیید» می‌نشینند و بعد از تأیید شما برای مشتری صادر و قابل‌پرداخت می‌شوند. فاکتورهایی که خودتان از این صفحه صادر می‌کنید بدون تأیید صادر می‌شوند.</p>
+        <div className="space-y-2.5">
+          <Check checked={s.invoiceApproval.requireForAuto} onChange={(v) => setS({ ...s, invoiceApproval: { ...s.invoiceApproval, requireForAuto: v } })} label="فاکتورهای خودکار نیاز به تأیید مدیر دارند" />
+          <Check checked={s.invoiceApproval.requireForStaff} onChange={(v) => setS({ ...s, invoiceApproval: { ...s.invoiceApproval, requireForStaff: v } })} label="فاکتورهای دستیِ کارشناسان پنل ادمین هم نیاز به تأیید دارند" />
+          <Check checked={s.invoiceApproval.requireDifferentApprover} onChange={(v) => setS({ ...s, invoiceApproval: { ...s.invoiceApproval, requireDifferentApprover: v } })} label="ویرایش‌کننده‌ی فاکتور نتواند خودش آن را تأیید کند" />
+          <Check checked={s.invoiceApproval.requireDifferentApprover} onChange={(v) => setS({ ...s, invoiceApproval: { ...s.invoiceApproval, requireDifferentApprover: v } })} label="ویرایش‌کننده‌ی فاکتور نتواند خودش آن را تأیید کند" />
+        </div>
+      </Card>
+      <div><button disabled={busy} onClick={save} className={`${btn} bg-primary text-white`}>ذخیره</button>{msg && <span className="text-[12.5px] text-ink-soft ms-3">{msg}</span>}</div>
+    </div>
   );
 }

@@ -31,7 +31,10 @@ import {
 import { NewSalesReturnModal } from "./NewSalesReturnModal";
 import { NewInvoiceModal } from "./NewInvoiceModal";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
-import { cancelSalesInvoice, deleteSalesInvoice } from "@/lib/api";
+import { cancelSalesInvoice, deleteSalesInvoice, fetchSalesInvoiceRevisions } from "@/lib/api";
+import { useModuleCan } from "@/hooks/useModuleCan";
+import { ReasonDialog } from "@/components/ui/ReasonDialog";
+import { RevisionHistory } from "@/components/shared/RevisionHistory";
 import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
 import { SourceDispatch } from "@/components/dispatch/SourceDispatch";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
@@ -100,6 +103,9 @@ export function InvoiceDetailModal({
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [cancelMsg, setCancelMsg] = useState<string | null>(null);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [revKey, setRevKey] = useState(0);
+  const can = useModuleCan("sales");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -814,27 +820,63 @@ export function InvoiceDetailModal({
           </div>
         </div>
       ) : null}
-      {invoice && invoice.status === "CONFIRMED" && invoice.paidAmount === 0 ? (
-        <div className="mt-4 pt-3 border-t border-border flex items-center gap-3 flex-wrap">
-          <button
-            onClick={async () => {
-              const reason = window.prompt("دلیل ابطال فاکتور (برای سند معکوس و سابقه):");
-              if (!reason || reason.trim().length < 3) return;
-              try {
-                const res = await cancelSalesInvoice(invoice.id, reason.trim());
-                setCancelMsg(res.pendingApproval ? "درخواست ابطال در کارتابل مدیر ثبت شد؛ پس از تأیید مدیر اجرا می‌شود." : "فاکتور باطل شد و سند معکوس و برگشت موجودی ثبت شد.");
-                reload();
-                onChanged();
-              } catch (err) {
-                setCancelMsg(err instanceof Error ? err.message : "ابطال ناموفق بود");
-              }
-            }}
-            className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer"
-          >
-            ابطال فاکتور
-          </button>
-          {cancelMsg && <span className="text-[12px] font-semibold text-ink-soft">{cancelMsg}</span>}
+      {invoice && invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (can.canEdit || can.canDelete) ? (
+        <div className="mt-4 pt-3 border-t border-border flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {invoice.status === "CONFIRMED" && can.canEdit && (can.manager || can.canDelete) ? (
+              <button
+                onClick={() => setEditOpen(true)}
+                disabled={!!invoice.amendment?.editBlock}
+                title={invoice.amendment?.editBlock ?? undefined}
+                className="text-[12px] font-bold text-primary bg-primary-soft px-3.5 py-2 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ویرایش فاکتور
+              </button>
+            ) : null}
+            {invoice.status === "CONFIRMED" && can.canDelete ? (
+              <button
+                onClick={() => setVoidOpen(true)}
+                disabled={!!invoice.amendment?.voidBlock}
+                title={invoice.amendment?.voidBlock ?? undefined}
+                className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                حذف / ابطال فاکتور
+              </button>
+            ) : null}
+            {cancelMsg && <span className="text-[12px] font-semibold text-ink-soft">{cancelMsg}</span>}
+          </div>
+          {invoice.amendment?.editBlock || invoice.amendment?.voidBlock ? (
+            <div className="text-[11.5px] leading-6 text-muted">
+              {invoice.amendment.editBlock ? <div>ویرایش ممکن نیست: {invoice.amendment.editBlock}</div> : null}
+              {invoice.amendment.voidBlock && invoice.amendment.voidBlock !== invoice.amendment.editBlock ? <div>ابطال ممکن نیست: {invoice.amendment.voidBlock}</div> : null}
+            </div>
+          ) : null}
         </div>
+      ) : null}
+      {invoice && invoice.status === "CANCELLED" ? (
+        <div className="mt-4 pt-3 border-t border-border text-[12.5px] text-danger font-semibold">
+          این فاکتور باطل شده است{invoice.cancelReason ? ` — ${invoice.cancelReason}` : ""}. سند معکوس و برگشت موجودی ثبت شده و لینک عمومی آن «باطل‌شده» نمایش داده می‌شود.
+        </div>
+      ) : null}
+      {invoice && invoice.status !== "DRAFT" ? (
+        <div className="mt-3">
+          <RevisionHistory load={() => fetchSalesInvoiceRevisions(invoice.id)} refreshKey={revKey} />
+        </div>
+      ) : null}
+      {voidOpen && invoice ? (
+        <ReasonDialog
+          title="حذف / ابطال فاکتور"
+          description="فاکتور تأییدشده هرگز به‌طور کامل حذف نمی‌شود: با سند حسابداری معکوس و برگشت موجودی کالاها «باطل» می‌شود و با دلیل شما در تاریخچه می‌ماند. لینک عمومی فاکتور هم «باطل‌شده» نشان می‌دهد. اگر کاربر مدیر نباشید درخواست به کارتابل مدیر می‌رود."
+          confirmLabel="ابطال فاکتور"
+          onConfirm={async (reason) => {
+            const res = await cancelSalesInvoice(invoice.id, reason);
+            setCancelMsg(res.pendingApproval ? "درخواست ابطال در کارتابل مدیر ثبت شد؛ پس از تأیید مدیر اجرا می‌شود." : "فاکتور باطل شد و سند معکوس و برگشت موجودی ثبت شد.");
+            reload();
+            setRevKey((k) => k + 1);
+            onChanged();
+          }}
+          onClose={() => setVoidOpen(false)}
+        />
       ) : null}
       {editOpen && invoice ? (
         <NewInvoiceModal
@@ -842,6 +884,7 @@ export function InvoiceDetailModal({
           onClose={() => setEditOpen(false)}
           onCreated={() => {
             reload();
+            setRevKey((k) => k + 1);
             onChanged();
           }}
         />

@@ -62,6 +62,7 @@ const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   REJECTED: "ردشده",
   EXPIRED: "منقضی‌شده",
   CONVERTED: "تبدیل‌شده",
+  CANCELLED: "باطل‌شده",
 };
 
 const QUOTATION_STATUS_TONES: Record<SalesQuotationStatus, "neutral" | "warning" | "success" | "danger" | "primary"> = {
@@ -71,6 +72,7 @@ const QUOTATION_STATUS_TONES: Record<SalesQuotationStatus, "neutral" | "warning"
   REJECTED: "danger",
   EXPIRED: "danger",
   CONVERTED: "primary",
+  CANCELLED: "danger",
 };
 
 type Tab = "invoices" | "quotations" | "recurring" | "returns";

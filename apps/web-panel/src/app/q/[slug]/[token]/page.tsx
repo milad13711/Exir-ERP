@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<PublicQuotation["status"], string> = {
   REJECTED: "ردشده",
   EXPIRED: "منقضی‌شده",
   CONVERTED: "تبدیل به فاکتور شده",
+  CANCELLED: "باطل‌شده",
 };
 
 export default function PublicQuotationPage({ params }: { params: Promise<{ slug: string; token: string }> }) {
@@ -112,7 +113,11 @@ export default function PublicQuotationPage({ params }: { params: Promise<{ slug
             </div>
           ) : null}
 
-          {quotation.status === "ACCEPTED" ? (
+          {quotation.status === "CANCELLED" ? (
+            <div className="mt-5 p-3.5 rounded-xl bg-danger-soft border border-border text-[12.5px] text-danger font-bold text-center">
+              این پیش‌فاکتور باطل شده است و معتبر نیست.{quotation.cancelReason ? ` (${quotation.cancelReason})` : ""}
+            </div>
+          ) : quotation.status === "ACCEPTED" ? (
             <div className="mt-5 p-3.5 rounded-xl bg-success-soft border border-border text-[12.5px] text-success font-bold text-center">
               {done ? "پذیرش شما با موفقیت ثبت شد." : `این پیش‌فاکتور توسط ${quotation.acceptedByName ?? "شما"} پذیرفته شده است.`}
             </div>

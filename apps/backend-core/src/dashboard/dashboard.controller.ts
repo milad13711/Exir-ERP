@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -11,6 +11,7 @@ import { InvoiceDueRemindersService } from './invoice-due-reminders.service.js';
 import { CreateInvoiceFollowUpDto } from './dto/create-invoice-follow-up.dto.js';
 import { CreateDashboardReminderDto, SnoozeDashboardReminderDto, UpdateDashboardReminderDto } from './dto/create-dashboard-reminder.dto.js';
 import { DashboardRemindersService } from './dashboard-reminders.service.js';
+import { DashboardLayoutService } from './dashboard-layout.service.js';
 
 // نوع رویداد تقویم -> کد ماژولی که مجوز مشاهده‌اش (همه/فقط خودم) را کنترل می‌کند.
 // یادآوری دستی شخصی است و جدا (فقط برای سازنده) مدیریت می‌شود.
@@ -34,12 +35,47 @@ export class DashboardController {
     private readonly permissions: PermissionsService,
     private readonly dueReminders: InvoiceDueRemindersService,
     private readonly reminders: DashboardRemindersService,
+    private readonly layout: DashboardLayoutService,
   ) {}
 
   /** فاکتور باید در دامنه‌ی «فقط خودم/همه»ی ماژول فروش کاربر باشد؛ خارج از دامنه = ۴۰۴. */
   private async assertInvoiceInScope(ctx: TenantRequestContext, invoiceId: string): Promise<void> {
     const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
     await assertInScope(ctx.tenantDb.salesInvoice, scope, { id: invoiceId }, { message: 'فاکتور یافت نشد' });
+  }
+
+  /** چیدمان مؤثر داشبورد همین کاربر (شرکت + شخصی‌سازی) — فقط ویجت‌های نصب‌شده و مجاز. */
+  @Get('layout')
+  async myLayout(@Ctx() ctx: TenantRequestContext) {
+    return this.layout.resolveForUser(ctx);
+  }
+
+  /** شخصی‌سازی کاربر: پنهان‌کردن + ترتیب (هرگز ویجت جدید اضافه نمی‌کند). */
+  @Put('layout/me')
+  async saveMyLayout(@Body() body: unknown, @Ctx() ctx: TenantRequestContext) {
+    return this.layout.saveMine(ctx, body);
+  }
+
+  /** «بازنشانی به پیش‌فرض» برای شخصی‌سازی خود کاربر. */
+  @Delete('layout/me')
+  async resetMyLayout(@Ctx() ctx: TenantRequestContext) {
+    return this.layout.resetMine(ctx);
+  }
+
+  /** فقط مدیر: تنظیم فعلی شرکت (همه‌ی ویجت‌های ماژول‌های نصب‌شده). */
+  @Get('layout/company')
+  async companyLayout(@Ctx() ctx: TenantRequestContext) {
+    return this.layout.companyConfig(ctx);
+  }
+
+  @Put('layout/company')
+  async saveCompanyLayout(@Body() body: unknown, @Ctx() ctx: TenantRequestContext) {
+    return this.layout.saveCompany(ctx, body);
+  }
+
+  @Delete('layout/company')
+  async resetCompanyLayout(@Ctx() ctx: TenantRequestContext) {
+    return this.layout.resetCompany(ctx);
   }
 
   /** تقویم ماهانه‌ی داشبورد — تولد/وظیفه/مصاحبه/جلسه/سررسید فاکتور و چک/پایان قرارداد/یادآوری دستی، به تفکیک روز. */

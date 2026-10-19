@@ -5,6 +5,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { Card } from "@/components/ui/Card";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { StarIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -78,6 +79,7 @@ export default function CertificatesPage() {
           <div className="flex items-center gap-2">
             <StarIcon className="w-5 h-5 text-primary" />
             <h1 className="text-xl font-extrabold">گواهی‌ها</h1>
+            <ModuleHelp code="certificates" />
           </div>
           <p className="text-[13.5px] text-muted mt-1">آرشیو گواهی‌های صادرشده برای پرسنل و مخاطبان — با کد رهگیری و لینک استعلام عمومی</p>
         </div>

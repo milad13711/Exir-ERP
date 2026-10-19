@@ -125,39 +125,39 @@ export function DailyChecklistWidget() {
 
   return (
     <div
-      className="relative rounded-2xl p-4 sm:p-5 mb-5 shadow-[0_10px_28px_-14px_rgba(120,98,10,0.45)] border border-[#f0dfa0]"
+      className="relative min-w-0 max-w-full rounded-2xl p-3.5 sm:p-5 shadow-[0_10px_28px_-14px_rgba(120,98,10,0.45)] border border-[#f0dfa0]"
       style={{ background: "linear-gradient(180deg, #fff9dd 0%, #fef2b8 100%)" }}
     >
       {/* سنجاق تزئینی بالای یادداشت */}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4.5 h-4.5 rounded-full bg-danger shadow-[0_2px_4px_rgba(0,0,0,0.25)] border-2 border-white z-10" />
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pt-2">
-        <div>
-          <div className="flex items-center gap-1.5">
+        <div className="min-w-0 max-w-full">
+          <div className="flex items-center gap-1.5 max-w-full">
             <button
               type="button"
               onClick={() => setOffset((o) => Math.max(-1, o - 1))}
               disabled={offset <= -1}
-              className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
+              className="w-10 h-10 rounded-xl bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] text-lg cursor-pointer disabled:opacity-35 disabled:cursor-default shrink-0"
               aria-label="روز قبل"
             >
               ‹
             </button>
-            <div className="text-[14.5px] font-extrabold text-[#5c4a10] min-w-[118px] text-center">لیست کارهای {dayLabel}</div>
+            <div className="text-[14.5px] font-extrabold text-[#5c4a10] min-w-[96px] sm:min-w-[118px] text-center truncate">لیست کارهای {dayLabel}</div>
             <button
               type="button"
               onClick={() => setOffset((o) => Math.min(1, o + 1))}
               disabled={offset >= 1}
-              className="w-7 h-7 rounded-lg bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] cursor-pointer disabled:opacity-35 disabled:cursor-default"
+              className="w-10 h-10 rounded-xl bg-white/70 border border-[#e6d18a] flex items-center justify-center text-[#5c4a10] text-lg cursor-pointer disabled:opacity-35 disabled:cursor-default shrink-0"
               aria-label="روز بعد"
             >
               ›
             </button>
           </div>
-          <div className="text-[11.5px] text-[#8a7530] mt-1 flex items-center gap-2">
+          <div className="text-[11.5px] text-[#8a7530] mt-1 flex items-center gap-x-2 gap-y-1 flex-wrap">
             <span>{formatJalaliDate(date)}</span>
             {offset !== 0 ? (
-              <button type="button" onClick={() => setOffset(0)} className="font-bold text-[#5c4a10] underline underline-offset-2 cursor-pointer">
+              <button type="button" onClick={() => setOffset(0)} className="font-bold text-[#5c4a10] underline underline-offset-2 cursor-pointer py-1.5">
                 برگشت به امروز
               </button>
             ) : null}
@@ -167,7 +167,7 @@ export function DailyChecklistWidget() {
           <select
             value={viewUserId ?? ""}
             onChange={(e) => setViewUserId(e.target.value || undefined)}
-            className="text-[12px] font-bold bg-white/70 border border-[#e6d18a] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
+            className="w-full sm:w-auto sm:max-w-[240px] min-w-0 min-h-10 text-[12px] font-bold bg-white/70 border border-[#e6d18a] rounded-xl px-2.5 py-2 outline-none cursor-pointer truncate"
           >
             <option value="">چک‌لیست خودم</option>
             {subordinates.map((s) => (
@@ -186,7 +186,7 @@ export function DailyChecklistWidget() {
           {viewUserId ? `${currentName} برای ${dayLabel} کاری ثبت نکرده` : `هنوز کاری برای ${dayLabel} ثبت نکرده‌اید`}
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5 mb-3">
+        <div className="flex flex-col gap-1.5 mb-3 min-w-0">
           <div className="text-[11px] text-[#8a7530] mb-1">
             {toPersianDigits(doneCount)} از {toPersianDigits(items.length)} انجام شد
           </div>
@@ -194,35 +194,41 @@ export function DailyChecklistWidget() {
             const expanded = expandedId === item.id;
             return (
               <div key={item.id} className="bg-white/60 rounded-xl border border-[#eddca0] overflow-hidden">
-                <div className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="flex items-start gap-1 ps-1 pe-1 py-1">
                   <button
                     onClick={() => toggleDone(item)}
                     aria-label="تیک انجام‌شده"
-                    className={clsx(
-                      "w-5 h-5 rounded-md shrink-0 flex items-center justify-center border-2 cursor-pointer transition-colors",
-                      item.done ? "bg-success border-success" : "border-[#d8c374] bg-white",
-                    )}
+                    className="w-10 h-10 shrink-0 flex items-center justify-center cursor-pointer"
                   >
-                    {item.done ? <CheckIcon className="w-3 h-3 text-white" strokeWidth={3} /> : null}
+                    <span
+                      className={clsx(
+                        "w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors",
+                        item.done ? "bg-success border-success" : "border-[#d8c374] bg-white",
+                      )}
+                    >
+                      {item.done ? <CheckIcon className="w-3 h-3 text-white" strokeWidth={3} /> : null}
+                    </span>
                   </button>
                   <button
                     onClick={() => setExpandedId(expanded ? null : item.id)}
                     className={clsx(
-                      "flex-1 min-w-0 text-right text-[13px] font-semibold cursor-pointer truncate",
+                      "flex-1 min-w-0 text-right py-2 cursor-pointer",
                       item.done ? "text-[#a89757]" : "text-[#4a3c0d]",
                     )}
                   >
-                    <span className={item.done ? "line-through" : ""}>{item.title}</span>
-                    {item.carriedOver ? <span className="block text-[10px] font-medium text-[#a89757] mt-0.5">مانده از قبل</span> : null}
+                    <span className={clsx("block text-[13px] font-semibold break-words line-clamp-2", item.done && "line-through")}>{item.title}</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                      <Badge tone={PRIORITY_TONE[item.priority]} className="gap-1 px-2 py-0.5 max-w-full">
+                        <FlagIcon className="w-3 h-3 shrink-0" strokeWidth={2.5} />
+                        <span className="truncate">{PRIORITY_LABEL[item.priority]}</span>
+                      </Badge>
+                      {item.taskId && <TasksIcon className="w-3.5 h-3.5 text-primary shrink-0" />}
+                      {item.carriedOver ? <span className="text-[10px] font-medium text-[#a89757]">مانده از قبل</span> : null}
+                    </span>
                   </button>
-                  <Badge tone={PRIORITY_TONE[item.priority]} className="gap-1 shrink-0">
-                    <FlagIcon className="w-3 h-3" strokeWidth={2.5} />
-                    {PRIORITY_LABEL[item.priority]}
-                  </Badge>
-                  {item.taskId && <TasksIcon className="w-3.5 h-3.5 text-primary shrink-0" />}
                   <button
                     onClick={() => setExpandedId(expanded ? null : item.id)}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-[#8a7530] shrink-0 cursor-pointer"
+                    className="w-10 h-10 rounded-md flex items-center justify-center text-[#8a7530] shrink-0 cursor-pointer"
                     aria-label="جزئیات"
                   >
                     <ChevronDownIcon className={clsx("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
@@ -246,7 +252,7 @@ export function DailyChecklistWidget() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                       }}
-                      className="text-[13px] font-semibold outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2"
+                      className="w-full min-w-0 text-[13px] font-semibold outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2.5"
                     />
                     <textarea
                       defaultValue={item.description ?? ""}
@@ -257,15 +263,15 @@ export function DailyChecklistWidget() {
                           updateDailyChecklistItem(item.id, { description: e.target.value.trim() }).then(reload);
                         }
                       }}
-                      className="text-[12.5px] outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2 resize-none"
+                      className="w-full min-w-0 text-[12.5px] outline-none bg-white border border-[#e6d18a] rounded-lg px-2.5 py-2 resize-none"
                     />
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11.5px] font-bold text-[#5c4a10]">اولویت:</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11.5px] font-bold text-[#5c4a10] shrink-0">اولویت:</span>
                       <select
                         value={item.priority}
                         aria-label="اولویت"
                         onChange={(e) => updateDailyChecklistItem(item.id, { priority: e.target.value as DailyChecklistPriority }).then(reload)}
-                        className="text-[12px] font-bold outline-none bg-white border border-[#e6d18a] rounded-lg px-2 py-1.5 cursor-pointer"
+                        className="flex-1 min-w-0 min-h-10 text-[12px] font-bold outline-none bg-white border border-[#e6d18a] rounded-lg px-2 py-1.5 cursor-pointer"
                       >
                         <option value="URGENT">فوری</option>
                         <option value="MEDIUM">متوسط</option>
@@ -276,19 +282,19 @@ export function DailyChecklistWidget() {
                       {!item.taskId ? (
                         <button
                           onClick={() => createDailyChecklistTask(item.id).then(reload)}
-                          className="flex items-center gap-1 text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
+                          className="flex items-center gap-1 text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-2 min-h-10 rounded-lg cursor-pointer"
                         >
                           <ClipboardCheckIcon className="w-3.5 h-3.5" />
                           ایجاد وظیفه
                         </button>
                       ) : (
-                        <span className="text-[11.5px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg">
+                        <span className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg">
                           وظیفه ساخته شد
                         </span>
                       )}
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="flex items-center gap-1 text-[11.5px] font-bold text-danger bg-danger-soft px-2.5 py-1.5 rounded-lg cursor-pointer mr-auto"
+                        className="flex items-center gap-1 text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-2 min-h-10 rounded-lg cursor-pointer mr-auto"
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
                         حذف
@@ -303,18 +309,18 @@ export function DailyChecklistWidget() {
         </div>
       )}
 
-      <form onSubmit={handleAdd} className="flex items-center gap-2 mb-2">
+      <form onSubmit={handleAdd} className="flex flex-wrap items-center gap-2 mb-2">
         <input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder={viewUserId ? `افزودن کار برای ${currentName}...` : "افزودن کار جدید..."}
-          className="flex-1 text-[12.5px] outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-3.5 py-2.5"
+          className="basis-full sm:basis-0 sm:flex-1 w-full min-w-0 min-h-11 text-[12.5px] outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-3.5 py-2.5"
         />
         <select
           value={newPriority}
           onChange={(e) => setNewPriority(e.target.value as DailyChecklistPriority)}
           aria-label="اولویت کار جدید"
-          className="text-[12px] font-bold outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-2 py-2.5 cursor-pointer shrink-0"
+          className="flex-1 sm:flex-none min-w-0 min-h-11 text-[12px] font-bold outline-none bg-white/70 border border-[#e6d18a] rounded-xl px-2.5 py-2.5 cursor-pointer"
         >
           <option value="URGENT">فوری</option>
           <option value="MEDIUM">متوسط</option>
@@ -323,7 +329,7 @@ export function DailyChecklistWidget() {
         <button
           type="submit"
           disabled={adding || !newTitle.trim()}
-          className="w-9 h-9 rounded-xl bg-[#c9a227] text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
+          className="w-11 h-11 rounded-xl bg-[#c9a227] text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
           aria-label="افزودن"
         >
           <PlusIcon className="w-4 h-4" />
@@ -344,7 +350,7 @@ export function DailyChecklistWidget() {
         <button
           onClick={handleGenerateReport}
           disabled={generating}
-          className="w-full py-2.5 rounded-xl border-[1.5px] border-dashed border-[#c9a227] text-[12.5px] font-bold text-[#5c4a10] cursor-pointer disabled:opacity-50"
+          className="w-full min-h-11 px-3 py-2.5 rounded-xl border-[1.5px] border-dashed border-[#c9a227] text-[12.5px] font-bold text-[#5c4a10] cursor-pointer disabled:opacity-50 break-words"
         >
           {generating ? "در حال ثبت..." : `ثبت گزارش ${dayLabel} از روی همین چک‌لیست`}
         </button>

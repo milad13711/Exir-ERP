@@ -41,7 +41,7 @@ export class PublicInvoicePaymentController {
       where: { id },
       include: { tenant: { select: { name: true } } },
     });
-    if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
+    if (!invoice || invoice.status === 'AWAITING_APPROVAL') throw new NotFoundException('فاکتور یافت نشد');
     return {
       id: invoice.id,
       amount: invoice.amount,

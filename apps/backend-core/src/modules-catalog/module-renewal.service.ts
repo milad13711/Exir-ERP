@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { modulePriceForMode } from './module-pricing.js';
+import { TenantInvoiceApprovalService } from '../platform-management/tenant-invoice-approval.service.js';
 
 const RENEWAL_NOTICE_DAYS = 10;
 
@@ -23,10 +24,12 @@ export class ModuleRenewalService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly sms: ExirSmsService,
+    private readonly invoiceApproval: TenantInvoiceApprovalService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async run(): Promise<void> {
+    await this.invoiceApproval.resubmitMissing().catch((err) => this.logger.warn(`resubmitMissing failed: ${err instanceof Error ? err.message : err}`));
     await this.issueRenewalInvoices();
     await this.disableExpiredModules();
   }
@@ -47,13 +50,16 @@ export class ModuleRenewalService {
       if (!tm.currentPeriodEnd || !tm.billingMode) continue;
       const amount = modulePriceForMode(tm.module, tm.billingMode);
 
+      // فاکتور خودکار ابتدا در کارتابل تأیید مدیر تننت مادر می‌نشیند (تنظیم «نیاز به تأیید مدیر»، پیش‌فرض روشن)
+      const initial = await this.invoiceApproval.initialState('AUTO');
       const invoice = await this.controlDb.invoice.create({
         data: {
           tenantId: tm.tenantId,
           amount,
           purpose: 'MODULE_RENEWAL',
           items: [{ moduleCode: tm.module.code, moduleName: tm.module.name, billingMode: tm.billingMode, amount }],
-          status: 'PENDING',
+          status: initial.status,
+          issueSource: initial.issueSource,
           dueAt: tm.currentPeriodEnd,
         },
       });
@@ -63,7 +69,12 @@ export class ModuleRenewalService {
         data: { pendingRenewalInvoiceId: invoice.id },
       });
 
-      await this.notifyOwner(tm.tenantId, tm.tenant.name, tm.module.name);
+      if (initial.status === 'AWAITING_APPROVAL') {
+        // یادآوری به مالک تننت فقط بعد از تأیید مدیر (TenantInvoiceApprovalService.approve) ارسال می‌شود
+        await this.invoiceApproval.submit(invoice.id);
+      } else {
+        await this.notifyOwner(tm.tenantId, tm.tenant.name, tm.module.name);
+      }
     }
   }
 
@@ -94,6 +105,11 @@ export class ModuleRenewalService {
     });
 
     for (const tm of expired) {
+      // فاکتور تمدید هنوز منتظر تأیید مدیر ماست؛ تأخیر ما نباید ماژول مشتری را قطع کند
+      if (tm.pendingRenewalInvoiceId) {
+        const pending = await this.controlDb.invoice.findUnique({ where: { id: tm.pendingRenewalInvoiceId }, select: { status: true } });
+        if (pending?.status === 'AWAITING_APPROVAL') continue;
+      }
       await this.controlDb.tenantModule.update({ where: { id: tm.id }, data: { status: 'DISABLED' } });
       await this.controlDb.auditLog.create({
         data: {

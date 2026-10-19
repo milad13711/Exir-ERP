@@ -55,6 +55,11 @@ export class UpdateQuotationDto {
   @IsString()
   notes?: string;
 
+  // فقط برای ویرایش پیش‌فاکتور غیرپیش‌نویس الزامی است (بررسی در سرویس).
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)

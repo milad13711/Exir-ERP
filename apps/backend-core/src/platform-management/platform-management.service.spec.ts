@@ -6,7 +6,7 @@ const ctx = { auth: { type: 'tenant_user', sub: 'u1', role: 'OWNER' }, tenantSlu
 
 function make(db: Record<string, unknown>, tenants: Record<string, unknown> = {}, gateway: Record<string, unknown> = {}) {
   const controlDb = { globalUser: { findUnique: vi.fn().mockResolvedValue({ name: 'مدیر' }) }, auditLog: { create: vi.fn().mockResolvedValue({}) }, ...db };
-  const svc = new PlatformManagementService(controlDb as never, {} as never, tenants as never, gateway as never, {} as never);
+  const svc = new PlatformManagementService(controlDb as never, {} as never, tenants as never, gateway as never, {} as never, { onStaffReply: vi.fn() } as never, {} as never, { closeForEntity: vi.fn() } as never);
   return { svc, controlDb };
 }
 

@@ -3,6 +3,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { InvoicesService } from '../sales/invoices.service.js';
+import { FunnelService } from '../crm/funnel.service.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { BookStoreSettingsService, type BookStoreSettings } from './book-store-settings.service.js';
 
@@ -45,6 +46,7 @@ export class BookStoreService {
     private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
     private readonly settings: BookStoreSettingsService,
+    private readonly funnel: FunnelService,
   ) {}
 
   list(ctx: TenantRequestContext) {
@@ -92,7 +94,9 @@ export class BookStoreService {
   private async resolveOrCreateContact(ctx: TenantRequestContext, name: string, phone: string) {
     const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone } });
     if (existing) return existing;
-    return ctx.tenantDb.crmContact.create({ data: { name, phone, isCustomer: true, source: 'فروشگاه کتاب' } });
+    const created = await ctx.tenantDb.crmContact.create({ data: { name, phone, isCustomer: true, source: 'فروشگاه کتاب' } });
+    await this.funnel.initLead(ctx, created.id);
+    return created;
   }
 
   /** پرداخت موفق شد — مخاطب پیدا/ساخته می‌شود، فاکتور صادر می‌شود، و پیامک تأیید ارسال می‌شود. Idempotent. */
@@ -113,6 +117,9 @@ export class BookStoreService {
       where: { id: orderId },
       data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId: invoice.id },
     });
+
+    // خرید کتاب = خرید واقعی ⇒ سرنخ مشتری می‌شود / خرید تکراری (قیف فروش)
+    if (order.unitPrice > 0) await this.funnel.recordPurchase(ctx, contact.id, order.unitPrice, 'خرید مجدد (فروشگاه کتاب)');
 
     const deliveryNote = format.needsShipping
       ? 'سفارش شما ثبت شد و به‌زودی ارسال می‌شود.'

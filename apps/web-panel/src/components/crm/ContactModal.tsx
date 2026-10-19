@@ -24,6 +24,7 @@ import {
   type Certificate,
 } from "@/lib/api";
 import { STAGE_META, ActivityTimeline, AddActivityForm } from "./crm-shared";
+import { FunnelStageBadge, FunnelStageControls } from "./FunnelStageControls";
 import { PartyStatementSection } from "./PartyStatementSection";
 import { ShippingProfileFields } from "./ShippingProfileFields";
 import { PartyHistorySection } from "./PartyHistorySection";
@@ -42,10 +43,12 @@ export function ContactModal({
   onClose,
   onNewDeal,
   onDeleted,
+  onStageChanged,
 }: {
   contactId: string;
   onClose: () => void;
   onDeleted?: () => void;
+  onStageChanged?: () => void;
   onNewDeal: (contactId: string) => void;
 }) {
   const { installedModules } = useWorkspace();
@@ -150,6 +153,7 @@ export function ContactModal({
               <Badge tone={contact.type === "COMPANY" ? "accent" : "neutral"}>
                 {contact.type === "COMPANY" ? "شرکت" : "شخص حقیقی"}
               </Badge>
+              <FunnelStageBadge stage={contact.funnelStage} />
             </div>
             <div className="flex items-center gap-4 mt-2 flex-wrap">
               {contact.company ? (
@@ -189,6 +193,17 @@ export function ContactModal({
                 </span>
               ) : null}
             </div>
+            <FunnelStageControls
+              contactId={contact.id}
+              stage={contact.funnelStage}
+              purchaseCount={contact.purchaseCount}
+              convertedAt={contact.convertedAt}
+              disqualifyReason={contact.disqualifyReason}
+              onChanged={() => {
+                reload();
+                onStageChanged?.();
+              }}
+            />
             {contact.tags.length > 0 ? (
               <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
                 {contact.tags.map((t) => (

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import {
-  fetchCrmContacts,
   fetchProducts,
   createSalesInvoice,
   updateSalesInvoice,
+  reviseSalesInvoice,
   fetchDefaultBankInfo,
   ApiError,
-  type CrmContact,
   type Product,
   type SalesInvoiceDetail,
   type SalesInvoicePaymentMethod,
@@ -53,10 +53,11 @@ export function NewInvoiceModal({
   onClose: () => void;
   onCreated: (invoice: SalesInvoiceDetail) => void;
   prefill?: InvoicePrefill;
-  /** حالت ویرایش فاکتور پیش‌نویس */
+  /** حالت ویرایش: پیش‌نویس (آزاد) یا فاکتور تأییدشده (اصلاح سند حسابداری و موجودی، با دلیل الزامی) */
   invoice?: SalesInvoiceDetail;
 }) {
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
+  const revising = !!editing && editing.status !== "DRAFT";
+  const [reason, setReason] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [contactId, setContactId] = useState(editing?.contact.id ?? prefill?.contactId ?? "");
   const [discount, setDiscount] = useState(editing?.discount ? String(editing.discount) : "");
@@ -75,7 +76,6 @@ export function NewInvoiceModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchProducts().then(setProducts).catch(() => setProducts([]));
   }, []);
 
@@ -117,6 +117,10 @@ export function NewInvoiceModal({
     setError(null);
     const validLines = lines.filter((l) => l.description.trim() && Number(l.quantity) > 0);
     if (!contactId || validLines.length === 0) return;
+    if (revising && reason.trim().length < 3) {
+      setError("دلیل ویرایش را بنویسید (در تاریخچه‌ی فاکتور ثبت می‌شود)");
+      return;
+    }
     if (paymentMethod === "BANK_TRANSFER" && !paymentBankInfo.trim()) {
       setError("برای روش پرداخت بانکی، شماره کارت/حساب را وارد کنید");
       return;
@@ -144,7 +148,11 @@ export function NewInvoiceModal({
           exchangeRateFx: l.exchangeRateFx,
         })),
       };
-      const invoice = editing ? await updateSalesInvoice(editing.id, payload) : await createSalesInvoice(payload);
+      const invoice = editing
+        ? revising
+          ? await reviseSalesInvoice(editing.id, { ...payload, reason: reason.trim() })
+          : await updateSalesInvoice(editing.id, payload)
+        : await createSalesInvoice(payload);
       onCreated(invoice);
       onClose();
     } catch (err) {
@@ -155,23 +163,25 @@ export function NewInvoiceModal({
   }
 
   return (
-    <Modal title={editing ? `ویرایش فاکتور پیش‌نویس ${editing.invoiceNo}` : "فاکتور فروش جدید"} onClose={onClose} width="max-w-[640px]">
+    <Modal
+      title={editing ? (revising ? `ویرایش فاکتور تأییدشده ${editing.invoiceNo}` : `ویرایش فاکتور پیش‌نویس ${editing.invoiceNo}`) : "فاکتور فروش جدید"}
+      onClose={onClose}
+      width="max-w-[640px]"
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {revising ? (
+          <div className="text-[12px] leading-6 bg-warning-soft border border-border rounded-xl px-3.5 py-3 text-ink-soft">
+            این فاکتور تأیید شده است. با ذخیره، سند حسابداری قبلی با سند معکوس ابطال و سند تازه ثبت می‌شود و اختلاف موجودی انبار اصلاح می‌گردد؛ همه‌ی
+            این‌ها هم‌زمان و با ثبت دلیل در تاریخچه انجام می‌شود. فاکتور دارای پرداخت، چک، تحویل‌تأییدشده، امضا یا بار حمل قابل ویرایش نیست.
+          </div>
+        ) : null}
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>
-          <select
+          <ContactCombobox
             value={contactId}
-            onChange={(e) => setContactId(e.target.value)}
-            required
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          >
-            <option value="">انتخاب مشتری...</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company || c.name}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => setContactId(id)}
+            initialLabel={editing ? editing.contact.company || editing.contact.name : undefined}
+          />
         </div>
 
         <div>
@@ -322,14 +332,26 @@ export function NewInvoiceModal({
           />
         </div>
 
+        {revising ? (
+          <div>
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">دلیل ویرایش (الزامی)</label>
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="مثلاً: اصلاح تعداد طبق توافق با مشتری"
+              className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
+            />
+          </div>
+        ) : null}
+
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 
         <button
           type="submit"
-          disabled={submitting || !contactId}
+          disabled={submitting || !contactId || (revising && reason.trim().length < 3)}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت پیش‌نویس فاکتور"}
+          {submitting ? "در حال ثبت..." : revising ? "ذخیره‌ی ویرایش و اصلاح سند حسابداری" : "ثبت پیش‌نویس فاکتور"}
         </button>
       </form>
     </Modal>

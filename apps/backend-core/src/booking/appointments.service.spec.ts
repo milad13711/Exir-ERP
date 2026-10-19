@@ -17,7 +17,7 @@ function setup(existingContact: { id: string } | null, serviceOverrides: Record<
     mentoringSession: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
   };
   const sms = { sendSms: vi.fn().mockResolvedValue({ success: true }) };
-  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, { isConfigured: vi.fn().mockResolvedValue(true) } as never, {} as never, { findSlot: vi.fn().mockResolvedValue({ startAt: '2026-09-25T08:30:00Z', time: '12:00', providerIds: [] }) } as never, {} as never);
+  const service = new AppointmentsService({ emit: vi.fn() } as never, sms as never, { isConfigured: vi.fn().mockResolvedValue(true) } as never, {} as never, { findSlot: vi.fn().mockResolvedValue({ startAt: '2026-09-25T08:30:00Z', time: '12:00', providerIds: [] }) } as never, {} as never, { initLead: vi.fn(), recordPurchase: vi.fn(), convertToCustomer: vi.fn() } as never);
   const ctx = { tenantId: 't', tenantSlug: 'acme', tenantDb, auth: { role: 'OWNER', sub: 'g' } } as never;
   return { service, ctx, tenantDb, sms };
 }
@@ -83,7 +83,7 @@ describe('AppointmentsService deposit payment — tenant gateway', () => {
   function build(gateway: Record<string, unknown>) {
     const appt = { id: 'ap-1', paymentStatus: 'PENDING', depositAmount: 100_000, isFullPayment: false, customerName: 'علی', customerPhone: '09121234567', zarinpalAuthority: 'AUTH1', serviceType: { name: 'مشاوره' } };
     const tenantDb = { appointment: { findUnique: vi.fn().mockResolvedValue(appt), update: vi.fn().mockResolvedValue({}) } };
-    const service = new AppointmentsService({ emit: vi.fn() } as never, {} as never, gateway as never, {} as never, {} as never, {} as never);
+    const service = new AppointmentsService({ emit: vi.fn() } as never, {} as never, gateway as never, {} as never, {} as never, {} as never, {} as never);
     return { service, ctx: { tenantId: 't', tenantDb } as never, tenantDb };
   }
 

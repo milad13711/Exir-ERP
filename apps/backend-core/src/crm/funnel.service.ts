@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
+import { canManuallyTransition, isConverted, stageAfterPurchase, type ManualLeadStage } from './funnel-lifecycle.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // پس از موعد پیش‌بینی‌شده‌ی خرید بعدی (میانگین فاصله‌ی خریدهای قبلی)، ابتدا
@@ -55,20 +56,73 @@ export class FunnelService {
     });
   }
 
-  /** پیشروی دستی مراحل پیش از خرید (NEW_LEAD/CONTACTED/QUALIFIED) — پس از اولین خرید دیگر دستی نیست. */
+  /**
+   * پیشروی/برگشت دستی مراحل پیش از خرید (سرنخ جدید، در تماس، واجد شرایط) و رد صلاحیت با دلیل.
+   * پس از تبدیل به مشتری دیگر دستی نیست. «واجد شرایط» هنوز سرنخ است — مشتری نمی‌شود؛
+   * تبدیل با خرید، برد فرصت یا دکمه‌ی «تبدیل به مشتری» انجام می‌شود.
+   */
   async transitionLeadStage(
     ctx: TenantRequestContext,
     contactId: string,
-    toStage: 'NEW_LEAD' | 'CONTACTED' | 'QUALIFIED',
+    toStage: ManualLeadStage,
+    reason?: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: contactId } });
     if (!contact) return { ok: false, error: 'مخاطب یافت نشد' };
-    if (contact.purchaseCount > 0) {
-      return { ok: false, error: 'این مخاطب مشتری شده و مرحله از این پس به‌صورت خودکار مدیریت می‌شود' };
-    }
-    await ctx.tenantDb.crmContact.update({ where: { id: contactId }, data: { funnelStage: toStage } });
+    const allowed = canManuallyTransition(contact, toStage);
+    if (!allowed.ok) return allowed;
+    if (toStage === 'DISQUALIFIED' && !reason?.trim()) return { ok: false, error: 'دلیل رد صلاحیت را وارد کنید' };
+    if (contact.funnelStage === toStage) return { ok: true };
+
+    const now = new Date();
+    await ctx.tenantDb.crmContact.update({
+      where: { id: contactId },
+      data: {
+        funnelStage: toStage,
+        ...(toStage === 'QUALIFIED' ? { qualifiedAt: now } : {}),
+        ...(toStage === 'DISQUALIFIED'
+          ? { disqualifiedAt: now, disqualifyReason: reason!.trim() }
+          : { disqualifiedAt: null, disqualifyReason: null }),
+      },
+    });
     await this.logStageEvent(ctx, contactId, contact.funnelStage, toStage);
     return { ok: true };
+  }
+
+  /**
+   * تبدیل سرنخ به مشتری بدون خرید (دکمه‌ی دستی یا برد فرصت فروش). idempotent:
+   * اگر قبلاً مشتری شده باشد کاری نمی‌کند. شمارنده‌ی خرید دست نمی‌خورد، پس اولین
+   * فاکتور پرداخت‌شده بعدی همچنان «خرید اول» حساب می‌شود، نه خرید تکراری.
+   */
+  async convertToCustomer(ctx: TenantRequestContext, contactId: string): Promise<{ ok: true; converted: boolean } | { ok: false; error: string }> {
+    const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: contactId } });
+    if (!contact) return { ok: false, error: 'مخاطب یافت نشد' };
+    if (isConverted(contact)) return { ok: true, converted: false };
+    await ctx.tenantDb.crmContact.update({
+      where: { id: contactId },
+      data: { funnelStage: 'CUSTOMER', isCustomer: true, convertedAt: new Date(), disqualifiedAt: null, disqualifyReason: null },
+    });
+    await this.logStageEvent(ctx, contactId, contact.funnelStage, 'CUSTOMER');
+    await this.automation.emit(ctx, 'crm.contact.converted_to_customer', {
+      contactId,
+      contactName: contact.name,
+      contactPhone: contact.phone ?? null,
+    });
+    return { ok: true, converted: true };
+  }
+
+  /** ثبت فرصت فروش برای یک سرنخ = واجد شرایط بودن او (فقط اگر هنوز سرنخ جدید/در تماس باشد). */
+  async onDealOpened(ctx: TenantRequestContext, contactId: string): Promise<void> {
+    const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id: contactId } });
+    if (!contact || isConverted(contact)) return;
+    if (contact.funnelStage === 'NEW_LEAD' || contact.funnelStage === 'CONTACTED') {
+      await this.transitionLeadStage(ctx, contactId, 'QUALIFIED');
+    }
+  }
+
+  /** برد فرصت فروش ⇒ مشتری شدن مخاطب (اگر هنوز سرنخ است). */
+  async onDealWon(ctx: TenantRequestContext, contactId: string): Promise<void> {
+    await this.convertToCustomer(ctx, contactId);
   }
 
   /**
@@ -89,6 +143,7 @@ export class FunnelService {
 
     const now = new Date();
     const isFirstPurchase = contact.purchaseCount === 0;
+    const wasConverted = isConverted(contact);
 
     let avgGap = contact.avgPurchaseGapDays;
     if (!isFirstPurchase && contact.lastPurchaseAt) {
@@ -97,7 +152,7 @@ export class FunnelService {
       avgGap = avgGap == null ? gapDays : Math.round((avgGap * priorGapCount + gapDays) / (priorGapCount + 1));
     }
 
-    const newStage = isFirstPurchase ? 'CUSTOMER' : contact.isBrandAmbassador ? 'BRAND_AMBASSADOR' : 'REPEAT_CUSTOMER';
+    const newStage = stageAfterPurchase(contact);
     const newPurchaseCount = contact.purchaseCount + 1;
 
     await ctx.tenantDb.crmContact.update({
@@ -105,6 +160,9 @@ export class FunnelService {
       data: {
         funnelStage: newStage,
         isCustomer: true,
+        convertedAt: contact.convertedAt ?? now,
+        disqualifiedAt: null,
+        disqualifyReason: null,
         firstPurchaseAt: isFirstPurchase ? now : contact.firstPurchaseAt,
         lastPurchaseAt: now,
         purchaseCount: newPurchaseCount,
@@ -112,14 +170,17 @@ export class FunnelService {
         churnWarningAt: null,
       },
     });
-    await this.logStageEvent(ctx, contactId, contact.funnelStage, newStage);
+    if (contact.funnelStage !== newStage) await this.logStageEvent(ctx, contactId, contact.funnelStage, newStage);
 
     if (isFirstPurchase) {
-      await this.automation.emit(ctx, 'crm.contact.converted_to_customer', {
-        contactId,
-        contactName: contact.name,
-        contactPhone: contact.phone ?? null,
-      });
+      // اگر قبلاً با برد فرصت/تبدیل دستی مشتری شده، رویداد «تبدیل» دوباره ارسال نمی‌شود.
+      if (!wasConverted) {
+        await this.automation.emit(ctx, 'crm.contact.converted_to_customer', {
+          contactId,
+          contactName: contact.name,
+          contactPhone: contact.phone ?? null,
+        });
+      }
     } else {
       // خرید بعدی = فرصت فروش برد شده، طبق درخواست کاربر
       await ctx.tenantDb.crmDeal.create({

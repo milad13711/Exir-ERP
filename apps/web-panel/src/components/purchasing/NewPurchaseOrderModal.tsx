@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import {
-  fetchSuppliers,
   createSupplier,
   fetchProducts,
   createPurchaseOrder,
   updatePurchaseOrder,
   ApiError,
-  type Supplier,
   type Product,
   type PurchaseOrderDetail,
 } from "@/lib/api";
@@ -37,9 +36,9 @@ export function NewPurchaseOrderModal({
   /** ویرایش سفارش پیش‌نویس */
   order?: PurchaseOrderDetail;
 }) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [supplierId, setSupplierId] = useState(editing?.supplier.id ?? "");
+  const [createdSupplier, setCreatedSupplier] = useState<{ id: string; label: string } | undefined>(undefined);
   const [newSupplierName, setNewSupplierName] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [lines, setLines] = useState<DraftLine[]>(
@@ -58,11 +57,7 @@ export function NewPurchaseOrderModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function reloadSuppliers() {
-    fetchSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
-  }
   useEffect(() => {
-    reloadSuppliers();
     fetchProducts().then(setProducts).catch(() => setProducts([]));
   }, []);
 
@@ -87,7 +82,7 @@ export function NewPurchaseOrderModal({
     setAddingSupplier(true);
     try {
       const supplier = await createSupplier({ name: newSupplierName.trim() });
-      setSuppliers((prev) => [supplier, ...prev]);
+      setCreatedSupplier({ id: supplier.id, label: supplier.company || supplier.name });
       setSupplierId(supplier.id);
       setNewSupplierName("");
     } finally {
@@ -131,21 +126,15 @@ export function NewPurchaseOrderModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">تأمین‌کننده</label>
-          <div className="flex items-center gap-2">
-            <select
-              value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
-              required
-              className="flex-1 text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-            >
-              <option value="">انتخاب تأمین‌کننده...</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.company || s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ContactCombobox
+            source="supplier"
+            value={supplierId}
+            onChange={(id) => setSupplierId(id)}
+            initialLabel={editing ? editing.supplier.company || editing.supplier.name : undefined}
+            knownLabel={createdSupplier}
+            placeholder="جستجوی تأمین‌کننده (نام، شرکت، موبایل، کد ملی)..."
+            allowCreate={false}
+          />
           <div className="flex items-center gap-2 mt-2">
             <input
               value={newSupplierName}

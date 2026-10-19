@@ -1,0 +1,59 @@
+# قالب تحویل به مشتری: فقط ایمیج (بدون سورس، بدون build). جایگزین کنید: <REGISTRY>، <TAG>.
+# راهنما: docs/licensing/customer-guide-fa.md   —   متغیرها: .env.on-premise.example
+# پورت‌های admin/marketing در بسته‌ی مشتری وجود ندارند (فقط proxy بیرون می‌آید). برای نصب پشت nginx خودتان EXPOSED_PORT را روی 127.0.0.1 ببندید.
+# ایمیج backend با `docker build --secret id=license_signing_key,...` ساخته شود تا مانیفست یکپارچگی امضا شود (docs/licensing/README.md §۷).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: exir_control
+    volumes: [exir_postgres_data:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 5s, timeout: 5s, retries: 10 }
+
+  backend:
+    image: <REGISTRY>/exir/backend:<TAG>
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy } }
+    env_file: .env
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      PORT: 3001
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-ON_PREMISE}
+      OTP_DEV_ECHO: ${OTP_DEV_ECHO:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      CONTROL_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/exir_control?schema=public
+      TENANT_DB_HOST: postgres
+      TENANT_DB_PORT: 5432
+      TENANT_DB_ADMIN_USER: postgres
+      TENANT_DB_ADMIN_PASSWORD: ${POSTGRES_PASSWORD}
+      LICENSE_STATE_DIR: /app/data/license
+    volumes:
+      - ./backups:/app/backups
+      - exir_license_state:/app/data              # شناسه‌ی نصب + توکن لایسنس — حذف/کپی نکنید
+      # اثرانگشت پایدار میزبان: فقط‌خواندنی و فقط به‌صورت هش SHA-256 مصرف می‌شود (مقدار خام ارسال/ذخیره نمی‌شود).
+      # ریسک: پروسه‌ی backend می‌تواند machine-id میزبان را بخواند (docs/licensing/threat-model.md). اگر نمی‌خواهید، mount را بردارید و HOST_MACHINE_ID را خودتان تنظیم کنید.
+      - /etc/machine-id:/etc/host-machine-id:ro
+
+  web:
+    image: <REGISTRY>/exir/web:<TAG>
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [backend]
+    environment:
+      API_URL_INTERNAL: http://backend:3001/api
+
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [backend, web]
+    ports: ["${EXPOSED_PORT:-80}:80"]
+    volumes: ["./nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+
+volumes:
+  exir_postgres_data:
+  exir_license_state:

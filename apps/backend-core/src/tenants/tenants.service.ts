@@ -598,6 +598,7 @@ export class TenantsService {
     const invoice = await this.controlDb.invoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
     if (invoice.status === 'PAID') return invoice;
+    if (invoice.status === 'AWAITING_APPROVAL') throw new BadRequestException('این فاکتور هنوز در انتظار تأیید مدیر است و قابل پرداخت نیست');
 
     const tenant = await this.controlDb.tenant.findUnique({ where: { id: invoice.tenantId } });
     const shouldActivate = tenant?.status === 'PENDING_PAYMENT';

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
+import { FUNNEL_PARTY_WHERE, andWhere, computeReached, isConverted } from './funnel-lifecycle.js';
 
 export const FUNNEL_STAGE_LABELS_FA: Record<string, string> = {
   NEW_LEAD: 'سرنخ جدید',
@@ -10,6 +11,7 @@ export const FUNNEL_STAGE_LABELS_FA: Record<string, string> = {
   BRAND_AMBASSADOR: 'سفیر برند',
   CHURN_RISK: 'در معرض ریزش',
   CHURNED: 'غیرفعال شده',
+  DISQUALIFIED: 'رد صلاحیت شده',
 };
 
 const ALL_STAGES = Object.keys(FUNNEL_STAGE_LABELS_FA);
@@ -59,17 +61,21 @@ export class FunnelKpiService {
   async getFunnelSummary(ctx: TenantRequestContext, scope: Record<string, unknown> = {}) {
     const stageLabels = await this.getStageLabels(ctx);
     const contacts = await ctx.tenantDb.crmContact.findMany({
-      where: scope,
+      where: andWhere(scope, FUNNEL_PARTY_WHERE),
       select: {
         id: true,
         funnelStage: true,
+        convertedAt: true,
         isBrandAmbassador: true,
         becameAmbassadorAt: true,
         purchaseCount: true,
         createdAt: true,
       },
     });
-    const events = await ctx.tenantDb.crmFunnelStageEvent.findMany({ where: { contact: scope }, select: { contactId: true, toStage: true } });
+    const events = await ctx.tenantDb.crmFunnelStageEvent.findMany({
+      where: { contact: andWhere(scope, FUNNEL_PARTY_WHERE) },
+      select: { contactId: true, toStage: true },
+    });
 
     const currentDistribution: Record<string, number> = Object.fromEntries(ALL_STAGES.map((s) => [s, 0]));
     for (const c of contacts) currentDistribution[c.funnelStage] = (currentDistribution[c.funnelStage] ?? 0) + 1;
@@ -77,19 +83,17 @@ export class FunnelKpiService {
     const contactedSet = new Set(events.filter((e) => e.toStage === 'CONTACTED').map((e) => e.contactId));
     const qualifiedSet = new Set(events.filter((e) => e.toStage === 'QUALIFIED').map((e) => e.contactId));
 
-    // «تا کجا رسیده» بر مبنای سنجه‌ی قطعی (تعداد خرید واقعی) برای CUSTOMER/REPEAT_CUSTOMER
-    // محاسبه می‌شود، نه رویداد قیف — چون سرنخی که مستقیم از فروشگاه خرید کرده
-    // ممکن است هرگز رویداد CONTACTED/QUALIFIED نداشته باشد، و این خودش درست است
-    // (یعنی مسیر بدون گلوگاه دستی طی شده).
-    const stages = MAIN_FUNNEL_STAGES.map((stage) => {
-      let count: number;
-      if (stage === 'NEW_LEAD') count = contacts.length;
-      else if (stage === 'CONTACTED') count = contactedSet.size;
-      else if (stage === 'QUALIFIED') count = qualifiedSet.size;
-      else if (stage === 'CUSTOMER') count = contacts.filter((c) => c.purchaseCount >= 1).length;
-      else count = contacts.filter((c) => c.purchaseCount >= 2).length;
-      return { stage, label: stageLabels[stage], count };
-    });
+    // «تا کجا رسیده» تجمعی و یکنواخت است (computeReached) — همان تابعی که لیست کلیک روی مرحله
+    // را می‌سازد، پس عدد قیف و فهرست هرگز نمی‌خوانند. سرنخی که مستقیم خرید کرده بدون
+    // گلوگاه دستی رد شده و به مراحل پایین‌تر هم رسیده حساب می‌شود.
+    const reached = computeReached(contacts, contactedSet, qualifiedSet);
+    const stages = MAIN_FUNNEL_STAGES.map((stage) => ({
+      stage,
+      label: stageLabels[stage],
+      count: reached[stage].size,
+      // چند نفر «همین حالا» در همین مرحله‌اند (متفاوت از تجمعی)
+      currentCount: currentDistribution[stage] ?? 0,
+    }));
 
     const conversionRates: { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number | null }[] = [];
     for (let i = 1; i < stages.length; i++) {
@@ -107,7 +111,7 @@ export class FunnelKpiService {
     const validRates = conversionRates.filter((r) => r.rate !== null) as { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number }[];
     const bottleneck = validRates.length > 0 ? validRates.reduce((min, r) => (r.rate < min.rate ? r : min)) : null;
 
-    const totalCustomers = contacts.filter((c) => c.purchaseCount >= 1).length;
+    const totalCustomers = contacts.filter(isConverted).length;
     const totalAmbassadors = contacts.filter((c) => c.isBrandAmbassador).length;
 
     const now = new Date();
@@ -141,10 +145,40 @@ export class FunnelKpiService {
     };
   }
 
+  /**
+   * مخاطبین یک مرحله. mode=reached: همه‌ی کسانی که تا آن مرحله رسیده‌اند (مطابق عدد قیف)؛
+   * mode=current: فقط کسانی که همین حالا در آن مرحله‌اند (کارت‌های سفیر/ریزش/خرید تکراری).
+   */
+  async listStageContacts(ctx: TenantRequestContext, scope: Record<string, unknown>, stage: string | undefined, mode: 'reached' | 'current') {
+    const where = andWhere(scope, FUNNEL_PARTY_WHERE);
+    const include = { owner: { select: { name: true } } };
+    const isMain = (MAIN_FUNNEL_STAGES as readonly string[]).includes(stage ?? '');
+    if (!stage || mode === 'current' || !isMain) {
+      return ctx.tenantDb.crmContact.findMany({
+        where: andWhere(where, stage ? { funnelStage: stage as never } : null),
+        orderBy: { createdAt: 'desc' },
+        include,
+      });
+    }
+    const contacts = await ctx.tenantDb.crmContact.findMany({ where, orderBy: { createdAt: 'desc' }, include });
+    if (stage === 'NEW_LEAD') return contacts;
+    const events = await ctx.tenantDb.crmFunnelStageEvent.findMany({
+      where: { contact: where, toStage: { in: ['CONTACTED', 'QUALIFIED'] } },
+      select: { contactId: true, toStage: true },
+    });
+    const reached = computeReached(
+      contacts,
+      new Set(events.filter((e) => e.toStage === 'CONTACTED').map((e) => e.contactId)),
+      new Set(events.filter((e) => e.toStage === 'QUALIFIED').map((e) => e.contactId)),
+    );
+    const ids = reached[stage as keyof typeof reached];
+    return contacts.filter((c) => ids.has(c.id));
+  }
+
   async getSalesKpis(ctx: TenantRequestContext, scope: Record<string, unknown> = {}) {
     const contacts = await ctx.tenantDb.crmContact.findMany({
-      where: scope,
-      select: { id: true, ownerUserId: true, source: true, acquisitionCost: true, purchaseCount: true, createdAt: true },
+      where: andWhere(scope, FUNNEL_PARTY_WHERE),
+      select: { id: true, ownerUserId: true, source: true, acquisitionCost: true, purchaseCount: true, convertedAt: true, funnelStage: true, createdAt: true },
     });
 
     const withCost = contacts.filter((c) => c.acquisitionCost != null);
@@ -161,7 +195,7 @@ export class FunnelKpiService {
       if (!key) continue;
       const entry = bySource.get(key) ?? { total: 0, converted: 0 };
       entry.total++;
-      if (c.purchaseCount >= 1) entry.converted++;
+      if (isConverted(c)) entry.converted++;
       bySource.set(key, entry);
     }
     const sourcePerformance = [...bySource.entries()]
@@ -176,7 +210,7 @@ export class FunnelKpiService {
 
     // میانگین زمان پیگیری: از لحظه‌ی ثبت سرنخ تا اولین تماس/جلسه/ایمیل واقعی
     const activities = await ctx.tenantDb.crmActivity.findMany({
-      where: { type: { in: ['CALL', 'MEETING', 'EMAIL'] }, contactId: { not: null }, contact: scope },
+      where: { type: { in: ['CALL', 'MEETING', 'EMAIL'] }, contactId: { not: null }, contact: andWhere(scope, FUNNEL_PARTY_WHERE) },
       orderBy: { createdAt: 'asc' },
       select: { contactId: true, createdAt: true },
     });
@@ -201,7 +235,7 @@ export class FunnelKpiService {
       if (!c.ownerUserId) continue;
       const entry = byOwner.get(c.ownerUserId) ?? { total: 0, converted: 0 };
       entry.total++;
-      if (c.purchaseCount >= 1) entry.converted++;
+      if (isConverted(c)) entry.converted++;
       byOwner.set(c.ownerUserId, entry);
     }
     const ownerIds = [...byOwner.keys()];

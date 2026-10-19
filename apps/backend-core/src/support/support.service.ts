@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { SupportGateway } from './support.gateway.js';
 import { PushNotificationsService } from '../notifications/push-notifications.service.js';
+import { SupportAlertsService } from './support-alerts.service.js';
 
 @Injectable()
 export class SupportService {
@@ -9,6 +10,7 @@ export class SupportService {
     private readonly controlDb: ControlPrismaService,
     private readonly gateway: SupportGateway,
     private readonly push: PushNotificationsService,
+    private readonly alerts: SupportAlertsService,
   ) {}
 
   /** Assigned admin gets pushed directly; an unassigned/newly-created ticket pushes the whole SUPPORT team so someone picks it up fast. */
@@ -39,6 +41,8 @@ export class SupportService {
     });
     this.gateway.notifyTicketCreated(ticket);
     void this.pushForTicket(ticket, message).catch(() => {});
+    // اعلان برای کارکنان تننت مادر (درون‌برنامه + پوش + پیامک) — تیکت‌ها همان‌جا مدیریت می‌شوند
+    void this.alerts.onTicketCreated(ticket, message);
     return ticket;
   }
 
@@ -90,6 +94,7 @@ export class SupportService {
     });
     this.gateway.notifyNewMessage(ticket, message);
     void this.pushForTicket(ticket, body).catch(() => {});
+    void this.alerts.onCustomerMessage(ticket, body, globalUserId);
     return message;
   }
 }

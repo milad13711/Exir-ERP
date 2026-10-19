@@ -99,11 +99,11 @@ export function Header({
           </Link>
         ) : null}
 
-        {license?.mode === "on_premise" && (license.state === "valid" || license.state === "grace") ? (
+        {license?.mode === "on_premise" && (license.state === "valid" || license.state === "grace") && (license.state === "grace" || (license.warningLevel ?? 0) > 0 || license.daysLeft !== null) ? (
           <div
             className={clsx(
               "hidden sm:flex items-center gap-2.5 py-1.5 px-3.5 rounded-xl",
-              license.state === "grace" ? "bg-warning-soft" : "bg-accent-soft",
+              license.state === "grace" || (license.warningLevel ?? 0) >= 2 ? "bg-warning-soft" : "bg-accent-soft",
             )}
           >
             <span className={clsx("text-[12.5px] font-bold", license.state === "grace" ? "text-warning" : "text-accent")}>
@@ -112,8 +112,14 @@ export function Header({
             <span className="w-px h-3.5 bg-black/10" />
             <span className={clsx("text-[12.5px]", license.state === "grace" ? "text-warning" : "text-accent")}>
               {license.state === "grace"
-                ? `لایسنس منقضی شده — ${toPersianDigits(license.daysLeft)} روز مهلت اضافه`
-                : `${toPersianDigits(license.daysLeft)} روز تا انقضای لایسنس`}
+                ? license.reasonCode === "offline_grace"
+                  ? `اتصال به سرور لایسنس برقرار نیست — ${toPersianDigits(license.daysLeft ?? 0)} روز مهلت`
+                  : `لایسنس منقضی شده — ${toPersianDigits(license.daysLeft ?? 0)} روز مهلت اضافه`
+                : license.daysLeft === null
+                  ? "لایسنس دائمی"
+                  : license.reasonCode === "token_renewal_due"
+                    ? `تمدید خودکار لایسنس تا ${toPersianDigits(license.daysLeft)} روز دیگر لازم است — اتصال اینترنت را بررسی کنید`
+                    : `${toPersianDigits(license.daysLeft)} روز تا انقضای لایسنس`}
             </span>
           </div>
         ) : subscription?.status === "TRIAL" ? (

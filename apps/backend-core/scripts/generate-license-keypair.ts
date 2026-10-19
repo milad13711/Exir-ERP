@@ -1,35 +1,42 @@
 /**
- * Run once when setting up licensing on a fresh environment:
- *   npm run license:keygen
+ * یک‌بار هنگام راه‌اندازی سرور لایسنس (کنترل‌پلین):
+ *   LICENSE_KEY_PASSPHRASE='...' npm run license:keygen          (توصیه‌شده: کلید خصوصی رمزگذاری‌شده)
+ *   npm run license:keygen -- --no-passphrase                     (فقط dev)
  *
- * Writes the keypair to keys/ (gitignored — the private key must never be
- * committed or leave the control plane). Prints the values to paste into
- * .env (LICENSE_SIGNING_PRIVATE_KEY_PEM) and into the on-premise deployment
- * bundle's .env (LICENSE_PUBLIC_KEY_PEM).
+ * - کلید خصوصی در keys/ (gitignore) با mode 0600 نوشته می‌شود؛ هرگز چاپ نمی‌شود.
+ * - فقط kid و کلید عمومی چاپ می‌شود (برای .env بسته‌ی مشتری: LICENSE_PUBLIC_KEY_PEM).
+ * - نام فایل‌ها با kid مشخص می‌شود؛ برای چرخش کلید دوباره اجرا کنید (فایل قبلی بازنویسی نمی‌شود).
+ * راهنمای کامل: docs/licensing/README.md
  */
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { generateLicenseKeypair } from '../src/licensing/license-token.js';
+import { generateKeypair } from '../src/licensing/license-crypto.js';
 
-const keysDir = path.join(process.cwd(), 'keys');
-const privatePath = path.join(keysDir, 'license-signing-private.pem');
-const publicPath = path.join(keysDir, 'license-signing-public.pem');
-
-if (existsSync(privatePath)) {
-  console.error(
-    `کلید امضای لایسنس از قبل در ${privatePath} وجود دارد — برای جلوگیری از باطل شدن لایسنس‌های صادرشده، این اسکریپت آن را بازنویسی نمی‌کند.`,
-  );
+const noPass = process.argv.includes('--no-passphrase');
+const passphrase = process.env.LICENSE_KEY_PASSPHRASE;
+if (!noPass && (!passphrase || passphrase.length < 16)) {
+  console.error('LICENSE_KEY_PASSPHRASE (حداقل ۱۶ نویسه) را در محیط ست کنید تا کلید خصوصی رمزگذاری شود، یا برای dev از --no-passphrase استفاده کنید.');
   process.exit(1);
 }
 
-mkdirSync(keysDir, { recursive: true });
-const { privateKeyPem, publicKeyPem } = generateLicenseKeypair();
+const { privateKeyPem, publicKeyPem, kid } = generateKeypair(noPass ? undefined : passphrase);
+const dir = path.join(process.cwd(), 'keys');
+const privatePath = path.join(dir, `license-signing-${kid}.private.pem`);
+const publicPath = path.join(dir, `license-signing-${kid}.public.pem`);
+if (existsSync(privatePath)) {
+  console.error(`${privatePath} از قبل وجود دارد`);
+  process.exit(1);
+}
+mkdirSync(dir, { recursive: true });
 writeFileSync(privatePath, privateKeyPem, { mode: 0o600 });
+chmodSync(privatePath, 0o600);
 writeFileSync(publicPath, publicKeyPem, { mode: 0o644 });
 
-console.log(`کلید خصوصی نوشته شد: ${privatePath} (هرگز commit نشود)`);
-console.log(`کلید عمومی نوشته شد: ${publicPath}\n`);
-console.log('در .env هسته‌ی ابری (Control Plane) قرار بده:');
-console.log(`LICENSE_SIGNING_PRIVATE_KEY_PEM="${privateKeyPem.replace(/\n/g, '\\n')}"\n`);
-console.log('در .env بسته‌ی استقرار on-premise هر مشتری قرار بده:');
-console.log(`LICENSE_PUBLIC_KEY_PEM="${publicKeyPem.replace(/\n/g, '\\n')}"`);
+console.log(`kid:           ${kid}`);
+console.log(`کلید خصوصی:   ${privatePath}  (رمزگذاری scrypt+AES-GCM: ${noPass ? 'خیر' : 'بله'}) — هرگز commit/ارسال نشود؛ یک نسخه‌ی آفلاین امن نگه دارید`);
+console.log(`کلید عمومی:   ${publicPath}\n`);
+console.log('روی سرور لایسنس (env یا secret file):');
+console.log(`  LICENSE_SIGNING_PRIVATE_KEY_FILE=${privatePath}`);
+if (!noPass) console.log('  LICENSE_SIGNING_KEY_PASSPHRASE_FILE=<مسیر فایل حاوی passphrase>   (یا LICENSE_SIGNING_KEY_PASSPHRASE)');
+console.log('\nدر .env بسته‌ی مشتری (چند بلوک PEM برای چرخش کلید ممکن است):');
+console.log(`  LICENSE_PUBLIC_KEY_PEM="${publicKeyPem.replace(/\n/g, '\\n')}"`);

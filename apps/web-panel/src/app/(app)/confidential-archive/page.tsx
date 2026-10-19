@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { KeyIcon, PlusIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
 import {
@@ -81,6 +82,7 @@ export default function ConfidentialArchivePage() {
           <div className="flex items-center gap-2">
             <KeyIcon className="w-5 h-5 text-primary" />
             <h1 className="text-xl font-extrabold">بایگانی اسناد محرمانه</h1>
+            <ModuleHelp code="confidential-archive" />
           </div>
           <p className="text-[13.5px] text-muted mt-1">
             رمز عبور، دانش فنی، فرمولاسیون، قرارداد محرمانه و ریز لاگ سیستم — ثبت سند برای همه آزاد است، مشاهده‌ی آرشیو فقط برای کاربران مجاز و با تأیید پیامکی.

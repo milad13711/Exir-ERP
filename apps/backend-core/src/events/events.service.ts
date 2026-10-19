@@ -5,6 +5,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { InvoicesService } from '../sales/invoices.service.js';
+import { FunnelService } from '../crm/funnel.service.js';
 import type { CreateEventDto } from './dto/create-event.dto.js';
 import type { UpdateEventDto } from './dto/update-event.dto.js';
 import type { CreateTicketTypeDto } from './dto/create-ticket-type.dto.js';
@@ -75,6 +76,7 @@ export class EventsService {
     private readonly automation: AutomationEngineService,
     private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
+    private readonly funnel: FunnelService,
   ) {}
 
   async getSmsSettings(ctx: TenantRequestContext): Promise<EventsSmsSettings> {
@@ -303,7 +305,9 @@ export class EventsService {
   private async resolveOrCreateContact(ctx: TenantRequestContext, name: string, phone: string) {
     const existing = await ctx.tenantDb.crmContact.findFirst({ where: { phone } });
     if (existing) return existing;
-    return ctx.tenantDb.crmContact.create({ data: { name, phone, isCustomer: true, source: 'رویداد' } });
+    const created = await ctx.tenantDb.crmContact.create({ data: { name, phone, isCustomer: true, source: 'رویداد' } });
+    await this.funnel.initLead(ctx, created.id);
+    return created;
   }
 
   /**
@@ -338,6 +342,8 @@ export class EventsService {
       where: { orderGroupId },
       data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId },
     });
+    // خرید بلیط پولی = خرید واقعی ⇒ سرنخ مشتری می‌شود / خرید تکراری (قیف فروش)
+    if (totalAmount > 0) await this.funnel.recordPurchase(ctx, contact.id, totalAmount, 'خرید مجدد (بلیط رویداد)');
 
     if (publicWebUrl) {
       const smsSettings = await this.getSmsSettings(ctx);

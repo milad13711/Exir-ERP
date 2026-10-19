@@ -38,6 +38,19 @@ RUN npx prisma generate --schema prisma/control/schema.prisma \
  && npx prisma generate --schema prisma/tenant/schema.prisma \
  && npm run build
 
+# مانیفست یکپارچگی امضاشده (SHA-256 همه‌ی فایل‌های dist). کلید امضا فقط به‌صورت BuildKit secret داده می‌شود و در هیچ لایه‌ای نمی‌ماند:
+#   docker build --secret id=license_signing_key,src=keys/<kid>.private.pem [--secret id=license_signing_passphrase,src=pass.txt] ...
+# بدون secret بیلد **خطا می‌دهد** مگر صریحاً --build-arg ALLOW_UNSIGNED_BUILD=true (بیلد dev/سرور داخلی) داده شود.
+ARG ALLOW_UNSIGNED_BUILD=false
+RUN --mount=type=secret,id=license_signing_key \
+    --mount=type=secret,id=license_signing_passphrase \
+    if [ -s /run/secrets/license_signing_key ]; then \
+      export LICENSE_SIGNING_PRIVATE_KEY_FILE=/run/secrets/license_signing_key MANIFEST_REQUIRED=true; \
+      [ -s /run/secrets/license_signing_passphrase ] && export LICENSE_SIGNING_KEY_PASSPHRASE_FILE=/run/secrets/license_signing_passphrase; \
+      npm run build:manifest; \
+    elif [ "$ALLOW_UNSIGNED_BUILD" = "true" ]; then echo "[build] ALLOW_UNSIGNED_BUILD=true — integrity manifest skipped"; \
+    else echo "[build] ERROR: no license_signing_key secret (set ALLOW_UNSIGNED_BUILD=true only for dev builds)"; exit 1; fi
+
 FROM node:20-alpine AS runtime
 WORKDIR /app
 # chromium here is the system browser used by the invoice-PDF renderer
@@ -61,6 +74,7 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh \
  && addgroup -S exir && adduser -S exir -G exir \
+ && mkdir -p /app/data/license \
  && chown -R exir:exir /app
 USER exir
 EXPOSE 3001

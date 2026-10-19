@@ -24,6 +24,7 @@ import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateSupplierDto } from './dto/create-supplier.dto.js';
 import { UpdateSupplierDto } from './dto/update-supplier.dto.js';
 import { normalizeSearchTerm } from '../common/search.js';
+import { searchContacts } from '../crm/contact-search.js';
 
 const SUPPLIER_EXCEL_HEADERS = ['نام', 'شرکت', 'تلفن', 'ایمیل', 'آدرس'];
 
@@ -58,6 +59,13 @@ export class SuppliersController {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** جستجوی سبک تأمین‌کننده برای انتخاب‌گر در فرم‌های خرید (محدود، با نتیجه‌ی کوتاه). */
+  @Get('search')
+  async search(@Query('q') q: string | undefined, @Query('limit') limit: string | undefined, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'purchasing');
+    return searchContacts(ctx.tenantDb, { q, limit, kind: 'supplier' });
   }
 
   @Get('export')

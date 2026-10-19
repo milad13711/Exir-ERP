@@ -15,6 +15,7 @@ const FUNNEL_STAGE_LABELS: Record<CrmFunnelStage, string> = {
   BRAND_AMBASSADOR: "سفیر برند",
   CHURN_RISK: "در معرض ریزش",
   CHURNED: "غیرفعال شده",
+  DISQUALIFIED: "رد صلاحیت شده",
 };
 
 type ConditionKey = keyof AudienceFilter;

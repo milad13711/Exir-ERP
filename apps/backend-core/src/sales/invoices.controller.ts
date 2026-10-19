@@ -15,6 +15,7 @@ import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { SalesInvoicePdfService } from './sales-invoice-pdf.service.js';
 import { CreateInvoiceDto } from './dto/create-invoice.dto.js';
+import { ReviseInvoiceDto } from './dto/revise-invoice.dto.js';
 import { RecordPaymentDto } from './dto/record-payment.dto.js';
 import { SignInvoiceDto } from './dto/sign-invoice.dto.js';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto.js';
@@ -111,6 +112,25 @@ export class InvoicesController {
     await this.permissions.assertEdit(ctx, 'sales');
     await this.assertInvoiceInScope(ctx, id);
     return this.invoices.updateDraft(ctx, id, dto);
+  }
+
+  /**
+   * ویرایش فاکتور تأییدشده (اصلاح سند حسابداری و موجودی، با دلیل و تاریخچه). چون سند مالی را باطل و دوباره
+   * ثبت می‌کند، علاوه بر «ویرایش» به مجوز «حذف» یا نقش مدیر نیاز دارد.
+   */
+  @Put(':id/revise')
+  async revise(@Param('id') id: string, @Body() dto: ReviseInvoiceDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') await this.permissions.assertDelete(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
+    const { reason, ...invoice } = dto;
+    return this.invoices.editConfirmed(ctx, id, invoice as CreateInvoiceDto, reason.trim());
+  }
+
+  @Get(':id/revisions')
+  async revisions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    return this.invoices.revisions(ctx, id, scope);
   }
 
   @Delete(':id')

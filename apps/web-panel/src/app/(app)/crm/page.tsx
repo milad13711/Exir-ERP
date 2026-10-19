@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { CrmIcon, PlusIcon, BuildingIcon, PhoneIcon } from "@/components/icons";
 import { formatToman, formatNumber } from "@/lib/persian";
-import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact } from "@/lib/api";
+import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact, type CrmContactGroup } from "@/lib/api";
+import { FunnelStageBadge, isConvertedContact } from "@/components/crm/FunnelStageControls";
 import { STAGE_ORDER, STAGE_META } from "@/components/crm/crm-shared";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { DealModal } from "@/components/crm/DealModal";
@@ -22,6 +23,31 @@ import { NewDealModal } from "@/components/crm/NewDealModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 type Tab = "pipeline" | "contacts";
 
+const GROUP_CHIPS: { key: CrmContactGroup; label: string }[] = [
+  { key: "all", label: "همه مخاطبین" },
+  { key: "leads", label: "سرنخ‌ها" },
+  { key: "customers", label: "مشتریان" },
+  { key: "repeat", label: "خرید تکراری" },
+  { key: "lost", label: "رد صلاحیت‌شده" },
+];
+
+function inGroup(c: CrmContact, g: CrmContactGroup): boolean {
+  const stage = c.funnelStage ?? "NEW_LEAD";
+  const converted = isConvertedContact(c);
+  switch (g) {
+    case "leads":
+      return !converted && stage !== "DISQUALIFIED";
+    case "customers":
+      return converted;
+    case "repeat":
+      return (c.purchaseCount ?? 0) >= 2 || ["REPEAT_CUSTOMER", "BRAND_AMBASSADOR", "CHURN_RISK", "CHURNED"].includes(stage);
+    case "lost":
+      return stage === "DISQUALIFIED";
+    default:
+      return true;
+  }
+}
+
 export default function CrmPage() {
   const [tab, setTab] = useState<Tab>("pipeline");
   const [deals, setDeals] = useState<CrmDeal[] | null>(null);
@@ -30,6 +56,7 @@ export default function CrmPage() {
   // kept for pickers (e.g. new-deal modal) that need every contact regardless of the search box.
   const [allContacts, setAllContacts] = useState<CrmContact[] | null>(null);
   const [search, setSearch] = useState("");
+  const [group, setGroup] = useState<CrmContactGroup>("all");
   const debouncedSearch = useDebouncedValue(search, 300);
   const beginRequest = useRequestGuard();
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -45,11 +72,11 @@ export default function CrmPage() {
     const q = debouncedSearch.trim();
     const isCurrent = beginRequest();
     const requested = debouncedSearch.trim();
-    fetchCrmContacts(q || undefined)
+    fetchCrmContacts(q || undefined, group)
       .then((r) => {
         if (!isCurrent()) return;
         setContacts(r);
-        if (!q) setAllContacts(r);
+        if (!q && group === "all") setAllContacts(r);
       })
       .catch(() => {
         if (isCurrent()) setContacts((prev) => prev ?? []);
@@ -58,7 +85,7 @@ export default function CrmPage() {
         if (isCurrent()) setLoadedFor(requested);
       });
     // Keep the unfiltered set fresh when the list itself is filtered.
-    if (q) fetchCrmContacts().then(setAllContacts).catch(() => {});
+    if (q || group !== "all") fetchCrmContacts().then(setAllContacts).catch(() => {});
   }
 
   useEffect(() => {
@@ -68,7 +95,7 @@ export default function CrmPage() {
   useEffect(() => {
     reloadContacts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
+  }, [debouncedSearch, group]);
 
   useEffect(() => {
     const contactId = searchParams.get("contact");
@@ -227,6 +254,28 @@ export default function CrmPage() {
               onImported={reloadContacts}
             />
           </div>
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {GROUP_CHIPS.map((chip) => {
+              const count = allContacts ? allContacts.filter((c) => inGroup(c, chip.key)).length : null;
+              return (
+                <button
+                  key={chip.key}
+                  onClick={() => setGroup(chip.key)}
+                  className={clsx(
+                    "text-[12px] font-bold px-3 py-1.5 rounded-full cursor-pointer transition-colors",
+                    group === chip.key ? "bg-primary text-white" : "bg-slate-100 text-ink-soft hover:bg-slate-200",
+                  )}
+                >
+                  {chip.label}
+                  {count !== null ? ` (${formatNumber(count)})` : ""}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11.5px] text-muted mb-3">
+            سرنخ (جدید، در تماس، واجد شرایط) تا اولین خرید یا برد فرصت در «سرنخ‌ها» می‌ماند و بعد خودکار به «مشتریان» می‌رود؛ دو خرید پرداخت‌شده = «خرید تکراری».
+            «همه مخاطبین» و جستجو همیشه همه‌ی مراحل را نشان می‌دهند.
+          </p>
           <Card className="p-2">
             {contacts === null ? (
               <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
@@ -257,6 +306,7 @@ export default function CrmPage() {
                       ) : null}
                     </div>
                   </div>
+                  <FunnelStageBadge stage={c.funnelStage} />
                   <Badge tone="neutral">{formatNumber(c._count?.deals ?? 0)} فرصت</Badge>
                 </button>
               ))
@@ -278,6 +328,7 @@ export default function CrmPage() {
         <ContactModal
           contactId={openContactId}
           onClose={() => setOpenContactId(null)}
+          onStageChanged={reloadContacts}
           onDeleted={() => {
             setContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev);
             setAllContacts((prev) => prev?.filter((c) => c.id !== openContactId) ?? prev);

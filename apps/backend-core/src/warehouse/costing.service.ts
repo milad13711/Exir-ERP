@@ -10,9 +10,58 @@ const AUTO_SALE_PRICE_SETTINGS_KEY = 'autoSalePriceFromMargin';
 
 type Layer = { qty: number; unitCost: number };
 
+/**
+ * بهای تمام‌شده‌ی کالا از روی تاریخچه‌ی «فعال» (بدون ردیف‌های ابطال‌شده/معکوس) — برای بازمحاسبه پس از ویرایش یا ابطال رسید.
+ * LAST_COST/FIFO: بهای آخرین رسید دارای قیمت؛ WEIGHTED_AVERAGE: بازپخش میانگین موزون به ترتیب زمان.
+ * null = رسید قیمت‌داری باقی نمانده، پس costPrice دست‌نخورده می‌ماند.
+ */
+export function replayCostPrice(
+  method: CostingMethod,
+  movements: Array<{ quantityDelta: number; unitCost: number | null; createdAt: Date }>,
+): number | null {
+  const sorted = [...movements].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const priced = sorted.filter((m) => m.quantityDelta > 0 && m.unitCost != null && m.unitCost > 0);
+  if (priced.length === 0) return null;
+  if (method !== 'WEIGHTED_AVERAGE') return priced[priced.length - 1].unitCost!;
+  let stock = 0;
+  let avg = 0;
+  for (const m of sorted) {
+    if (m.quantityDelta > 0 && m.unitCost != null && m.unitCost > 0) {
+      avg = stock <= 0 ? m.unitCost : Math.round((stock * avg + m.quantityDelta * m.unitCost) / (stock + m.quantityDelta));
+    }
+    stock += m.quantityDelta;
+  }
+  return avg;
+}
+
 /** salePrice = costPrice * (1 + profitMarginPercent/100), rounded like every other money math in this codebase. */
 export function computeSalePriceFromMargin(costPrice: number, profitMarginPercent: number): number {
   return Math.round(costPrice * (1 + profitMarginPercent / 100));
+}
+
+type TenantTx = Parameters<Parameters<TenantRequestContext['tenantDb']['$transaction']>[0]>[0];
+
+/**
+ * بهای تمام‌شده (و در صورت فعال‌بودن، قیمت فروش خودکار) را از روی تاریخچه‌ی «فعال» (بدون ردیف‌های ابطال‌شده/معکوس)
+ * بازمحاسبه می‌کند — پس از ویرایش یا ابطال رسید. اگر رسید قیمت‌دار فعالی نمانده باشد costPrice دست‌نخورده می‌ماند.
+ */
+export async function refreshProductCost(tx: TenantTx, productId: string, method: CostingMethod, autoSale: boolean): Promise<void> {
+  const rows = await tx.stockMovement.findMany({
+    where: { productId, voidedAt: null, reversalOfId: null },
+    select: { quantityDelta: true, unitCost: true, createdAt: true },
+  });
+  const cost = replayCostPrice(method, rows);
+  if (cost == null) return;
+  const product = await tx.product.findUnique({ where: { id: productId }, select: { costPrice: true, profitMarginPercent: true, salePriceSource: true } });
+  if (!product || product.costPrice === cost) return;
+  const salePrice =
+    autoSale && product.profitMarginPercent && product.salePriceSource !== 'MANUAL'
+      ? computeSalePriceFromMargin(cost, Number(product.profitMarginPercent))
+      : null;
+  await tx.product.update({
+    where: { id: productId },
+    data: { costPrice: cost, ...(salePrice != null ? { salePrice, salePriceUpdatedAt: new Date() } : {}) },
+  });
 }
 
 /**
@@ -141,8 +190,10 @@ export class CostingService {
   }
 
   private async fifoLayers(ctx: TenantRequestContext, productId: string): Promise<Layer[]> {
+    // رسید/حواله‌ی ابطال‌شده و ردیف معکوسش هر دو کنار گذاشته می‌شوند (انگار هرگز ثبت نشده‌اند)، وگرنه معکوس‌شدنِ یک
+    // رسید لایه‌ی نادرستی از صف FIFO مصرف می‌کرد.
     const movements = await ctx.tenantDb.stockMovement.findMany({
-      where: { productId },
+      where: { productId, voidedAt: null, reversalOfId: null },
       orderBy: { createdAt: 'asc' },
       select: { quantityDelta: true, unitCost: true },
     });

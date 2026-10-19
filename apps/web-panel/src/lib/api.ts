@@ -396,10 +396,15 @@ export type LicenseStatus =
   | {
       mode: "on_premise";
       state: "valid" | "grace";
-      daysLeft: number;
-      payload: { orgName: string; modules: string[]; seats: number; expiresAt: string };
+      /** null = لایسنس دائمی (بدون تاریخ). در grace تعداد روز باقی‌مانده مهلت است. */
+      daysLeft: number | null;
+      warningLevel?: 0 | 1 | 2 | 3;
+      reasonCode?: string;
+      perpetual?: boolean;
+      installationId?: string;
+      payload: { orgName: string; modules: string[]; seats: number; expiresAt: string | null };
     }
-  | { mode: "on_premise"; state: "invalid" | "expired"; reason: string };
+  | { mode: "on_premise"; state: "invalid" | "expired"; reason: string; reasonCode?: string; installationId?: string };
 
 /** Only meaningful for on-premise deployments — a cloud tenant always gets {mode:"cloud"}. */
 export function fetchLicenseStatus() {
@@ -958,6 +963,45 @@ export function fetchDashboardSummary() {
   return apiFetch<DashboardSummary>("/dashboard/summary");
 }
 
+// ── چیدمان ویجت‌های داشبورد (شرکتی + شخصی) ─────────────────────────────────
+
+export type DashboardWidgetSize = "S" | "M" | "L" | "FULL";
+export type DashboardResolvedWidget = { key: string; size: DashboardWidgetSize; variant: string };
+export type DashboardMyLayout = {
+  canConfigureCompany: boolean;
+  hasCompanyLayout: boolean;
+  hasUserLayout: boolean;
+  widgets: DashboardResolvedWidget[];
+  personal: Array<{ key: string; title: string; hidden: boolean }>;
+};
+export type DashboardCompanyItem = {
+  key: string;
+  enabled: boolean;
+  size: DashboardWidgetSize;
+  variant: string;
+  def: { key: string; title: string; description: string; moduleCode: string | null; sizes: DashboardWidgetSize[]; variants: string[]; defaultSize: DashboardWidgetSize; defaultVariant: string };
+};
+export type DashboardCompanyConfig = { isDefault: boolean; items: DashboardCompanyItem[] };
+
+export function fetchDashboardLayout() {
+  return apiFetch<DashboardMyLayout>("/dashboard/layout");
+}
+export function saveMyDashboardLayout(items: Array<{ key: string; hidden: boolean }>) {
+  return apiFetch<DashboardMyLayout>("/dashboard/layout/me", { method: "PUT", body: JSON.stringify({ items }) });
+}
+export function resetMyDashboardLayout() {
+  return apiFetch<DashboardMyLayout>("/dashboard/layout/me", { method: "DELETE" });
+}
+export function fetchCompanyDashboardLayout() {
+  return apiFetch<DashboardCompanyConfig>("/dashboard/layout/company");
+}
+export function saveCompanyDashboardLayout(items: Array<{ key: string; enabled: boolean; size: DashboardWidgetSize; variant: string }>) {
+  return apiFetch<DashboardCompanyConfig>("/dashboard/layout/company", { method: "PUT", body: JSON.stringify({ items }) });
+}
+export function resetCompanyDashboardLayout() {
+  return apiFetch<DashboardCompanyConfig>("/dashboard/layout/company", { method: "DELETE" });
+}
+
 // ── ویجت داشبورد: تقویم ماهانه‌ی رویدادها ────────────────────────────────
 
 export type DashboardCalendarEventType =
@@ -1375,8 +1419,15 @@ export type CrmContact = {
   isCustomer: boolean;
   isSupplier: boolean;
   createdAt: string;
+  funnelStage?: CrmFunnelStage;
+  purchaseCount?: number;
+  convertedAt?: string | null;
+  disqualifyReason?: string | null;
   _count?: { deals: number };
 };
+
+/** گروه‌های لیست مخاطبین: همه / سرنخ‌ها / مشتریان / خرید تکراری / ردصلاحیت‌شده */
+export type CrmContactGroup = "all" | "leads" | "customers" | "repeat" | "lost";
 
 export type CreditAssessment = {
   score: number;
@@ -1423,8 +1474,41 @@ export type CrmDealDetail = CrmDeal & {
   activities: CrmActivity[];
 };
 
-export function fetchCrmContacts(q?: string) {
-  return apiFetch<CrmContact[]>(`/crm/contacts${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+export function fetchCrmContacts(q?: string, group?: CrmContactGroup) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (group && group !== "all") params.set("group", group);
+  const qs = params.toString();
+  return apiFetch<CrmContact[]>(`/crm/contacts${qs ? `?${qs}` : ""}`);
+}
+
+export type ContactSearchHit = {
+  id: string;
+  type: "INDIVIDUAL" | "COMPANY";
+  name: string;
+  company: string | null;
+  phone: string | null;
+  nationalId: string | null;
+  isCustomer: boolean;
+  isSupplier: boolean;
+};
+
+/** جستجوی سبک و محدود برای انتخاب‌گر مشتری/تأمین‌کننده (نام، شرکت، موبایل، کد ملی/اقتصادی/شناسه). */
+export function searchCrmContacts(q: string, opts: { limit?: number; kind?: "customer" | "supplier" | "all" } = {}) {
+  const p = new URLSearchParams();
+  if (q.trim()) p.set("q", q.trim());
+  if (opts.limit) p.set("limit", String(opts.limit));
+  if (opts.kind) p.set("kind", opts.kind);
+  const qs = p.toString();
+  return apiFetch<ContactSearchHit[]>(`/crm/contacts/search${qs ? `?${qs}` : ""}`);
+}
+
+export function searchSuppliers(q: string, limit?: number) {
+  const p = new URLSearchParams();
+  if (q.trim()) p.set("q", q.trim());
+  if (limit) p.set("limit", String(limit));
+  const qs = p.toString();
+  return apiFetch<ContactSearchHit[]>(`/purchasing/suppliers/search${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchCrmContact(id: string) {
@@ -2074,7 +2158,87 @@ export type StockMovementRecord = {
   product: { id: string; name: string; unit: string };
   warehouse: { id: string; name: string };
   createdBy: { id: string; name: string } | null;
+  origin?: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  reversalOfId?: string | null;
+  editedAt?: string | null;
+  editCount?: number;
+  /** علت مسدودی ویرایش/ابطال (فارسی)؛ null = قابل ویرایش/ابطال */
+  amendBlock?: string | null;
 };
+
+export type StockMovementDetail = StockMovementRecord & { revisions: DocumentRevision[] };
+
+export function fetchStockMovement(id: string) {
+  return apiFetch<StockMovementDetail>(`/warehouse/movements/${id}`);
+}
+export function editStockMovement(id: string, data: { quantity?: number; unitCost?: number; reference?: string; note?: string; reason: string }) {
+  return apiFetch<StockMovementRecord>(`/warehouse/movements/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export function voidStockMovement(id: string, reason: string) {
+  return apiFetch<{ success: boolean }>(`/warehouse/movements/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+// ── ورود موجودی اولیه از اکسل ──
+export type StockImportRow = {
+  row: number;
+  status: "OK" | "ERROR";
+  messages: string[];
+  warnings: string[];
+  sku: string;
+  name: string;
+  warehouseName: string;
+  quantity: number;
+  unitCost: number | null;
+  unit: string;
+  lot: string;
+  location: string;
+  createsProduct: boolean;
+};
+export type StockImportPreview = {
+  fileHash: string;
+  duplicateOf: { id: string; fileName: string | null; createdAt: string; rowCount: number } | null;
+  maxRows: number;
+  rows: StockImportRow[];
+  okCount: number;
+  errorCount: number;
+  newProducts: number;
+  totalQuantity: number;
+  totalValue: number;
+  tooManyRows: boolean;
+  canCommit: boolean;
+};
+export type StockImportBatch = {
+  id: string;
+  fileName: string | null;
+  rowCount: number;
+  totalQuantity: number;
+  totalValue: number;
+  createdProducts: number;
+  journalEntryId: string | null;
+  createdAt: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+};
+export async function previewStockImport(file: File, createMissingProducts: boolean) {
+  return apiFetch<StockImportPreview>("/warehouse/stock-import/preview", {
+    method: "POST",
+    body: JSON.stringify({ fileBase64: await fileToBase64(file), fileName: file.name, createMissingProducts }),
+  });
+}
+export async function commitStockImport(file: File, createMissingProducts: boolean, fileHash: string) {
+  return apiFetch<{ batchId: string; rows: number; createdProducts: number; totalQuantity: number; totalValue: number; journalPosted: boolean }>(
+    "/warehouse/stock-import/commit",
+    { method: "POST", body: JSON.stringify({ fileBase64: await fileToBase64(file), fileName: file.name, createMissingProducts, fileHash, confirm: true }) },
+  );
+}
+export function fetchStockImportBatches() {
+  return apiFetch<StockImportBatch[]>("/warehouse/stock-import/batches");
+}
+export function voidStockImportBatch(id: string, reason: string) {
+  return apiFetch<{ success: boolean }>(`/warehouse/stock-import/batches/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) });
+}
 
 export function fetchStockMovements(filters: { type?: string; productId?: string; warehouseId?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString();
@@ -3237,6 +3401,7 @@ export type SalesPayment = {
 
 export type SalesInvoice = {
   id: string;
+  cancelReason?: string | null;
   /** پروژه‌ی متصل (حداکثر یکی) */
   projectId?: string | null;
   invoiceNo: number;
@@ -3287,6 +3452,9 @@ export type SalesInvoiceDetail = SalesInvoice & {
   payments: SalesPayment[];
   checks: SalesInvoiceCheck[];
   creditWarning: string | null;
+  /** علت مسدودی ویرایش/ابطال (متن فارسی)؛ null = مجاز. برای پیش‌نویس همیشه null. */
+  amendment?: { editBlock: string | null; voidBlock: string | null };
+  revisionCount?: number;
 };
 
 export function fetchSalesInvoices(contactId?: string, q?: string) {
@@ -3571,7 +3739,7 @@ export function payPublicSalesInvoice(tenantSlug: string, token: string) {
 
 // ── پیش‌فاکتور (Quotation) — پیشنهاد قیمت قبل از صدور فاکتور ─────────────
 
-export type SalesQuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CONVERTED";
+export type SalesQuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CONVERTED" | "CANCELLED";
 
 export type SalesQuotationLine = {
   id: string;
@@ -3600,6 +3768,7 @@ export type SalesQuotation = {
   createdAt: string;
   respondedAt: string | null;
   convertedInvoiceId: string | null;
+  cancelReason?: string | null;
   contact: { id: string; name: string; company: string | null };
 };
 
@@ -3646,6 +3815,8 @@ export function updateSalesQuotation(
     validUntil: string | null;
     discount: number;
     notes: string;
+    /** برای ویرایش پیش‌فاکتور غیرپیش‌نویس الزامی است */
+    reason: string;
     lines: Array<{
       productId?: string;
       description: string;
@@ -3695,6 +3866,7 @@ export type PublicQuotation = {
   contact: { name: string; company: string | null };
   lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
   acceptedByName: string | null;
+  cancelReason?: string | null;
 };
 
 /** No auth token involved — this runs on the customer's own device, reached via a shared link. */
@@ -6123,9 +6295,10 @@ export type CrmFunnelStage =
   | "REPEAT_CUSTOMER"
   | "BRAND_AMBASSADOR"
   | "CHURN_RISK"
-  | "CHURNED";
+  | "CHURNED"
+  | "DISQUALIFIED";
 
-export type FunnelStageCount = { stage: string; label: string; count: number };
+export type FunnelStageCount = { stage: string; label: string; count: number; currentCount?: number };
 export type FunnelConversionRate = { fromStage: string; toStage: string; fromLabel: string; toLabel: string; rate: number | null };
 
 export type FunnelSummary = {
@@ -6160,6 +6333,8 @@ export type FunnelContact = {
   company: string | null;
   phone: string | null;
   funnelStage: CrmFunnelStage;
+  convertedAt?: string | null;
+  disqualifyReason?: string | null;
   source: string | null;
   purchaseCount: number;
   lastPurchaseAt: string | null;
@@ -6176,16 +6351,26 @@ export function fetchFunnelKpis() {
   return apiFetch<FunnelSalesKpis>("/crm/funnel/kpis");
 }
 
-export function fetchFunnelContacts(stage?: string) {
-  const qs = stage ? `?stage=${stage}` : "";
+/** mode=reached: همه‌ی کسانی که تا این مرحله رسیده‌اند (هم‌خوان با عدد قیف)؛ current: فقط همین مرحله. */
+export function fetchFunnelContacts(stage?: string, mode: "reached" | "current" = "current") {
+  const qs = stage ? `?stage=${stage}&mode=${mode}` : "";
   return apiFetch<FunnelContact[]>(`/crm/funnel/contacts${qs}`);
 }
 
-export function updateFunnelStage(contactId: string, stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED") {
+export function updateFunnelStage(
+  contactId: string,
+  stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED" | "DISQUALIFIED",
+  reason?: string,
+) {
   return apiFetch<FunnelContact>(`/crm/funnel/contacts/${contactId}/stage`, {
     method: "POST",
-    body: JSON.stringify({ stage }),
+    body: JSON.stringify({ stage, reason }),
   });
+}
+
+/** تبدیل دستی سرنخ به مشتری (بدون فاکتور). */
+export function convertContactToCustomer(contactId: string) {
+  return apiFetch<FunnelContact>(`/crm/funnel/contacts/${contactId}/convert`, { method: "POST" });
 }
 
 export function fetchFunnelStageLabels() {
@@ -8151,6 +8336,28 @@ export type ControlledActionResult = { success: boolean; pendingApproval?: boole
 export function updateSalesInvoice(id: string, data: Parameters<typeof createSalesInvoice>[0]) {
   return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
+export type DocumentRevision = {
+  id: string;
+  revisionNo: number;
+  action: "EDIT" | "VOID";
+  reason: string;
+  changes: Array<{ field: string; from: unknown; to: unknown }> | null;
+  userName: string | null;
+  createdAt: string;
+};
+/** ویرایش فاکتور تأییدشده — سند حسابداری و موجودی اتمیک اصلاح می‌شود؛ دلیل الزامی است. */
+export function reviseSalesInvoice(id: string, data: Parameters<typeof createSalesInvoice>[0] & { reason: string }) {
+  return apiFetch<SalesInvoiceDetail>(`/sales/invoices/${id}/revise`, { method: "PUT", body: JSON.stringify(data) });
+}
+export function fetchSalesInvoiceRevisions(id: string) {
+  return apiFetch<DocumentRevision[]>(`/sales/invoices/${id}/revisions`);
+}
+export function cancelSalesQuotation(id: string, reason: string) {
+  return apiFetch<SalesQuotationDetail>(`/sales/quotations/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+export function fetchSalesQuotationRevisions(id: string) {
+  return apiFetch<DocumentRevision[]>(`/sales/quotations/${id}/revisions`);
+}
 export function deleteSalesInvoice(id: string) {
   return apiFetch<{ success: boolean }>(`/sales/invoices/${id}`, { method: "DELETE" });
 }
@@ -8419,7 +8626,8 @@ export type PlatformInvoice = {
   id: string;
   tenantId: string;
   amount: number;
-  status: "PENDING" | "PAID" | "FAILED";
+  status: "PENDING" | "PAID" | "FAILED" | "AWAITING_APPROVAL";
+  approvalNote?: string | null;
   purpose: string | null;
   items: { moduleCode: string; moduleName: string; billingMode: string; amount: number }[] | null;
   issuedAt: string;
@@ -8480,6 +8688,29 @@ export function fetchPlatformRenewals() {
 }
 export function markPlatformInvoicePaid(id: string) {
   return apiFetch<PlatformInvoice>(`/platform/invoices/${id}/mark-paid`, { method: "POST" });
+}
+export function editPlatformInvoice(id: string, input: { amount?: number; dueAt?: string; lines?: { index: number; amount: number }[] }) {
+  return apiFetch<PlatformInvoice>(`/platform/invoices/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+export type PlatformTicketAlertSettings = {
+  enabled: boolean;
+  roles: ("OWNER" | "ADMIN")[];
+  extraUserIds: string[];
+  push: boolean;
+  sms: boolean;
+  smsDailyCap: number;
+  replyCooldownSec: number;
+  notifyCreatorOnReply: boolean;
+};
+export type PlatformSettings = {
+  ticketAlerts: PlatformTicketAlertSettings;
+  invoiceApproval: { requireForAuto: boolean; requireForStaff: boolean; requireDifferentApprover: boolean };
+};
+export function fetchPlatformSettings() {
+  return apiFetch<PlatformSettings>("/platform/settings");
+}
+export function savePlatformSettings(input: Partial<PlatformSettings>) {
+  return apiFetch<PlatformSettings>("/platform/settings", { method: "PUT", body: JSON.stringify(input) });
 }
 export function cancelPlatformInvoice(id: string) {
   return apiFetch<PlatformInvoice>(`/platform/invoices/${id}/cancel`, { method: "POST" });

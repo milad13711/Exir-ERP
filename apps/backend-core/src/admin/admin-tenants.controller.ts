@@ -1,3 +1,4 @@
+import { TenantInvoiceApprovalService } from '../platform-management/tenant-invoice-approval.service.js';
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
@@ -37,6 +38,7 @@ export class AdminTenantsController {
     private readonly invoicePdf: InvoicePdfService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
+    private readonly invoiceApproval: TenantInvoiceApprovalService,
   ) {}
 
   @Get()
@@ -140,9 +142,11 @@ export class AdminTenantsController {
       { amount: dto.amount, dueAt: new Date(dto.dueAt), subscriptionId: dto.subscriptionId, lines: dto.lines },
       ctx.auth.sub,
     );
+    // تنظیم «فاکتورهای دستی کارشناس هم تأیید مدیر بخواهند» (پیش‌فرض خاموش)؛ در انتظار تأیید = اعلان به تننت بعد از تأیید
+    const held = await this.invoiceApproval.holdIfRequired(invoice.id, 'STAFF');
     const tenant = await this.controlDb.tenant.findUnique({ where: { id } });
-    if (tenant) await this.notifyInvoiceIssued(tenant, `${dto.lines?.map((l) => l.name).join('، ') || 'فاکتور دستی'} — ${dto.amount.toLocaleString('en-US')} تومان`);
-    return invoice;
+    if (tenant && !held) await this.notifyInvoiceIssued(tenant, `${dto.lines?.map((l) => l.name).join('، ') || 'فاکتور دستی'} — ${dto.amount.toLocaleString('en-US')} تومان`);
+    return held ? { ...invoice, status: 'AWAITING_APPROVAL' as const } : invoice;
   }
 
   @Get(':id/invoices/:invoiceId/pdf')
@@ -198,12 +202,15 @@ export class AdminTenantsController {
       data: { actorType: 'admin_user', actorId: ctx.auth.sub, tenantId: id, action: 'invoice.module_issued', entityType: 'Invoice', entityId: invoice.id, metadata: { items: lineItems, amount } as never },
     });
 
+    const held = await this.invoiceApproval.holdIfRequired(invoice.id, 'STAFF');
     const modeLabel = (m: string) => (m === 'LICENSE' ? 'لایسنس مادام‌العمر' : m === 'YEARLY' ? 'اشتراک سالانه' : 'اشتراک ماهانه');
-    await this.notifyInvoiceIssued(
-      tenant,
-      `${lineItems.map((l) => `${l.moduleName} (${modeLabel(l.billingMode)})`).join('، ')} — ${amount.toLocaleString('en-US')} تومان${dto.note ? ` — ${dto.note}` : ''}`,
-    );
-    return invoice;
+    if (!held) {
+      await this.notifyInvoiceIssued(
+        tenant,
+        `${lineItems.map((l) => `${l.moduleName} (${modeLabel(l.billingMode)})`).join('، ')} — ${amount.toLocaleString('en-US')} تومان${dto.note ? ` — ${dto.note}` : ''}`,
+      );
+    }
+    return held ? { ...invoice, status: 'AWAITING_APPROVAL' as const } : invoice;
   }
 
   @Post(':id/invoices/:invoiceId/mark-paid')

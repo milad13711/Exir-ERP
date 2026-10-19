@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { SupportGateway } from '../support/support.gateway.js';
+import { SupportAlertsService } from '../support/support-alerts.service.js';
 import type { TicketStatus } from '../../generated/control-client/index.js';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AdminSupportService {
   constructor(
     private readonly controlDb: ControlPrismaService,
     private readonly gateway: SupportGateway,
+    private readonly alerts: SupportAlertsService,
   ) {}
 
   async listTickets(status?: TicketStatus) {
@@ -87,6 +89,7 @@ export class AdminSupportService {
       data: { ticketId, senderType: 'ADMIN', senderId: adminId, body },
     });
     this.gateway.notifyNewMessage(ticket, message);
+    void this.alerts.onStaffReply(ticket, body);
     return message;
   }
 
@@ -111,6 +114,7 @@ export class AdminSupportService {
       },
     });
     this.gateway.notifyTicketUpdated(ticket);
+    void this.alerts.onStaffReply(ticket, `تیکت رفع شد: ${resolutionNote}`);
     return ticket;
   }
 }

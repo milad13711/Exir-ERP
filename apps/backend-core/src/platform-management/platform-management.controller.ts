@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { PlatformOwnerGuard, isPlatformOwnerContext } from '../common/guards/platform-owner.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { CreateModuleInvoiceDto } from '../admin/dto/create-module-invoice.dto.js';
 import { PlatformManagementService } from './platform-management.service.js';
-import { PlatformReplyDto, PlatformTicketStatusDto } from './platform-management.dto.js';
+import { PlatformEditInvoiceDto, PlatformReplyDto, PlatformSettingsDto, PlatformTicketStatusDto } from './platform-management.dto.js';
 
 /**
  * Platform management for the PARENT tenant (env PLATFORM_TENANT_SLUG, default
@@ -75,6 +75,24 @@ export class PlatformManagementController {
   @UseGuards(PlatformOwnerGuard)
   cancel(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     return this.platform.cancelInvoice(ctx, id);
+  }
+
+  @Patch('invoices/:id')
+  @UseGuards(PlatformOwnerGuard)
+  editInvoice(@Param('id') id: string, @Body() dto: PlatformEditInvoiceDto, @Ctx() ctx: TenantRequestContext) {
+    return this.platform.editAwaitingInvoice(ctx, id, dto);
+  }
+
+  @Get('settings')
+  @UseGuards(PlatformOwnerGuard)
+  settings(@Ctx() ctx: TenantRequestContext) {
+    return this.platform.getSettings(ctx);
+  }
+
+  @Put('settings')
+  @UseGuards(PlatformOwnerGuard)
+  saveSettings(@Body() dto: PlatformSettingsDto, @Ctx() ctx: TenantRequestContext) {
+    return this.platform.saveSettings(ctx, dto);
   }
 
   @Get('tickets')

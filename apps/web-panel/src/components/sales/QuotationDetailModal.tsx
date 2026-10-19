@@ -9,6 +9,8 @@ import {
   rejectSalesQuotation,
   convertSalesQuotation,
   deleteSalesQuotation,
+  cancelSalesQuotation,
+  fetchSalesQuotationRevisions,
   ApiError,
   type SalesQuotationDetail,
   type SalesQuotationStatus,
@@ -16,6 +18,9 @@ import {
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useModuleCan } from "@/hooks/useModuleCan";
+import { ReasonDialog } from "@/components/ui/ReasonDialog";
+import { RevisionHistory } from "@/components/shared/RevisionHistory";
 import { NewQuotationModal } from "./NewQuotationModal";
 
 const STATUS_LABELS: Record<SalesQuotationStatus, string> = {
@@ -25,6 +30,7 @@ const STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   REJECTED: "ردشده",
   EXPIRED: "منقضی‌شده",
   CONVERTED: "تبدیل‌شده به فاکتور",
+  CANCELLED: "باطل‌شده",
 };
 
 const STATUS_TONES: Record<SalesQuotationStatus, "neutral" | "warning" | "success" | "danger" | "primary"> = {
@@ -34,6 +40,7 @@ const STATUS_TONES: Record<SalesQuotationStatus, "neutral" | "warning" | "succes
   REJECTED: "danger",
   EXPIRED: "danger",
   CONVERTED: "primary",
+  CANCELLED: "danger",
 };
 
 export function QuotationDetailModal({
@@ -53,6 +60,10 @@ export function QuotationDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [revKey, setRevKey] = useState(0);
+  const can = useModuleCan("sales");
+  const reopenable = !!quotation && ["SENT", "ACCEPTED", "REJECTED", "EXPIRED"].includes(quotation.status);
 
   async function handleCopyLink() {
     if (!quotation || !me) return;
@@ -77,6 +88,7 @@ export function QuotationDetailModal({
     try {
       await action();
       reload();
+      setRevKey((k) => k + 1);
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "خطایی رخ داد");
@@ -160,6 +172,14 @@ export function QuotationDetailModal({
             </div>
           ) : null}
 
+          {quotation.status === "CANCELLED" ? (
+            <div className="text-[12.5px] bg-danger-soft border border-border rounded-xl p-3.5 text-danger font-semibold">
+              این پیش‌فاکتور باطل شده است{quotation.cancelReason ? ` — ${quotation.cancelReason}` : ""}. لینک عمومی آن برای مشتری «باطل‌شده» نمایش داده می‌شود.
+            </div>
+          ) : null}
+
+          <RevisionHistory load={() => fetchSalesQuotationRevisions(quotationId)} refreshKey={revKey} />
+
           <AttachmentsSection entityType="SalesQuotation" entityId={quotation.id} />
 
           <TasksSection relatedModule="sales" relatedEntityId={quotation.id} />
@@ -176,21 +196,44 @@ export function QuotationDetailModal({
                 >
                   ارسال به مشتری
                 </button>
-                <button
-                  onClick={() => setEditOpen(true)}
-                  disabled={busy}
-                  className="text-[12.5px] font-bold text-primary bg-primary-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
-                >
-                  ویرایش
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={busy}
-                  className="text-[12.5px] font-bold text-danger bg-danger-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
-                >
-                  حذف
-                </button>
+                {can.canEdit ? (
+                  <button
+                    onClick={() => setEditOpen(true)}
+                    disabled={busy}
+                    className="text-[12.5px] font-bold text-primary bg-primary-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+                  >
+                    ویرایش
+                  </button>
+                ) : null}
+                {can.canDelete ? (
+                  <button
+                    onClick={handleDelete}
+                    disabled={busy}
+                    className="text-[12.5px] font-bold text-danger bg-danger-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+                  >
+                    حذف
+                  </button>
+                ) : null}
               </>
+            ) : null}
+
+            {reopenable && can.canEdit ? (
+              <button
+                onClick={() => setEditOpen(true)}
+                disabled={busy}
+                className="text-[12.5px] font-bold text-primary bg-primary-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                ویرایش (با ثبت دلیل)
+              </button>
+            ) : null}
+            {reopenable && can.canDelete ? (
+              <button
+                onClick={() => setCancelOpen(true)}
+                disabled={busy}
+                className="text-[12.5px] font-bold text-danger bg-danger-soft px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                ابطال پیش‌فاکتور
+              </button>
             ) : null}
 
             {quotation.status === "SENT" ? (
@@ -250,8 +293,23 @@ export function QuotationDetailModal({
           onCreated={() => {
             setEditOpen(false);
             reload();
+            setRevKey((k) => k + 1);
             onChanged();
           }}
+        />
+      ) : null}
+      {cancelOpen ? (
+        <ReasonDialog
+          title="ابطال پیش‌فاکتور"
+          description="پیش‌فاکتور حذف نمی‌شود؛ با وضعیت «باطل‌شده» و دلیل در تاریخچه می‌ماند، پذیرش آن از لینک عمومی بسته می‌شود و دیگر قابل تبدیل به فاکتور نیست."
+          confirmLabel="ابطال پیش‌فاکتور"
+          onConfirm={async (reason) => {
+            await cancelSalesQuotation(quotationId, reason);
+            reload();
+            setRevKey((k) => k + 1);
+            onChanged();
+          }}
+          onClose={() => setCancelOpen(false)}
         />
       ) : null}
     </Modal>

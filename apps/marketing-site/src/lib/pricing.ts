@@ -31,7 +31,6 @@ const YEARLY_TO_MONTHLY_MULTIPLIER = 5;
 const LICENSE_TO_YEARLY_MULTIPLIER = 6;
 
 /** جمع دقیق تمام وزن‌های MODULE_LICENSE_WEIGHTS_USD زیر؛ عنوان صفحه‌ی ماژول‌ها همیشه با جمع واقعی قیمت‌ها یکی است. */
-export const FULL_LICENSE_USD = Math.round((11775 * LICENSE_TO_YEARLY_MULTIPLIER * YEARLY_TO_MONTHLY_MULTIPLIER) / BASE_TO_MONTHLY_DIVISOR);
 export const ANNUAL_SUPPORT_USD = 199;
 
 
@@ -72,19 +71,24 @@ export const MODULE_LICENSE_WEIGHTS_USD: Record<string, number> = {
   "contracts": 400,
   "projects": 400,
   "mentoring": 370,
-  "messenger": 160,
-  "operations": 160,
+  "messenger": 290,
+  "operations": 230,
   "events": 450,
   "proposals": 350,
   "forms": 240,
   "warranty": 255,
   "after-sales-service": 270,
   "fleet": 520,
-  "dispatch": 280,
+  "dispatch": 380,
   "online-store": 450,
   "marketing": 415,
   "tax": 450,
 };
+
+/** لایسنس دائمی کل ماژول‌ها = جمع وزن‌ها × ۶ × ۵ ÷ ۴۰ (همیشه با جدول بالا هم‌خوان؛ دیگر عدد دستی نیست). */
+export const FULL_LICENSE_USD = Math.round(
+  (Object.values(MODULE_LICENSE_WEIGHTS_USD).reduce((a, b) => a + b, 0) * LICENSE_TO_YEARLY_MULTIPLIER * YEARLY_TO_MONTHLY_MULTIPLIER) / BASE_TO_MONTHLY_DIVISOR,
+);
 
 export type UsdPricing = { licenseUsd: number; yearlyUsd: number; monthlyUsd: number };
 /** یک مبلغ با هر دو نمایش: دلار کوچک (لنگر) و تومان بزرگ (لحظه‌ای). */

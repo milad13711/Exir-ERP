@@ -45,15 +45,30 @@ export class FunnelController {
     return this.kpi.setStageLabels(ctx, body.labels ?? {});
   }
 
-  /** برای کلیک روی هر مرحله‌ی قیف گرافیکی — لیست مخاطبین آن مرحله. */
+  /**
+   * برای کلیک روی هر مرحله‌ی قیف گرافیکی — لیست مخاطبین آن مرحله.
+   * mode=reached (پیش‌فرض برای مراحل اصلی قیف): همه‌ی کسانی که تا آن مرحله رسیده‌اند، هم‌خوان با عدد قیف.
+   * mode=current: فقط کسانی که همین حالا در همین مرحله‌اند.
+   */
   @Get('contacts')
-  async contactsInStage(@Query('stage') stage: string | undefined, @Ctx() ctx: TenantRequestContext) {
+  async contactsInStage(
+    @Query('stage') stage: string | undefined,
+    @Query('mode') mode: string | undefined,
+    @Ctx() ctx: TenantRequestContext,
+  ) {
     const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
-    return ctx.tenantDb.crmContact.findMany({
-      where: { ...scope, ...(stage ? { funnelStage: stage as never } : {}) },
-      orderBy: { createdAt: 'desc' },
-      include: { owner: { select: { name: true } } },
-    });
+    return this.kpi.listStageContacts(ctx, scope, stage, mode === 'reached' ? 'reached' : 'current');
+  }
+
+  /** تبدیل دستی سرنخ (مثلاً واجد شرایط) به مشتری — بدون نیاز به فاکتور. */
+  @Post('contacts/:id/convert')
+  async convert(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'crm');
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    await assertInScope(ctx.tenantDb.crmContact, scope, { id }, { message: 'مخاطب یافت نشد' });
+    const result = await this.funnel.convertToCustomer(ctx, id);
+    if (!result.ok) throw new BadRequestException(result.error);
+    return ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
   }
 
   @Post('contacts/:id/stage')
@@ -61,7 +76,7 @@ export class FunnelController {
     await this.permissions.assertEdit(ctx, 'crm');
     const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
     await assertInScope(ctx.tenantDb.crmContact, scope, { id }, { message: 'مخاطب یافت نشد' });
-    const result = await this.funnel.transitionLeadStage(ctx, id, dto.stage);
+    const result = await this.funnel.transitionLeadStage(ctx, id, dto.stage, dto.reason);
     if (!result.ok) throw new BadRequestException(result.error);
     const contact = await ctx.tenantDb.crmContact.findUnique({ where: { id } });
     if (!contact) throw new NotFoundException('مخاطب یافت نشد');

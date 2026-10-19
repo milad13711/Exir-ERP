@@ -34,6 +34,8 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         ALPINE_MIRROR: ${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
+        # بیلد از سورس روی سرور خودمان بدون secret امضا (مانیفست یکپارچگی فقط در pipeline release امضا می‌شود)
+        ALLOW_UNSIGNED_BUILD: ${ALLOW_UNSIGNED_BUILD:-true}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -51,13 +53,20 @@ services:
       # below isn't set, or an actual send to exirsms.ir fails — see
       # docs/ON_PREMISE.md ("Known limitations") before exposing this
       # deployment to an untrusted network without EXIR_SMS_API_KEY set.
-      OTP_DEV_ECHO: "true"
+      OTP_DEV_ECHO: ${OTP_DEV_ECHO:-false}
       EXIR_SMS_API_KEY: ${EXIR_SMS_API_KEY:-}
       EXIR_SMS_SENDER_LINE: ${EXIR_SMS_SENDER_LINE:-}
-      DEPLOYMENT_MODE: ON_PREMISE
+      # CLOUD برای استقرار ابری چندتننتی ما؛ ON_PREMISE فقط برای نصب تک‌مشتری با لایسنس (docs/licensing/README.md §۲)
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-ON_PREMISE}
       LICENSE_KEY: ${LICENSE_KEY:?set LICENSE_KEY in .env — given to you when the license was issued}
       LICENSE_PUBLIC_KEY_PEM: ${LICENSE_PUBLIC_KEY_PEM:?set LICENSE_PUBLIC_KEY_PEM in .env — given to you when the license was issued}
+      # آدرس سرور لایسنس اکسیر برای فعال‌سازی/تمدید خودکار (LICENSE_KEY از نوع LIC-...). نام قدیمی CONTROL_PLANE_CHECKIN_URL هم پذیرفته می‌شود.
+      LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-}
       CONTROL_PLANE_CHECKIN_URL: ${CONTROL_PLANE_CHECKIN_URL:-}
+      # توکن آفلاین (برای سرورهای بدون اینترنت) — جایگزین LICENSE_KEY=LIC-...؛ از پشتیبانی بگیرید
+      LICENSE_TOKEN: ${LICENSE_TOKEN:-}
+      LICENSE_STATE_DIR: /app/data/license
+      APP_VERSION: ${APP_VERSION:-}
       ON_PREM_ORG_NAME: ${ON_PREM_ORG_NAME:?set ON_PREM_ORG_NAME in .env}
       ON_PREM_ORG_SLUG: ${ON_PREM_ORG_SLUG:-local}
       ON_PREM_OWNER_NAME: ${ON_PREM_OWNER_NAME:?set ON_PREM_OWNER_NAME in .env}
@@ -125,12 +134,16 @@ services:
       OTP_GLOBAL_DAILY_CAP: ${OTP_GLOBAL_DAILY_CAP:-20000}
       RATE_LIMIT_REPORT_ONLY: ${RATE_LIMIT_REPORT_ONLY:-false}
       WEBHOOK_ALLOW_PRIVATE_NETWORKS: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
     volumes:
       # Daily automated backups (BackupService) land here — a host directory,
       # not the container's own filesystem, so they survive
       # `--force-recreate` on deploy instead of being discarded with it.
       - ./backups:/app/backups
+      # وضعیت نصب لایسنس (installationId، توکن فعال‌سازی) — باید پایدار بماند؛ حذفش = نصب جدید و مصرف یک ظرفیت فعال‌سازی
+      - exir_license_state:/app/data
+      # شناسه‌ی ماشین میزبان (فقط‌خواندنی) برای اثرانگشت نصب
+      - /etc/machine-id:/etc/host-machine-id:ro
 
   web:
     build:
@@ -167,8 +180,8 @@ services:
     depends_on:
       - backend
     ports:
-      # *_BIND: روی سرور تولید = 127.0.0.1 (فقط nginx میزبان به آن وصل می‌شود)؛ پیش‌فرض 0.0.0.0 برای نصب‌های on-premise بدون nginx
-      - "${ADMIN_BIND:-0.0.0.0}:${ADMIN_EXPOSED_PORT:-8081}:3000"
+      # *_BIND: پیش‌فرض 127.0.0.1 (فقط nginx میزبان به آن وصل می‌شود)؛ برای دسترسی مستقیم بدون nginx صریحاً 0.0.0.0 بگذار
+      - "${ADMIN_BIND:-127.0.0.1}:${ADMIN_EXPOSED_PORT:-8081}:3000"
 
   # Public marketing/showcase site (industry templates + plan configurator +
   # lead capture) — its own origin, meant to eventually move to its own
@@ -198,7 +211,7 @@ services:
       # build time, since a browser can never resolve "backend".
       API_URL_INTERNAL: http://backend:3001/api
     ports:
-      - "${MARKETING_BIND:-0.0.0.0}:${MARKETING_EXPOSED_PORT:-8082}:3000"
+      - "${MARKETING_BIND:-127.0.0.1}:${MARKETING_EXPOSED_PORT:-8082}:3000"
 
   proxy:
     image: nginx:1.27-alpine
@@ -246,3 +259,4 @@ services:
 
 volumes:
   exir_postgres_data:
+  exir_license_state:

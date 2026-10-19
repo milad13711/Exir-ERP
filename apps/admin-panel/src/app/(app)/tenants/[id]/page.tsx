@@ -36,12 +36,14 @@ const INVOICE_STATUS_LABELS: Record<TenantInvoice["status"], string> = {
   PENDING: "در انتظار پرداخت",
   PAID: "پرداخت‌شده",
   FAILED: "ناموفق",
+  AWAITING_APPROVAL: "در انتظار تأیید مدیر",
 };
 
 const INVOICE_STATUS_TONES: Record<TenantInvoice["status"], "success" | "warning" | "danger"> = {
   PENDING: "warning",
   PAID: "success",
   FAILED: "danger",
+  AWAITING_APPROVAL: "warning",
 };
 
 const STATUS_LABELS: Record<AdminTenant["status"], string> = {

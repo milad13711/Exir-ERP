@@ -26,7 +26,7 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -280,7 +280,7 @@ export type TenantInvoice = {
   items?: Array<{ moduleName: string; amount: number }> | null;
   purpose?: string | null;
   amount: number;
-  status: "PENDING" | "PAID" | "FAILED";
+  status: "PENDING" | "PAID" | "FAILED" | "AWAITING_APPROVAL";
   issuedAt: string;
   dueAt: string;
   paidAt: string | null;
@@ -617,36 +617,7 @@ export function unsubscribePush(endpoint: string) {
   });
 }
 
-// ── لایسنس‌های استقرار اختصاصی (on-premise) ──────────────────────────────
-
-export type AdminLicense = {
-  id: string;
-  tenantId: string | null;
-  orgName: string;
-  signedKey: string;
-  allowedModules: string[];
-  seats: number;
-  status: "ACTIVE" | "REVOKED";
-  issuedAt: string;
-  expiresAt: string;
-  revokedAt: string | null;
-  revokedReason: string | null;
-  lastCheckInAt: string | null;
-  lastCheckInIp: string | null;
-  tenant: { id: string; name: string; slug: string } | null;
-};
-
-export function fetchLicenses() {
-  return apiFetch<AdminLicense[]>("/admin/licenses");
-}
-
-export function issueLicense(data: { orgName: string; modules: string[]; seats?: number; validityDays: number; tenantId?: string }) {
-  return apiFetch<AdminLicense>("/admin/licenses", { method: "POST", body: JSON.stringify(data) });
-}
-
-export function revokeLicense(id: string, reason: string) {
-  return apiFetch<AdminLicense>(`/admin/licenses/${id}/revoke`, { method: "POST", body: JSON.stringify({ reason }) });
-}
+// لایسنس‌ها: lib/licenses-api.ts
 
 // ── لاگ‌های audit و خطا ───────────────────────────────────────────────────
 

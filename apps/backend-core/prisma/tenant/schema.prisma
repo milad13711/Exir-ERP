@@ -250,40 +250,40 @@ model Task {
   completedAt     DateTime?
   updatedAt       DateTime     @default(now()) @updatedAt
 
-  createdByUserId String?
-  startAt         DateTime?
+  createdByUserId    String?
+  startAt            DateTime?
   /// ارسال زمان‌بندی‌شده: تا sendAt منتشر نشده (isPublished=false) و برای ارجاع‌گیرنده نامرئی است.
-  sendAt          DateTime?
-  isPublished     Boolean      @default(true)
-  publishedAt     DateTime?
+  sendAt             DateTime?
+  isPublished        Boolean        @default(true)
+  publishedAt        DateTime?
   /// یادآوری‌ها: چند دقیقه پیش از موعد (مثلاً [60, 1440]) و آن‌هایی که قبلاً ارسال شده‌اند.
-  reminderOffsetsMin Int[]    @default([])
-  remindersSentMin   Int[]    @default([])
+  reminderOffsetsMin Int[]          @default([])
+  remindersSentMin   Int[]          @default([])
   overdueNotifiedAt  DateTime?
   /// وضعیتِ قبل از انقضا، برای بازگشت پس از تمدید
-  expiredFrom     TaskStatus?
-  startedAt       DateTime?
-  submittedAt     DateTime?
-  approvedAt      DateTime?
-  approvedByUserId String?
-  notes           String?
-  tags            String[]     @default([])
-  recurrence      TaskRecurrence @default(NONE)
-  recurrenceInterval Int        @default(1)
-  recurrenceEndAt DateTime?
+  expiredFrom        TaskStatus?
+  startedAt          DateTime?
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  approvedByUserId   String?
+  notes              String?
+  tags               String[]       @default([])
+  recurrence         TaskRecurrence @default(NONE)
+  recurrenceInterval Int            @default(1)
+  recurrenceEndAt    DateTime?
   /// نمونه‌ی بعدیِ تکرار هنوز ساخته نشده؟ cron بر اساس این زمان نمونه‌ی بعد را می‌سازد.
-  nextRecurAt     DateTime?
+  nextRecurAt        DateTime?
   recurrenceParentId String?
 
-  assignee  User?      @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  reminders Reminder[]
+  assignee           User?                  @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  reminders          Reminder[]
   dailyChecklistItem DailyChecklistItem?
-  checklist TaskChecklistItem[]
-  assignees TaskAssignee[]
-  events    TaskEvent[]
-  comments  TaskComment[]
-  results   TaskResult[]
-  extensionRequests TaskExtensionRequest[]
+  checklist          TaskChecklistItem[]
+  assignees          TaskAssignee[]
+  events             TaskEvent[]
+  comments           TaskComment[]
+  results            TaskResult[]
+  extensionRequests  TaskExtensionRequest[]
 
   @@index([status, dueAt])
   @@index([createdByUserId])
@@ -606,6 +606,7 @@ enum CrmFunnelStage {
   BRAND_AMBASSADOR
   CHURN_RISK
   CHURNED
+  DISQUALIFIED // رد صلاحیت سرنخ (با دلیل) — مسیر «از دست رفته»ی پیش از خرید
 }
 
 /// شخص/سازمان طرف‌حساب — می‌تواند مشتری، تأمین‌کننده، یا هر دو باشد (isCustomer/isSupplier).
@@ -637,6 +638,10 @@ model CrmContact {
   purchaseCount      Int            @default(0)
   avgPurchaseGapDays Int? // میانگین فاصله‌ی روزهای بین خریدهای متوالی — مبنای پیش‌بینی خرید بعدی/ریسک ریزش
   churnWarningAt     DateTime? // از چه زمانی هشدار ریسک غیرفعال‌شدن روی این مشتری فعال شد
+  qualifiedAt        DateTime? // آخرین باری که سرنخ «واجد شرایط» شد
+  convertedAt        DateTime? // لحظه‌ی تبدیل به مشتری (اولین خرید، برد فرصت یا تبدیل دستی) — null = هنوز سرنخ
+  disqualifiedAt     DateTime? // رد صلاحیت سرنخ
+  disqualifyReason   String? // دلیل رد صلاحیت
 
   // برای درج روی فاکتور رسمی: اشخاص حقیقی با کد ملی، اشخاص حقوقی با کد
   // اقتصادی/شناسه ملی/شماره ثبت شناخته می‌شوند.
@@ -791,6 +796,9 @@ enum SalesInvoiceStatus {
 model SalesInvoice {
   cancelledAt             DateTime?
   cancelReason            String?
+  /// تعداد دفعات ویرایش پس از تأیید (اصلاح با برگشت و ثبت مجدد سند) — تاریخچه در DocumentRevision
+  revisionCount           Int                @default(0)
+  lastEditedAt            DateTime?
   id                      String             @id @default(uuid())
   invoiceNo               Int                @unique @default(autoincrement())
   contactId               String
@@ -940,6 +948,7 @@ enum SalesQuotationStatus {
   REJECTED
   EXPIRED
   CONVERTED
+  CANCELLED // ابطال‌شده (حذف نرم) — پیش‌نویس به‌جای آن واقعاً حذف می‌شود
 }
 
 /// پیش‌فاکتور — پیشنهاد قیمت به مشتری، قبل از صدور فاکتور رسمی فروش. با
@@ -962,6 +971,9 @@ model SalesQuotation {
   convertedInvoiceId String?
   createdAt          DateTime             @default(now())
   respondedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  revisionCount      Int                  @default(0)
 
   // Public customer-facing link (see PublicQuotationsController) — no auth,
   // guarded only by this token being an unguessable random UUID.
@@ -1753,14 +1765,71 @@ model StockMovement {
   createdByUserId String?
   createdAt       DateTime          @default(now())
 
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-  createdBy User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  // ── ویرایش/ابطال رسید و حواله (افزودنی؛ ردیف‌های قدیمی null/پیش‌فرض می‌مانند) ──
+  /// منشأ ثبت: MANUAL (رسید/حواله‌ی دستی انبار) | OPENING_IMPORT (موجودی اولیه از اکسل) | null (قدیمی/سیستمی — از روی type و reference حدس زده می‌شود)
+  origin         String?
+  editedAt       DateTime?
+  editCount      Int       @default(0)
+  /// ابطال نرم: ردیف اصلی دست‌نخورده می‌ماند، یک ردیف معکوس (reversalOfId) موجودی را خنثی می‌کند
+  voidedAt       DateTime?
+  voidReason     String?
+  voidedByUserId String?
+  /// ردیف معکوس‌کننده: به ردیف ابطال‌شده اشاره می‌کند
+  reversalOfId   String?   @unique
+  importBatchId  String?
+
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id])
+  createdBy   User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  importBatch StockImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
   @@index([productId])
   @@index([warehouseId])
   @@index([createdAt])
+  @@index([importBatchId])
   @@map("warehouse_stock_movements")
+}
+
+/// دسته‌ی ورود موجودی اولیه از اکسل (مهاجرت از نرم‌افزار قبلی) — fileHash مانع ورود دوباره‌ی همان فایل می‌شود.
+model StockImportBatch {
+  id              String    @id @default(uuid())
+  fileName        String?
+  fileHash        String
+  rowCount        Int
+  totalQuantity   Int
+  totalValue      BigInt // تومان — جمع (مقدار × بهای واحد)
+  createdProducts Int       @default(0)
+  journalEntryId  String? // سند افتتاحیه (فقط وقتی ماژول حسابداری نصب است)
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  voidedAt        DateTime?
+  voidReason      String?
+  voidedByUserId  String?
+
+  movements StockMovement[]
+
+  @@index([fileHash])
+  @@map("warehouse_stock_import_batches")
+}
+
+/// تاریخچه‌ی ویرایش/ابطال اسناد (فاکتور فروش، پیش‌فاکتور، رسید/حواله‌ی انبار): چه کسی، کی، چرا، و تصویر قبل/بعد.
+model DocumentRevision {
+  id         String   @id @default(uuid())
+  entityType String // sales_invoice | sales_quotation | stock_movement | stock_import_batch (حروف کوچک عمداً — با entityType کارتابل تأیید اشتباه نشود)
+  entityId   String
+  revisionNo Int
+  action     String // EDIT | VOID
+  reason     String
+  before     Json?
+  after      Json?
+  changes    Json? // فهرست تغییرات خوانا: [{ field, from, to }]
+  userId     String?
+  userName   String?
+  createdAt  DateTime @default(now())
+
+  @@unique([entityType, entityId, revisionNo])
+  @@index([entityType, entityId])
+  @@map("document_revisions")
 }
 
 // ── HR: پرونده پرسنلی، حضور و غیاب، مرخصی و فیش حقوقی ──────────────────────
@@ -4282,22 +4351,22 @@ model ModuleApprover {
 // رویدادهای تقویم (تولد، سررسید وظیفه/فاکتور/چک، پایان قرارداد، مصاحبه/جلسه)
 // از روی مدل‌های موجود محاسبه می‌شوند و نیازی به جدول جدا ندارند.
 model DashboardReminder {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   date            DateTime // فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود
   title           String
   note            String?
   createdByUserId String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
   // ── آلارم یادآوری (افزودنی): remindAt لحظه‌ی مطلق (UTC) معادل ساعت وقت تهران است ──
   remindAt        DateTime? // زمان اصلی یادآوری؛ برای «تمام‌روز» ساعت ۰۸:۰۰ تهران
-  allDay          Boolean  @default(false)
-  channels        String[] @default(["IN_APP", "PUSH"]) // IN_APP | PUSH | SMS | EMAIL
-  leadMinutes     Int[]    @default([0]) // پیش‌هشدارها: چند دقیقه قبل از موعد (۰ = خودِ موعد)
-  alertsSentMin   Int[]    @default([]) // پیش‌هشدارهای ارسال‌شده‌ی همین رخداد (تضمین یک‌بارمصرف)
-  repeatRule      String   @default("NONE") // NONE | DAILY | WEEKLY | MONTHLY
+  allDay          Boolean   @default(false)
+  channels        String[]  @default(["IN_APP", "PUSH"]) // IN_APP | PUSH | SMS | EMAIL
+  leadMinutes     Int[]     @default([0]) // پیش‌هشدارها: چند دقیقه قبل از موعد (۰ = خودِ موعد)
+  alertsSentMin   Int[]     @default([]) // پیش‌هشدارهای ارسال‌شده‌ی همین رخداد (تضمین یک‌بارمصرف)
+  repeatRule      String    @default("NONE") // NONE | DAILY | WEEKLY | MONTHLY
   seriesId        String? // شناسه‌ی رخداد اول زنجیره‌ی تکرار
-  nextSpawned     Boolean  @default(false) // رخداد بعدیِ تکرار ساخته شده است
-  status          String   @default("PENDING") // PENDING | DONE
+  nextSpawned     Boolean   @default(false) // رخداد بعدیِ تکرار ساخته شده است
+  status          String    @default("PENDING") // PENDING | DONE
   snoozedUntil    DateTime?
   firedAt         DateTime? // اولین لحظه‌ی صدور آلارم اصلی
   lastFiredAt     DateTime?
@@ -4855,7 +4924,7 @@ model MessengerPresence {
 
 /// مدرک حقوقی هر امضای الکترونیک/تأیید لینک عمومی: هویت، زمان، IP، دستگاه، موقعیت، هش محتوا/امضا و هش یکپارچگی (HMAC).
 model SignatureEvidence {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   entityType    String
   entityId      String
   action        String
@@ -4866,21 +4935,20 @@ model SignatureEvidence {
   ip            String?
   userAgent     String?
   device        Json?
-  geoStatus     String   @default("unavailable") // granted | denied | unavailable
+  geoStatus     String    @default("unavailable") // granted | denied | unavailable
   lat           Float?
   lng           Float?
   geoAccuracy   Float?
   clientTime    DateTime?
-  serverTime    DateTime @default(now())
+  serverTime    DateTime  @default(now())
   contentHash   String?
   signatureHash String?
   integrityHash String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([entityType, entityId])
   @@map("signature_evidences")
 }
-
 
 // ── ماژول اعلام بار، بارنامه و برگ قرنطینه (dispatch) ─────────────────────
 // روی Shipment ماژول fleet یک گردش‌کار لایه می‌کند: چک‌لیست بارگیری مرحله‌ای،
@@ -4907,60 +4975,60 @@ model ShipmentLoading {
   postalAddress String?
 
   // ۱) رسیدن ماشین
-  arrivedAt       DateTime?
-  arrivedByUserId String?
-  arrivedByName   String?
+  arrivedAt               DateTime?
+  arrivedByUserId         String?
+  arrivedByName           String?
   // ۲) نظافت
-  cleanlinessResult String? // PASS | FAIL
-  cleanlinessNote   String?
-  cleanlinessAt     DateTime?
-  cleanlinessByUserId String?
-  cleanlinessByName   String?
+  cleanlinessResult       String? // PASS | FAIL
+  cleanlinessNote         String?
+  cleanlinessAt           DateTime?
+  cleanlinessByUserId     String?
+  cleanlinessByName       String?
   // ۳) وزن خالی
-  tareKg        Float?
-  tareAt        DateTime?
-  tareByUserId  String?
-  tareByName    String?
+  tareKg                  Float?
+  tareAt                  DateTime?
+  tareByUserId            String?
+  tareByName              String?
   // ۴) بارگیری
-  loadedAt       DateTime?
-  loaderUserId   String?
-  loaderName     String?
+  loadedAt                DateTime?
+  loaderUserId            String?
+  loaderName              String?
   // ۵) وزن پر و خالص
-  grossKg        Float?
-  grossAt        DateTime?
-  grossByUserId  String?
-  grossByName    String?
-  netKg          Float?
-  netEdited      Boolean  @default(false)
-  netEditReason  String?
+  grossKg                 Float?
+  grossAt                 DateTime?
+  grossByUserId           String?
+  grossByName             String?
+  netKg                   Float?
+  netEdited               Boolean   @default(false)
+  netEditReason           String?
   // تأیید وزن نهایی (برای فاکتور)
-  weightConfirmedAt     DateTime?
+  weightConfirmedAt       DateTime?
   weightConfirmedByUserId String?
   weightConfirmedByName   String?
   // ۶) اسناد
-  requiredDocTypes   String[] @default([])
-  matchedRuleIds     String[] @default([])
-  docsTaskId         String?
-  docsOverrideReason String?
-  docsOverrideByName String?
-  docsOverrideAt     DateTime?
+  requiredDocTypes        String[]  @default([])
+  matchedRuleIds          String[]  @default([])
+  docsTaskId              String?
+  docsOverrideReason      String?
+  docsOverrideByName      String?
+  docsOverrideAt          DateTime?
   // ۷) کنترل نهایی (چشم دوم)
-  finalCheckResult   String? // PASS | FAIL
-  finalCheckNote     String?
-  loadingCorrect     Boolean?
-  tarpInstalled      Boolean?
-  finalCheckAt       DateTime?
-  finalCheckByUserId String?
-  finalCheckByName   String?
+  finalCheckResult        String? // PASS | FAIL
+  finalCheckNote          String?
+  loadingCorrect          Boolean?
+  tarpInstalled           Boolean?
+  finalCheckAt            DateTime?
+  finalCheckByUserId      String?
+  finalCheckByName        String?
   // ۸) آماده حرکت / حرکت
-  readyGrantedAt       DateTime?
-  readyGrantedByUserId String?
-  readyGrantedByName   String?
-  departedAt           DateTime?
-  departedByName       String?
-  receiptOverrideReason String?
+  readyGrantedAt          DateTime?
+  readyGrantedByUserId    String?
+  readyGrantedByName      String?
+  departedAt              DateTime?
+  departedByName          String?
+  receiptOverrideReason   String?
   /// وضعیتِ قبل از «متوقف» تا با ازسرگیری برگردد
-  suspendedFrom String?
+  suspendedFrom           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -5042,22 +5110,22 @@ model ShipmentDocument {
 
 /// رسید بار راننده — لینک عمومی با توکن یکتا (بدون OTP) یا رسید کاغذیِ اسکن‌شده.
 model DispatchReceipt {
-  id            String    @id @default(uuid())
-  shipmentId    String    @unique
-  publicToken   String    @unique @default(uuid())
-  status        String    @default("PENDING") // PENDING | SIGNED | PAPER
-  sentAt        DateTime?
-  signedAt      DateTime?
-  signerName    String?
-  signerPhone   String?
-  signatureData String?
-  evidenceId    String?
-  paperAttachmentId String?
-  paperByUserId String?
-  paperByName   String?
-  pdfAttachmentId   String?
+  id                 String    @id @default(uuid())
+  shipmentId         String    @unique
+  publicToken        String    @unique @default(uuid())
+  status             String    @default("PENDING") // PENDING | SIGNED | PAPER
+  sentAt             DateTime?
+  signedAt           DateTime?
+  signerName         String?
+  signerPhone        String?
+  signatureData      String?
+  evidenceId         String?
+  paperAttachmentId  String?
+  paperByUserId      String?
+  paperByName        String?
+  pdfAttachmentId    String?
   archivedDocumentId String?
-  createdAt     DateTime  @default(now())
+  createdAt          DateTime  @default(now())
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
@@ -5066,15 +5134,15 @@ model DispatchReceipt {
 
 /// پیشنهاد اعلام بار از یک منبع — یکتا به‌ازای هر منبع (ضدتکرار).
 model DispatchSuggestion {
-  id          String    @id @default(uuid())
-  sourceType  String // PRODUCTION_ORDER | SALES_INVOICE | STOCK_MOVEMENT
-  sourceId    String
-  status      String    @default("OPEN") // OPEN | CREATED | DISMISSED
-  shipmentId  String?
-  title       String?
-  notifiedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  sourceType String // PRODUCTION_ORDER | SALES_INVOICE | STOCK_MOVEMENT
+  sourceId   String
+  status     String    @default("OPEN") // OPEN | CREATED | DISMISSED
+  shipmentId String?
+  title      String?
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([sourceType, sourceId])
   @@index([status])
@@ -5093,31 +5161,46 @@ model DispatchProductionTrigger {
 
 /// پیشنهاد تعدیل اقلام فاکتور بر اساس وزن واقعی؛ پس از تأیید مدیر/حسابدار اعمال و فاکتور خودکار نهایی می‌شود.
 model DispatchInvoiceAdjustment {
-  id                String    @id @default(uuid())
-  invoiceId         String
-  shipmentId        String
-  status            String    @default("PROPOSED") // PROPOSED | APPLIED | REJECTED | NO_CHANGE
-  netWeightKg       Float
-  lineChanges       Json
-  oldSubtotal       Int
-  newSubtotal       Int
-  oldDiscount       Int
-  newDiscount       Int
-  oldTaxAmount      Int
-  newTaxAmount      Int
-  oldTotal          Int
-  newTotal          Int
-  proposedByUserId  String?
-  decidedByUserId   String?
-  decidedByName     String?
-  decisionNote      String?
-  decidedAt         DateTime?
-  appliedAt         DateTime?
-  finalizedAt       DateTime?
-  finalizeError     String?
-  createdAt         DateTime  @default(now())
+  id               String    @id @default(uuid())
+  invoiceId        String
+  shipmentId       String
+  status           String    @default("PROPOSED") // PROPOSED | APPLIED | REJECTED | NO_CHANGE
+  netWeightKg      Float
+  lineChanges      Json
+  oldSubtotal      Int
+  newSubtotal      Int
+  oldDiscount      Int
+  newDiscount      Int
+  oldTaxAmount     Int
+  newTaxAmount     Int
+  oldTotal         Int
+  newTotal         Int
+  proposedByUserId String?
+  decidedByUserId  String?
+  decidedByName    String?
+  decisionNote     String?
+  decidedAt        DateTime?
+  appliedAt        DateTime?
+  finalizedAt      DateTime?
+  finalizeError    String?
+  createdAt        DateTime  @default(now())
 
   @@index([invoiceId])
   @@index([shipmentId])
   @@map("dispatch_invoice_adjustments")
+}
+
+/// چیدمان داشبورد — COMPANY: تنظیم مدیر برای کل شرکت (ownerKey = ''), USER: شخصی‌سازی هر کاربر (ownerKey = شناسه‌ی کاربر تننت).
+/// محتوای layout در سرویس (dashboard-widgets.ts) اعتبارسنجی می‌شود؛ هیچ‌وقت ویجتی را به کاربر اضافه نمی‌کند که دسترسی ندارد.
+model DashboardLayout {
+  id              String   @id @default(uuid())
+  scope           String // COMPANY | USER
+  ownerKey        String   @default("")
+  layout          Json
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([scope, ownerKey])
+  @@map("dashboard_layouts")
 }

@@ -127,4 +127,20 @@ describe('ModuleGuard', () => {
     );
     await expect(g.canActivate(makeContext('t1', 'POST'))).rejects.toThrow(ForbiddenException);
   });
+
+  describe('licence entitlements (on-premise)', () => {
+    const lic = (allowed: string[]) => ({ moduleAllowed: (c: string) => allowed.includes(c) }) as never;
+
+    it('refuses a non-core module that is not in the signed licence, even if a TenantModule row says INSTALLED', async () => {
+      const g = new ModuleGuard(makeReflector('crm'), makeControlDb([CRM], [{ moduleId: CRM.id, status: 'INSTALLED' }]) as never, lic(['accounting']));
+      await expect(g.canActivate(makeContext('t1'))).rejects.toThrow(/در لایسنس/);
+    });
+
+    it('allows a licensed module and always lets core modules through', async () => {
+      const ok = new ModuleGuard(makeReflector('crm'), makeControlDb([CRM], [{ moduleId: CRM.id, status: 'INSTALLED' }]) as never, lic(['crm']));
+      await expect(ok.canActivate(makeContext('t1'))).resolves.toBe(true);
+      const core = new ModuleGuard(makeReflector('tasks'), makeControlDb([TASKS], []) as never, lic([]));
+      await expect(core.canActivate(makeContext('t1'))).resolves.toBe(true);
+    });
+  });
 });

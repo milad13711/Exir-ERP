@@ -185,11 +185,11 @@ export function AttachmentsSection({
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <span className="text-[12px] text-muted" title={IMAGE_COMPRESS_HINT}>پیوست‌ها</span>
         {readOnly ? null : (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <input ref={fileInputRef} type="file" onChange={handlePickFile} className="hidden" />
           {capture ? <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePickFile} className="hidden" /> : null}
           {capture ? (
@@ -197,7 +197,7 @@ export function AttachmentsSection({
               type="button"
               onClick={() => cameraInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1 text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1 text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50 min-h-10 px-1"
             >
               عکس / اسکن
             </button>
@@ -206,7 +206,7 @@ export function AttachmentsSection({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-1 text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1 text-[11.5px] font-bold text-primary cursor-pointer disabled:opacity-50 min-h-10 px-1"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             {uploading ? "در حال بارگذاری..." : "بارگذاری فایل"}
@@ -214,7 +214,7 @@ export function AttachmentsSection({
           <button
             type="button"
             onClick={() => setLinkOpen((v) => !v)}
-            className="flex items-center gap-1 text-[11.5px] font-bold text-ink-soft cursor-pointer"
+            className="flex items-center gap-1 text-[11.5px] font-bold text-ink-soft cursor-pointer min-h-10 px-1"
           >
             افزودن لینک
           </button>
@@ -231,13 +231,13 @@ export function AttachmentsSection({
             onChange={(e) => setPending({ ...pending, name: e.target.value })}
             placeholder="مثلاً: رسید پرداخت اجاره"
             maxLength={120}
-            className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
+            className="w-full min-w-0 text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2.5"
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-0">
             <button
               type="submit"
               disabled={uploading || pending.name.trim().length < 2}
-              className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
+              className="flex-1 min-h-10 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
             >
               {uploading ? "در حال ثبت..." : "ثبت فایل با این نام"}
             </button>
@@ -254,19 +254,19 @@ export function AttachmentsSection({
             value={linkTitle}
             onChange={(e) => setLinkTitle(e.target.value)}
             placeholder="عنوان فایل"
-            className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
+            className="w-full min-w-0 text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2.5"
           />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="لینک فایل (مثلاً از گوگل‌درایو یا هر سرویس دیگر)"
             dir="ltr"
-            className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
+            className="w-full min-w-0 text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2.5"
           />
           <button
             type="submit"
             disabled={submittingLink || !linkTitle.trim() || !url.trim()}
-            className="py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
+            className="min-h-10 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
           >
             {submittingLink ? "در حال ثبت..." : "افزودن پیوست"}
           </button>
@@ -286,7 +286,7 @@ export function AttachmentsSection({
             const isUploadedFile = a.fileUrl.startsWith("data:");
             return (
               <div key={a.id} className="bg-slate-50 border border-border rounded-lg px-3 py-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <DocsIcon className="w-3.5 h-3.5 text-muted shrink-0" />
                   {renamingId === a.id ? (
                     <>
@@ -295,12 +295,12 @@ export function AttachmentsSection({
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         maxLength={120}
-                        className="flex-1 min-w-0 text-[12px] outline-none bg-surface border border-border rounded-md px-2 py-1"
+                        className="flex-1 min-w-[55%] text-[12px] outline-none bg-surface border border-border rounded-md px-2 py-2"
                       />
-                      <button onClick={() => handleRename(a.id)} disabled={busyId === a.id || renameValue.trim().length < 2} className="text-[11px] font-bold text-primary cursor-pointer disabled:opacity-50">
+                      <button onClick={() => handleRename(a.id)} disabled={busyId === a.id || renameValue.trim().length < 2} className="text-[11px] font-bold text-primary cursor-pointer disabled:opacity-50 min-h-9 px-2">
                         ذخیره
                       </button>
-                      <button onClick={() => setRenamingId(null)} className="text-[11px] text-muted cursor-pointer">
+                      <button onClick={() => setRenamingId(null)} className="text-[11px] text-muted cursor-pointer min-h-9 px-2">
                         انصراف
                       </button>
                     </>
@@ -311,7 +311,7 @@ export function AttachmentsSection({
                         target={isUploadedFile ? undefined : "_blank"}
                         rel={isUploadedFile ? undefined : "noreferrer"}
                         download={isUploadedFile ? downloadName(a.title, a.fileUrl) : undefined}
-                        className="flex-1 min-w-0 text-[12px] font-bold text-primary truncate"
+                        className="flex-1 min-w-[45%] text-[12px] font-bold text-primary truncate py-1.5"
                       >
                         {a.title}
                       </a>
@@ -342,14 +342,14 @@ export function AttachmentsSection({
                               setRenamingId(a.id);
                               setRenameValue(stripExtension(a.title));
                             }}
-                            className="text-[11px] font-bold text-ink-soft cursor-pointer shrink-0"
+                            className="text-[11px] font-bold text-ink-soft cursor-pointer shrink-0 min-h-9 px-1.5"
                           >
                             تغییر نام
                           </button>
                           <button
                             onClick={() => handleDelete(a.id)}
                             disabled={deletingId === a.id}
-                            className="w-6 h-6 rounded-md flex items-center justify-center text-danger hover:bg-danger-soft cursor-pointer disabled:opacity-50 shrink-0"
+                            className="w-9 h-9 rounded-md flex items-center justify-center text-danger hover:bg-danger-soft cursor-pointer disabled:opacity-50 shrink-0"
                           >
                             <TrashIcon className="w-3 h-3" />
                           </button>
@@ -360,7 +360,7 @@ export function AttachmentsSection({
                 </div>
                 {a.sourceNote && entityType === "Report" ? <div className="text-[10.5px] text-muted mt-1 pr-5">مربوط به: {a.sourceNote}</div> : null}
                 {convertible && (entityType === CHECKLIST_ENTITY || a.sourceAttachmentId) && (canKnowledge || canConfidential) ? (
-                  <div className="flex items-center gap-3 mt-1.5 pr-5 flex-wrap">
+                  <div className="flex items-center gap-x-3 gap-y-1 mt-1.5 pr-5 flex-wrap">
                     {canKnowledge ? (
                       <button onClick={() => handleConvert(a, "knowledge")} disabled={busyId === a.id} className="text-[11px] font-bold text-primary cursor-pointer disabled:opacity-50">
                         تبدیل به دانش سازمانی

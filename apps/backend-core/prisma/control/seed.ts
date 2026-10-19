@@ -6,6 +6,7 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../../generated/control-client/index.js';
+import { MODULE_LICENSE_USD } from '../../src/modules-catalog/module-license-usd.js';
 
 const db = new PrismaClient({ datasources: { db: { url: process.env.CONTROL_DATABASE_URL } } });
 
@@ -636,7 +637,9 @@ async function main() {
     },
   ];
   for (const m of modules) {
-    await db.moduleDefinition.upsert({ where: { code: m.code }, create: m, update: m });
+    // قیمت پایه‌ی دلاری از منبع واحد؛ priceMonthly/priceYearly را همگام‌ساز قیمت روی استارت از همین می‌سازد
+    const licenseUsd = MODULE_LICENSE_USD[m.code];
+    await db.moduleDefinition.upsert({ where: { code: m.code }, create: { ...m, licenseUsd: licenseUsd ?? 0 }, update: { ...m, ...(licenseUsd === undefined ? {} : { licenseUsd }) } });
   }
 
   // 'store' هیچ کدی واقعاً پشتش نیست (هیچ کنترلری بر اساس این moduleCode

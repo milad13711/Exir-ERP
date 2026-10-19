@@ -1,6 +1,6 @@
 import { WarningIcon } from "@/components/icons";
 
-export function LicenseBlockedScreen({ reason }: { reason: string }) {
+export function LicenseBlockedScreen({ reason, installationId }: { reason: string; installationId?: string }) {
   return (
     <div className="flex h-dvh items-center justify-center bg-background p-6">
       <div className="max-w-[420px] w-full bg-surface border border-border rounded-2xl p-7 text-center">
@@ -12,6 +12,14 @@ export function LicenseBlockedScreen({ reason }: { reason: string }) {
         <p className="text-[12.5px] text-muted mt-5">
           برای تمدید یا رفع مشکل لایسنس، با پشتیبانی اکسیر تماس بگیرید.
         </p>
+        {installationId ? (
+          <p className="text-[11.5px] text-muted mt-3">
+            شناسه‌ی نصب (برای پشتیبانی):{" "}
+            <span dir="ltr" className="font-mono select-all break-all">
+              {installationId}
+            </span>
+          </p>
+        ) : null}
       </div>
     </div>
   );

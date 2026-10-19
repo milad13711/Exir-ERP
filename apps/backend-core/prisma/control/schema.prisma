@@ -274,6 +274,8 @@ enum InvoiceStatus {
   PENDING
   PAID
   FAILED
+  /// پیش‌نویس صادرشده‌ی خودکار که منتظر تأیید مدیر تننت مادر (کارتابل تأیید) است؛ هنوز قابل‌پرداخت/نمایش برای تننت نیست.
+  AWAITING_APPROVAL
 }
 
 /// یک فاکتور چه‌بسا چند ماژول را با هم پوشش دهد (خرید سبدی) — items همان
@@ -304,6 +306,13 @@ model Invoice {
   // Authority from marking a different invoice paid.
   zarinpalAuthority String?         @unique
   paymentRefId      Int? // Zarinpal's ref_id once a payment verifies successfully
+  /// چرخه‌ی تأیید مدیر (فقط فاکتورهای خودکار): AUTO | MANUAL | CHECKOUT = منشأ صدور
+  issueSource       String?
+  approvedAt        DateTime?
+  approvalNote      String? // دلیل ردِ مدیر (فاکتور رد‌شده FAILED می‌شود)
+  /// اثرانگشت مبلغ+سررسید+اقلامِ ثبت‌شده هنگام ارسال به کارتابل؛ تأیید فقط با همان محتوایی که مدیر دیده معتبر است
+  approvalHash      String?
+  lastEditedById    String? // آخرین ویرایش‌کننده‌ی فاکتور در انتظار (برای maker-checker)
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
@@ -550,29 +559,106 @@ model ResellerApplication {
 enum LicenseStatus {
   ACTIVE
   REVOKED
+  SUSPENDED
 }
 
 model License {
   id              String        @id @default(uuid())
   tenantId        String?
   orgName         String
-  signedKey       String        @unique // the full "<payload>.<signature>" offline token
+  /// کلید یکتای غیرقابل‌ویرایش (LIC-XXXXX-XXXXX-XXXXX-XXXXX). null فقط برای ردیف‌های قدیمی تا backfill در اولین بوت.
+  licenseKey      String?       @unique
+  /// توکن آفلاین امضاشده (اختیاری؛ برای نصب‌های بدون اینترنت). برای لایسنس‌های جدید فقط با درخواست ادمین ساخته می‌شود.
+  signedKey       String?       @unique
+  productName     String        @default("exir-erp")
+  edition         String? // پلن/ادیشن به‌صورت داده (بدون enum ثابت)
+  customerName    String?
+  customerEmail   String?
+  notes           String?
   allowedModules  String[]
-  seats           Int           @default(10)
+  seats           Int           @default(10) // حداکثر کاربر
+  maxActivations  Int           @default(1) // 0 = نامحدود
   status          LicenseStatus @default(ACTIVE)
   issuedAt        DateTime      @default(now())
-  expiresAt       DateTime
+  /// null = دائمی (perpetual) برای هسته
+  expiresAt       DateTime?
+  /// تا این تاریخ حق به‌روزرسانی/پشتیبانی دارد (null = نامحدود). بعد از آن نرم‌افزار کار می‌کند ولی نسخه‌های جدیدتر مجاز نیستند.
+  updatesUntil    DateTime?
+  graceDays       Int           @default(14) // مهلت آفلاین/پس از انقضا پیش از قفل سخت
+  integrityPolicy String        @default("WARN") // WARN | LOCK — واکنش به دستکاری کد
   revokedAt       DateTime?
   revokedReason   String?
+  suspendedAt     DateTime?
+  suspendedReason String?
+  deletedAt       DateTime?
   issuedByAdminId String?
+  updatedAt       DateTime      @default(now()) @updatedAt
   lastCheckInAt   DateTime? // آخرین باری که سرور on-premise این لایسنس به ما وصل شد (بهترین تلاش — نشانه‌ی زنده‌بودن اتصال، نه یک الزام)
   lastCheckInIp   String?
+  lastAppVersion  String?
+  lastTamperStatus String?
+  lastTelemetry   Json?
 
-  tenant        Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  issuedByAdmin AdminUser? @relation(fields: [issuedByAdminId], references: [id], onDelete: SetNull)
+  tenant        Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  issuedByAdmin AdminUser?          @relation(fields: [issuedByAdminId], references: [id], onDelete: SetNull)
+  activations   LicenseActivation[]
 
   @@index([expiresAt])
+  @@index([status, deletedAt])
   @@map("licenses")
+}
+
+/// فعال‌سازی = اتصال یک لایسنس به یک شناسه‌ی نصب (installationId یا دامنه). ظرفیت = License.maxActivations.
+model LicenseActivation {
+  id          String    @id @default(uuid())
+  licenseId   String
+  identifier  String // نرمال‌شده (حداکثر ۲۵۵)
+  /// هش مؤلفه‌های اثرانگشت میزبان (JSON آرایه‌ی هش) — برای تشخیص کپی نصب روی ماشین دیگر
+  fingerprint Json?
+  ip          String?
+  appVersion  String?
+  tamperStatus String?
+  lastTelemetry Json?
+  activatedAt DateTime  @default(now())
+  lastCheckAt DateTime  @default(now())
+  /// آخرین زمان سرور که برای این نصب امضا شد؛ پایه‌ی تشخیص برگشت ساعت
+  lastTokenAt DateTime?
+  deletedAt   DateTime?
+  releasedBy  String? // کاربر ادمین یا "client"
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId, identifier])
+  @@index([licenseId, deletedAt])
+  @@map("license_activations")
+}
+
+/// رویدادهای لایسنس — فقط-افزودنی (هیچ مسیر update/delete در کد وجود ندارد). عمداً بدون FK تا با حذف لایسنس باقی بماند.
+model LicenseEvent {
+  id          String   @id @default(uuid())
+  licenseId   String?
+  licenseKeyHint String? // ۸ نویسه‌ی آخر کلید؛ نه کل کلید
+  kind        String // ADMIN | PUBLIC | CHECKIN | SYSTEM
+  action      String
+  code        String?
+  actorId     String?
+  actorLabel  String?
+  ip          String?
+  detail      Json?
+  createdAt   DateTime @default(now())
+
+  @@index([licenseId, createdAt])
+  @@index([kind, createdAt])
+  @@map("license_events")
+}
+
+/// تنظیمات key/value سیستم لایسنس (api_enabled, crl_version, ...). هیچ رازی اینجا ذخیره نمی‌شود.
+model LicenseSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("license_settings")
 }
 
 // ── Cross-tenant live support → task handoff ───────────────────────────────

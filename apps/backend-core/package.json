@@ -28,6 +28,10 @@
     "seed": "tsx prisma/control/seed.ts",
     "tenant-db-roles": "tsx src/scripts/tenant-db-roles.ts",
     "license:keygen": "tsx scripts/generate-license-keypair.ts",
+    "license:issue": "tsx scripts/license-cli.ts issue",
+    "license:public-key": "tsx scripts/license-cli.ts public-key",
+    "license:offline-token": "tsx scripts/license-cli.ts offline-token",
+    "build:manifest": "tsx scripts/build-integrity-manifest.ts dist",
     "bootstrap:on-premise": "node dist/scripts/bootstrap-on-premise.js"
   },
   "dependencies": {

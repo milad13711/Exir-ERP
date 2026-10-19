@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { DocsIcon } from "@/components/icons";
 import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
@@ -79,6 +80,7 @@ export default function BookStorePage() {
           <div className="flex items-center gap-2">
             <DocsIcon className="w-5 h-5 text-primary" />
             <h1 className="text-xl font-extrabold">فروش تک‌محصولی</h1>
+            <ModuleHelp code="book-store" />
           </div>
           <p className="text-[13.5px] text-muted mt-1">سفارش‌های خرید محصول پرچم‌دار — نسخه‌ی چاپی/الکترونیکی/صوتی، تأییدشده با پیامک و درگاه پرداخت</p>
         </div>

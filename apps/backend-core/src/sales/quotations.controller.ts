@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -69,6 +69,21 @@ export class QuotationsController {
     await this.permissions.assertCreate(ctx, 'sales');
     const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
     return this.quotations.convertToInvoice(ctx, id, scope);
+  }
+
+  @Post(':id/cancel')
+  async cancel(@Param('id') id: string, @Body() body: { reason?: string }, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'sales');
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const reason = (body?.reason ?? '').trim();
+    if (reason.length < 3) throw new BadRequestException('دلیل ابطال را بنویسید');
+    return this.quotations.cancel(ctx, id, reason, scope);
+  }
+
+  @Get(':id/revisions')
+  async revisions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    return this.quotations.revisions(ctx, id, scope);
   }
 
   @Delete(':id')

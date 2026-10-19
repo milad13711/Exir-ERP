@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { WebhooksService } from '../webhooks/webhooks.service.js';
+import { FunnelService } from './funnel.service.js';
 
 export type CreateOpportunityInput = {
   contactId: string;
@@ -22,7 +23,10 @@ export type CreateOpportunityInput = {
  */
 @Injectable()
 export class CrmOpportunityService {
-  constructor(private readonly webhooks: WebhooksService) {}
+  constructor(
+    private readonly webhooks: WebhooksService,
+    private readonly funnel: FunnelService,
+  ) {}
 
   async create(ctx: TenantRequestContext, input: CreateOpportunityInput) {
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: input.contactId } });
@@ -66,6 +70,9 @@ export class CrmOpportunityService {
       value: Number(deal.value),
       stage: deal.stage,
     });
+
+    if (deal.stage === 'WON') await this.funnel.onDealWon(ctx, input.contactId);
+    else if (deal.stage !== 'LOST') await this.funnel.onDealOpened(ctx, input.contactId);
 
     return deal;
   }

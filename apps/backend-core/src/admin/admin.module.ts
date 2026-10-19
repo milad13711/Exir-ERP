@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantsModule } from '../tenants/tenants.module.js';
 import { LicensingModule } from '../licensing/licensing.module.js';
 import { BillingModule } from '../billing/billing.module.js';
+import { TenantInvoiceApprovalModule } from '../platform-management/tenant-invoice-approval.module.js';
 import { SupportModule } from '../support/support.module.js';
 import { AdminAuthService } from './admin-auth.service.js';
 import { AdminAuthController } from './admin-auth.controller.js';
@@ -26,7 +27,7 @@ import { AdminResellerApplicationsController } from './admin-reseller-applicatio
 import { ResellerApplicationsService } from './reseller-applications.service.js';
 
 @Module({
-  imports: [NotificationsModule, PublicModule, ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule],
+  imports: [NotificationsModule, PublicModule, ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule, TenantInvoiceApprovalModule],
   controllers: [
     AdminAuthController,
     AdminTenantsController,

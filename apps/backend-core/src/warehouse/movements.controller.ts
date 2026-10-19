@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Body, Controller, Get, NotFoundException, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -12,6 +12,9 @@ import { CreateMovementDto } from './dto/create-movement.dto.js';
 import { CreateTransferDto } from './dto/create-transfer.dto.js';
 import { currentStock } from './stock.js';
 import { CostingService } from './costing.service.js';
+import { MovementAmendmentService } from './movement-amendment.service.js';
+import { movementAmendBlock } from './movement-rules.js';
+import { EditMovementDto, VoidMovementDto } from './dto/amend-movement.dto.js';
 
 const MOVEMENT_LABELS_FA: Record<string, string> = {
   RECEIPT: 'رسید ورودی',
@@ -27,6 +30,7 @@ export class MovementsController {
     private readonly webhooks: WebhooksService,
     private readonly permissions: PermissionsService,
     private readonly costing: CostingService,
+    private readonly amendment: MovementAmendmentService,
   ) {}
 
   @Get()
@@ -37,7 +41,7 @@ export class MovementsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     await this.permissions.assertViewAll(ctx, 'warehouse');
-    return ctx.tenantDb.stockMovement.findMany({
+    const rows = await ctx.tenantDb.stockMovement.findMany({
       where: {
         ...(type ? { type: type as never } : {}),
         ...(productId ? { productId } : {}),
@@ -51,6 +55,28 @@ export class MovementsController {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+    // amendBlock: null = قابل ویرایش/ابطال؛ وگرنه علت مسدودی (بار حمل ثبت‌شده فقط هنگام اقدام بررسی می‌شود).
+    return rows.map((m) => ({ ...m, amendBlock: movementAmendBlock(m) }));
+  }
+
+  @Get(':id')
+  async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertViewAll(ctx, 'warehouse');
+    return this.amendment.detail(ctx, id);
+  }
+
+  /** ویرایش رسید/حواله‌ی دستی با دلیل الزامی، کنترل موجودی منفی و بازمحاسبه‌ی بهای تمام‌شده. */
+  @Patch(':id')
+  async edit(@Param('id') id: string, @Body() dto: EditMovementDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'warehouse');
+    return this.amendment.edit(ctx, id, dto);
+  }
+
+  /** ابطال نرم: ردیف می‌ماند و با یک ردیف معکوس خنثی می‌شود (حذف واقعی وجود ندارد). */
+  @Post(':id/void')
+  async voidMovement(@Param('id') id: string, @Body() dto: VoidMovementDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'warehouse');
+    return this.amendment.void(ctx, id, dto.reason.trim());
   }
 
   @Post()
@@ -102,6 +128,7 @@ export class MovementsController {
           unitCost: dto.unitCost,
           reference: dto.reference,
           note: dto.note,
+          origin: 'MANUAL',
           createdByUserId: userId,
         },
       }),

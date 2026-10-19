@@ -45,7 +45,8 @@ export class BillingController {
   @Roles('OWNER', 'ADMIN')
   invoices(@Ctx() ctx: TenantRequestContext) {
     return this.controlDb.invoice.findMany({
-      where: { tenantId: ctx.tenantId },
+      // فاکتور در انتظار تأیید مدیرِ پلتفرم هنوز برای تننت «صادر» نشده است
+      where: { tenantId: ctx.tenantId, status: { not: 'AWAITING_APPROVAL' } },
       orderBy: { issuedAt: 'desc' },
     });
   }
@@ -60,6 +61,7 @@ export class BillingController {
     });
     if (!invoice) throw new NotFoundException('فاکتور یافت نشد');
     if (invoice.tenantId !== ctx.tenantId) throw new ForbiddenException();
+    if (invoice.status === 'AWAITING_APPROVAL') throw new NotFoundException('فاکتور یافت نشد');
 
     const pdf = await this.invoicePdf.renderInvoicePdf(invoice, invoice.tenant, invoice.subscription?.plan ?? null);
     res.setHeader('Content-Type', 'application/pdf');

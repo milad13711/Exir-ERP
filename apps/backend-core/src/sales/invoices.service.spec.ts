@@ -298,6 +298,10 @@ describe('InvoicesService — lock while a Moodian tax invoice is in flight/acce
     const tenantDb = {
       salesInvoice: { findUnique: vi.fn(async () => ({ id: 'inv-1', status: 'CONFIRMED', paidAmount: 0, invoiceNo: 3 })), delete: vi.fn(), update: vi.fn() },
       taxInvoice: { findFirst: vi.fn(async (args: { where: { status?: unknown; subject?: unknown } }) => (args.where.status === 'ACCEPTED' ? null : lockStatus ? { id: 't1' } : null)) },
+      salesPayment: { count: vi.fn(async () => 0) },
+      check: { count: vi.fn(async () => 0) },
+      salesReturn: { count: vi.fn(async () => 0) },
+      shipment: { count: vi.fn(async () => 0) },
     };
     return { service, tenantDb, approvalsStub };
   }

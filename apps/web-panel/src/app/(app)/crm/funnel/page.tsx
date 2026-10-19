@@ -10,12 +10,12 @@ import { CurrencyIcon, ClockIcon, WarningIcon, StarIcon, CloseIcon, SettingsIcon
 import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { StageLabelsModal } from "@/components/crm/StageLabelsModal";
+import { FunnelStageBadge, FunnelStageControls } from "@/components/crm/FunnelStageControls";
 import {
   fetchFunnelSummary,
   fetchFunnelKpis,
   fetchFunnelContacts,
   fetchFunnelStageLabels,
-  updateFunnelStage,
   type FunnelSummary,
   type FunnelSalesKpis,
   type FunnelContact,
@@ -29,14 +29,13 @@ const STAGE_COLORS: Record<string, string> = {
   REPEAT_CUSTOMER: "#4338ca",
 };
 
-const MANUAL_STAGE_CODES: ("NEW_LEAD" | "CONTACTED" | "QUALIFIED")[] = ["NEW_LEAD", "CONTACTED", "QUALIFIED"];
-
 export default function FunnelPage() {
   const [summary, setSummary] = useState<FunnelSummary | null>(null);
   const [kpis, setKpis] = useState<FunnelSalesKpis | null>(null);
   const [stageLabels, setStageLabels] = useState<Record<string, string> | null>(null);
   const [labelsModalOpen, setLabelsModalOpen] = useState(false);
   const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<"reached" | "current">("current");
   const [stageContacts, setStageContacts] = useState<FunnelContact[] | null>(null);
 
   function reload() {
@@ -47,17 +46,17 @@ export default function FunnelPage() {
 
   useEffect(reload, []);
 
-  function openStage(stage: string) {
+  function openStage(stage: string, mode: "reached" | "current" = "current") {
     setActiveStage(stage);
+    setActiveMode(mode);
     setStageContacts(null);
-    fetchFunnelContacts(stage)
+    fetchFunnelContacts(stage, mode)
       .then(setStageContacts)
       .catch(() => setStageContacts([]));
   }
 
-  async function moveStage(contactId: string, stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED") {
-    await updateFunnelStage(contactId, stage);
-    if (activeStage) openStage(activeStage);
+  function refreshAfterChange() {
+    if (activeStage) openStage(activeStage, activeMode);
     reload();
   }
 
@@ -119,7 +118,13 @@ export default function FunnelPage() {
       {summary ? (
         <Card className="p-6 mt-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[14px] font-extrabold">قیف تبدیل — روی هر مرحله کلیک کنید</h2>
+            <div>
+              <h2 className="text-[14px] font-extrabold">قیف تبدیل — روی هر مرحله کلیک کنید</h2>
+              <p className="text-[11.5px] text-muted mt-1 leading-5">
+                هر عدد یعنی «چند نفر تا این مرحله رسیده‌اند». واجد شرایط هنوز سرنخ است؛ با اولین خرید پرداخت‌شده، برد فرصت فروش یا دکمه‌ی «تبدیل به مشتری»
+                وارد مشتری می‌شود و با خرید دوم «خرید تکراری» می‌شود. همه‌ی مخاطبین را در CRM ← مخاطبین ← «همه مخاطبین» ببینید.
+              </p>
+            </div>
             <button
               onClick={() => setLabelsModalOpen(true)}
               className="flex items-center gap-1.5 text-[11.5px] font-bold text-ink-soft cursor-pointer"
@@ -146,12 +151,15 @@ export default function FunnelPage() {
                     </div>
                   ) : null}
                   <button
-                    onClick={() => openStage(s.stage)}
+                    onClick={() => openStage(s.stage, "reached")}
                     style={{ width: `${widthPercent}%`, background: STAGE_COLORS[s.stage] ?? "#64748b" }}
                     className="h-14 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-[transform,width] hover:scale-[1.01]"
                   >
                     <span className="text-white font-bold text-[13px]">{s.label}</span>
                     <span className="text-white/90 font-extrabold text-[15px]">{toPersianDigits(s.count)}</span>
+                    {s.currentCount !== undefined && s.currentCount !== s.count ? (
+                      <span className="text-white/75 text-[11px]">({toPersianDigits(s.currentCount)} همین حالا)</span>
+                    ) : null}
                   </button>
                 </div>
               );
@@ -172,13 +180,20 @@ export default function FunnelPage() {
       )}
 
       {summary ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 mt-5">
           <button
-            onClick={() => openStage("REPEAT_CUSTOMER")}
+            onClick={() => openStage("DISQUALIFIED")}
+            className="text-right bg-surface border border-border rounded-2xl p-4.5 cursor-pointer"
+          >
+            <div className="text-[13px] text-muted">رد صلاحیت‌شده</div>
+            <div className="text-2xl font-extrabold mt-2">{toPersianDigits(summary.currentDistribution.DISQUALIFIED ?? 0)}</div>
+          </button>
+          <button
+            onClick={() => openStage("REPEAT_CUSTOMER", "reached")}
             className="text-right bg-surface border border-border rounded-2xl p-4.5 cursor-pointer"
           >
             <div className="text-[13px] text-muted">خرید تکراری</div>
-            <div className="text-2xl font-extrabold mt-2">{toPersianDigits(summary.currentDistribution.REPEAT_CUSTOMER ?? 0)}</div>
+            <div className="text-2xl font-extrabold mt-2">{toPersianDigits(summary.stages.find((st) => st.stage === "REPEAT_CUSTOMER")?.count ?? 0)}</div>
           </button>
           <button
             onClick={() => openStage("BRAND_AMBASSADOR")}
@@ -236,7 +251,9 @@ export default function FunnelPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[14px] font-extrabold">مخاطبین این مرحله</h3>
+              <h3 className="text-[14px] font-extrabold">
+                {activeMode === "reached" && stageLabels && stageLabels[activeStage] ? `رسیده به «${stageLabels[activeStage]}»` : "مخاطبین این مرحله"}
+              </h3>
               <button onClick={() => setActiveStage(null)} className="cursor-pointer text-muted">
                 <CloseIcon className="w-4.5 h-4.5" />
               </button>
@@ -273,23 +290,18 @@ export default function FunnelPage() {
                         {c.avgPurchaseGapDays ? ` — میانگین فاصله: ${toPersianDigits(c.avgPurchaseGapDays)} روز` : ""}
                       </div>
                     ) : null}
-                    {stageLabels && MANUAL_STAGE_CODES.includes(c.funnelStage as never) ? (
-                      <div className="flex items-center gap-1.5 mt-2.5">
-                        {MANUAL_STAGE_CODES.map((stage) => (
-                          <button
-                            key={stage}
-                            onClick={() => moveStage(c.id, stage)}
-                            disabled={stage === c.funnelStage}
-                            className={clsx(
-                              "text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer disabled:cursor-default",
-                              stage === c.funnelStage ? "bg-primary text-white" : "bg-slate-100 text-ink-soft",
-                            )}
-                          >
-                            {stageLabels[stage]}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                    <div className="mt-1.5">
+                      <FunnelStageBadge stage={c.funnelStage} />
+                    </div>
+                    <FunnelStageControls
+                      contactId={c.id}
+                      stage={c.funnelStage}
+                      purchaseCount={c.purchaseCount}
+                      convertedAt={c.convertedAt}
+                      disqualifyReason={c.disqualifyReason}
+                      labels={stageLabels}
+                      onChanged={refreshAfterChange}
+                    />
                   </div>
                 ))}
               </div>

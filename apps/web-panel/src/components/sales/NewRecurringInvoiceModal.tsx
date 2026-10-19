@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import {
-  fetchCrmContacts,
   fetchProducts,
   createRecurringInvoice,
   updateRecurringInvoice,
   ApiError,
-  type CrmContact,
   type Product,
   type RecurringInvoiceDetail,
   type RecurrenceFrequency,
@@ -37,7 +36,6 @@ export function NewRecurringInvoiceModal({
   /** حالت ویرایش الگوی موجود */
   template?: RecurringInvoiceDetail;
 }) {
-  const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [contactId, setContactId] = useState(editing?.contact.id ?? "");
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(editing?.frequency ?? "MONTHLY");
@@ -54,7 +52,6 @@ export function NewRecurringInvoiceModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCrmContacts().then(setContacts).catch(() => setContacts([]));
     fetchProducts().then(setProducts).catch(() => setProducts([]));
   }, []);
 
@@ -107,19 +104,11 @@ export function NewRecurringInvoiceModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مشتری</label>
-          <select
+          <ContactCombobox
             value={contactId}
-            onChange={(e) => setContactId(e.target.value)}
-            required
-            className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5"
-          >
-            <option value="">انتخاب مشتری...</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company || c.name}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => setContactId(id)}
+            initialLabel={editing?.contact ? editing.contact.company || editing.contact.name : undefined}
+          />
         </div>
 
         <div className="flex items-center gap-3">

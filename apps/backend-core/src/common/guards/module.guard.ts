@@ -1,7 +1,8 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
+import { LicenseRuntimeService } from '../../licensing/license-runtime.service.js';
 import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
 
 /**
@@ -23,6 +24,7 @@ export class ModuleGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly controlDb: ControlPrismaService,
+    @Optional() private readonly license?: LicenseRuntimeService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,6 +42,14 @@ export class ModuleGuard implements CanActivate {
 
     const allModules = await this.controlDb.moduleDefinition.findMany();
     const byCode = new Map(allModules.map((m) => [m.code, m]));
+
+    // استقرار اختصاصی: مجوز ماژول از لایسنس امضاشده می‌آید (نه فقط ردیف TenantModule که مشتری روی DB خودش می‌تواند دستکاری کند).
+    // ماژول‌های هسته (isCore) آزادند؛ بقیه باید در فهرست ماژول‌های لایسنس باشند.
+    if (this.license && !this.license.moduleAllowed(moduleCode) && !byCode.get(moduleCode)?.isCore) {
+      throw new ForbiddenException(
+        `ماژول «${byCode.get(moduleCode)?.name ?? moduleCode}» در لایسنس این نصب مجاز نیست — برای افزودن آن با پشتیبانی تماس بگیرید.`,
+      );
+    }
     const codesToCheck = this.collectTransitiveDeps(moduleCode, byCode);
 
     const installs = await this.controlDb.tenantModule.findMany({

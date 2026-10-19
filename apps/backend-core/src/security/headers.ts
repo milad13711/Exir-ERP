@@ -37,7 +37,8 @@ export function publicBodyLimitMiddleware(req: Request, res: Response, next: Nex
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   const url = req.url;
   let max = 0;
-  if (url.startsWith('/api/auth/') || url.startsWith('/api/admin/auth/')) max = 16 * 1024;
+  if (url.startsWith('/api/license-api/')) max = 4 * 1024;
+  else if (url.startsWith('/api/auth/') || url.startsWith('/api/admin/auth/')) max = 16 * 1024;
   else if (url.startsWith('/api/public/') && !url.startsWith('/api/public/forms/')) max = Number(process.env.PUBLIC_BODY_LIMIT_BYTES) || 8 * 1024 * 1024;
   if (!max) return next();
   const len = req.headers['content-length'];

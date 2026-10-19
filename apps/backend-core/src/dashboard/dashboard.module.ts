@@ -8,10 +8,11 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 import { DashboardRemindersService } from './dashboard-reminders.service.js';
 import { RemindersCronService } from './reminders-cron.service.js';
 import { InvoiceDueRemindersService } from './invoice-due-reminders.service.js';
+import { DashboardLayoutService } from './dashboard-layout.service.js';
 
 @Module({
   imports: [PermissionsModule, SalesModule, NotificationsModule],
   controllers: [DashboardController],
-  providers: [DashboardService, DashboardCalendarService, InvoiceDueRemindersService, DashboardRemindersService, RemindersCronService],
+  providers: [DashboardService, DashboardCalendarService, InvoiceDueRemindersService, DashboardRemindersService, RemindersCronService, DashboardLayoutService],
 })
 export class DashboardModule {}
