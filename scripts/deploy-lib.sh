@@ -77,7 +77,7 @@ tag_previous_before_recreate() {
   else
     src="$(docker inspect -f '{{.Image}}' "$BACKEND_CONTAINER" 2>/dev/null || true)"
   fi
-  if [ -n "$src" ]; then
+  if [ -n "$src" ] && docker image inspect "$src" >/dev/null 2>&1; then
     docker tag "$src" "${img}:previous" && echo "==> Tagged ${img}:previous <- ${src}"
   else
     echo "  (no running/last-good backend image to tag as :previous)"
