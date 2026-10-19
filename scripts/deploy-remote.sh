@@ -61,15 +61,25 @@ for svc in "${SERVICES[@]}"; do
   RUNNING_ID=""
   if [ "$svc" = "backend" ]; then
     RUNNING_ID="$(docker inspect -f '{{.Image}}' "$BACKEND_CONTAINER" 2>/dev/null || true)"
+    # Keep a tag on the running image BEFORE the build moves :latest: with the containerd image store an
+    # unreferenced image is garbage-collected immediately, which would destroy the rollback target (seen 2026-10-20).
+    if [ -n "$RUNNING_ID" ] && docker image inspect "$RUNNING_ID" >/dev/null 2>&1; then
+      docker tag "$RUNNING_ID" "${BACKEND_IMG}:running" || true
+    else
+      RUNNING_ID=""
+    fi
   fi
   compose build "$svc"
 
   if [ "$svc" = "backend" ]; then
     echo "==> [backend] PRE-DEPLOY image smoke test (throwaway container, no DB access, live container untouched)..."
-    if ! timeout 300 docker compose -f "$COMPOSE_FILE" run --rm --no-deps -T --entrypoint node backend dist/scripts/smoke-image.js; then
+    # Run the NEW image directly by id (not through `compose run`, which resolved a stale image id and failed),
+    # without network, with the server env so the AppModule import graph sees its configuration.
+    NEW_IMG_ID="$(docker image inspect -f '{{.Id}}' "${BACKEND_IMG}:latest")"
+    if ! timeout 300 docker run --rm --network none --env-file ./.env --entrypoint node "$NEW_IMG_ID" dist/scripts/smoke-image.js; then
       echo "==> [backend] IMAGE SMOKE TEST FAILED - aborting deploy; the running backend container was NOT touched." >&2
       # The build moved the :latest tag; point it back so a later `compose up` cannot pick the bad image.
-      if [ -n "$RUNNING_ID" ]; then docker tag "$RUNNING_ID" "${BACKEND_IMG}:latest" || true; fi
+      if [ -n "$RUNNING_ID" ]; then docker tag "${BACKEND_IMG}:running" "${BACKEND_IMG}:latest" || true; fi
       exit 1
     fi
     tag_previous_before_recreate "$BACKEND_IMG"

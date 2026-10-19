@@ -72,6 +72,8 @@ tag_previous_before_recreate() {
   local img="$1" src
   if docker image inspect "${img}:last-good" >/dev/null 2>&1; then
     src="${img}:last-good"
+  elif docker image inspect "${img}:running" >/dev/null 2>&1; then
+    src="${img}:running"
   else
     src="$(docker inspect -f '{{.Image}}' "$BACKEND_CONTAINER" 2>/dev/null || true)"
   fi

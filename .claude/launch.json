@@ -31,6 +31,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "../funnelking.ir", "run", "dev"],
       "port": 3005
+    },
+    {
+      "name": "funnelking-game-realtime",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../funnelking-game/apps/realtime", "run", "dev"],
+      "port": 2567
+    },
+    {
+      "name": "funnelking-game-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../funnelking-game/apps/web", "run", "dev"],
+      "port": 3006
     }
   ]
 }
