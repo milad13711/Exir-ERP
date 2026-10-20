@@ -66,16 +66,17 @@ RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_MIRROR}#g" /etc/apk
  && apk add --no-cache openssl chromium postgresql-client
 ENV NODE_ENV=production
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/generated ./generated
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x docker-entrypoint.sh \
- && addgroup -S exir && adduser -S exir -G exir \
+# کاربر غیرروت «قبل از» کپی فایل‌ها ساخته می‌شود و فایل‌ها با COPY --chown مالکیت می‌گیرند. قبلاً `chown -R /app` بعد از COPY
+# کل node_modules (~۳GB) را در یک لایه‌ی تازه تکرار می‌کرد و دیسک ۲۴GB سرور را در حین build پر می‌کرد (۲۰ اکتبر ۲۰۲۶).
+RUN addgroup -S exir && adduser -S exir -G exir \
  && mkdir -p /app/data/license \
  && chown -R exir:exir /app
+COPY --chown=exir:exir --from=build /app/node_modules ./node_modules
+COPY --chown=exir:exir --from=build /app/dist ./dist
+COPY --chown=exir:exir --from=build /app/generated ./generated
+COPY --chown=exir:exir --from=build /app/prisma ./prisma
+COPY --chown=exir:exir --from=build /app/package.json ./package.json
+COPY --chown=exir:exir --chmod=755 --from=build /app/docker-entrypoint.sh ./docker-entrypoint.sh
 USER exir
 EXPOSE 3001
 ENTRYPOINT ["./docker-entrypoint.sh"]

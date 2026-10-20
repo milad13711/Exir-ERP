@@ -56,6 +56,17 @@ if ! printf '%s\n' "${SERVICES[@]}" | grep -qx backend; then
   SMOKE_BASE_RESTARTS="$(docker inspect -f '{{.RestartCount}}' "$BACKEND_CONTAINER" 2>/dev/null || echo 0)"
 fi
 
+# Free space BEFORE building (not only after): a backend build needs several GB of headroom on the 24G disk.
+echo "==> Pre-build cleanup (build cache, dangling images)..."
+docker builder prune -af >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+FREE_GB="$(df --output=avail -BG / | tail -1 | tr -dc '0-9')"
+echo "    free disk: ${FREE_GB}G"
+if [ "${FREE_GB:-0}" -lt 4 ]; then
+  echo "==> ABORT: only ${FREE_GB}G free on / (need >= 4G to build safely). Free space first (docker image ls -a, /var/log, old backups); nothing was changed." >&2
+  exit 1
+fi
+
 for svc in "${SERVICES[@]}"; do
   echo "==> [$svc] building..."
   RUNNING_ID=""
