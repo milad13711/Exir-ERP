@@ -66,6 +66,14 @@ services:
       # توکن آفلاین (برای سرورهای بدون اینترنت) — جایگزین LICENSE_KEY=LIC-...؛ از پشتیبانی بگیرید
       LICENSE_TOKEN: ${LICENSE_TOKEN:-}
       LICENSE_STATE_DIR: /app/data/license
+      # فقط روی «سرور لایسنس» (سرور ابری خودمان) لازم است؛ کلید خصوصی و passphrase فقط به‌صورت فایل (نه env مستقیم)
+      LICENSE_SIGNING_PRIVATE_KEY_FILE: ${LICENSE_SIGNING_PRIVATE_KEY_FILE:-}
+      LICENSE_SIGNING_KEY_PASSPHRASE_FILE: ${LICENSE_SIGNING_KEY_PASSPHRASE_FILE:-}
+      LICENSE_TOKEN_VALIDITY_DAYS: ${LICENSE_TOKEN_VALIDITY_DAYS:-}
+      LICENSE_REVOKED_KIDS: ${LICENSE_REVOKED_KIDS:-}
+      LICENSE_ALLOW_INSECURE: ${LICENSE_ALLOW_INSECURE:-}
+      LICENSE_ALLOW_LEGACY_V1: ${LICENSE_ALLOW_LEGACY_V1:-}
+      LICENSE_EVENT_RETENTION_DAYS: ${LICENSE_EVENT_RETENTION_DAYS:-}
       APP_VERSION: ${APP_VERSION:-}
       ON_PREM_ORG_NAME: ${ON_PREM_ORG_NAME:?set ON_PREM_ORG_NAME in .env}
       ON_PREM_ORG_SLUG: ${ON_PREM_ORG_SLUG:-local}
@@ -146,6 +154,8 @@ services:
       - exir_license_state:/app/data
       # شناسه‌ی ماشین میزبان (فقط‌خواندنی) برای اثرانگشت نصب
       - /etc/machine-id:/etc/host-machine-id:ro
+      # کلید امضای لایسنس (فقط روی سرور لایسنس؛ پوشه‌ی میزبان ./secrets/license با دسترسی 0700). اگر وجود نداشته باشد با `mkdir -p` بسازید.
+      - ./secrets/license:/run/license:ro
 
   web:
     build:
