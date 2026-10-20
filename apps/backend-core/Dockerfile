@@ -51,7 +51,7 @@ RUN --mount=type=secret,id=license_signing_key \
 # Production-only node_modules (+ tsx for the entrypoint seed) derived from the same install, without running scripts.
 FROM deps AS prod-deps
 RUN npm prune --omit=dev --no-audit --no-fund \
- && npm install --omit=dev --no-save --ignore-scripts --no-audit --no-fund tsx@4 \
+ && npm install --save-prod --omit=dev --ignore-scripts --no-audit --no-fund tsx@^4.23.12 \
  && npm cache clean --force
 
 FROM node:20-alpine AS runtime
