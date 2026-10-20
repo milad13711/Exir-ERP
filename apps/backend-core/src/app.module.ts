@@ -49,6 +49,7 @@ import { ContractsModule } from './contracts/contracts.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { DispatchModule } from './dispatch/dispatch.module.js';
+import { CorrespondenceModule } from './correspondence/correspondence.module.js';
 import { OnlineStoreModule } from './online-store/online-store.module.js';
 import { MarketingModule } from './marketing/marketing.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
@@ -98,6 +99,7 @@ import { SignatureEvidenceModule } from './common/signature-evidence/signature-e
     ProjectsModule,
     FleetModule,
     DispatchModule,
+    CorrespondenceModule,
     OnlineStoreModule,
     MarketingModule,
     OnboardingModule,

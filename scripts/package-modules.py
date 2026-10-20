@@ -40,6 +40,7 @@ MODULES = {
     "events": (["events"], "events", "events"),
     "fleet": (["fleet"], "fleet", "fleet"),
     "dispatch": (["dispatch"], "dispatch", "dispatch"),
+    "correspondence": (["correspondence"], "correspondence", "correspondence"),
     "forms": (["forms"], "forms", "forms"),
     "hr": (["hr"], "hr", "hr"),
     "certificates": (["certificates"], "certificates", "certificates"),

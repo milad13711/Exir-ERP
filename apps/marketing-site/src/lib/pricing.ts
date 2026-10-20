@@ -80,6 +80,7 @@ export const MODULE_LICENSE_WEIGHTS_USD: Record<string, number> = {
   "after-sales-service": 270,
   "fleet": 520,
   "dispatch": 380,
+  "correspondence": 320,
   "online-store": 450,
   "marketing": 415,
   "tax": 450,

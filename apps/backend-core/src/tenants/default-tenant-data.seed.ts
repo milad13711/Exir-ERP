@@ -30,6 +30,9 @@ type ModuleMatrix = {
 const FULL_ACCESS: ModuleMatrix = { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: true };
 const OWN_CONTRIBUTOR: ModuleMatrix = { canViewAll: false, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false };
 
+/** مکاتبات: همه فقط نامه‌های خودشان را می‌بینند و می‌توانند بسازند (نه ویرایش/حذف نامه‌ی دیگران). */
+const OWN_CREATE: ModuleMatrix = { canViewAll: false, canViewOwn: true, canCreate: true, canEdit: false, canDelete: false };
+
 // Default access matrix per system role, per module — an admin can
 // reconfigure this later from Settings → Roles; these are just the
 // sensible starting point a fresh tenant gets.
@@ -50,6 +53,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     projects: FULL_ACCESS,
     fleet: FULL_ACCESS,
     dispatch: FULL_ACCESS,
+    correspondence: FULL_ACCESS,
     proposals: FULL_ACCESS,
     tax: FULL_ACCESS,
     certificates: FULL_ACCESS,
@@ -60,6 +64,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     crm: OWN_CONTRIBUTOR,
     tasks: OWN_CONTRIBUTOR,
     sales: OWN_CONTRIBUTOR,
+    correspondence: OWN_CREATE,
     // پیشنهادها: فقط موارد خودش (بدون مشاهده‌ی همه/حذف)
     proposals: OWN_CONTRIBUTOR,
     // View-only: needed to browse the product catalog when picking line items for an invoice.
@@ -71,6 +76,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     sales: { canViewAll: true, canViewOwn: true, canCreate: false, canEdit: true, canDelete: false },
     purchasing: { canViewAll: true, canViewOwn: true, canCreate: false, canEdit: true, canDelete: false },
     tasks: OWN_CONTRIBUTOR,
+    correspondence: OWN_CREATE,
   },
   انباردار: {
     warehouse: OWN_CONTRIBUTOR,
@@ -78,6 +84,7 @@ const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> =
     dispatch: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
     purchasing: { canViewAll: true, canViewOwn: true, canCreate: true, canEdit: true, canDelete: false },
     tasks: OWN_CONTRIBUTOR,
+    correspondence: OWN_CREATE,
   },
 };
 

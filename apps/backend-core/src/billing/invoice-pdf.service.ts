@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { chromiumLaunchOptions } from '../common/chromium-launch.js';
 import puppeteer, { type Browser } from 'puppeteer';
 import { formatJalaliDate, formatJalaliFull, formatToman } from '../common/persian.js';
 import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-font.js';
@@ -39,11 +40,7 @@ export class InvoicePdfService implements OnModuleDestroy {
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
-      this.browserPromise = puppeteer.launch({
-        headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
+      this.browserPromise = puppeteer.launch(chromiumLaunchOptions());
     }
     return this.browserPromise;
   }

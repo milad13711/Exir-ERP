@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { CORRESPONDENCE_ATTACHMENT_ENTITIES, logLetterAttachmentEvent } from '../correspondence/correspondence-attachment-access.js';
 import { AttachmentAccessService } from './attachment-access.service.js';
 import { CreateAttachmentDto } from './dto/create-attachment.dto.js';
 import { ConvertAttachmentDto, RenameAttachmentDto } from './dto/convert-attachment.dto.js';
@@ -48,7 +49,7 @@ export class AttachmentsController {
       const siblings = await ctx.tenantDb.attachment.findMany({ where: { entityType: dto.entityType, entityId: dto.entityId }, select: { title: true } });
       title = normalizeChecklistAttachmentTitle(dto.title, siblings.map((s) => s.title));
     }
-    return ctx.tenantDb.attachment.create({
+    const created = await ctx.tenantDb.attachment.create({
       data: {
         entityType: dto.entityType,
         entityId: dto.entityId,
@@ -58,6 +59,8 @@ export class AttachmentsController {
       },
       include: { createdBy: { select: { name: true } } },
     });
+    await logLetterAttachmentEvent(ctx, dto.entityType, dto.entityId, 'ATTACHMENT_ADDED', title);
+    return created;
   }
 
   /** تغییر نام یک پیوست (مثلاً پیوست‌های قدیمیِ بدون نام مناسب). */
@@ -65,7 +68,8 @@ export class AttachmentsController {
   async rename(@Param('id') id: string, @Body() dto: RenameAttachmentDto, @Ctx() ctx: TenantRequestContext) {
     const attachment = await ctx.tenantDb.attachment.findUnique({ where: { id } });
     if (!attachment) throw new NotFoundException('پیوست یافت نشد');
-    await this.access.assertAccess(ctx, attachment.entityType, attachment.entityId, 'write');
+    // تغییر نام یک پیوست موجود برای مکاتبات هم‌سطح حذف است (رسید/اسکن/پیوست امضاشده تغییر نام نمی‌دهند)
+    await this.access.assertAccess(ctx, attachment.entityType, attachment.entityId, CORRESPONDENCE_ATTACHMENT_ENTITIES.has(attachment.entityType) ? 'delete' : 'write');
     let title = dto.title.trim();
     if (attachment.entityType === CHECKLIST_ITEM_ENTITY) {
       const siblings = await ctx.tenantDb.attachment.findMany({
@@ -95,6 +99,7 @@ export class AttachmentsController {
     if (!attachment) throw new NotFoundException('پیوست یافت نشد');
     await this.access.assertAccess(ctx, attachment.entityType, attachment.entityId, 'delete');
     await ctx.tenantDb.attachment.delete({ where: { id } });
+    await logLetterAttachmentEvent(ctx, attachment.entityType, attachment.entityId, 'ATTACHMENT_REMOVED', attachment.title);
     return { success: true };
   }
 }

@@ -1,0 +1,15 @@
+# سخت‌سازی ماژول مکاتبات
+
+## Chromium (تولید PDF نامه و فاکتور)
+- `src/common/chromium-launch.ts`: env حداقلی (`PATH`، `HOME`، `LANG`)، فلگ‌های `--disable-dev-shm-usage --disable-gpu --disable-extensions --js-flags=--jitless`.
+- برای هر رندر `browser.createBrowserContext()` تازه ساخته و بعد از رندر بسته می‌شود؛ مرورگر هر `LETTER_PDF_RECYCLE_AFTER` (پیش‌فرض ۱۰۰) رندر بازیافت می‌شود.
+- سهم عادلانه: سطل توکن به‌ازای تننت (`LETTER_PDF_TENANT_BURST/PER_MIN`) و کاربر (`LETTER_PDF_USER_BURST/PER_MIN`)؛ rate-limit مسیرهای `GET /correspondence/letters/:id/pdf|slip` (`RL_CORR_PDF_PER_MIN`، قانون `corr-pdf-token`)؛ کش ۶۰ثانیه‌ای PDF زنده؛ یک slot رزرو فقط برای فاز ۲ امضا.
+- **Sandbox**: در تصویر فعلی (کاربر غیرروت `exir`، Alpine + `chromium`، Docker با seccomp پیش‌فرض) user-namespace در دسترس نیست و Chromium با sandbox بالا نمی‌آید (بدون `CAP_SYS_ADMIN` یا seccomp سفارشی). بنابراین پیش‌فرض `--no-sandbox` است و **روشن‌کردنش بدون تغییر زیرساخت ممکن نیست** (در این مرحله روی سرور آزموده نشد). میزبانی که userns دارد با `CHROMIUM_SANDBOX=1` آن را روشن می‌کند. جبران: JS خاموش، قطع هر درخواست غیر `data:`، context تازه، env حداقلی، jitless، اعتبارسنجی ابعاد تصویر (≤۲۵ مگاپیکسل و ضلع ≤۸۰۰۰)، timeout سخت با بستن صفحه‌ها.
+
+## نامه‌های «سری» و پشتیبان/خروجی
+- پشتیبان `pg_dump` کل دیتابیس تننت (از جمله `corr_letters`) را می‌گیرد؛ محافظت فقط با رمزنگاری پشتیبان (`BACKUP_ENCRYPTION_KEY`) است و بدون آن هشدار «UNENCRYPTED» لاگ می‌شود. دسترسی به فایل پشتیبان = دسترسی به همه‌ی نامه‌ها؛ فقط مالک/عملیات.
+- خروجی دفتر ثبت (CSV) در دامنه‌ی دید کاربر ساخته می‌شود؛ نامه‌ی «سری» فقط برای OWNER (یا مشارکت‌کنندگان) در آن می‌آید.
+- خروج کاربر: نامه‌های «سری» و پیش‌نویس‌ها خودکار منتقل نمی‌شوند (هشدار `NEEDS_OWNER`)؛ انتقال دستی فقط با مالک.
+
+## جست‌وجو
+- نویسه‌های `% _ \` در ورودی جست‌وجو به فاصله تبدیل می‌شوند (Prisma در `contains` آن‌ها را escape نمی‌کند).

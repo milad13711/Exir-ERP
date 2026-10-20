@@ -9,7 +9,6 @@ import {
   fetchRoles,
   fetchRolesWithPermissions,
   inviteUser,
-  deleteUser,
   createRole,
   deleteRole,
   fetchDepartments,
@@ -30,6 +29,8 @@ import { ManagementRoleModal } from "@/components/settings/ManagementRoleModal";
 import { UserPermissionsModal } from "@/components/settings/UserPermissionsModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
+import { OffboardUserModal } from "@/components/settings/OffboardUserModal";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { useWorkspace } from "@/lib/workspace-context";
 
 const roleTones: Record<string, "primary" | "accent" | "warning" | "neutral"> = {
@@ -101,19 +102,8 @@ export default function UsersRolesPage() {
   }
 
   const [mgmtUser, setMgmtUser] = useState<TenantUser | null>(null);
-
-  async function handleDeleteUser(id: string) {
-    if (!confirm("درخواست حذف این کاربر ثبت شود؟ حذف نهایی پس از تأیید مدیر انجام می‌شود و دسترسی او به این محیط کاری کاملاً لغو خواهد شد.")) return;
-    try {
-      const result = await deleteUser(id);
-      if (result.pendingApproval) {
-        alert("درخواست حذف در کارتابل مدیر ثبت شد؛ پس از تأیید مدیر، کاربر حذف می‌شود.");
-      }
-      reload();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "حذف کاربر با خطا مواجه شد");
-    }
-  }
+  // «حذف کاربر و انتقال رکوردها» (offboard) یا «انتقال رکوردها بدون حذف» (transfer)
+  const [offboarding, setOffboarding] = useState<{ user: TenantUser; flow: "offboard" | "transfer" } | null>(null);
 
   async function handleCreateRole(e: React.FormEvent) {
     e.preventDefault();
@@ -178,7 +168,10 @@ export default function UsersRolesPage() {
     <div>
       <div className="flex items-baseline justify-between mb-5.5 gap-4">
         <div>
-          <h1 className="text-xl font-extrabold">کاربران و نقش‌ها</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-extrabold">کاربران و نقش‌ها</h1>
+            <ModuleHelp code="users" />
+          </div>
           <p className="text-[13.5px] text-muted mt-1">
             دسترسی هر کاربر به ماژول‌ها و بخش‌های مختلف را مدیریت کنید
           </p>
@@ -339,10 +332,18 @@ export default function UsersRolesPage() {
                             سطح مدیریتی
                           </button>
                         ) : null}
+                        {u.status !== "INVITED" ? (
+                          <button
+                            onClick={() => setOffboarding({ user: u, flow: "transfer" })}
+                            className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-2.5 min-h-10 rounded-lg cursor-pointer whitespace-nowrap"
+                          >
+                            انتقال رکوردها
+                          </button>
+                        ) : null}
                         {u.phone !== me?.user.phone && canDeleteUser(me?.user.membershipRole, u.membershipRole) ? (
                           <button
-                            onClick={() => handleDeleteUser(u.id)}
-                            className="text-[11.5px] font-bold text-danger px-2.5 py-1.5 rounded-lg cursor-pointer whitespace-nowrap"
+                            onClick={() => setOffboarding({ user: u, flow: "offboard" })}
+                            className="text-[11.5px] font-bold text-danger px-2.5 min-h-10 rounded-lg cursor-pointer whitespace-nowrap"
                           >
                             حذف
                           </button>
@@ -540,6 +541,20 @@ export default function UsersRolesPage() {
         />
       ) : null}
       {permUser ? <UserPermissionsModal user={permUser} roles={rolesWithPerms} onClose={() => setPermUser(null)} /> : null}
+
+      {offboarding && users ? (
+        <OffboardUserModal
+          user={offboarding.user}
+          users={users}
+          flow={offboarding.flow}
+          actorRole={me?.user.membershipRole}
+          onClose={() => setOffboarding(null)}
+          onDone={() => {
+            setOffboarding(null);
+            reload();
+          }}
+        />
+      ) : null}
 
       {editingUser ? (
         <EditUserModal user={editingUser} roles={roles} onClose={() => setEditingUser(null)} onSaved={reload} />

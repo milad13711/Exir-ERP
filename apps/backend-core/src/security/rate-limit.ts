@@ -81,6 +81,10 @@ export function buildRouteRules(): RouteRuleSet[] {
     { match: (_m, p) => p.startsWith('/api/public/voip/'), rules: [{ name: 'voip-webhook-ip', limit: 3000, windowSec: 60, by: 'ip' }] },
     // «پروژه‌های من» در صفحه‌ی پیگیری (نشست OTP): فهرست‌کردن/حدس توکن را کند می‌کند
     { match: (m, p) => m === 'POST' && /^\/api\/public\/tracking\/[^/]+\/(my-)?projects\/?$/.test(p), rules: [{ name: 'tracking-projects-ip', limit: n(process.env.RL_TRACKING_PROJECTS_PER_IP_15M, 60), windowSec: 900, by: 'ip' }] },
+    // تولید PDF نامه با Chromium (سنگین): پیش‌نمایش/نمونه‌ی سربرگ — به ازای توکن
+    { match: (m, p) => m === 'POST' && /^\/api\/correspondence\/(pdf\/preview|letterheads\/[^/]+\/sample-pdf|templates\/[^/]+\/preview-pdf)\/?$/.test(p), rules: [{ name: 'corr-pdf-token', limit: n(process.env.RL_CORR_PDF_PER_MIN, 20), windowSec: 60, by: 'token' }] },
+    // دانلود/رندر PDF نامه و برگ ثبت (GET) — همان سقف پیش‌نمایش
+    { match: (m, p) => m === 'GET' && /^\/api\/correspondence\/letters\/[^/]+\/(pdf|slip)\/?$/.test(p), rules: [{ name: 'corr-pdf-token', limit: n(process.env.RL_CORR_PDF_PER_MIN, 20), windowSec: 60, by: 'token' }] },
     // نوشتن در endpointهای عمومی بدون ورود (ثبت فرم/سفارش/نوبت/... ) — ضد اسپم و SMS-pumping
     { match: (m, p) => m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && p.startsWith('/api/public/'), rules: [{ name: 'public-write-ip', limit: n(process.env.RL_PUBLIC_WRITE_PER_IP_MIN, 120), windowSec: 60, by: 'ip' }] },
     { match: (m, p) => (m === 'GET' || m === 'HEAD') && p.startsWith('/api/public/'), rules: [{ name: 'public-read-ip', limit: n(process.env.RL_PUBLIC_READ_PER_IP_MIN, 600), windowSec: 60, by: 'ip' }] },

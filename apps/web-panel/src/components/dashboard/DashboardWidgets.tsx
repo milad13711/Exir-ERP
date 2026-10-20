@@ -40,6 +40,7 @@ import { DueOrOverdueInvoicesWidget } from "@/components/dashboard/DueOrOverdueI
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { isTaskFinished } from "@/components/tasks/task-ui";
+import { fetchCounters, type Counters } from "@/lib/correspondence-api";
 
 export type WidgetProps = { size: "S" | "M" | "L" | "FULL"; variant: string };
 
@@ -515,6 +516,28 @@ function DispatchActiveWidget({ variant }: WidgetProps) {
   );
 }
 
+function CorrespondenceMineWidget({ variant }: WidgetProps) {
+  const [data, setData] = useState<Counters | null | false>(null);
+  useEffect(() => {
+    fetchCounters().then(setData).catch(() => setData(false));
+  }, []);
+  const tiles: CountTile[] = data
+    ? [
+        { key: "sign", label: "منتظر امضای من", value: data.pendingSignature, tone: "text-warning", href: "/correspondence" },
+        { key: "ref", label: "ارجاع به من", value: data.referralsToMe, tone: "text-primary", href: "/correspondence" },
+        { key: "late", label: "ارجاع معوق", value: data.overdueReferrals, tone: "text-danger", href: "/correspondence" },
+        { key: "wait", label: "وارده‌ی بدون پاسخ", value: data.awaitingIncoming, tone: "text-accent", href: "/correspondence/incoming" },
+        { key: "due", label: "مهلت پاسخ گذشته", value: data.overdueResponses, tone: "text-danger", href: "/correspondence/search" },
+        { key: "draft", label: "پیش‌نویس‌ها", value: data.drafts, tone: "text-ink", href: "/correspondence" },
+      ]
+    : [];
+  return (
+    <WidgetCard title="مکاتبات من" href="/correspondence">
+      {data === null ? LOADING : data === false ? empty("بارگذاری ناموفق بود") : <CountTiles tiles={tiles} compact={variant === "compact"} />}
+    </WidgetCard>
+  );
+}
+
 // ── رجیستری کلاینت: key ← کامپوننت ─────────────────────────────────────────────
 
 export const WIDGET_RENDERERS: Record<string, ComponentType<WidgetProps>> = {
@@ -540,6 +563,7 @@ export const WIDGET_RENDERERS: Record<string, ComponentType<WidgetProps>> = {
   "production-trend": ProductionTrendWidget,
   "operations-overview": OperationsOverviewWidget,
   "dispatch-active": DispatchActiveWidget,
+  "correspondence-mine": CorrespondenceMineWidget,
   "recent-activity": RecentActivityWidget,
 };
 

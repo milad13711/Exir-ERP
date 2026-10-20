@@ -5224,3 +5224,406 @@ model DashboardLayout {
   @@unique([scope, ownerKey])
   @@map("dashboard_layouts")
 }
+
+/// گزارش تغییرناپذیر «خروج کاربر / انتقال رکوردها» — هر اجرا (حتی dry-run نه) یک ردیف؛ هیچ‌وقت ویرایش یا حذف نمی‌شود.
+/// شناسه‌ها عمداً بدون FK به User‌اند تا حذف/ناشناس‌سازی کاربر این سابقه را نشکند؛ نام‌ها به‌صورت اسنپ‌شات ذخیره می‌شوند.
+model UserOffboardingRun {
+  id                String   @id @default(uuid())
+  fromUserId        String
+  fromUserName      String
+  toUserId          String?
+  toUserName        String?
+  performedByUserId String?
+  performedByName   String?
+  /// transfer-only | deactivate | delete
+  mode              String
+  reason            String?
+  /// خلاصه‌ی شمارش‌ها: { entries: [{ key, moduleCode, label, moved, merged, unassigned }], cleanup: [{ key, label, count }] }
+  counts            Json
+  /// شناسه‌ی رکوردهای جابه‌جاشده برای بازگردانی دستی: [{ key, action, toUserId, ids }] — سقف‌دار (truncated)
+  details           Json?
+  truncated         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([fromUserId, createdAt])
+  @@index([createdAt])
+  @@map("user_offboarding_runs")
+}
+
+/// سربرگ مکاتبات (ماژول correspondence): تصویر پس‌زمینه (data-URI) + چیدمان جعبه‌ها بر حسب میلی‌متر (layoutJson، اعتبارسنجی در letterhead-layout.ts).
+model CorrLetterhead {
+  id              String   @id @default(uuid())
+  name            String
+  isDefault       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  /// data:image/png|jpeg;base64,… (≤ ۳ مگابایت)
+  backgroundImage String?
+  pageSize        String   @default("A4") // A4 | A5
+  orientation     String   @default("portrait") // portrait | landscape
+  layoutJson      Json
+  /// اختیاری: سربرگ مخصوص یک واحد سازمانی (بدون FK)
+  departmentId    String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isDefault, isActive])
+  @@index([departmentId])
+  @@map("corr_letterheads")
+}
+
+/// قالب متن پیش‌فرض نامه (متن HTML پاک‌سازی‌شده + جانشین‌های {{...}}).
+model CorrTemplate {
+  id                  String   @id @default(uuid())
+  name                String
+  /// INCOMING | OUTGOING | INTERNAL | ANY
+  letterType          String   @default("ANY")
+  categoryId          String?
+  subject             String   @default("")
+  bodyHtml            String
+  defaultLetterheadId String?
+  isActive            Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  /// قالب‌های پیش‌فرض سیستم (seed تنبل) — حذف‌پذیرند ولی دوباره ساخته نمی‌شوند
+  isSystem            Boolean  @default(false)
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([letterType, isActive, sortOrder])
+  @@map("corr_templates")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// مکاتبات سازمانی (دبیرخانه) — ماژول correspondence. جدول‌ها با پیشوند corr_.
+// وضعیت/نوع/اولویت/محرمانگی عمداً String‌اند (نه enum) تا افزودن مقدار جدید migration حساس نخواهد؛
+// مقادیر مجاز در src/correspondence/correspondence.constants.ts اعمال می‌شوند.
+// شناسه‌ی کاربر/مخاطب/سربرگ/قالب عمداً بدون FK است (کاربر حذف/ناشناس شود سابقه‌ی رسمی نشکند).
+// ════════════════════════════════════════════════════════════════════════════
+
+/// دسته‌بندی نامه‌ها (درختی).
+model CorrLetterCategory {
+  id        String   @id @default(uuid())
+  parentId  String?
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  parent   CorrLetterCategory?  @relation("CorrCategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children CorrLetterCategory[] @relation("CorrCategoryTree")
+  letters  CorrLetter[]
+
+  @@index([parentId])
+  @@map("corr_letter_categories")
+}
+
+/// طرح شماره‌گذاری هر نوع نامه. الگو: {YYYY} {YY} {MM} (شمسی) {SEQ:n} {TYPE} {CAT}.
+model CorrNumberingScheme {
+  id          String   @id @default(uuid())
+  name        String
+  /// INCOMING | OUTGOING | INTERNAL
+  type        String
+  pattern     String
+  /// YEARLY | MONTHLY | NEVER
+  resetPolicy String   @default("YEARLY")
+  /// اولین شماره‌ی هر دوره
+  startAt     Int      @default(1)
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  counters CorrNumberCounter[]
+
+  @@index([type, isDefault, isActive])
+  @@map("corr_numbering_schemes")
+}
+
+/// شمارنده‌ی هر (طرح، دوره). افزایش فقط با INSERT … ON CONFLICT DO UPDATE … RETURNING درون تراکنش صدور.
+model CorrNumberCounter {
+  id        String   @id
+  schemeId  String
+  periodKey String
+  lastSeq   Int
+  updatedAt DateTime @default(now())
+
+  scheme CorrNumberingScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  @@unique([schemeId, periodKey])
+  @@map("corr_number_counters")
+}
+
+/// پوشه‌ی بایگانی (درختی) با مهلت نگهداری پیش‌فرض.
+model CorrArchiveFolder {
+  id            String   @id @default(uuid())
+  parentId      String?
+  name          String
+  retentionDays Int?
+  createdAt     DateTime @default(now())
+
+  @@index([parentId])
+  @@map("corr_archive_folders")
+}
+
+/// خود نامه. شماره فقط هنگام صدور/ثبت وارده تخصیص می‌یابد؛ هرگز استفاده‌ی مجدد نمی‌شود (باطل‌شدن شماره را می‌سوزاند).
+model CorrLetter {
+  id                String    @id @default(uuid())
+  /// INCOMING | OUTGOING | INTERNAL
+  type              String
+  status            String
+  subject           String
+  /// HTML پاک‌سازی‌شده (sanitizeLetterHtml)
+  bodyHtml          String    @default("")
+  /// متن ساده‌ی بدنه (بدون تگ/تصویر) — فقط برای جست‌وجوی ILIKE
+  bodyText          String    @default("")
+  letterNumber      String?
+  numberingSchemeId String?
+  numberPeriodKey   String?
+  numberSeq         Int?
+  letterDate        DateTime?
+  issuedAt          DateTime?
+
+  // وارده
+  externalNumber     String?
+  externalDate       DateTime?
+  receivedAt         DateTime?
+  /// POST | COURIER | EMAIL | HAND | SYSTEM
+  deliveryMethod     String?
+  senderOrgName      String?
+  senderName         String?
+  senderContactId    String?
+  /// کلید نرمال‌شده‌ی فرستنده برای تشخیص ثبت تکراری وارده
+  senderKey          String?
+  pageCount          Int?
+  attachmentsText    String?
+  registeredAt       DateTime?
+  registeredByUserId String?
+  registeredByName   String?
+
+  // صادره / داخلی: [{name,title?,org?,contactId?}]
+  recipients     Json     @default("[]")
+  /// نام گیرندگان به‌صورت متن ساده — فقط برای جست‌وجوی ILIKE
+  recipientsText String   @default("")
+  ccNames        String[] @default([])
+
+  categoryId           String?
+  /// NORMAL | URGENT | IMMEDIATE
+  priority             String    @default("NORMAL")
+  /// NORMAL | CONFIDENTIAL | VERY_CONFIDENTIAL | SECRET
+  confidentiality      String    @default("NORMAL")
+  responseDueAt        DateTime?
+  answeredAt           DateTime?
+  closedAt             DateTime?
+  replyToLetterId      String?
+  correctionOfLetterId String?
+
+  relatedContactId  String?
+  relatedProjectId  String?
+  relatedContractId String?
+  relatedInvoiceId  String?
+
+  /// مرجع به جدول‌های سربرگ/قالب (CorrLetterhead/CorrTemplate) — بدون FK
+  letterheadId String?
+  templateId   String?
+  tags         String[] @default([])
+
+  createdByUserId String?
+  createdByName   String?
+  ownerUserId     String?
+  signerUserId    String?
+  submittedAt     DateTime?
+  signedAt        DateTime?
+  signedByUserId  String?
+  signerName      String?
+  signerTitle     String?
+  lastReturnNote  String?
+
+  voidedAt       DateTime?
+  voidReason     String?
+  voidedByUserId String?
+
+  archivedAt      DateTime?
+  archiveFolderId String?
+  retentionUntil  DateTime?
+
+  /// PDF امضاشده‌ی تغییرناپذیر: پیوست با entityType «LetterSnapshot» + هش SHA-256
+  pdfSnapshotAttachmentId String?
+  pdfSnapshotSha256       String?
+  contentHash             String?
+  /// هش SHA-256 توکن صحت‌سنجی (خود توکن فقط در QR چاپ‌شده می‌ماند)
+  verifyTokenHash         String? @unique
+  revisionNo              Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category     CorrLetterCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  referrals    CorrReferral[]
+  paraphs      CorrParaph[]
+  events       CorrEvent[]
+  revisions    CorrRevision[]
+  participants CorrParticipant[]
+  deliveries   CorrDelivery[]
+  reviews      CorrLetterReview[]
+
+  @@unique([type, letterNumber])
+  @@index([type, status, createdAt])
+  @@index([status, createdAt])
+  @@index([createdByUserId])
+  @@index([ownerUserId])
+  @@index([signerUserId, status])
+  @@index([categoryId])
+  @@index([replyToLetterId])
+  @@index([senderKey, externalNumber])
+  @@index([letterDate])
+  @@index([archivedAt])
+  @@index([responseDueAt])
+  @@map("corr_letters")
+}
+
+/// ارجاع (زنجیره‌ی مسئولیت با دستور و مهلت). kind=INFO یعنی «رونوشت/جهت اطلاع».
+model CorrReferral {
+  id                String    @id @default(uuid())
+  letterId          String
+  fromUserId        String
+  fromName          String?
+  toUserId          String
+  toName            String?
+  /// ACTION | INFO
+  kind              String    @default("ACTION")
+  instruction       String    @default("")
+  dueAt             DateTime?
+  /// PENDING | SEEN | DONE | RETURNED | CANCELLED
+  status            String    @default("PENDING")
+  seenAt            DateTime?
+  completedAt       DateTime?
+  response          String?
+  parentReferralId  String?
+  /// شماره‌ی ترتیب در زنجیره
+  seq               Int       @default(1)
+  dueNotifiedAt     DateTime?
+  overdueNotifiedAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId, seq])
+  @@index([toUserId, status])
+  @@index([status, dueAt])
+  @@map("corr_referrals")
+}
+
+/// پاراف — یادداشت کوتاه تغییرناپذیر که زیر نامه چاپ می‌شود (هیچ مسیر ویرایش/حذف ندارد).
+model CorrParaph {
+  id           String   @id @default(uuid())
+  letterId     String
+  authorUserId String
+  authorName   String
+  authorTitle  String?
+  text         String
+  /// ترتیب چاپ
+  order        Int
+  createdAt    DateTime @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([letterId, order])
+  @@map("corr_paraphs")
+}
+
+/// مرحله‌ی بازبینی پیش از امضا (اختیاری).
+model CorrLetterReview {
+  id             String    @id @default(uuid())
+  letterId       String
+  reviewerUserId String
+  reviewerName   String?
+  order          Int       @default(1)
+  /// PENDING | APPROVED | CHANGES_REQUESTED
+  status         String    @default("PENDING")
+  note           String?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([letterId, reviewerUserId])
+  @@index([reviewerUserId, status])
+  @@map("corr_letter_reviews")
+}
+
+/// خط‌زمان رویدادها.
+model CorrEvent {
+  id          String   @id @default(uuid())
+  letterId    String
+  type        String
+  actorUserId String?
+  actorName   String?
+  note        String?
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId, createdAt])
+  @@map("corr_events")
+}
+
+/// نسخه‌ی قبل/بعد هر ویرایش (فقط در DRAFT/RETURNED_FOR_EDIT).
+model CorrRevision {
+  id            String   @id @default(uuid())
+  letterId      String
+  revisionNo    Int
+  reason        String?
+  before        Json
+  after         Json
+  changedFields String[] @default([])
+  actorUserId   String?
+  actorName     String?
+  createdAt     DateTime @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([letterId, revisionNo])
+  @@map("corr_revisions")
+}
+
+/// مشارکت‌کنندگان نامه — مبنای دید نامه.
+model CorrParticipant {
+  id        String   @id @default(uuid())
+  letterId  String
+  userId    String
+  /// CREATOR | REFERRAL | SIGNER | REVIEWER | CC | PARAPHER | VIEWER
+  role      String
+  createdAt DateTime @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([letterId, userId, role])
+  @@index([userId, letterId])
+  @@map("corr_participants")
+}
+
+/// ثبت ارسال/تحویل نامه‌ی صادره.
+model CorrDelivery {
+  id                  String    @id @default(uuid())
+  letterId            String
+  /// POST | COURIER | EMAIL | HAND | SYSTEM
+  method              String
+  recipientName       String?
+  sentAt              DateTime?
+  trackingCode        String?
+  deliveredAt         DateTime?
+  receiptReceivedAt   DateTime?
+  /// رسید تحویل: پیوست با entityType «Letter»
+  receiptAttachmentId String?
+  note                String?
+  createdByUserId     String?
+  createdAt           DateTime  @default(now())
+
+  letter CorrLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId])
+  @@map("corr_deliveries")
+}

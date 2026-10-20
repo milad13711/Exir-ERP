@@ -538,6 +538,71 @@ export function deleteUser(id: string) {
   return apiFetch<{ success: boolean; pendingApproval: boolean }>(`/users/${id}`, { method: "DELETE" });
 }
 
+// ── خروج کاربر / انتقال رکوردها ─────────────────────────────────────────────
+
+export type OffboardingMode = "transfer-only" | "deactivate" | "delete";
+
+export type OffboardingBlockingIssue = { code: string; message: string };
+export type OffboardingWarning = { code: string; message: string; moduleCode?: string; targetUserId?: string; count?: number };
+
+export type OffboardingPreview = {
+  user: { id: string; name: string; status: TenantUser["status"]; membershipRole: "OWNER" | "ADMIN" | "MEMBER" };
+  mode: OffboardingMode;
+  modules: Array<{
+    moduleCode: string;
+    label: string;
+    installed: boolean;
+    total: number;
+    entries: Array<{ key: string; label: string; count: number; scopeNote: string }>;
+  }>;
+  totalOwned: number;
+  blockingIssues: OffboardingBlockingIssue[];
+  warnings: OffboardingWarning[];
+  suggestedTargets: Array<{ userId: string; name: string; reason: "manager" | "department-manager" | "same-role" | "owner" }>;
+};
+
+export type OffboardingRequest = {
+  transferToUserId?: string;
+  perModuleOverrides?: Record<string, string>;
+  mode?: OffboardingMode;
+  reason?: string;
+  acceptTargetWithoutAccess?: boolean;
+  notifyManager?: boolean;
+};
+
+export type OffboardingResult = {
+  dryRun: boolean;
+  runId: string | null;
+  mode: OffboardingMode;
+  fromUser: { id: string; name: string };
+  target: { id: string; name: string } | null;
+  userOutcome: "unchanged" | "deactivated" | "anonymised" | "deleted";
+  freesLicenseSeat: boolean;
+  totals: { moved: number; merged: number; unassigned: number; cleanedUp: number };
+  modules: Array<{ moduleCode: string; label: string; moved: number; merged: number; unassigned: number }>;
+  cleanup: Array<{ key: string; label: string; action: "delete" | "nullify"; count: number }>;
+  warnings: OffboardingWarning[];
+  requiresAcceptance: boolean;
+  truncated: boolean;
+};
+
+export function fetchOffboardingPreview(id: string, mode: OffboardingMode) {
+  return apiFetch<OffboardingPreview>(`/users/${id}/offboarding-preview?mode=${mode}`);
+}
+
+export function dryRunOffboarding(id: string, body: OffboardingRequest) {
+  return apiFetch<OffboardingResult>(`/users/${id}/offboarding-dry-run`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function offboardUser(id: string, body: OffboardingRequest) {
+  return apiFetch<OffboardingResult>(`/users/${id}/offboard`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** گزارش CSV جابه‌جایی‌ها (شناسه + ماژول) برای بازگردانی دستی. */
+export function downloadOffboardingCsv(runId: string) {
+  return downloadExcelFile(`/users/offboarding-runs/${runId}/csv`, `offboarding-${runId.slice(0, 8)}.csv`);
+}
+
 export function setUserManagementRole(id: string, data: { role: "OWNER" | "ADMIN" | "MEMBER"; transfer?: boolean }) {
   return apiFetch<{ success: boolean }>(`/users/${id}/management-role`, { method: "PUT", body: JSON.stringify(data) });
 }
@@ -621,6 +686,7 @@ export const PERMISSION_GATED_MODULE_CODES = [
   "reports",
   "logs",
   "dispatch",
+  "correspondence",
   "proposals",
   "tax",
   "certificates",

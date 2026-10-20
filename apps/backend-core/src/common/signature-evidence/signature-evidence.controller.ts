@@ -5,6 +5,7 @@ import type { TenantRequestContext } from '../request-context.js';
 import { PermissionsService } from '../../permissions/permissions.service.js';
 import { contractScope, proposalScope } from '../../permissions/entity-scopes.js';
 import { assertInScope } from '../../permissions/scope.util.js';
+import { loadVisibleLetterFacts } from '../../correspondence/correspondence-attachment-access.js';
 import { SignatureEvidenceService } from './signature-evidence.service.js';
 
 /** نوع موجودیت → کد ماژول برای کنترل دسترسی مشاهده. */
@@ -20,6 +21,7 @@ export const EVIDENCE_ENTITY_MODULE: Record<string, string> = {
   ration_sample: 'ration-lab',
   shipment: 'dispatch',
   shipment_offer: 'fleet',
+  correspondence_letter: 'correspondence',
 };
 
 @Controller('signature-evidence')
@@ -45,6 +47,10 @@ export class SignatureEvidenceController {
       await assertInScope(ctx.tenantDb.contract, await contractScope(this.permissions, ctx), { id: entityId }, { message: 'رکورد یافت نشد' });
     } else if (entityType === 'proposal') {
       await assertInScope(ctx.tenantDb.proposal, await proposalScope(this.permissions, ctx), { id: entityId }, { message: 'رکورد یافت نشد' });
+    } else if (entityType === 'correspondence_letter') {
+      // مکاتبات: دید سطح نامه (محرمانگی) + فقط مدیر یا «مشاهده‌ی همه» (شواهد شامل IP/دستگاه/موقعیت است)
+      const { matrix } = await loadVisibleLetterFacts(this.permissions, ctx, entityId);
+      if (!(ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN' || matrix.canViewAll)) throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
     } else {
       // برای بقیه‌ی انواع محدوده‌ی «فقط مال خودم» تعریف نشده؛ شواهد (آی‌پی/موقعیت/دستگاه) فقط با دسترسی «مشاهده‌ی همه» دیده شود
       await this.permissions.assertViewAll(ctx, EVIDENCE_ENTITY_MODULE[entityType]);

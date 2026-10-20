@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from "react";
 import {
+  MailIcon,
   DashboardIcon,
   CrmIcon,
   ReceiptIcon,
@@ -99,6 +100,7 @@ export const primaryNav: NavItem[] = [
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon, category: "بهره‌وری" },
   { href: "/messenger", label: "پیام‌رسان داخلی", icon: ChatIcon, moduleCode: "messenger", category: "بهره‌وری" },
   { href: "/approvals", label: "کارتابل تأیید", icon: ClipboardCheckIcon, category: "بهره‌وری" },
+  { href: "/correspondence", label: "مکاتبات", icon: MailIcon, moduleCode: "correspondence", category: "بهره‌وری" },
 
   // عملیات
   { href: "/operations", label: "داشبورد عملیات", icon: DashboardIcon, moduleCode: "operations", category: "عملیات" },

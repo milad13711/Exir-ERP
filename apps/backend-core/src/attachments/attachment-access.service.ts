@@ -9,6 +9,7 @@ import { reportEditScope, reportScope } from '../reports/report-scope.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { assertTaskAttachmentAccess, TASK_ATTACHMENT_ENTITIES } from '../tasks/task-attachment-access.js';
 import { assertShipmentAttachmentAccess, DISPATCH_ATTACHMENT_ENTITIES } from '../dispatch/dispatch-attachment-access.js';
+import { assertLetterAttachmentAccess, CORRESPONDENCE_ATTACHMENT_ENTITIES } from '../correspondence/correspondence-attachment-access.js';
 
 export type AttachmentMode = 'read' | 'write' | 'delete';
 
@@ -56,6 +57,12 @@ export class AttachmentAccessService {
     if (entityType === 'Proposal' && mode !== 'read') {
       const proposal = await ctx.tenantDb.proposal.findUnique({ where: { id: entityId }, select: { status: true } });
       if (proposal?.status === 'ACCEPTED') throw new ForbiddenException('پروپوزال پذیرفته‌شده قفل است و پیوست‌هایش تغییر نمی‌کند');
+    }
+
+    // مکاتبات: ACL سطح نامه (محرمانگی) برای مدیران هم اعمال می‌شود — پیش از میان‌بُر مدیر.
+    if (CORRESPONDENCE_ATTACHMENT_ENTITIES.has(entityType)) {
+      await assertLetterAttachmentAccess(this.permissions, ctx, entityType, entityId, mode);
+      return;
     }
 
     if (this.isManager(ctx)) return;

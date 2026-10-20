@@ -69,6 +69,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
   w({ key: 'production-trend', title: 'روند تولید ۶ ماه اخیر', description: 'مقایسه با سال قبل', moduleCode: 'production', perm: { modules: ['production'], level: 'all' }, sizes: ['M', 'L', 'FULL'], variants: ['chart', 'compact'], defaultSize: 'M', defaultVariant: 'chart', order: 101 }),
   w({ key: 'operations-overview', title: 'وضعیت عملیات', description: 'شمارنده‌ی وظایف عملیاتی: جدید، در حال انجام، معوق، منتظر تأیید', moduleCode: 'operations', perm: null, sizes: ['M', 'L', 'FULL'], variants: ['card', 'compact'], defaultSize: 'M', defaultVariant: 'card', order: 102, defaultEnabled: false }),
   w({ key: 'dispatch-active', title: 'بارهای فعال (اعلام بار)', description: 'تعداد بارهای در جریان به تفکیک وضعیت', moduleCode: 'dispatch', perm: { modules: ['dispatch'], level: 'any' }, sizes: ['M', 'L', 'FULL'], variants: ['card', 'compact'], defaultSize: 'M', defaultVariant: 'card', order: 103, defaultEnabled: false }),
+  w({ key: 'correspondence-mine', title: 'مکاتبات من', description: 'امضاهای منتظر، ارجاع‌های رسیده، پیش‌نویس‌ها و معوق‌ها', moduleCode: 'correspondence', perm: { modules: ['correspondence'], level: 'any' }, sizes: ['M', 'L', 'FULL'], variants: ['card', 'compact'], defaultSize: 'M', defaultVariant: 'card', order: 104, defaultEnabled: false }),
   w({ key: 'recent-activity', title: 'فعالیت‌های اخیر', description: 'آخرین رویدادهای ثبت‌شده', moduleCode: null, perm: null, sizes: ['M', 'L', 'FULL'], variants: LIST_VARIANTS, defaultSize: 'FULL', defaultVariant: 'list', order: 110 }),
 ];
 
