@@ -58,8 +58,9 @@ services:
       EXIR_SMS_SENDER_LINE: ${EXIR_SMS_SENDER_LINE:-}
       # CLOUD برای استقرار ابری چندتننتی ما؛ ON_PREMISE فقط برای نصب تک‌مشتری با لایسنس (docs/licensing/README.md §۲)
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-ON_PREMISE}
-      LICENSE_KEY: ${LICENSE_KEY:?set LICENSE_KEY in .env — given to you when the license was issued}
-      LICENSE_PUBLIC_KEY_PEM: ${LICENSE_PUBLIC_KEY_PEM:?set LICENSE_PUBLIC_KEY_PEM in .env — given to you when the license was issued}
+      # روی سرور ابری ما (DEPLOYMENT_MODE=CLOUD) لازم نیست؛ در نصب اختصاصی مشتری نبودنشان = «لایسنس تنظیم نشده» و قفل شدن (LicenseBlockedScreen)
+      LICENSE_KEY: ${LICENSE_KEY:-}
+      LICENSE_PUBLIC_KEY_PEM: ${LICENSE_PUBLIC_KEY_PEM:-}
       # آدرس سرور لایسنس اکسیر برای فعال‌سازی/تمدید خودکار (LICENSE_KEY از نوع LIC-...). نام قدیمی CONTROL_PLANE_CHECKIN_URL هم پذیرفته می‌شود.
       LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-}
       CONTROL_PLANE_CHECKIN_URL: ${CONTROL_PLANE_CHECKIN_URL:-}
