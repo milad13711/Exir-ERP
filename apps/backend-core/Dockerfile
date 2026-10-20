@@ -2,11 +2,12 @@
 # cloud deployment and for on-premise bundles — see docs/ON_PREMISE.md.
 # Build context must be the repo root: `docker build -f apps/backend-core/Dockerfile .`
 #
-# The final image keeps devDependencies (tsx, the prisma CLI, typescript)
-# rather than pruning to production-only: docker-entrypoint.sh runs the
-# Control Plane migration+seed and the on-premise bootstrap script on every
-# boot, and those need tsx/prisma present. Simplicity and a working
-# entrypoint win over a few extra megabytes here.
+# The final image carries production dependencies PLUS tsx (the prisma CLI is
+# already a production dependency): docker-entrypoint.sh runs the Control Plane
+# migration+seed and the on-premise bootstrap script on every boot, and those
+# need tsx/prisma present. Everything else from devDependencies (typescript,
+# nest CLI, vitest, ...) is left out: the full tree was ~3 GB and a build on the
+# 24 GB production disk ran out of space (2026-10-20).
 
 FROM node:20-alpine AS deps
 WORKDIR /app
@@ -27,12 +28,8 @@ COPY apps/backend-core/package.json apps/backend-core/package-lock.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN npm ci
 
-FROM node:20-alpine AS build
-WORKDIR /app
-ARG ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine
-RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_MIRROR}#g" /etc/apk/repositories \
- && apk add --no-cache openssl
-COPY --from=deps /app/node_modules ./node_modules
+# Build stage reuses the deps layers (no second 1.5 GB copy of node_modules).
+FROM deps AS build
 COPY apps/backend-core/ ./
 RUN npx prisma generate --schema prisma/control/schema.prisma \
  && npx prisma generate --schema prisma/tenant/schema.prisma \
@@ -50,6 +47,12 @@ RUN --mount=type=secret,id=license_signing_key \
       npm run build:manifest; \
     elif [ "$ALLOW_UNSIGNED_BUILD" = "true" ]; then echo "[build] ALLOW_UNSIGNED_BUILD=true — integrity manifest skipped"; \
     else echo "[build] ERROR: no license_signing_key secret (set ALLOW_UNSIGNED_BUILD=true only for dev builds)"; exit 1; fi
+
+# Production-only node_modules (+ tsx for the entrypoint seed) derived from the same install, without running scripts.
+FROM deps AS prod-deps
+RUN npm prune --omit=dev --no-audit --no-fund \
+ && npm install --omit=dev --no-save --ignore-scripts --no-audit --no-fund tsx@4 \
+ && npm cache clean --force
 
 FROM node:20-alpine AS runtime
 WORKDIR /app
@@ -71,7 +74,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 RUN addgroup -S exir && adduser -S exir -G exir \
  && mkdir -p /app/data/license \
  && chown -R exir:exir /app
-COPY --chown=exir:exir --from=build /app/node_modules ./node_modules
+COPY --chown=exir:exir --from=prod-deps /app/node_modules ./node_modules
 COPY --chown=exir:exir --from=build /app/dist ./dist
 COPY --chown=exir:exir --from=build /app/generated ./generated
 COPY --chown=exir:exir --from=build /app/prisma ./prisma

@@ -13,6 +13,7 @@
  *
  * Exit 0 = all pass, 1 = any failure (each failing check printed as `FAIL <name>: <detail>`).
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -88,8 +89,22 @@ async function tryImport(name: string, path: string): Promise<SmokeResult> {
   }
 }
 
+/** CLIهایی که entrypoint واقعاً اجرا می‌کند باید «اجرا» شوند (نه فقط وجود داشته باشند) — ایمیج تولید فقط وابستگی‌های production + tsx دارد. */
+export function checkCliRuns(root: string, name: string, entry: string): SmokeResult {
+  const bin = join(root, entry);
+  if (!existsSync(bin)) return { name: `run:${name}`, ok: false, detail: `${entry} missing` };
+  try {
+    const out = execFileSync(process.execPath, [bin, '--version'], { cwd: root, encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
+    return { name: `run:${name}`, ok: true, detail: out.split('\n').find((l) => l.trim())?.trim().slice(0, 60) ?? 'ok' };
+  } catch (e) {
+    return { name: `run:${name}`, ok: false, detail: (e instanceof Error ? e.message : String(e)).split('\n')[0].slice(0, 160) };
+  }
+}
+
 export async function runSmoke(root: string): Promise<SmokeResult[]> {
   const results = [...checkFiles(root), checkSeedImports(root)];
+  results.push(checkCliRuns(root, 'tsx', 'node_modules/tsx/dist/cli.mjs'));
+  results.push(checkCliRuns(root, 'prisma', 'node_modules/prisma/build/index.js'));
   // Harmless dummies ONLY when unset (compose run passes the real env). Nothing here opens a DB connection.
   process.env.JWT_SECRET ||= 'smoke-image-check-'.padEnd(40, 'x');
   process.env.CONTROL_DATABASE_URL ||= 'postgresql://smoke:smoke@127.0.0.1:1/none';
