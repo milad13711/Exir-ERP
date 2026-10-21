@@ -85,6 +85,11 @@ export function normalizeLetterInput(input: LetterRenderInput): LetterRenderInpu
           signerName: clip(input.signature.signerName, 300),
           signerTitle: clipOrNull(input.signature.signerTitle, 300),
           signedAtText: clip(input.signature.signedAtText, 100),
+          // خطوط نهایی بلوک امضا (سمت + شرکت / پیشوند + نام) — بدون این‌ها رندر فقط signerTitle (سمت بدون نام شرکت) را چاپ می‌کرد
+          ...(typeof input.signature.titleLine === 'string' ? { titleLine: input.signature.titleLine.slice(0, 300) } : {}),
+          ...(typeof input.signature.nameLine === 'string' ? { nameLine: input.signature.nameLine.slice(0, 300) } : {}),
+          // undefined = «تاریخ امضا را بزن»، null = «تاریخ نزن»
+          ...(input.signature.dateLabel === null ? { dateLabel: null } : typeof input.signature.dateLabel === 'string' ? { dateLabel: input.signature.dateLabel.slice(0, 100) } : {}),
         }
       : null,
     qr: input.qr && /^https?:\/\/[^\s"'<>]{1,1900}$/i.test(input.qr.verifyUrl) ? { verifyUrl: input.qr.verifyUrl } : null,

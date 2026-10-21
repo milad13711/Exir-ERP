@@ -30,6 +30,7 @@ vi.mock('puppeteer', () => {
   return { default: { launch: async () => browser } };
 });
 
+import { buildLetterHtml } from './letter-html.js';
 import { LetterPdfService, countPdfPages, isAllowedLetterRequestUrl, normalizeLetterInput } from './letter-pdf.service.js';
 import { defaultLayout } from '../letterhead-layout.js';
 import type { LetterRenderInput } from '../render-input.js';
@@ -102,6 +103,32 @@ describe('LetterPdfService (puppeteer mock)', () => {
     const l = defaultLayout();
     l.boxes.body.fontFamily = 'Evil';
     await expect(new LetterPdfService().render(base({ letterhead: { imageDataUri: null, layout: l } }))).rejects.toThrow(/فونت/);
+  });
+  it('رگرسیون: خطوط نهایی بلوک امضا (سمت + نام شرکت) از normalizeLetterInput حفظ می‌شود', () => {
+    const out = normalizeLetterInput(
+      base({
+        signature: {
+          imageDataUri: null,
+          stampDataUri: null,
+          signerName: 'علی رضایی',
+          signerTitle: 'مدیرعامل',
+          signedAtText: '۱۴۰۵/۰۸/۰۱',
+          titleLine: 'مدیرعامل شرکت اکسیرتجارت امین',
+          nameLine: 'آقای علی رضایی',
+          dateLabel: null,
+        },
+      }),
+    );
+    expect(out.signature?.titleLine).toBe('مدیرعامل شرکت اکسیرتجارت امین');
+    expect(out.signature?.nameLine).toBe('آقای علی رضایی');
+    expect(out.signature?.dateLabel).toBeNull();
+    // بدون dateLabel: کلید اضافه نمی‌شود (یعنی «تاریخ امضا را بزن»)
+    const noLabel = normalizeLetterInput(base({ signature: { imageDataUri: null, stampDataUri: null, signerName: 'x', signedAtText: 'd' } }));
+    expect(noLabel.signature && 'dateLabel' in noLabel.signature).toBe(false);
+    // HTML نهایی هر دو را دارد
+    const html = buildLetterHtml(out, { flow: false } as never);
+    expect(html).toContain('مدیرعامل شرکت اکسیرتجارت امین');
+    expect(html).toContain('آقای علی رضایی');
   });
   it('QR فقط برای http(s)', () => {
     expect(normalizeLetterInput(base({ qr: { verifyUrl: 'javascript:alert(1)' } })).qr).toBeNull();
