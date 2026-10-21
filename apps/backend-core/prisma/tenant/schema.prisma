@@ -5454,6 +5454,8 @@ model CorrLetter {
   contentHash             String?
   /// هش SHA-256 توکن صحت‌سنجی (خود توکن فقط در QR چاپ‌شده می‌ماند)
   verifyTokenHash         String? @unique
+  /// بلوک امضا (قابل‌ویرایش در پیش‌نویس): { signerTitle, orgName, signerName, honorific, showDate }؛ پس از امضا همراه titleLine/nameLine ثابت می‌شود
+  signatureBlock          Json?
   revisionNo              Int     @default(1)
 
   createdAt DateTime @default(now())

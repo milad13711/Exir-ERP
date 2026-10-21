@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { CorrespondenceSignatureService } from './correspondence-signature.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { CONFIDENTIALITY_LABELS, PRIORITY_LABELS, type Confidentiality, type Priority } from './correspondence.constants.js';
 import { defaultLayout, validateLayout } from './letterhead-layout.js';
@@ -24,6 +25,7 @@ export class CorrespondenceRenderService {
   constructor(
     private readonly pdf: LetterPdfService,
     private readonly stamps: CompanyStampService,
+    private readonly signatures: CorrespondenceSignatureService,
     @Optional() private readonly controlDb?: ControlPrismaService,
   ) {}
 
@@ -59,14 +61,16 @@ export class CorrespondenceRenderService {
     },
   ): Promise<LetterRenderInput> {
     const letterhead = await this.loadLetterhead(ctx, letter.letterheadId);
-    let signature: LetterRenderInput['signature'] = null;
-    if (extra.signature) {
-      const stamp = extra.signature.useStamp ? await this.stamps.getStamp(ctx).catch(() => ({} as { signatureImage?: string; stampImage?: string })) : {};
-      signature = {
-        imageDataUri: stamp.signatureImage ?? null, stampDataUri: stamp.stampImage ?? null, signerName: extra.signature.signerName,
-        signerTitle: extra.signature.signerTitle, signedAtText: jalaliTimeText(extra.signature.signedAt),
-      };
-    }
+    // بلوک امضای سه‌خطی: نامه‌ی امضاشده = نسخه‌ی ثابت‌شده؛ پیش‌نویس = محاسبه‌ی زنده از پیش‌فرض‌ها/ویرایش کاربر
+    const signerForDefaults = extra.signature ? letter.signedByUserId ?? letter.signerUserId : letter.signerUserId ?? letter.createdByUserId;
+    const resolved = await this.signatures.resolve(ctx, signerForDefaults, letter.signatureBlock, extra.signature ? { name: extra.signature.signerName, title: extra.signature.signerTitle } : undefined);
+    const stamp = extra.signature?.useStamp ? await this.stamps.getStamp(ctx).catch(() => ({} as { signatureImage?: string; stampImage?: string })) : {};
+    const signedAtText = extra.signature ? jalaliTimeText(extra.signature.signedAt) : '';
+    const signature: LetterRenderInput['signature'] = {
+      imageDataUri: stamp.signatureImage ?? null, stampDataUri: stamp.stampImage ?? null,
+      signerName: resolved.fields.signerName, signerTitle: resolved.fields.signerTitle || null, signedAtText,
+      titleLine: resolved.titleLine, nameLine: resolved.nameLine, dateLabel: extra.signature && resolved.showDate ? signedAtText : null,
+    };
     const recipients = (Array.isArray(letter.recipients) ? letter.recipients : []) as { name: string; title?: string; org?: string }[];
     const attachmentsText = letter.attachmentsText?.trim() || (extra.attachmentTitles.length ? `${extra.attachmentTitles.length} فقره: ${extra.attachmentTitles.join('، ')}`.slice(0, 300) : null);
     return {

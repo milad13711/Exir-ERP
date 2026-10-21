@@ -3,18 +3,18 @@ import type { Prisma } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { CreateLetterheadDto, UpdateLetterheadDto } from './dto/letterhead.dto.js';
-import { defaultLayout, validateLayout } from './letterhead-layout.js';
+import { defaultLayout, validateLayout, withLayoutDefaults } from './letterhead-layout.js';
 import type { LetterheadLayout } from './render-input.js';
-import { MAX_LETTER_IMAGE_BYTES, safeLetterImage } from './pdf/sanitize-letter-html.js';
+import { MAX_LETTERHEAD_IMAGE_BYTES, safeLetterImage } from './pdf/sanitize-letter-html.js';
 
 /**
- * تصویر سربرگ: فقط PNG/JPEG/WebP (WebP چون فشرده‌ساز مرورگر معمولاً همین خروجی را می‌دهد)، سقف ۳ مگابایت، magic-bytes بررسی می‌شود.
+ * تصویر سربرگ: فقط PNG/JPEG/WebP (WebP چون فشرده‌ساز مرورگر معمولاً همین خروجی را می‌دهد)، سقف ۶ مگابایت، magic-bytes بررسی می‌شود.
  * PDF پذیرفته نمی‌شود (ساده‌ترین حالت امن): کاربر باید یک صفحه‌ی سربرگ را به تصویر تبدیل کند (UI راهنمایی می‌دهد).
  */
 export function validateBackgroundImage(uri: string): string {
   if (/^data:application\/pdf/i.test(uri)) throw new BadRequestException('فایل PDF پذیرفته نمی‌شود؛ صفحه‌ی سربرگ را به‌صورت تصویر (PNG، JPEG یا WebP) بارگذاری کنید');
-  const ok = safeLetterImage(uri, MAX_LETTER_IMAGE_BYTES);
-  if (!ok) throw new BadRequestException('فقط تصویر PNG، JPEG یا WebP معتبر تا ۳ مگابایت برای سربرگ پذیرفته می‌شود');
+  const ok = safeLetterImage(uri, MAX_LETTERHEAD_IMAGE_BYTES);
+  if (!ok) throw new BadRequestException('فقط تصویر PNG، JPEG یا WebP معتبر تا ۶ مگابایت (حداکثر ۲۵ مگاپیکسل) برای سربرگ پذیرفته می‌شود');
   return ok;
 }
 
@@ -23,7 +23,7 @@ export type LetterheadView = Omit<Row, 'backgroundImage' | 'layoutJson'> & { lay
 
 function view(r: Row, withImage: boolean): LetterheadView {
   const { backgroundImage, layoutJson, ...rest } = r;
-  return { ...rest, layout: layoutJson as unknown as LetterheadLayout, hasImage: !!backgroundImage, ...(withImage ? { backgroundImage } : {}) };
+  return { ...rest, layout: withLayoutDefaults(layoutJson, r.pageSize as 'A4' | 'A5', r.orientation as 'portrait' | 'landscape') as LetterheadLayout, hasImage: !!backgroundImage, ...(withImage ? { backgroundImage } : {}) };
 }
 
 @Injectable()
@@ -34,7 +34,7 @@ export class LetterheadService {
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
     const withImg = new Set((await ctx.tenantDb.corrLetterhead.findMany({ where: { backgroundImage: { not: null } }, select: { id: true } })).map((r) => r.id));
-    return rows.map(({ layoutJson, ...r }) => ({ ...r, backgroundImage: null, layout: layoutJson as unknown as LetterheadLayout, hasImage: withImg.has(r.id) }));
+    return rows.map(({ layoutJson, ...r }) => ({ ...r, backgroundImage: null, layout: withLayoutDefaults(layoutJson, r.pageSize as 'A4' | 'A5', r.orientation as 'portrait' | 'landscape') as LetterheadLayout, hasImage: withImg.has(r.id) }));
   }
 
   async get(ctx: TenantRequestContext, id: string, withImage = true): Promise<LetterheadView> {

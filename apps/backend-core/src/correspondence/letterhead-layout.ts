@@ -1,13 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { existsSync, readdirSync } from 'node:fs';
 import { join, parse } from 'node:path';
-import type { LetterBoxKey, LetterBoxLayout, LetterheadLayout } from './render-input.js';
+import type { LetterBoxKey, LetterBoxLayout, LetterheadLayout, PageNumberOptions } from './render-input.js';
 
 /**
  * واحدها: همه‌ی مختصات بر حسب میلی‌متر، مبدأ = گوشه‌ی بالا-چپ برگه (x به راست، y به پایین)، حتی در نامه‌ی RTL.
  * (جعبه با xMm از لبه‌ی چپ تا xMm+wMm؛ ترازِ متن داخل جعبه با align تعیین می‌شود.)
  */
-export const BOX_KEYS: readonly LetterBoxKey[] = ['number', 'date', 'attachments', 'subject', 'recipient', 'body', 'signature', 'paraphs', 'qr', 'confidentiality'];
+export const BOX_KEYS: readonly LetterBoxKey[] = ['number', 'date', 'attachments', 'subject', 'recipient', 'body', 'signature', 'paraphs', 'qr', 'confidentiality', 'pageNumber'];
 
 export const PAGE_MM = { A4: { w: 210, h: 297 }, A5: { w: 148, h: 210 } } as const;
 
@@ -47,12 +47,33 @@ export function allowedFontFamilies(): string[] {
 const ALIGNS = ['right', 'center', 'left', 'justify'] as const;
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
+export const DEFAULT_PAGE_NUMBER_OPTIONS: PageNumberOptions = { format: 'صفحه {n} از {total}', startFromPage: 1, showOnFirstPage: true, showOnSinglePage: false, persianDigits: true };
+
+/** قالب شماره‌ی صفحه: فقط {n} و {total} و متن آزاد (حداکثر ۴۰ نویسه). */
+export function validatePageNumberOptions(raw: unknown): PageNumberOptions {
+  if (raw === undefined || raw === null) return { ...DEFAULT_PAGE_NUMBER_OPTIONS };
+  if (typeof raw !== 'object' || Array.isArray(raw)) fail('تنظیمات شماره‌ی صفحه نامعتبر است');
+  const o = raw as Record<string, unknown>;
+  for (const k of Object.keys(o)) if (!['format', 'startFromPage', 'showOnFirstPage', 'showOnSinglePage', 'persianDigits'].includes(k)) fail(`تنظیم ناشناخته‌ی شماره‌ی صفحه: ${k}`);
+  const format = typeof o.format === 'string' ? o.format.trim() : DEFAULT_PAGE_NUMBER_OPTIONS.format;
+  if (!format || format.length > 40) fail('قالب شماره‌ی صفحه باید بین ۱ تا ۴۰ نویسه باشد');
+  if (/[<>{}]/.test(format.replace(/\{(n|total)\}/g, ''))) fail('در قالب شماره‌ی صفحه فقط {n} و {total} مجازند و کاراکترهای < > { } ممنوع‌اند');
+  if (!/\{n\}/.test(format)) fail('قالب شماره‌ی صفحه باید شامل {n} باشد');
+  const startFromPage = o.startFromPage === undefined ? 1 : num(o.startFromPage, 'شروع از صفحه', 1, 99);
+  if (!Number.isInteger(startFromPage)) fail('«شروع از صفحه» باید عدد صحیح باشد');
+  const showOnFirstPage = o.showOnFirstPage === undefined ? DEFAULT_PAGE_NUMBER_OPTIONS.showOnFirstPage : o.showOnFirstPage;
+  const persianDigits = o.persianDigits === undefined ? DEFAULT_PAGE_NUMBER_OPTIONS.persianDigits : o.persianDigits;
+  const showOnSinglePage = o.showOnSinglePage === undefined ? DEFAULT_PAGE_NUMBER_OPTIONS.showOnSinglePage : o.showOnSinglePage;
+  if (typeof showOnFirstPage !== 'boolean' || typeof persianDigits !== 'boolean' || typeof showOnSinglePage !== 'boolean') fail('گزینه‌های شماره‌ی صفحه باید درست/نادرست باشند');
+  return { format, startFromPage, showOnFirstPage, showOnSinglePage, persianDigits };
+}
+
 function fail(msg: string): never {
   throw new BadRequestException(msg);
 }
 const LABELS: Record<LetterBoxKey, string> = {
   number: 'شماره', date: 'تاریخ', attachments: 'پیوست', subject: 'موضوع', recipient: 'گیرنده', body: 'متن نامه',
-  signature: 'امضا', paraphs: 'پاراف', qr: 'کد QR', confidentiality: 'محرمانگی',
+  signature: 'امضا', paraphs: 'پاراف', qr: 'کد QR', confidentiality: 'محرمانگی', pageNumber: 'شماره‌ی صفحه',
 };
 
 function num(v: unknown, label: string, min: number, max: number): number {
@@ -61,8 +82,24 @@ function num(v: unknown, label: string, min: number, max: number): number {
   return Math.round(v * 100) / 100;
 }
 
+/**
+ * سازگاری با چیدمان‌های قدیمیِ ذخیره‌شده: اگر کادر pageNumber / pageNumberOptions ندارند با پیش‌فرض پر می‌شوند
+ * (هنگام خواندن؛ نیازی به backfill دیتابیس نیست). ورودی دست‌نخورده می‌ماند.
+ */
+export function withLayoutDefaults(raw: unknown, pageSize: 'A4' | 'A5' = 'A4', orientation: 'portrait' | 'landscape' = 'portrait'): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const r = raw as Record<string, unknown>;
+  const boxes = r.boxes && typeof r.boxes === 'object' && !Array.isArray(r.boxes) ? (r.boxes as Record<string, unknown>) : null;
+  if (!boxes) return raw;
+  const out: Record<string, unknown> = { ...r };
+  if (boxes.pageNumber === undefined) out.boxes = { ...boxes, pageNumber: defaultLayout(pageSize, orientation).boxes.pageNumber };
+  if (r.pageNumberOptions === undefined) out.pageNumberOptions = { ...DEFAULT_PAGE_NUMBER_OPTIONS };
+  return out;
+}
+
 /** اعتبارسنجی سخت‌گیرانه؛ خروجی یک شیء تازه (فقط کلیدهای شناخته‌شده) است. */
-export function validateLayout(raw: unknown, pageSize: 'A4' | 'A5', orientation: 'portrait' | 'landscape'): LetterheadLayout {
+export function validateLayout(input: unknown, pageSize: 'A4' | 'A5', orientation: 'portrait' | 'landscape'): LetterheadLayout {
+  const raw = withLayoutDefaults(input, pageSize, orientation);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('چیدمان سربرگ نامعتبر است');
   const r = raw as Record<string, unknown>;
   const dims = pageDims(pageSize, orientation);
@@ -72,7 +109,7 @@ export function validateLayout(raw: unknown, pageSize: 'A4' | 'A5', orientation:
   if (r.orientation !== undefined && r.orientation !== orientation) fail('جهت صفحه در چیدمان با جهت انتخابی هم‌خوان نیست');
   if (typeof r.letterheadOnAllPages !== 'boolean') fail('گزینه‌ی «سربرگ روی همه‌ی صفحات» باید درست/نادرست باشد');
   for (const k of Object.keys(r)) {
-    if (!['pageSize', 'orientation', 'letterheadOnAllPages', 'boxes', 'continuationMarginsMm'].includes(k)) fail(`کلید ناشناخته در چیدمان: ${k}`);
+    if (!['pageSize', 'orientation', 'letterheadOnAllPages', 'boxes', 'continuationMarginsMm', 'pageNumberOptions'].includes(k)) fail(`کلید ناشناخته در چیدمان: ${k}`);
   }
 
   const rawBoxes = r.boxes;
@@ -120,7 +157,7 @@ export function validateLayout(raw: unknown, pageSize: 'A4' | 'A5', orientation:
   if (dims.h - cm.top - cm.bottom < 50 || dims.w - cm.left - cm.right < 50) fail('حاشیه‌ها آن‌قدر بزرگ‌اند که فضای کافی برای متن نمی‌ماند');
   if (boxes.body.hMm < 30 || boxes.body.wMm < 40) fail('جعبه‌ی متن نامه باید دست‌کم ۴۰×۳۰ میلی‌متر باشد');
 
-  return { pageSize, orientation, letterheadOnAllPages: r.letterheadOnAllPages, boxes, continuationMarginsMm: cm };
+  return { pageSize, orientation, letterheadOnAllPages: r.letterheadOnAllPages, boxes, continuationMarginsMm: cm, pageNumberOptions: validatePageNumberOptions(r.pageNumberOptions) };
 }
 
 function box(x: number, y: number, w: number, h: number, extra: Partial<LetterBoxLayout> = {}): LetterBoxLayout {
@@ -141,11 +178,15 @@ export function defaultLayout(pageSize: 'A4' | 'A5' = 'A4', orientation: 'portra
       subject: box(25, 68, 170, 9, { bold: true, fontSizePt: 12 }),
       recipient: box(25, 78, 170, 16, { fontSizePt: 11 }),
       body: box(15, 98, 180, 130, { align: 'justify' }),
-      signature: box(20, 232, 70, 32, { align: 'center', fontSizePt: 10 }),
-      paraphs: box(100, 232, 95, 36, { fontSizePt: 8, lineHeight: 1.5 }),
+      // بلوک امضا: گوشه‌ی پایین-راست زیر متن اصلی (لبه‌ی راست متن = ۱۹۵mm)؛ متن داخل بلوک وسط‌چین است
+      signature: box(125, 230, 70, 42, { align: 'center', fontSizePt: 10 }),
+      paraphs: box(15, 230, 105, 34, { fontSizePt: 8, lineHeight: 1.5 }),
       qr: box(15, 268, 22, 22, { fontSizePt: 6 }),
+      // شماره‌ی صفحه: پایین-وسط، ۱۸mm بالاتر از لبه‌ی پایین تا روی پاورقی سربرگ نیفتد
+      pageNumber: box(75, 274, 60, 5, { align: 'center', fontSizePt: 9, color: '#475569' }),
     },
-    continuationMarginsMm: { top: 20, bottom: 20, left: 15, right: 15 },
+    continuationMarginsMm: { top: 20, bottom: 28, left: 15, right: 15 },
+    pageNumberOptions: { ...DEFAULT_PAGE_NUMBER_OPTIONS },
   };
   if (pageSize === 'A4' && orientation === 'portrait') return base;
   const to = pageDims(pageSize, orientation);
@@ -158,6 +199,6 @@ export function defaultLayout(pageSize: 'A4' | 'A5' = 'A4', orientation: 'portra
     if (boxes[k].xMm + boxes[k].wMm > to.w) boxes[k].xMm = round(to.w - boxes[k].wMm);
     if (boxes[k].yMm + boxes[k].hMm > to.h) boxes[k].yMm = round(to.h - boxes[k].hMm);
   }
-  return { pageSize, orientation, letterheadOnAllPages: false, boxes, continuationMarginsMm: { top: 15, bottom: 15, left: 12, right: 12 } };
+  return { pageSize, orientation, letterheadOnAllPages: false, boxes, continuationMarginsMm: { top: 15, bottom: 25, left: 12, right: 12 }, pageNumberOptions: { ...DEFAULT_PAGE_NUMBER_OPTIONS } };
 }
 const round = (n: number) => Math.round(n * 10) / 10;

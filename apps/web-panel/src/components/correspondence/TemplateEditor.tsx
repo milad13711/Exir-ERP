@@ -12,6 +12,7 @@ import {
   type Letterhead,
   type TemplatePlaceholder,
 } from "@/lib/correspondence-docs-api";
+import { openPdfInTab } from "@/lib/correspondence-api";
 
 const inputClass = "w-full text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary";
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
@@ -58,7 +59,7 @@ export function TemplateEditor({
   async function preview() {
     if (!template) return;
     try {
-      window.open(await templatePdfUrl(template.id), "_blank", "noopener");
+      await openPdfInTab(() => templatePdfUrl(template.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "ساخت PDF ناموفق بود");
     }

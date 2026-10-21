@@ -61,7 +61,7 @@ function signHarness(opts: { renderFails?: number; letter?: Record<string, unkno
   };
   const evidence = { tryRecord: vi.fn(async () => ({})) };
   const stamps = { assertCanUse: vi.fn(async () => undefined) };
-  const svc = new CorrespondenceWorkflowService(core as never, numbering as never, render as never, evidence as never, stamps as never);
+  const svc = new CorrespondenceWorkflowService(core as never, numbering as never, render as never, evidence as never, stamps as never, { resolve: async () => ({ fields: { signerTitle: '', orgName: '', signerName: 'n', honorific: '', showDate: true }, titleLine: 'T', nameLine: 'N', showDate: true }) } as never);
   const ctx = { tenantId: 't1', tenantSlug: 'acme', tenantDb, auth: { role: 'MEMBER' } } as never;
   return { svc, ctx, store, core, numbering, render, evidence, tenantDb, pdf, stamps };
 }
@@ -88,6 +88,20 @@ describe('sign flow', () => {
     expect(ev).toMatchObject({ entityType: 'correspondence_letter', entityId: 'L1', action: 'sign', signerUserId: 'signer' });
     expect(out.contentHash).toBe(ev.contentHash);
     expect(String(ev.contentHash)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('freezes the signature block (fields + both lines) into the letter at signing time and into the content hash', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T08:00:00Z'));
+    const h = signHarness({ letter: { signatureBlock: { signerTitle: 'ویرایش‌شده' } } });
+    const out = await h.svc.sign(h.ctx, actor(), 'L1', { confirm: true }, req);
+    expect(out.signatureBlock).toMatchObject({ signerName: 'n', titleLine: 'T', nameLine: 'N', showDate: true });
+    const ev = (h.evidence.tryRecord.mock.calls[0] as unknown[])[1] as { contentHash: string };
+    const h2 = signHarness({ letter: { signatureBlock: { signerTitle: 'ویرایش‌شده' } } });
+    (h2.svc as unknown as { signatures: { resolve: unknown } }).signatures.resolve = async () => ({ fields: { signerTitle: 'x', orgName: '', signerName: 'n', honorific: '', showDate: true }, titleLine: 'متن دیگر', nameLine: 'N', showDate: true });
+    await h2.svc.sign(h2.ctx, actor(), 'L1', { confirm: true }, req);
+    vi.useRealTimers();
+    expect(((h2.evidence.tryRecord.mock.calls[0] as unknown[])[1] as { contentHash: string }).contentHash).not.toBe(ev.contentHash);
   });
 
   it('requires explicit confirmation and the designated signer', async () => {

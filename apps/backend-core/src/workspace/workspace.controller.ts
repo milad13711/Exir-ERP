@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -10,6 +10,9 @@ import { AuthService } from '../auth/auth.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
 import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
+import { checkDataUri } from '../common/validators/upload-limits.js';
+import { normalizeDisplayName } from './profile-name.js';
+import { ProfileSyncService } from './profile-sync.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateNavOrderDto } from './dto/update-nav-order.dto.js';
 import { UpdateStampDelegateDto } from './dto/update-stamp-delegate.dto.js';
@@ -23,6 +26,7 @@ export class WorkspaceController {
     private readonly auth: AuthService,
     private readonly stamp: CompanyStampService,
     private readonly permissions: PermissionsService,
+    private readonly profileSync: ProfileSyncService,
   ) {}
 
   @Get()
@@ -69,15 +73,41 @@ export class WorkspaceController {
   /** تکمیل پروفایل شخصی — نام و تصویر در سطح شخص (مشترک بین همه‌ی محیط‌های کاری او)، ایمیل مخصوص همین محیط کاری. */
   @Patch('profile')
   async updateProfile(@Body() dto: UpdateProfileDto, @Ctx() ctx: TenantRequestContext) {
-    const globalUser = await this.controlDb.globalUser.update({
-      where: { id: ctx.auth.sub },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl } : {}),
-      },
-    });
+    const current = await this.controlDb.globalUser.findUniqueOrThrow({ where: { id: ctx.auth.sub }, select: { name: true, avatarUrl: true } });
+    const data: { name?: string; avatarUrl?: string | null } = {};
+    let nameChanged = false;
+    if (dto.name !== undefined) {
+      const name = normalizeDisplayName(dto.name);
+      if (name !== (current.name ?? '')) {
+        data.name = name;
+        nameChanged = true;
+      }
+    }
+    // تصویر فقط وقتی واقعاً عوض شده اعتبارسنجی می‌شود (تصویر قدیمیِ بزرگ/لینکی جلوی تغییر نام را نگیرد)
+    if (dto.avatarUrl !== undefined && dto.avatarUrl !== current.avatarUrl) {
+      if (dto.avatarUrl !== null && dto.avatarUrl !== '') {
+        const bad = dto.avatarUrl.startsWith('data:') ? checkDataUri(dto.avatarUrl, 'smallImage') : 'فرمت تصویر نامعتبر است';
+        if (bad) throw new BadRequestException(`تصویر پروفایل: ${bad}`);
+      }
+      data.avatarUrl = dto.avatarUrl || null;
+    }
+    const globalUser = Object.keys(data).length
+      ? await this.controlDb.globalUser.update({ where: { id: ctx.auth.sub }, data })
+      : await this.controlDb.globalUser.findUniqueOrThrow({ where: { id: ctx.auth.sub } });
     if (dto.email !== undefined) {
       await ctx.tenantDb.user.updateMany({ where: { globalUserId: ctx.auth.sub }, data: { email: dto.email } });
+    }
+    if (nameChanged && data.name) {
+      const sync = await this.profileSync.syncName(ctx.auth.sub, data.name);
+      const me = await ctx.tenantDb.user.findUnique({ where: { globalUserId: ctx.auth.sub }, select: { id: true } });
+      await ctx.tenantDb.activityLog
+        .create({
+          data: {
+            userId: me?.id ?? null, action: 'profile.name_changed', entityType: 'User', entityId: me?.id ?? null, actorType: 'MANUAL', moduleCode: 'users', actionType: 'update',
+            summary: 'تغییر نام نمایشی توسط خود کاربر', metadata: { from: current.name ?? null, to: data.name, tenantsSynced: sync.tenants, tenantsFailed: sync.failed },
+          },
+        })
+        .catch(() => undefined);
     }
     const tenantUser = await ctx.tenantDb.user.findUnique({ where: { globalUserId: ctx.auth.sub } });
     return { name: globalUser.name, email: tenantUser?.email ?? null, avatarUrl: globalUser.avatarUrl };

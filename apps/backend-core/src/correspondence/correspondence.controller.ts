@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -8,10 +8,12 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { CorrespondenceCoreService, type CorrActor } from './correspondence-core.service.js';
 import { CorrespondenceLettersService } from './correspondence-letters.service.js';
 import { CorrespondenceReferralsService } from './correspondence-referrals.service.js';
+import { CorrespondenceSignatureService } from './correspondence-signature.service.js';
+import { HONORIFICS } from './signature-block.js';
 import { CorrespondenceSettingsService } from './correspondence-settings.service.js';
 import { CorrespondenceWorkflowService } from './correspondence-workflow.service.js';
 import {
-  ArchiveDto, BulkArchiveDto, CategoryDto, CreateLetterDto, ExternalFollowupDto, FolderDto, ForwardReferralDto, MarkDeliveredDto, MarkSentDto,
+  SignatureDefaultsDto, ArchiveDto, BulkArchiveDto, CategoryDto, CreateLetterDto, ExternalFollowupDto, FolderDto, ForwardReferralDto, MarkDeliveredDto, MarkSentDto,
   NoteDto, NumberingSchemeDto, OptionalNoteDto, ParaphDto, ReasonDto, ReferralInputDto, ReferralResponseDto, ReferralReturnDto, RegisterIncomingDto,
   ReplyDto, ReviewDecisionDto, SignDto, SubmitDto, UpdateCategoryDto, UpdateLetterDto, UpdateNumberingSchemeDto,
 } from './dto/correspondence.dto.js';
@@ -61,6 +63,7 @@ export class CorrespondenceController {
     private readonly workflow: CorrespondenceWorkflowService,
     private readonly referrals: CorrespondenceReferralsService,
     private readonly settings: CorrespondenceSettingsService,
+    private readonly signatures: CorrespondenceSignatureService,
   ) {}
 
   /** هر مسیر ابتدا دسترسی «مشاهده» را می‌سنجد (matrix) و هویت را برمی‌گرداند. */
@@ -101,6 +104,28 @@ export class CorrespondenceController {
   @Get('reports/overdue')
   async overdue(@Ctx() ctx: TenantRequestContext) {
     return this.letters.overdueReport(ctx, await this.actorFor(ctx));
+  }
+
+  // ── بلوک امضا ───────────────────────────────────────────────────────────
+  /** مقدار مؤثر (پیش‌فرض‌ها + پروفایل) بلوک امضا برای پر کردن فرم: سمت+شرکت، پیشوند+نام، نمایش تاریخ. */
+  @Get('signature-block')
+  async signatureBlock(@Query('signerUserId') signerUserId: unknown, @Ctx() ctx: TenantRequestContext) {
+    const a = await this.actorFor(ctx);
+    if (signerUserId !== undefined && typeof signerUserId !== 'string') throw new BadRequestException('پارامتر نامعتبر است');
+    const r = await this.signatures.resolve(ctx, signerUserId || a.userId, null);
+    return { ...r, honorifics: HONORIFICS };
+  }
+
+  @Get('signature-defaults')
+  async signatureDefaults(@Ctx() ctx: TenantRequestContext) {
+    await this.actorFor(ctx);
+    return { defaults: await this.signatures.getDefaults(ctx), honorifics: HONORIFICS };
+  }
+
+  @Put('signature-defaults')
+  async setSignatureDefaults(@Body() dto: SignatureDefaultsDto, @Ctx() ctx: TenantRequestContext) {
+    this.assertManager(await this.actorFor(ctx));
+    return this.signatures.setDefaults(ctx, dto);
   }
 
   // ── فهرست/ثبت ──────────────────────────────────────────────────────────

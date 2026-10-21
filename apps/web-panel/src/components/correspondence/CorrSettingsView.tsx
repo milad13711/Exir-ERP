@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import {
-  deleteCategory, deleteFolder, deleteScheme, fetchCategories, fetchFolders, fetchSchemes, previewNumber, saveCategory, saveFolder, saveScheme,
-  TYPE_LABELS, type ArchiveFolder, type Category, type LetterType, type NumberingScheme,
+  deleteCategory, deleteFolder, deleteScheme, fetchCategories, fetchSignatureDefaults, saveSignatureDefaults, fetchFolders, fetchSchemes, previewNumber, saveCategory, saveFolder, saveScheme,
+  TYPE_LABELS, type ArchiveFolder, type Category, type Honorific, type LetterType, type NumberingScheme, type SignatureDefaults, type SignerOverride,
 } from "@/lib/correspondence-api";
-import { BTN_DANGER, BTN_PRIMARY, BTN_SOFT, ErrorBox, INPUT, LABEL, Section, Sheet, errText } from "./corr-ui";
+import { BTN_DANGER, BTN_PRIMARY, BTN_SOFT, ErrorBox, INPUT, LABEL, Section, Sheet, errText, usePeople } from "./corr-ui";
 
 const RESET_LABELS = { YEARLY: "هر سال شمسی", MONTHLY: "هر ماه شمسی", NEVER: "هرگز" } as const;
 
@@ -58,6 +58,8 @@ export function CorrSettingsView() {
           <Link href="/correspondence/settings/templates" className={BTN_SOFT}>قالب‌های متن نامه</Link>
         </div>
       </Section>
+
+      <SignatureDefaultsSection onError={setError} />
 
       <Section title="شماره‌گذاری" right={<button className={BTN_PRIMARY} onClick={() => setSchemeEdit({ type: "OUTGOING", pattern: "صادره/{YYYY}/{SEQ:5}", resetPolicy: "YEARLY", startAt: 1, isActive: true })}>+ طرح جدید</button>}>
         <p className="text-[12px] text-muted mb-3 leading-6">توکن‌ها: {"{YYYY}"} سال شمسی، {"{YY}"} دو رقم سال، {"{MM}"} ماه، {"{SEQ:n}"} شماره‌ی ترتیبی n رقمی، {"{TYPE}"} نوع (و/ص/د)، {"{CAT}"} کد دسته. شماره فقط هنگام امضا (صادره/داخلی) یا ثبت (وارده) داده می‌شود و هرگز دوباره استفاده نمی‌شود؛ نامه‌ی باطل‌شده شماره‌اش را می‌سوزاند. تغییر الگو فقط روی نامه‌های بعدی اثر دارد.</p>
@@ -159,5 +161,79 @@ export function CorrSettingsView() {
         </Sheet>
       ) : null}
     </div>
+  );
+}
+
+
+/** پیش‌فرض بلوک امضا: قالب سازمان + بازنویسی برای هر امضاکننده (جانشین‌ها: {{signerTitle}} {{orgName}} {{signerName}} {{honorific}}). */
+function SignatureDefaultsSection({ onError }: { onError: (m: string | null) => void }) {
+  const people = usePeople();
+  const [d, setD] = useState<SignatureDefaults | null>(null);
+  const [honorifics, setHonorifics] = useState<Honorific[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [addId, setAddId] = useState("");
+  useEffect(() => {
+    fetchSignatureDefaults().then((r) => { setD(r.defaults); setHonorifics(r.honorifics); }).catch((e) => onError(errText(e)));
+  }, [onError]);
+  if (!d) return <Section title="پیش‌فرض بلوک امضا"><p className="text-[12.5px] text-muted">در حال بارگذاری…</p></Section>;
+  const setOv = (uid: string, patch: Partial<SignerOverride>) => setD({ ...d, perSigner: { ...d.perSigner, [uid]: { ...d.perSigner[uid], ...patch } } });
+  const nameOf = (id: string) => people?.find((p) => p.id === id)?.name ?? id;
+  return (
+    <Section title="پیش‌فرض بلوک امضا" right={saved ? <span className="text-success text-[12px]">ذخیره شد</span> : null}>
+      <p className="text-[12px] text-muted leading-6 mb-3">بلوک امضا در PDF سه خط وسط‌چین است: سطر ۱ (سمت و شرکت)، سطر ۲ (پیشوند و نام)، سطر ۳ مهر و امضا. جانشین‌ها: {"{{signerTitle}} {{orgName}} {{signerName}} {{honorific}}"}. سمت از پرونده‌ی پرسنلی امضاکننده و نام شرکت از تنظیمات عمومی خوانده می‌شود؛ هر نامه می‌تواند آن‌ها را ویرایش کند.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label className={LABEL}>قالب سطر ۱</label><input className={INPUT} dir="ltr" value={d.titleTemplate} onChange={(e) => setD({ ...d, titleTemplate: e.target.value })} /></div>
+        <div><label className={LABEL}>قالب سطر ۲</label><input className={INPUT} dir="ltr" value={d.nameTemplate} onChange={(e) => setD({ ...d, nameTemplate: e.target.value })} /></div>
+        <div>
+          <label className={LABEL}>پیشوند پیش‌فرض</label>
+          <select className={INPUT} value={d.honorific} onChange={(e) => setD({ ...d, honorific: e.target.value })}>{honorifics.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}</select>
+        </div>
+        <label className="flex items-center gap-2 text-[13px] min-h-[40px] cursor-pointer"><input type="checkbox" className="w-5 h-5" checked={d.showDate} onChange={(e) => setD({ ...d, showDate: e.target.checked })} />نمایش تاریخ زیر امضا</label>
+      </div>
+      <div className="mt-4">
+        <div className="text-[12.5px] font-extrabold mb-2">بازنویسی برای امضاکننده‌های مشخص</div>
+        {Object.entries(d.perSigner).map(([uid, ov]) => (
+          <div key={uid} className="border border-border rounded-xl p-3 mb-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+            <div className="sm:col-span-3 flex items-center justify-between"><b className="text-[13px]">{nameOf(uid)}</b><button type="button" className={BTN_DANGER} onClick={() => { const { [uid]: _x, ...rest } = d.perSigner; void _x; setD({ ...d, perSigner: rest }); }}>حذف</button></div>
+            <div><label className={LABEL}>سمت</label><input className={INPUT} value={ov.signerTitle ?? ""} onChange={(e) => setOv(uid, { signerTitle: e.target.value })} /></div>
+            <div>
+              <label className={LABEL}>پیشوند</label>
+              <select className={INPUT} value={ov.honorific ?? d.honorific} onChange={(e) => setOv(uid, { honorific: e.target.value })}>{honorifics.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}</select>
+            </div>
+            <label className="flex items-center gap-2 text-[13px] min-h-[40px] cursor-pointer"><input type="checkbox" className="w-5 h-5" checked={ov.showDate ?? d.showDate} onChange={(e) => setOv(uid, { showDate: e.target.checked })} />نمایش تاریخ</label>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <select className={INPUT} value={addId} onChange={(e) => setAddId(e.target.value)}>
+            <option value="">افزودن امضاکننده…</option>
+            {(people ?? []).filter((p) => p.hasAccess && !d.perSigner[p.id]).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button type="button" className={BTN_SOFT} disabled={!addId} onClick={() => { setOv(addId, {}); setAddId(""); }}>افزودن</button>
+        </div>
+      </div>
+      <div className="flex justify-end mt-4">
+        <button
+          type="button"
+          className={BTN_PRIMARY}
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            onError(null);
+            try {
+              setD(await saveSignatureDefaults(d));
+              setSaved(true);
+              setTimeout(() => setSaved(false), 2500);
+            } catch (e) {
+              onError(errText(e));
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          {saving ? "…" : "ذخیره‌ی پیش‌فرض"}
+        </button>
+      </div>
+    </Section>
   );
 }

@@ -17,7 +17,33 @@ export class RecipientDto {
   @IsOptional() @IsString() @MaxLength(60) userId?: string;
 }
 
+export class SignatureBlockDto {
+  @Clean() @IsOptional() @IsString() @MaxLength(120) signerTitle?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(120) orgName?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(80) signerName?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(20) honorific?: string;
+  @IsOptional() @IsBoolean() showDate?: boolean;
+}
+
+export class SignerOverrideDto {
+  @Clean() @IsOptional() @IsString() @MaxLength(200) titleTemplate?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(200) nameTemplate?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(120) signerTitle?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(20) honorific?: string;
+  @IsOptional() @IsBoolean() showDate?: boolean;
+}
+
+export class SignatureDefaultsDto {
+  @Clean() @IsOptional() @IsString() @MaxLength(200) titleTemplate?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(200) nameTemplate?: string;
+  @Clean() @IsOptional() @IsString() @MaxLength(20) honorific?: string;
+  @IsOptional() @IsBoolean() showDate?: boolean;
+  /** userId → بازنویسی برای همان امضاکننده (اعتبارسنجی عمیق در sanitizeDefaults) */
+  @IsOptional() @IsObject() perSigner?: Record<string, SignerOverrideDto>;
+}
+
 export class CreateLetterDto {
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => SignatureBlockDto) signatureBlock?: SignatureBlockDto | null;
   @IsIn(['OUTGOING', 'INTERNAL']) type!: 'OUTGOING' | 'INTERNAL';
   @Clean() @IsOptional() @IsString() @MaxLength(300) subject?: string;
   @IsOptional() @IsString() @MaxLength(400_000) bodyHtml?: string;
@@ -40,6 +66,7 @@ export class CreateLetterDto {
 }
 
 export class UpdateLetterDto {
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => SignatureBlockDto) signatureBlock?: SignatureBlockDto | null;
   @Clean() @IsOptional() @IsString() @MaxLength(300) subject?: string;
   @IsOptional() @IsString() @MaxLength(400_000) bodyHtml?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => RecipientDto) recipients?: RecipientDto[];

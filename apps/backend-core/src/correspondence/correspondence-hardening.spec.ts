@@ -158,7 +158,7 @@ describe('M3 sign race', () => {
     const core = { findVisible: async () => ({ ...letter }), userBrief: async () => ({ name: 'n', title: null }), addParticipant: async () => undefined, logEvent: async () => undefined, notify: async () => undefined };
     const numbering = { issue: vi.fn(async () => ({ number: 'N1', schemeId: 's', periodKey: 'p', seq: 1 })) };
     const render = { build: async () => ({ signature: null }), render: vi.fn(async () => { mutate(letter); return Buffer.from('%PDF'); }) };
-    const svc = new CorrespondenceWorkflowService(core as never, numbering as never, render as never, { tryRecord: async () => ({}) } as never, {} as never);
+    const svc = new CorrespondenceWorkflowService(core as never, numbering as never, render as never, { tryRecord: async () => ({}) } as never, {} as never, { resolve: async () => ({ fields: { signerTitle: '', orgName: '', signerName: 'n', honorific: '', showDate: true }, titleLine: 'T', nameLine: 'N', showDate: true }) } as never);
     return { svc, ctx: { tenantId: 't', tenantSlug: 's', tenantDb, auth: { role: 'MEMBER', sub: 'g' } } as never, letter, render };
   }
   const req = { headers: {} } as never;
@@ -226,7 +226,7 @@ describe('input hygiene', () => {
     expect(cleanText('line1\nline2\t')).toBe('line1\nline2\t');
   });
   it('non-string query params → 400, not 500', async () => {
-    const c = new CorrespondenceController({} as never, {} as never, {} as never, {} as never, {} as never);
+    const c = new CorrespondenceController({} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
     for (const bad of [{ q: ['a', 'b'] }, { status: { a: '1' } }, { createdByUserId: ['x'] }, { relatedContactId: { $ne: 1 } }, { replyToLetterId: ['y'] }]) {
       await expect(c.list(bad as never, {} as never)).rejects.toBeInstanceOf(BadRequestException);
       await expect(c.registerCsv(bad as never, {} as never, {} as never)).rejects.toBeInstanceOf(BadRequestException);
@@ -269,13 +269,13 @@ describe('L5 people / number preview for view-own users', () => {
     expect((await svc.people(ctx, true)).map((p) => p.id)).toEqual(['a']);
     expect((await svc.people(ctx, false)).map((p) => p.id)).toEqual(['a', 'b']);
     const settings = { previewNext: vi.fn(async () => ({ next: 'X' })) };
-    const c = new CorrespondenceController({ actor: async () => actor({ matrix: { ...FULL, canViewAll: false } }) } as never, {} as never, {} as never, {} as never, settings as never);
+    const c = new CorrespondenceController({ actor: async () => actor({ matrix: { ...FULL, canViewAll: false } }) } as never, {} as never, {} as never, {} as never, settings as never, {} as never);
     expect(await c.previewNumber('OUTGOING', undefined, {} as never)).toEqual({ next: null, schemeId: null, pattern: null });
     expect(settings.previewNext).not.toHaveBeenCalled();
   });
   it('check-duplicate returns only a boolean plus the caller-visible matches (no hidden count)', async () => {
     const letters = { findDuplicates: async () => ({ count: 3, visible: [{ id: 'x', letterNumber: 'N', subject: 's' }] }) };
-    const c = new CorrespondenceController({ actor: async () => actor() } as never, letters as never, {} as never, {} as never, {} as never);
+    const c = new CorrespondenceController({ actor: async () => actor() } as never, letters as never, {} as never, {} as never, {} as never, {} as never);
     const r = await c.checkDuplicate({} as never, {} as never);
     expect(r).toEqual({ hasDuplicate: true, duplicates: [{ id: 'x', letterNumber: 'N', subject: 's' }] });
     expect(JSON.stringify(r)).not.toContain('hidden');
@@ -357,7 +357,7 @@ describe('sign without evidence (L6)', () => {
     };
     const tenantDb = { $transaction: async (cb: (t: typeof tx) => unknown) => cb(tx), corrParaph: { findMany: async () => [] }, attachment: { findMany: async () => [] } };
     const core = { findVisible: async () => ({ ...letter }), userBrief: async () => ({ name: 'n', title: null }), addParticipant: async () => undefined, logEvent: async (_d: unknown, _i: string, t: string) => { events.push(t); }, notify: async () => undefined };
-    const svc = new CorrespondenceWorkflowService(core as never, { issue: async () => ({ number: 'N', schemeId: 's', periodKey: 'p', seq: 1 }) } as never, { build: async () => ({ signature: null }), render: async () => Buffer.from('%PDF') } as never, { tryRecord: async () => null } as never, {} as never);
+    const svc = new CorrespondenceWorkflowService(core as never, { issue: async () => ({ number: 'N', schemeId: 's', periodKey: 'p', seq: 1 }) } as never, { build: async () => ({ signature: null }), render: async () => Buffer.from('%PDF') } as never, { tryRecord: async () => null } as never, {} as never, { resolve: async () => ({ fields: { signerTitle: '', orgName: '', signerName: 'n', honorific: '', showDate: true }, titleLine: 'T', nameLine: 'N', showDate: true }) } as never);
     const out = await svc.sign({ tenantId: 't', tenantSlug: 's', tenantDb, auth: { role: 'MEMBER', sub: 'g' } } as never, actor({ userId: 'signer' }), 'L1', { confirm: true }, { headers: {} } as never);
     expect(out.status).toBe('ISSUED');
     expect(events).toContain('EVIDENCE_PENDING');

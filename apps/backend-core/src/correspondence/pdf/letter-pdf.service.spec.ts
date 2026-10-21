@@ -80,7 +80,7 @@ describe('LetterPdfService (puppeteer mock)', () => {
     expect(state.pdfCalls).toBe(3);
     expect(state.contents[0]).not.toContain('class="tail"><div');
     expect(state.contents[1]).toContain('class="tailbox qr"');
-    expect(state.contents[2]).toContain('صفحه 1 از 3');
+    expect(state.contents[2]).toContain('صفحه ۱ از ۳');
   });
   it('بدنه پیش از رندر دوباره پاک‌سازی می‌شود (اعتماد به ورودی نیست)', async () => {
     await new LetterPdfService().render(base({ bodyHtml: '<p>ok</p><script>alert(1)</script><img src="http://evil/x" onerror=1>' }));

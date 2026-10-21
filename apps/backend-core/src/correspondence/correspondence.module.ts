@@ -9,6 +9,7 @@ import { CorrespondenceCronService } from './correspondence-cron.service.js';
 import { CorrespondenceLettersService } from './correspondence-letters.service.js';
 import { CorrespondenceNumberingService } from './correspondence-numbering.service.js';
 import { CorrespondencePublicController, CorrespondencePublicService } from './correspondence-public.js';
+import { CorrespondenceSignatureService } from './correspondence-signature.service.js';
 import { CorrespondenceReferralsService } from './correspondence-referrals.service.js';
 import { CorrespondenceRenderService } from './correspondence-render.service.js';
 import { CorrespondenceSettingsService } from './correspondence-settings.service.js';
@@ -29,6 +30,7 @@ import { CorrespondenceDocsModule } from './docs.module.js';
     CorrespondenceReferralsService,
     CorrespondenceLettersService,
     CorrespondenceRenderService,
+    CorrespondenceSignatureService,
     CorrespondenceWorkflowService,
     CorrespondenceCronService,
     CorrespondencePublicService,

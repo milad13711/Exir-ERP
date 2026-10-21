@@ -15,6 +15,7 @@ import type { Where } from './letter-scope.js';
 import { buildLetterFilterWhere, clampPageSize, combineWhere, type LetterFilters } from './letter-search.js';
 import { canCreateCorrection, canParaph, canRefer, canTransition, isArchivable, isEditable, nextStatus } from './letter-state.js';
 import { letterHtmlToText, sanitizeLetterHtml } from './pdf/sanitize-letter-html.js';
+import { sanitizeSignatureBlock } from './signature-block.js';
 import { deriveVerifyToken, hashVerifyToken } from './verify-token.js';
 
 type Recipient = { name: string; title?: string; org?: string; contactId?: string; userId?: string };
@@ -23,7 +24,7 @@ type Recipient = { name: string; title?: string; org?: string; contactId?: strin
 const CONTENT_FIELDS = [
   'subject', 'bodyHtml', 'recipients', 'ccNames', 'categoryId', 'priority', 'confidentiality', 'letterDate', 'responseDueAt', 'attachmentsText',
   'letterheadId', 'templateId', 'tags', 'relatedContactId', 'relatedProjectId', 'relatedContractId', 'relatedInvoiceId',
-  'externalNumber', 'externalDate', 'receivedAt', 'deliveryMethod', 'senderOrgName', 'senderName', 'senderContactId', 'pageCount',
+  'signatureBlock', 'externalNumber', 'externalDate', 'receivedAt', 'deliveryMethod', 'senderOrgName', 'senderName', 'senderContactId', 'pageCount',
 ] as const;
 
 const LIST_SELECT = {
@@ -86,6 +87,7 @@ export class CorrespondenceLettersService {
           replyToLetterId: replyTo?.id ?? null, relatedContactId: dto.relatedContactId ?? replyTo?.senderContactId ?? null,
           relatedProjectId: dto.relatedProjectId ?? null, relatedContractId: dto.relatedContractId ?? null, relatedInvoiceId: dto.relatedInvoiceId ?? null,
           tags: dto.tags ?? [], createdByUserId: actor.userId, createdByName: actor.name, ownerUserId: actor.userId,
+          ...(dto.signatureBlock ? { signatureBlock: sanitizeSignatureBlock(dto.signatureBlock) as Prisma.InputJsonValue } : {}),
         },
       });
       await this.core.addParticipant(tx, letter.id, actor.userId, 'CREATOR');
@@ -132,6 +134,8 @@ export class CorrespondenceLettersService {
     set('letterheadId', dto.letterheadId);
     set('templateId', dto.templateId);
     set('tags', dto.tags);
+    // null = «خودکار» (بلوک خالی)؛ خطوط نهایی هرگز از کلاینت پذیرفته نمی‌شود
+    if (dto.signatureBlock !== undefined) next.signatureBlock = dto.signatureBlock === null ? {} : sanitizeSignatureBlock(dto.signatureBlock);
     set('relatedContactId', dto.relatedContactId);
     set('relatedProjectId', dto.relatedProjectId);
     set('relatedContractId', dto.relatedContractId);
@@ -574,6 +578,8 @@ export class CorrespondenceLettersService {
           letterDate: new Date(), letterheadId: src.letterheadId, templateId: src.templateId, correctionOfLetterId: src.id, replyToLetterId: src.replyToLetterId,
           relatedContactId: src.relatedContactId, relatedProjectId: src.relatedProjectId, relatedContractId: src.relatedContractId, relatedInvoiceId: src.relatedInvoiceId,
           tags: src.tags, createdByUserId: actor.userId, createdByName: actor.name, ownerUserId: actor.userId,
+          // اصلاحیه بلوک امضای جدید می‌گیرد (نه خطوط ثابت‌شده‌ی نامه‌ی قبلی)
+          ...(src.signatureBlock ? { signatureBlock: sanitizeSignatureBlock(src.signatureBlock) as Prisma.InputJsonValue } : {}),
         },
       });
       await this.core.addParticipant(tx, letter.id, actor.userId, 'CREATOR');

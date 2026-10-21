@@ -1,11 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { Request } from 'express';
+import type { Prisma } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
 import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { CorrespondenceCoreService, type CorrActor } from './correspondence-core.service.js';
+import { CorrespondenceSignatureService } from './correspondence-signature.service.js';
+import { freezeSignatureBlock } from './signature-block.js';
 import { CorrespondenceNumberingService } from './correspondence-numbering.service.js';
 import { CorrespondenceRenderService } from './correspondence-render.service.js';
 import { EVIDENCE_ENTITY, RECEIPT_ATTACHMENT_ENTITY, SNAPSHOT_ATTACHMENT_ENTITY, type LetterStatus, type LetterType } from './correspondence.constants.js';
@@ -20,7 +23,7 @@ const CHANGED_MSG = 'نامه در حین امضا تغییر کرد یا هم�
 
 /** محتوای قانونی-قابل‌اتکای نامه که هش امضا روی آن بسته می‌شود (پایدار، بدون فیلدهای گذرا). */
 export function canonicalLetterContent(
-  l: { id: string; type: string; letterNumber: string | null; subject: string; bodyHtml: string; recipients: unknown; ccNames: string[]; categoryId: string | null; priority: string; confidentiality: string; replyToLetterId: string | null; attachmentsText: string | null },
+  l: { id: string; type: string; letterNumber: string | null; subject: string; bodyHtml: string; recipients: unknown; ccNames: string[]; categoryId: string | null; priority: string; confidentiality: string; replyToLetterId: string | null; attachmentsText: string | null; signatureBlock?: unknown },
   date: Date | null,
   signer: { userId: string | null; name: string },
   paraphs: { authorName: string; text: string; order: number }[],
@@ -29,7 +32,7 @@ export function canonicalLetterContent(
   return {
     v: 1, id: l.id, type: l.type, number: l.letterNumber, date: date ? date.toISOString() : null, subject: l.subject, bodyHtml: l.bodyHtml,
     recipients: l.recipients, ccNames: l.ccNames, categoryId: l.categoryId, priority: l.priority, confidentiality: l.confidentiality,
-    replyTo: l.replyToLetterId, attachmentsText: l.attachmentsText, signer, paraphs, attachments,
+    replyTo: l.replyToLetterId, attachmentsText: l.attachmentsText, signatureBlock: l.signatureBlock ?? null, signer, paraphs, attachments,
   };
 }
 
@@ -45,6 +48,7 @@ export class CorrespondenceWorkflowService {
     private readonly render: CorrespondenceRenderService,
     private readonly evidence: SignatureEvidenceService,
     private readonly stamps: CompanyStampService,
+    private readonly signatures: CorrespondenceSignatureService,
   ) {}
 
   /** تعیین امضاکننده/بازبین فقط وقتی معنا دارد که کاربر به ماژول دسترسی دارد. */
@@ -199,7 +203,9 @@ export class CorrespondenceWorkflowService {
       ctx.tenantDb.corrParaph.findMany({ where: { letterId: id }, orderBy: { order: 'asc' } }),
       ctx.tenantDb.attachment.findMany({ where: { entityType: 'Letter', entityId: id }, select: { id: true, title: true }, orderBy: { createdAt: 'asc' } }),
     ]);
-    const forRender = { ...letter, letterDate: issuedAt };
+    // بلوک امضا همین‌جا نهایی و ثابت می‌شود (فیلدها + دو خط متن)؛ پس از امضا از تنظیمات خوانده نمی‌شود
+    const frozen = freezeSignatureBlock(await this.signatures.resolve(ctx, actor.userId, letter.signatureBlock, { name: brief.name, title: brief.title }));
+    const forRender = { ...letter, letterDate: issuedAt, signatureBlock: frozen };
     const input = await this.render.build(ctx, forRender, {
       paraphs, attachmentTitles: atts.map((a) => a.title), watermark: null, withQr: true, senderTitle: brief.title,
       signature: { signerName: brief.name, signerTitle: brief.title, signedAt: now, useStamp },
@@ -222,7 +228,7 @@ export class CorrespondenceWorkflowService {
     const final = await ctx.tenantDb.$transaction(async (tx) => {
       const claimed = await tx.corrLetter.updateMany({
         where: { id, status: 'PENDING_SIGNATURE', revisionNo: letter0.revisionNo, subject: letter0.subject, bodyHtml: letter0.bodyHtml, ...(actor.isOwner ? {} : { signerUserId: actor.userId }) },
-        data: { status: 'ISSUED', signedAt: now, signedByUserId: actor.userId, signerName: brief.name, signerTitle: brief.title, letterDate: issuedAt, contentHash, verifyTokenHash: hashVerifyToken(token), pdfSnapshotSha256: pdfSha },
+        data: { status: 'ISSUED', signedAt: now, signedByUserId: actor.userId, signerName: brief.name, signerTitle: brief.title, letterDate: issuedAt, signatureBlock: frozen as Prisma.InputJsonValue, contentHash, verifyTokenHash: hashVerifyToken(token), pdfSnapshotSha256: pdfSha },
       });
       if (claimed.count !== 1) throw new ConflictException(CHANGED_MSG);
       const att = await tx.attachment.create({

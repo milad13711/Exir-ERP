@@ -63,6 +63,7 @@ export type LetterDetail = {
   priority: Priority; confidentiality: Confidentiality; responseDueAt: string | null; answeredAt: string | null; replyToLetterId: string | null;
   relatedContactId: string | null; letterheadId: string | null; templateId: string | null; tags: string[]; createdByUserId: string | null; createdByName: string | null;
   ownerUserId: string | null; signerUserId: string | null; signedAt: string | null; signerName: string | null; signerTitle: string | null; lastReturnNote: string | null;
+  signatureBlock: (SignatureBlockFields & { titleLine?: string; nameLine?: string }) | null;
   voidedAt: string | null; voidReason: string | null; archivedAt: string | null; archiveFolderId: string | null; retentionUntil: string | null;
   pdfSnapshotAttachmentId: string | null; pdfSnapshotSha256: string | null; contentHash: string | null; revisionNo: number; createdAt: string; updatedAt: string;
   referrals: Referral[]; paraphs: Paraph[]; events: LetterEvent[]; participants: { id: string; userId: string; role: string; name: string | null }[];
@@ -104,7 +105,24 @@ export const fetchLetter = (id: string) => apiFetch<LetterDetail>(`${B}/letters/
 export const fetchOverdueReport = () =>
   apiFetch<{ letters: LetterListItem[]; referrals: { id: string; toName: string | null; dueAt: string | null; instruction: string; letter: { id: string; subject: string; letterNumber: string | null; confidentiality: Confidentiality } }[] }>(`${B}/reports/overdue`);
 
+export type SignatureBlockFields = { signerTitle?: string; orgName?: string; signerName?: string; honorific?: string; showDate?: boolean };
+export type Honorific = { value: string; label: string };
+export type ResolvedSignature = {
+  fields: { signerTitle: string; orgName: string; signerName: string; honorific: string; showDate: boolean };
+  titleLine: string;
+  nameLine: string;
+  showDate: boolean;
+  honorifics: Honorific[];
+};
+export type SignerOverride = { titleTemplate?: string; nameTemplate?: string; signerTitle?: string; honorific?: string; showDate?: boolean };
+export type SignatureDefaults = { titleTemplate: string; nameTemplate: string; honorific: string; showDate: boolean; perSigner: Record<string, SignerOverride> };
+export const fetchSignatureBlock = (signerUserId?: string) => apiFetch<ResolvedSignature>(`${B}/signature-block${qs({ signerUserId })}`);
+export const fetchSignatureDefaults = () => apiFetch<{ defaults: SignatureDefaults; honorifics: Honorific[] }>(`${B}/signature-defaults`);
+export const saveSignatureDefaults = (d: SignatureDefaults) => apiFetch<SignatureDefaults>(`${B}/signature-defaults`, body("PUT", d));
+
 export type LetterInput = {
+  /** null = خودکار (از پیش‌فرض‌ها/پروفایل) */
+  signatureBlock?: SignatureBlockFields | null;
   subject?: string; bodyHtml?: string; recipients?: Recipient[]; ccNames?: string[]; categoryId?: string | null; priority?: Priority; confidentiality?: Confidentiality;
   letterDate?: string; responseDueAt?: string | null; attachmentsText?: string; letterheadId?: string | null; templateId?: string | null; tags?: string[];
   relatedContactId?: string | null;
@@ -185,7 +203,10 @@ export async function openPdfInTab(make: () => Promise<string>): Promise<void> {
   if (w) w.opener = null;
   try {
     const url = await make();
+    // آدرس blob داخلی است، نه مسیر صفحه‌ی Next
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     if (w) w.location.href = url;
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     else window.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 120_000);
   } catch (e) {

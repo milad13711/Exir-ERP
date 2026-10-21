@@ -31,6 +31,7 @@ export default function ProfileSettingsPage() {
 
   useEffect(() => {
     if (!me) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(me.user.name ?? "");
     setEmail(me.user.email ?? "");
     setAvatarUrl(me.user.avatarUrl);
@@ -57,7 +58,24 @@ export default function ProfileSettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      await updateMyProfile({ name: name.trim(), email: email.trim() || null, avatarUrl });
+      const cleaned = name.replace(/[\u0000-\u001f\u202a-\u202e\u2066-\u2069]/g, "").replace(/\s+/g, " ").trim();
+      if (cleaned.length < 2 || cleaned.length > 80) {
+        setError("نام باید بین ۲ تا ۸۰ نویسه باشد");
+        setSaving(false);
+        return;
+      }
+      // فقط فیلدهای تغییرکرده ارسال می‌شود (تصویر قدیمی یا ایمیل دست‌نخورده جلوی ذخیره‌ی نام را نگیرد)
+      const patch: { name?: string; email?: string | null; avatarUrl?: string | null } = {};
+      if (cleaned !== (me?.user.name ?? "")) patch.name = cleaned;
+      if ((email.trim() || null) !== (me?.user.email ?? null)) patch.email = email.trim() || null;
+      if (avatarUrl !== me?.user.avatarUrl) patch.avatarUrl = avatarUrl;
+      if (Object.keys(patch).length === 0) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+        setSaving(false);
+        return;
+      }
+      await updateMyProfile(patch);
       refreshMe();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);

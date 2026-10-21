@@ -93,7 +93,14 @@ export class LetterPreviewService {
       attachmentsText: dto.attachmentsText ?? s.attachmentsText,
       recipients: [{ name: dto.recipientName ?? s.recipients[0].name, title: dto.recipientTitle ?? s.recipients[0].title }],
       sender,
-      signature: dto.withSignature ? { ...s.signature!, signerName: sender.name, signerTitle: sender.title } : null,
+      signature: dto.withSignature
+        ? {
+            ...s.signature!, signerName: sender.name, signerTitle: sender.title,
+            ...(dto.signatureTitleLine !== undefined ? { titleLine: dto.signatureTitleLine } : {}),
+            ...(dto.signatureNameLine !== undefined ? { nameLine: dto.signatureNameLine } : {}),
+            ...(dto.signatureShowDate === false ? { dateLabel: null } : {}),
+          }
+        : null,
       qr: dto.withQr === false ? null : s.qr,
       paraphs: [],
       watermark: dto.watermark === 'VOID' ? 'باطل‌شده' : dto.watermark === 'DRAFT' || dto.watermark === undefined ? 'پیش‌نویس' : null,

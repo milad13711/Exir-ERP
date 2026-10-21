@@ -1,7 +1,7 @@
 import { API_URL, ApiError, apiFetch, getToken } from "./api";
 
 /** واحد همه‌ی مختصات: میلی‌متر، مبدأ = گوشه‌ی بالا-چپ برگه (مطابق backend: letterhead-layout.ts). */
-export type LetterBoxKey = "number" | "date" | "attachments" | "subject" | "recipient" | "body" | "signature" | "paraphs" | "qr" | "confidentiality";
+export type LetterBoxKey = "number" | "date" | "attachments" | "subject" | "recipient" | "body" | "signature" | "paraphs" | "qr" | "confidentiality" | "pageNumber";
 export type LetterBoxLayout = {
   visible: boolean;
   xMm: number;
@@ -15,7 +15,11 @@ export type LetterBoxLayout = {
   align: "right" | "center" | "left" | "justify";
   lineHeight: number;
 };
+export type PageNumberOptions = { format: string; startFromPage: number; showOnFirstPage: boolean; showOnSinglePage: boolean; persianDigits: boolean };
+export const DEFAULT_PAGE_NUMBER_OPTIONS: PageNumberOptions = { format: "صفحه {n} از {total}", startFromPage: 1, showOnFirstPage: true, showOnSinglePage: false, persianDigits: true };
+export const PAGE_NUMBER_FORMATS = ["صفحه {n} از {total}", "{n}", "{n}/{total}", "- {n} -"] as const;
 export type LetterheadLayout = {
+  pageNumberOptions?: PageNumberOptions;
   pageSize: "A4" | "A5";
   orientation: "portrait" | "landscape";
   letterheadOnAllPages: boolean;
@@ -34,6 +38,7 @@ export const BOX_LABELS: Record<LetterBoxKey, string> = {
   paraphs: "پاراف‌ها",
   qr: "کد QR صحت‌سنجی",
   confidentiality: "محرمانگی / فوریت",
+  pageNumber: "شماره‌ی صفحه",
 };
 export const BOX_KEYS = Object.keys(BOX_LABELS) as LetterBoxKey[];
 export const PAGE_MM = { A4: { w: 210, h: 297 }, A5: { w: 148, h: 210 } } as const;
@@ -120,6 +125,9 @@ export type PreviewPdfInput = {
   priorityLabel?: string;
   watermark?: "DRAFT" | "VOID";
   withSignature?: boolean;
+  signatureTitleLine?: string;
+  signatureNameLine?: string;
+  signatureShowDate?: boolean;
   withQr?: boolean;
   persianDigits?: boolean;
 };

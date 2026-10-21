@@ -1,5 +1,5 @@
 import { escapeHtml } from '../../common/pdf-font.js';
-import { pageDims, BOX_KEYS } from '../letterhead-layout.js';
+import { pageDims, BOX_KEYS, DEFAULT_PAGE_NUMBER_OPTIONS } from '../letterhead-layout.js';
 import type { LetterBoxKey, LetterBoxLayout, LetterRenderInput } from '../render-input.js';
 import { fontCssFor, fontStack } from './letter-fonts.js';
 import { safeImgSrc } from '../../security/puppeteer-hardening.js';
@@ -53,7 +53,7 @@ function contentCss(body: LetterBoxLayout): string {
 .sig{text-align:center;}.sig .sigimgs{position:relative;height:18mm;}
 .sig .sigimg{position:absolute;left:50%;top:0;transform:translateX(-50%);max-height:16mm;max-width:100%;}
 .sig .stamp{position:absolute;left:50%;top:0;transform:translateX(-10%);max-height:18mm;max-width:60%;opacity:.85;}
-.sig .sigspace{height:14mm;}.sig .sn{font-weight:700;}.sig .st,.sig .sd{font-size:.85em;}
+.sig .sigspace{height:14mm;}.sig .sl1,.sig .sl2{font-weight:700;}.sig .sl1{margin-bottom:.6mm;}.sig .sd{font-size:.85em;margin-top:.6mm;}
 .paraphs .pr{margin-bottom:1.2mm;}
 .qrw{display:flex;flex-direction:column;align-items:center;height:100%;}.qrw img{width:100%;max-height:calc(100% - 3mm);object-fit:contain;}.qrc{font-size:6pt;margin-top:.5mm;white-space:nowrap;}
 .wm{position:fixed;top:48%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-family:'Vazirmatn',Tahoma,sans-serif;font-size:84pt;font-weight:800;color:rgba(120,120,120,.16);white-space:nowrap;z-index:50;pointer-events:none;}
@@ -71,7 +71,9 @@ function contentCss(body: LetterBoxLayout): string {
 .body img{max-width:100%;height:auto;}
 .body hr{border:0;border-top:.6pt solid #94a3b8;margin:.8em 0;}
 .tail{margin-top:8mm;break-inside:avoid;display:flow-root;}
-.tailbox{margin-bottom:5mm;break-inside:avoid;}
+.tailbox{margin-bottom:5mm;break-inside:avoid;page-break-inside:avoid;}
+.tailbox.signature{break-inside:avoid;page-break-inside:avoid;}
+.pnum{display:flex;align-items:center;justify-content:center;white-space:nowrap;}
 .tailbox.qr{height:24mm;}
 `;
 }
@@ -107,13 +109,17 @@ export function buildLetterHtml(input: LetterRenderInput, opts: LetterHtmlOption
   const sigImg = sig?.imageDataUri ? safeImgSrc(sig.imageDataUri) : '';
   const stampImg = sig?.stampDataUri ? safeImgSrc(sig.stampDataUri) : '';
   if (sig) {
-    signatureHtml = `<div class="sig">${
+    // سه خط وسط‌چین داخل بلوک: ۱) سمت + شرکت ۲) پیشوند + نام ۳) مهر/امضا؛ سپس تاریخ اختیاری
+    const titleLine = sig.titleLine ?? sig.signerTitle ?? '';
+    const nameLine = sig.nameLine ?? sig.signerName;
+    const dateLabel = sig.dateLabel === undefined ? sig.signedAtText : sig.dateLabel;
+    signatureHtml = `<div class="sig">${titleLine ? `<div class="sl1">${t(titleLine)}</div>` : ''}${nameLine ? `<div class="sl2">${t(nameLine)}</div>` : ''}${
       sigImg || stampImg
         ? `<div class="sigimgs">${stampImg ? `<img class="stamp" src="${stampImg}" alt="">` : ''}${sigImg ? `<img class="sigimg" src="${sigImg}" alt="">` : ''}</div>`
-        : ''
-    }<div class="sn">${t(sig.signerName)}</div>${sig.signerTitle ? `<div class="st">${t(sig.signerTitle)}</div>` : ''}<div class="sd">${t(sig.signedAtText)}</div></div>`;
+        : '<div class="sigspace"></div>'
+    }${dateLabel ? `<div class="sd">${t(dateLabel)}</div>` : ''}</div>`;
   } else if (input.sender.name) {
-    signatureHtml = `<div class="sig"><div class="sigspace"></div><div class="sn">${t(input.sender.name)}</div>${input.sender.title ? `<div class="st">${t(input.sender.title)}</div>` : ''}</div>`;
+    signatureHtml = `<div class="sig">${input.sender.title ? `<div class="sl1">${t(input.sender.title)}</div>` : ''}<div class="sl2">${t(input.sender.name)}</div><div class="sigspace"></div></div>`;
   }
   const paraphHtml = input.paraphs.length
     ? `<div class="paraphs">${input.paraphs
@@ -156,10 +162,20 @@ export function buildLetterHtml(input: LetterRenderInput, opts: LetterHtmlOption
   const padR = opts.flow ? cm.right : dims.w - body.xMm - body.wMm;
   const pre = opts.flow && body.yMm > cm.top ? `<div style="height:${mm(body.yMm - cm.top)}"></div>` : '';
 
+  // شماره‌ی صفحه: دقیقاً در کادر pageNumber (مختصات طراح سربرگ) روی هر صفحه
   const labels: string[] = [];
-  if (opts.pageTotal && opts.pageTotal > 1) {
-    for (let k = 0; k < opts.pageTotal; k++) {
-      labels.push(`<div class="pn" style="top:${mm(k * dims.h + dims.h - 9)}">صفحه ${dg(String(k + 1))} از ${dg(String(opts.pageTotal))}</div>`);
+  const pnb = B.pageNumber;
+  const pno = lay.pageNumberOptions ?? DEFAULT_PAGE_NUMBER_OPTIONS;
+  if (pnb?.visible) {
+    const total = Math.max(1, opts.pageTotal ?? 1);
+    const fa = opts.persianDigits || pno.persianDigits;
+    for (let k = 1; k <= total; k++) {
+      if (total === 1 && !pno.showOnSinglePage) break;
+      if (k < pno.startFromPage || (k === 1 && !pno.showOnFirstPage)) continue;
+      const raw = pno.format.replace(/\{n\}/g, String(k)).replace(/\{total\}/g, String(total));
+      const text = escapeHtml(fa ? faDigits(raw) : raw);
+      const justify = pnb.align === 'left' ? 'flex-start' : pnb.align === 'right' ? 'flex-end' : 'center';
+      labels.push(`<div class="box pnum" style="left:${mm(pnb.xMm)};top:${mm((k - 1) * dims.h + pnb.yMm)};width:${mm(pnb.wMm)};height:${mm(pnb.hMm)};justify-content:${justify};${boxStyle(pnb)}">${text}</div>`);
     }
   }
 
@@ -173,7 +189,6 @@ html,body{margin:0;padding:0;background:transparent;-webkit-print-color-adjust:e
 body{direction:rtl;position:relative;}
 .bg1{position:absolute;left:0;top:0;width:${mm(dims.w)};height:${mm(dims.h)};z-index:-1;background:${bg ? `url(${bg}) center/100% 100% no-repeat` : 'none'};}
 .bgall{position:fixed;left:0;top:0;width:${mm(dims.w)};height:${mm(dims.h)};z-index:-2;background:${bgAll ? `url(${bg}) center/100% 100% no-repeat` : 'none'};}
-.pn{position:absolute;left:0;width:${mm(dims.w)};text-align:center;font-family:'Vazirmatn',Tahoma,sans-serif;font-size:8pt;color:#475569;}
 table.flow{border-collapse:collapse;border-spacing:0;width:${mm(dims.w)};table-layout:fixed;}
 table.flow>thead,table.flow>tfoot{break-inside:avoid;}
 table.flow>thead>tr>td{height:${mm(topSpacer)};padding:0;}

@@ -1,10 +1,10 @@
 import { IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
-import { IsUploadDataUri } from '../../common/validators/upload-limits.js';
 
 export class UpdateProfileDto {
+  /** ۲ تا ۸۰ نویسه؛ پاک‌سازی و پیام فارسی در normalizeDisplayName */
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
+  @IsString({ message: 'نام نامعتبر است' })
+  @MaxLength(400, { message: 'نام بیش از حد طولانی است' })
   name?: string;
 
   @IsOptional()
@@ -14,7 +14,7 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @ValidateIf((o) => o.avatarUrl !== null)
-  @IsString()
-  @IsUploadDataUri('smallImage')
+  @IsString({ message: 'تصویر پروفایل نامعتبر است' })
+  @MaxLength(3_000_000, { message: 'تصویر پروفایل بیش از حد بزرگ است' })
   avatarUrl?: string | null;
 }

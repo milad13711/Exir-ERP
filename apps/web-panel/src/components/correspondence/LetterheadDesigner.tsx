@@ -13,8 +13,14 @@ import {
   type LetterheadMeta,
   type LetterBoxKey,
   type LetterBoxLayout,
+  DEFAULT_PAGE_NUMBER_OPTIONS,
+  PAGE_NUMBER_FORMATS,
+  type PageNumberOptions,
 } from "@/lib/correspondence-docs-api";
-import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
+import { uploadErrorMessage } from "@/lib/upload";
+import { openPdfInTab } from "@/lib/correspondence-api";
+import { prepareLetterheadFromImage, prepareLetterheadFromPdf, pdfPageCount } from "@/lib/letterhead-image";
+import { pdfInputError } from "@/lib/letterhead-image-logic";
 
 const inputClass = "w-full text-[12.5px] outline-none bg-slate-50 border border-border rounded-lg px-2.5 py-2 focus:border-primary";
 const labelClass = "text-[11.5px] font-semibold text-ink-soft mb-1 block";
@@ -30,6 +36,7 @@ const SAMPLE_TEXT: Record<LetterBoxKey, string> = {
   paraphs: "پاراف — محمد کریمی (مدیر مالی): با نظر موافق",
   qr: "QR",
   confidentiality: "محرمانه · فوری",
+  pageNumber: "صفحه ۲ از ۳",
 };
 
 type Dir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -67,6 +74,10 @@ export function LetterheadDesigner({
   const [layout, setLayout] = useState<LetterheadLayout>(letterhead.layout);
   const [image, setImage] = useState<string | null>(letterhead.backgroundImage ?? null);
   const [imageChanged, setImageChanged] = useState(false);
+  const [imageInfo, setImageInfo] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [pdfSource, setPdfSource] = useState<{ file: File; pages: number } | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
   const [departmentId, setDepartmentId] = useState(letterhead.departmentId ?? "");
   const [selected, setSelected] = useState<LetterBoxKey>("body");
   const [grid, setGrid] = useState(1);
@@ -178,20 +189,51 @@ export function LetterheadDesigner({
     else patchBox(selected, fit({ ...b, xMm: b.xMm + dx, yMm: b.yMm + dy }));
   }
 
+  /** تصویر یا PDF → تصویر با کیفیت چاپ؛ PDF فقط در مرورگر پردازش می‌شود. */
   async function onPickImage(file: File | undefined) {
     if (!file) return;
     setMsg(null);
-    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-      setMsg({ kind: "err", text: "فایل PDF پذیرفته نمی‌شود؛ صفحه‌ی سربرگ را به‌صورت تصویر (PNG یا JPEG) ذخیره و بارگذاری کنید." });
-      return;
-    }
+    setImageBusy(true);
     try {
-      const uri = await fileToDataUri(file, "image", { maxDimension: 2480, quality: 0.9, targetBytes: 2.6 * 1024 * 1024 });
-      setImage(uri);
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      let result;
+      if (isPdf) {
+        const bad = pdfInputError(file);
+        if (bad) throw new Error(bad);
+        const n = await pdfPageCount(file);
+        setPdfSource({ file, pages: n });
+        setPdfPage(1);
+        result = await prepareLetterheadFromPdf(file, 1);
+      } else {
+        setPdfSource(null);
+        result = await prepareLetterheadFromImage(file);
+      }
+      setImage(result.dataUri);
+      setImageInfo(result.summary);
       setImageChanged(true);
       setDirty(true);
     } catch (e) {
       setMsg({ kind: "err", text: uploadErrorMessage(e) });
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  async function onPickPdfPage(n: number) {
+    if (!pdfSource) return;
+    setPdfPage(n);
+    setImageBusy(true);
+    setMsg(null);
+    try {
+      const result = await prepareLetterheadFromPdf(pdfSource.file, n);
+      setImage(result.dataUri);
+      setImageInfo(result.summary);
+      setImageChanged(true);
+      setDirty(true);
+    } catch (e) {
+      setMsg({ kind: "err", text: uploadErrorMessage(e) });
+    } finally {
+      setImageBusy(false);
     }
   }
 
@@ -232,15 +274,14 @@ export function LetterheadDesigner({
     setMsg(null);
     try {
       // پیش‌نمایش از «پیش‌نویس جاری» طراح (ذخیره‌نشده هم) ساخته می‌شود
-      const url = await letterheadSamplePdfUrl(letterhead.id, {
+      await openPdfInTab(() => letterheadSamplePdfUrl(letterhead.id, {
         long,
         persianDigits: true,
         layout: { ...layout, pageSize, orientation },
         pageSize,
         orientation,
         backgroundImage: image,
-      });
-      window.open(url, "_blank", "noopener");
+      }));
     } catch (e) {
       setMsg({ kind: "err", text: e instanceof Error ? e.message : "ساخت PDF ناموفق بود" });
     } finally {
@@ -462,19 +503,28 @@ export function LetterheadDesigner({
           <div className="border border-border rounded-xl p-3 flex flex-col gap-3 bg-surface">
             <div className="text-[13px] font-extrabold">تنظیمات سربرگ</div>
             <div>
-              <label className={labelClass}>تصویر سربرگ (PNG / JPEG / WebP، حداکثر ۳ مگابایت)</label>
+              <label className={labelClass}>تصویر یا PDF سربرگ (حداکثر ۶ مگابایت پس از آماده‌سازی)</label>
               <div className="flex items-center gap-2">
-                <label className="text-[12px] font-bold border border-border rounded-lg px-3 py-2 cursor-pointer">
-                  انتخاب تصویر
-                  <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { void onPickImage(e.target.files?.[0]); e.target.value = ""; }} />
+                <label className="text-[12px] font-bold border border-border rounded-lg px-3 py-2 cursor-pointer min-h-[40px] inline-flex items-center">
+                  {imageBusy ? "در حال آماده‌سازی…" : "انتخاب تصویر یا PDF"}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" disabled={imageBusy} className="hidden" onChange={(e) => { void onPickImage(e.target.files?.[0]); e.target.value = ""; }} />
                 </label>
                 {image && (
-                  <button type="button" onClick={() => { setImage(null); setImageChanged(true); setDirty(true); }} className="text-[12px] text-red-600 cursor-pointer">
+                  <button type="button" onClick={() => { setImage(null); setImageInfo(null); setPdfSource(null); setImageChanged(true); setDirty(true); }} className="text-[12px] text-red-600 cursor-pointer">
                     حذف تصویر
                   </button>
                 )}
               </div>
-              <p className="text-[11px] text-muted mt-1 leading-5">فایل PDF پذیرفته نمی‌شود: صفحه‌ی سربرگ را به‌صورت تصویر ذخیره کنید (برای کیفیت چاپ، حدود ۲۰۰ تا ۳۰۰ dpi).</p>
+              {pdfSource && pdfSource.pages > 1 ? (
+                <div className="mt-2">
+                  <label className={labelClass}>صفحه‌ی PDF که سربرگ شود</label>
+                  <select value={pdfPage} disabled={imageBusy} onChange={(e) => void onPickPdfPage(Number(e.target.value))} className={inputClass}>
+                    {Array.from({ length: pdfSource.pages }, (_, i) => <option key={i} value={i + 1}>صفحه {i + 1} از {pdfSource.pages}</option>)}
+                  </select>
+                </div>
+              ) : null}
+              {imageInfo ? <p className="text-[11.5px] text-success mt-1.5 leading-5">آماده شد: {imageInfo}</p> : null}
+              <p className="text-[11px] text-muted mt-1 leading-5">PDF در همین مرورگر با کیفیت ۳۰۰dpi به تصویر تبدیل می‌شود (سرور PDF نمی‌پذیرد). تصاویر تا ۳۵۰۸ پیکسل بدون افت کیفیت غیرضروری و با کوچک‌ترین فرمت (PNG/JPEG/WebP) ذخیره می‌شوند.</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -521,6 +571,11 @@ export function LetterheadDesigner({
                 ))}
               </div>
             </div>
+            <PageNumberPanel
+              opts={layout.pageNumberOptions ?? DEFAULT_PAGE_NUMBER_OPTIONS}
+              onChange={(o) => { setLayout({ ...layout, pageNumberOptions: o }); setDirty(true); }}
+              onSelectBox={() => { setSelected("pageNumber"); setSheetOpen(true); }}
+            />
             <div>
               <label className={labelClass}>واحد سازمانی (اختیاری — شناسه)</label>
               <input value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setDirty(true); }} className={inputClass} placeholder="خالی = سربرگ عمومی" />
@@ -555,6 +610,41 @@ export function LetterheadDesigner({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PageNumberPanel({ opts, onChange, onSelectBox }: { opts: PageNumberOptions; onChange: (o: PageNumberOptions) => void; onSelectBox: () => void }) {
+  const custom = !(PAGE_NUMBER_FORMATS as readonly string[]).includes(opts.format);
+  const preview = (opts.persianDigits ? (s: string) => s.replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]) : (s: string) => s)(opts.format.replace("{n}", "2").replace("{total}", "3"));
+  return (
+    <div className="border border-border rounded-lg p-2.5 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] font-extrabold">شماره‌ی صفحه</span>
+        <button type="button" onClick={onSelectBox} className="text-[11.5px] text-primary underline cursor-pointer min-h-[32px]">تنظیم محل و فونت</button>
+      </div>
+      <div>
+        <label className={labelClass}>قالب</label>
+        <select
+          value={custom ? "__custom" : opts.format}
+          onChange={(e) => onChange({ ...opts, format: e.target.value === "__custom" ? opts.format : e.target.value })}
+          className={inputClass}
+        >
+          {PAGE_NUMBER_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+          <option value="__custom">قالب دلخواه…</option>
+        </select>
+        {custom ? <input value={opts.format} maxLength={40} onChange={(e) => onChange({ ...opts, format: e.target.value })} className={`${inputClass} mt-1.5`} placeholder="مثلاً صفحه {n} از {total}" /> : null}
+        <p className="text-[10.5px] text-muted mt-1">{"{n}"} = شماره‌ی صفحه، {"{total}"} = تعداد کل. پیش‌نمایش: <b>{preview}</b></p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={labelClass}>شروع از صفحه‌ی</label>
+          <input type="number" min={1} max={99} value={opts.startFromPage} onChange={(e) => onChange({ ...opts, startFromPage: clamp(Math.round(Number(e.target.value) || 1), 1, 99) })} className={inputClass} />
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={opts.showOnFirstPage} onChange={(e) => onChange({ ...opts, showOnFirstPage: e.target.checked })} />نمایش روی صفحه‌ی اول</label>
+      <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={opts.showOnSinglePage} onChange={(e) => onChange({ ...opts, showOnSinglePage: e.target.checked })} />نامه‌ی تک‌صفحه‌ای هم شماره بخورد</label>
+      <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={opts.persianDigits} onChange={(e) => onChange({ ...opts, persianDigits: e.target.checked })} />ارقام فارسی</label>
     </div>
   );
 }

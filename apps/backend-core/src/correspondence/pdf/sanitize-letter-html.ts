@@ -8,6 +8,8 @@
  */
 
 export const MAX_LETTER_IMAGE_BYTES = 3 * 1024 * 1024;
+/** سربرگ تصویرِ تمام‌صفحه با کیفیت چاپ (≈۳۰۰dpi) است؛ سقف بالاتر از تصاویر داخل متن. ابعاد همچنان ≤ ۲۵MP است. */
+export const MAX_LETTERHEAD_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_INPUT_CHARS = 12 * 1024 * 1024; // متن + تصاویر؛ سقف سخت‌تر در LetterPdfService
 const MAX_DEPTH = 40;
 const MAX_TAGS = 20000;

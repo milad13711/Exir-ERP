@@ -7,7 +7,7 @@ import { validateLayout } from '../letterhead-layout.js';
 import type { IncomingSlipRenderInput, LetterRenderInput } from '../render-input.js';
 import { buildLetterHtml } from './letter-html.js';
 import { buildSlipHtml, type SlipVariant } from './slip-html.js';
-import { htmlSizeWithoutImages, MAX_LETTER_IMAGE_BYTES, safeLetterImage, sanitizeLetterHtml } from './sanitize-letter-html.js';
+import { htmlSizeWithoutImages, MAX_LETTER_IMAGE_BYTES, MAX_LETTERHEAD_IMAGE_BYTES, safeLetterImage, sanitizeLetterHtml } from './sanitize-letter-html.js';
 
 export const LETTER_LIMITS = {
   bodyBytes: 500 * 1024,
@@ -45,10 +45,10 @@ export function countPdfPages(pdf: Buffer): number {
 const clip = (s: unknown, n: number): string => (typeof s === 'string' ? s.slice(0, n) : '');
 const clipOrNull = (s: unknown, n: number): string | null => (typeof s === 'string' && s ? s.slice(0, n) : null);
 
-function checkImage(uri: string | null | undefined, what: string): string | null {
+function checkImage(uri: string | null | undefined, what: string, maxBytes: number = LETTER_LIMITS.imageBytes): string | null {
   if (!uri) return null;
-  const ok = safeLetterImage(uri, LETTER_LIMITS.imageBytes);
-  if (!ok) throw new BadRequestException(`${what}: فقط تصویر PNG/JPEG/WebP تا ۳ مگابایت پذیرفته می‌شود`);
+  const ok = safeLetterImage(uri, maxBytes);
+  if (!ok) throw new BadRequestException(`${what}: فقط تصویر PNG/JPEG/WebP تا ${Math.round(maxBytes / 1048576)} مگابایت و حداکثر ۲۵ مگاپیکسل پذیرفته می‌شود`);
   return ok;
 }
 
@@ -63,7 +63,7 @@ export function normalizeLetterInput(input: LetterRenderInput): LetterRenderInpu
   if (input.paraphs.length > LETTER_LIMITS.paraphs) throw new BadRequestException(`حداکثر ${LETTER_LIMITS.paraphs} پاراف در PDF قابل چاپ است`);
   if (input.recipients.length > LETTER_LIMITS.recipients) throw new BadRequestException('تعداد گیرندگان بیش از حد است');
   return {
-    letterhead: { imageDataUri: checkImage(input.letterhead.imageDataUri, 'تصویر سربرگ'), layout: lay },
+    letterhead: { imageDataUri: checkImage(input.letterhead.imageDataUri, 'تصویر سربرگ', MAX_LETTERHEAD_IMAGE_BYTES), layout: lay },
     number: clipOrNull(input.number, 100),
     dateText: clip(input.dateText, 100),
     subject: clip(input.subject, LETTER_LIMITS.shortText),

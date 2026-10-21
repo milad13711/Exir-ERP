@@ -7,8 +7,8 @@ import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
-  CONF_LABELS, PRIORITY_LABELS, createLetter, fetchCategories, previewNumber, updateLetter,
-  type Category, type Confidentiality, type LetterDetail, type Priority, type Recipient,
+  CONF_LABELS, PRIORITY_LABELS, createLetter, fetchCategories, fetchSignatureBlock, previewNumber, updateLetter,
+  type Category, type Confidentiality, type Honorific, type LetterDetail, type Priority, type Recipient, type SignatureBlockFields,
 } from "@/lib/correspondence-api";
 import {
   fetchCorrTemplates, fetchLetterheads, previewLetterPdfUrl, renderCorrTemplate, type CorrTemplate, type Letterhead,
@@ -51,6 +51,16 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
   const [previewErr, setPreviewErr] = useState<string | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [internalPick, setInternalPick] = useState<string[]>([]);
+  // بلوک امضا: auto = از پیش‌فرض‌ها/پروفایل؛ با اولین ویرایش دستی، مقدار با نامه ذخیره می‌شود
+  const hasStoredBlock = !!letter?.signatureBlock && Object.keys(letter.signatureBlock).some((k) => !["titleLine", "nameLine"].includes(k));
+  const [sigAuto, setSigAuto] = useState(!hasStoredBlock);
+  const [sig, setSig] = useState<Required<SignatureBlockFields>>({
+    signerTitle: letter?.signatureBlock?.signerTitle ?? "", orgName: letter?.signatureBlock?.orgName ?? "", signerName: letter?.signatureBlock?.signerName ?? "",
+    honorific: letter?.signatureBlock?.honorific ?? "", showDate: letter?.signatureBlock?.showDate ?? true,
+  });
+  const [sigLines, setSigLines] = useState<{ title: string; name: string } | null>(null);
+  const [honorifics, setHonorifics] = useState<Honorific[]>([]);
+  const [sigSigner, setSigSigner] = useState<string[]>(letter?.signerUserId ? [letter.signerUserId] : []);
   const people = usePeople();
   const savingRef = useRef(false);
 
@@ -60,6 +70,30 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
     fetchCorrTemplates({ letterType: type, activeOnly: true }).then(setTemplates).catch(() => setTemplates([]));
     previewNumber(type, undefined).then((r) => setNextNo(r.next ?? null)).catch(() => {});
   }, [type]);
+
+  // مقدار مؤثر بلوک امضا (برای پر کردن فرم و نمایش دو خط در حالت خودکار)
+  useEffect(() => {
+    let alive = true;
+    fetchSignatureBlock(sigSigner[0] || undefined)
+      .then((r) => {
+        if (!alive) return;
+        setHonorifics(r.honorifics);
+        setSigLines({ title: r.titleLine, name: r.nameLine });
+        if (sigAuto) setSig(r.fields);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [sigSigner, sigAuto]);
+
+  const sigTitleLine = sigAuto && sigLines ? sigLines.title : [sig.signerTitle, sig.orgName].filter(Boolean).join(" ");
+  const sigNameLine = sigAuto && sigLines ? sigLines.name : [sig.honorific, sig.signerName].filter(Boolean).join(" ");
+  const editSig = (patch: Partial<typeof sig>) => {
+    setSigAuto(false);
+    setSig((p) => ({ ...p, ...patch }));
+    setDirty(true);
+  };
 
   const touch = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -71,8 +105,9 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
       subject, bodyHtml, recipients: recipients.filter((r) => r.name.trim()), ccNames: ccNames.split(/[،,\n]/).map((s) => s.trim()).filter(Boolean),
       categoryId: categoryId || null, priority, confidentiality: conf, letterDate: letterDate ? `${letterDate}T08:00:00+03:30` : undefined,
       attachmentsText, letterheadId: letterheadId || null, templateId: templateId || null,
+      signatureBlock: sigAuto ? null : sig,
     }),
-    [subject, bodyHtml, recipients, ccNames, categoryId, priority, conf, letterDate, attachmentsText, letterheadId, templateId],
+    [subject, bodyHtml, recipients, ccNames, categoryId, priority, conf, letterDate, attachmentsText, letterheadId, templateId, sigAuto, sig],
   );
 
   const save = useCallback(
@@ -117,7 +152,7 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
   }, [key, dirty, id, subject, bodyHtml, save]);
 
   // پیش‌نمایش زنده
-  const pkey = useDebouncedValue(JSON.stringify([subject, bodyHtml, recipients, letterheadId, attachmentsText, conf, priority]), 1500);
+  const pkey = useDebouncedValue(JSON.stringify([subject, bodyHtml, recipients, letterheadId, attachmentsText, conf, priority, sigTitleLine, sigNameLine, sig.showDate]), 1500);
   useEffect(() => {
     if (!previewOn) return;
     let alive = true;
@@ -125,7 +160,8 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
     previewLetterPdfUrl({
       letterheadId: letterheadId || undefined, subject, bodyHtml, attachmentsText: attachmentsText || undefined, recipientName: first?.name, recipientTitle: first?.title,
       confidentialityLabel: conf === "NORMAL" ? undefined : CONF_LABELS[conf], priorityLabel: priority === "NORMAL" ? undefined : PRIORITY_LABELS[priority],
-      watermark: "DRAFT", persianDigits: true,
+      watermark: "DRAFT", persianDigits: true, withSignature: true,
+      signatureTitleLine: sigTitleLine, signatureNameLine: sigNameLine, signatureShowDate: sig.showDate,
     })
       .then((u) => {
         if (!alive) return URL.revokeObjectURL(u);
@@ -237,6 +273,38 @@ export function LetterEditor({ letter, type: typeProp, onChanged }: Props) {
             ) : null}
             <div><label className={LABEL}>رونوشت (نام‌ها با ویرگول جدا شوند)</label><input value={ccNames} onChange={(e) => touch(setCcNames)(e.target.value)} className={INPUT} disabled={readOnly} /></div>
           </div>
+        </Section>
+
+        <Section
+          title="بلوک امضا"
+          right={!sigAuto && !readOnly ? <button type="button" className="text-[12px] text-primary underline min-h-[36px] cursor-pointer" onClick={() => { setSigAuto(true); setDirty(true); }}>بازگشت به خودکار</button> : <span className="text-[11.5px] text-muted">{sigAuto ? "خودکار (از تنظیمات و پروفایل)" : ""}</span>}
+        >
+          <p className="text-[11.5px] text-muted mb-2 leading-6">در PDF سه خط وسط‌چین در گوشه‌ی پایین-راست زیر متن چاپ می‌شود: ۱) سمت و نام شرکت ۲) پیشوند و نام امضاکننده ۳) مهر و امضا. با ویرایش هر فیلد، مقدار با نامه ذخیره می‌شود و پس از امضا ثابت است.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label className={LABEL}>سمت امضاکننده</label><input value={sig.signerTitle} onChange={(e) => editSig({ signerTitle: e.target.value })} className={INPUT} maxLength={120} disabled={readOnly} placeholder="مثلاً مدیرعامل" /></div>
+            <div><label className={LABEL}>نام شرکت</label><input value={sig.orgName} onChange={(e) => editSig({ orgName: e.target.value })} className={INPUT} maxLength={120} disabled={readOnly} /></div>
+            <div>
+              <label className={LABEL}>پیشوند</label>
+              <select value={sig.honorific} onChange={(e) => editSig({ honorific: e.target.value })} className={INPUT} disabled={readOnly}>
+                {(honorifics.length ? honorifics : [{ value: "", label: "بدون پیشوند" }]).map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
+                {sig.honorific && !honorifics.some((h) => h.value === sig.honorific) ? <option value={sig.honorific}>{sig.honorific}</option> : null}
+              </select>
+            </div>
+            <div><label className={LABEL}>نام امضاکننده</label><input value={sig.signerName} onChange={(e) => editSig({ signerName: e.target.value })} className={INPUT} maxLength={80} disabled={readOnly} /></div>
+            <label className="flex items-center gap-2 text-[13px] min-h-[40px] cursor-pointer sm:col-span-2"><input type="checkbox" className="w-5 h-5" checked={sig.showDate} onChange={(e) => editSig({ showDate: e.target.checked })} disabled={readOnly} />نمایش تاریخ زیر امضا</label>
+          </div>
+          <div className="mt-3 rounded-xl bg-slate-50 border border-border p-3 text-center text-[13px] leading-7" aria-label="پیش‌نمایش بلوک امضا">
+            <div className="font-bold">{sigTitleLine || "—"}</div>
+            <div className="font-bold">{sigNameLine || "—"}</div>
+            <div className="text-muted text-[12px]">[ مهر و امضا ]</div>
+            {sig.showDate ? <div className="text-muted text-[11.5px]">تاریخ امضا</div> : null}
+          </div>
+          {!readOnly ? (
+            <details className="mt-2">
+              <summary className="text-[12px] text-primary cursor-pointer min-h-[36px] inline-flex items-center">پیش‌نمایش و پیش‌فرض‌ها برای امضاکننده‌ی دیگر</summary>
+              <div className="mt-2"><PeoplePicker value={sigSigner} onChange={(ids) => { setSigSigner(ids); }} placeholder="امضاکننده‌ی مورد نظر…" /></div>
+            </details>
+          ) : null}
         </Section>
 
         <Section title="متن نامه">

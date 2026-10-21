@@ -22,7 +22,7 @@ export class CreateLetterheadDto {
   /** data-URI تصویر PNG/JPEG (≤ ۳ مگابایت)؛ null = بدون تصویر. */
   @IsOptional()
   @IsString()
-  @MaxLength(4_400_000)
+  @MaxLength(8_500_000)
   backgroundImage?: string | null;
 
   @IsOptional()
@@ -60,7 +60,7 @@ export class UpdateLetterheadDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(4_400_000)
+  @MaxLength(8_500_000)
   backgroundImage?: string | null;
 
   @IsOptional()
@@ -91,6 +91,10 @@ export class PreviewPdfDto {
   @IsOptional() @IsString() @MaxLength(100) priorityLabel?: string;
   @IsOptional() @IsIn(['DRAFT', 'VOID']) watermark?: 'DRAFT' | 'VOID';
   @IsOptional() @IsBoolean() withSignature?: boolean;
+  /** بلوک امضای سه‌خطی در پیش‌نمایش زنده‌ی فرم نامه */
+  @IsOptional() @IsString() @MaxLength(300) signatureTitleLine?: string;
+  @IsOptional() @IsString() @MaxLength(300) signatureNameLine?: string;
+  @IsOptional() @IsBoolean() signatureShowDate?: boolean;
   @IsOptional() @IsBoolean() withQr?: boolean;
   @IsOptional() @IsBoolean() persianDigits?: boolean;
 }
@@ -103,5 +107,5 @@ export class SamplePdfDto {
   @IsOptional() @IsBoolean() persianDigits?: boolean;
   /** پیش‌نمایش پیش از ذخیره: چیدمان/تصویر جاری طراح (به‌جای نسخه‌ی ذخیره‌شده). سخت‌گیرانه اعتبارسنجی می‌شود. */
   @IsOptional() @IsObject() layout?: Record<string, unknown>;
-  @IsOptional() @IsString() @MaxLength(4_400_000) backgroundImage?: string | null;
+  @IsOptional() @IsString() @MaxLength(8_500_000) backgroundImage?: string | null;
 }

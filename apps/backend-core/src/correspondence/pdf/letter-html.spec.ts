@@ -105,7 +105,7 @@ describe('buildLetterHtml — صفحه‌بندی', () => {
   it('حالت جریان: حاشیه‌ی ادامه + spacer اضافه‌ی صفحه‌ی اول + امضا بعد از متن', () => {
     const html = buildLetterHtml(input(), { ...opts, flow: true });
     expect(html).toContain('table.flow>thead>tr>td{height:20mm;');
-    expect(html).toContain('table.flow>tfoot>tr>td{height:20mm;');
+    expect(html).toContain('table.flow>tfoot>tr>td{height:28mm;');
     expect(html).toContain('<div style="height:78mm"></div>'); // 98-20
     expect(html).not.toContain('class="box signature"');
     expect(html).not.toContain('class="box paraphs"');
@@ -120,13 +120,16 @@ describe('buildLetterHtml — صفحه‌بندی', () => {
     expect(html).toContain('orphans:2;widows:2');
     expect(html).toContain('table.flow>thead,table.flow>tfoot{break-inside:avoid;}');
   });
-  it('شماره‌ی صفحه: برچسب مطلق در کف هر صفحه فقط وقتی pageTotal>1', () => {
-    expect(buildLetterHtml(input(), { ...opts, flow: true, pageTotal: null })).not.toContain('class="pn"');
-    expect(buildLetterHtml(input(), { ...opts, flow: true, pageTotal: 1 })).not.toContain('class="pn"');
+  it('شماره‌ی صفحه: دقیقاً در کادر pageNumber، فقط برای نامه‌ی چندصفحه‌ای (پیش‌فرض)', () => {
+    expect(buildLetterHtml(input(), { ...opts, flow: true, pageTotal: null })).not.toContain('class="box pnum"');
+    expect(buildLetterHtml(input(), { ...opts, flow: true, pageTotal: 1 })).not.toContain('class="box pnum"');
     const html = buildLetterHtml(input(), { ...opts, flow: true, pageTotal: 3 });
-    expect(html).toContain('<div class="pn" style="top:288mm">صفحه 1 از 3</div>');
-    expect(html).toContain('<div class="pn" style="top:585mm">صفحه 2 از 3</div>');
-    expect(html).toContain('<div class="pn" style="top:882mm">صفحه 3 از 3</div>');
+    // کادر پیش‌فرض: x=75 y=274 w=60 h=5 ؛ صفحه‌ی k در top = (k-1)*297 + 274
+    expect(html).toContain('class="box pnum" style="left:75mm;top:274mm;width:60mm;height:5mm;');
+    expect(html).toContain('top:571mm;');
+    expect(html).toContain('top:868mm;');
+    expect(html).toContain('>صفحه ۱ از ۳<');
+    expect(html).toContain('>صفحه ۳ از ۳<');
     expect(buildLetterHtml(input(), { ...opts, flow: true, pageTotal: 2, persianDigits: true })).toContain('صفحه ۱ از ۲');
   });
   it('سربرگ: فقط صفحه‌ی اول (bg1) یا همه‌ی صفحات (bgall ثابت)', () => {
