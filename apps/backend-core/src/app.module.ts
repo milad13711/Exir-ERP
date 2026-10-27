@@ -65,6 +65,8 @@ import { WarrantyModule } from './warranty/warranty.module.js';
 import { AfterSalesModule } from './after-sales/after-sales.module.js';
 import { QrCodeModule } from './qr-code/qr-code.module.js';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { SyncModule } from './sync/sync.module.js';
+import { IdempotencyInterceptor } from './sync/idempotency.interceptor.js';
 import { SecurityModule } from './security/security.module.js';
 import { RateLimitGuard } from './security/rate-limit.guard.js';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor.js';
@@ -156,12 +158,15 @@ import { SignatureEvidenceModule } from './common/signature-evidence/signature-e
     DashboardModule,
     AttachmentsModule,
     ExchangeRatesModule,
+    SyncModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // نرخ‌سنج پیش از همه‌ی گاردها (ترتیب ثبت APP_GUARD) تا هجوم بدون احراز هویت به DB نرسد
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: LicenseGuard },
+    // پیش از AuditInterceptor: بازپخش Idempotent نباید لاگ فعالیت تکراری بسازد (ترتیب ثبت = ترتیب اجرا)
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

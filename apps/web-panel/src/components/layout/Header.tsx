@@ -9,10 +9,15 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
 import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals, type MyTenant, type ModuleRenewalNotice } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
+import { OfflineLogoutDialog } from "@/components/offline/OfflineLogoutDialog";
+import { getManager } from "@/lib/offline/client";
 import { NotificationBell } from "./NotificationBell";
 import { ReminderAlarm } from "./ReminderAlarm";
 import { PhoneWidget } from "@/components/voip/PhoneWidget";
 import { SmsCreditChip } from "@/components/sms/SmsCreditChip";
+import { useInstall } from "@/hooks/useInstall";
+import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
+import { promptInstall, unsubscribeForLogout } from "@/lib/push-client";
 
 export function Header({
   onOpenSupport,
@@ -30,6 +35,8 @@ export function Header({
   const { me, subscription, license } = useWorkspace();
   const [moduleRenewals, setModuleRenewals] = useState<ModuleRenewalNotice[]>([]);
   const router = useRouter();
+  const install = useInstall();
+  const [iosSheet, setIosSheet] = useState(false);
 
   useEffect(() => {
     if (!menuOpen || otherTenants !== null) return;
@@ -42,9 +49,36 @@ export function Header({
     fetchModuleRenewals().then(setModuleRenewals).catch(() => setModuleRenewals([]));
   }, []);
 
-  function handleLogout() {
+  const [logoutAsk, setLogoutAsk] = useState<number | null>(null);
+
+  async function finishLogout(choice: "keep" | "discard" | "sync") {
+    const mgr = getManager();
+    if (mgr) {
+      if (choice === "sync") await mgr.syncNow().catch(() => undefined);
+      // سیاست مدیر «پاک‌سازی هنگام خروج»: کش همیشه پاک می‌شود؛ صف فقط با انتخاب صریح دور ریخته می‌شود
+      await mgr.refreshCounts();
+      const c = mgr.getSnapshot().counts;
+      const nothingLeft = c.pending + c.syncing + c.failed + c.conflict === 0;
+      await mgr.wipeOfflineData({ discardQueue: choice === "discard" || (nothingLeft && mgr.policy.wipeOnLogout) }).catch(() => undefined);
+    }
+    // اشتراک پوش همین دستگاه را (تا ۳ ثانیه) از حساب جدا کن؛ نیازمند توکن است پس قبل از clearToken
+    await unsubscribeForLogout();
     clearToken();
     router.replace("/login");
+  }
+
+  async function handleLogout() {
+    const mgr = getManager();
+    if (mgr) {
+      await mgr.refreshCounts();
+      const c = mgr.getSnapshot().counts;
+      const unsynced = c.pending + c.syncing + c.failed + c.conflict;
+      if (unsynced > 0) {
+        setLogoutAsk(unsynced);
+        return;
+      }
+    }
+    await finishLogout("keep");
   }
 
   async function handleSwitchTenant(slug: string) {
@@ -59,7 +93,7 @@ export function Header({
   }
 
   return (
-    <header className="h-17 bg-surface border-b border-border flex items-center justify-between px-3 sm:px-4 lg:px-7 shrink-0">
+    <header className="h-[calc(4.25rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-surface border-b border-border flex items-center justify-between px-3 sm:px-4 lg:px-7 shrink-0">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -214,6 +248,26 @@ export function Header({
                 >
                   پروفایل من
                 </Link>
+                {install.mounted && !install.installed && (install.canPrompt || install.iosManual) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (install.canPrompt) void promptInstall();
+                      else setIosSheet(true);
+                    }}
+                    className="block w-full text-start px-3.5 py-2.5 text-[13px] font-semibold hover:bg-primary-soft"
+                  >
+                    نصب اپ روی این دستگاه
+                  </button>
+                ) : null}
+                <Link
+                  href="/settings/notifications"
+                  onClick={() => setMenuOpen(false)}
+                  className="block w-full text-start px-3.5 py-2.5 text-[13px] font-semibold hover:bg-primary-soft"
+                >
+                  اعلان‌ها و دستگاه‌ها
+                </Link>
                 <div className="h-px bg-border my-1.5" />
                 <div className="px-3.5 pt-1 pb-2 text-[11px] font-bold text-muted">
                   محیط کاری فعلی: {me?.tenant.name}
@@ -247,6 +301,18 @@ export function Header({
           ) : null}
         </div>
       </div>
+      <IosInstallSheet open={iosSheet} onClose={() => setIosSheet(false)} />
+      {logoutAsk !== null ? (
+        <OfflineLogoutDialog
+          pending={logoutAsk}
+          online={typeof navigator === "undefined" ? true : navigator.onLine}
+          wipeDefault={getManager()?.policy.wipeOnLogout ?? true}
+          onChoose={(c) => {
+            setLogoutAsk(null);
+            if (c !== "cancel") void finishLogout(c);
+          }}
+        />
+      ) : null}
     </header>
   );
 }

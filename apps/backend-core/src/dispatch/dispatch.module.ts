@@ -34,6 +34,6 @@ import { PublicDispatchReceiptController, PublicDispatchReceiptService } from '.
     DispatchCronService,
     PublicDispatchReceiptService,
   ],
-  exports: [DispatchService, DispatchRulesService],
+  exports: [DispatchService, DispatchRulesService, DispatchReportService],
 })
 export class DispatchModule {}

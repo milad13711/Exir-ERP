@@ -1,11 +1,14 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
@@ -14,7 +17,13 @@ import type { TenantAuthPayload, TenantJwtPayload } from '../../auth/jwt-payload
 import { API_KEY_PREFIX } from '../../api-keys/api-key.constants.js';
 import { SessionEpochService } from '../../security/session-epoch.service.js';
 import { SecurityEventsService } from '../../security/security-events.service.js';
-import { verifyApiKeyToken } from '../../api-keys/api-key-verifier.js';
+import { recordApiKeyUse, verifyApiKeyToken } from '../../api-keys/api-key-verifier.js';
+import { canRead, canWrite, hasModuleRestriction, ipAllowed, isLegacyKey, isRestWriteMethod, moduleAllowed } from '../../api-keys/api-key-scopes.js';
+import { API_KEY_SELF_SCOPED_KEY } from '../decorators/api-key-self-scoped.decorator.js';
+import { API_KEY_ALLOWED_KEY, HUMAN_ONLY_KEY } from '../decorators/human-only.decorator.js';
+import { ROLES_KEY } from '../decorators/roles.decorator.js';
+import { isHumanOnlyPath } from '../../api-keys/api-key-human-only.js';
+import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
 import { clientIp } from '../../security/client-ip.js';
 import {
   effectiveMode,
@@ -53,6 +62,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly epoch: SessionEpochService,
     private readonly events: SecurityEventsService,
+    @Optional() private readonly reflector?: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -111,6 +121,8 @@ export class JwtAuthGuard implements CanActivate {
       dbName: tenant.dbName,
     });
 
+    if (payload.type === 'api_key') this.enforceKeyScopes(payload.scopes, context, req);
+
     req.ctx = {
       auth: payload,
       tenantId: tenant.id,
@@ -165,18 +177,50 @@ export class JwtAuthGuard implements CanActivate {
     return evaluateTwoFactor({ ...base, graceStartedAt });
   }
 
+  /**
+   * اعمال دامنه‌ی کلید API روی REST: متد نوشتنی نیازمند `write`؛ در صورت محدودیت ماژولی فقط روت‌های @RequireModule
+   * با ماژول مجاز (روت بدون ماژول برای کلید محدودشده بسته است — fail-closed). روت‌های خودمحدودکننده (MCP) استثنا هستند.
+   */
+  private enforceKeyScopes(scopes: string[] | undefined, context: ExecutionContext, req: Request): void {
+    const hasMeta = typeof context.getHandler === 'function' && typeof context.getClass === 'function';
+    const meta = <T>(key: string): T | undefined => (hasMeta ? this.reflector?.getAllAndOverride<T | undefined>(key, [context.getHandler(), context.getClass()]) : undefined);
+    // مسیرهای مدیریتی/امنیتی فقط برای انسان — برای همه‌ی کلیدها (حتی قدیمی با دسترسی کامل).
+    const roleGated = !!meta<unknown[]>(ROLES_KEY) && !meta<boolean>(API_KEY_ALLOWED_KEY);
+    if (meta<boolean>(HUMAN_ONLY_KEY) || roleGated || isHumanOnlyPath(req.originalUrl ?? req.url ?? req.path)) {
+      throw new ForbiddenException('این بخش فقط با ورود کاربر داخل پنل قابل‌استفاده است و با کلید API در دسترس نیست');
+    }
+    if (isLegacyKey(scopes)) return;
+    if (meta<boolean>(API_KEY_SELF_SCOPED_KEY)) {
+      if (!canRead(scopes)) throw new ForbiddenException('این کلید API دسترسی خواندن ندارد');
+      return;
+    }
+    if (!canRead(scopes)) throw new ForbiddenException('این کلید API دسترسی خواندن ندارد');
+    if (isRestWriteMethod(req.method) && !canWrite(scopes)) {
+      throw new ForbiddenException('این کلید API فقط‌خواندنی است و اجازه‌ی ثبت یا تغییر داده را ندارد');
+    }
+    if (hasModuleRestriction(scopes)) {
+      const moduleCode = meta<string>(REQUIRE_MODULE_KEY);
+      if (!moduleCode || !moduleAllowed(scopes, moduleCode)) {
+        throw new ForbiddenException('این کلید API به این بخش دسترسی ندارد');
+      }
+    }
+  }
+
   private async verifyApiKey(token: string, req: Request): Promise<TenantAuthPayload> {
     const hit = await verifyApiKeyToken(this.controlDb, token);
-    if (!hit) {
+    const ip = clientIp(req);
+    // کلید نامعتبر، ابطال‌شده، منقضی‌شده یا IP غیرمجاز: همه یک پاسخ ۴۰۱ یکسان می‌گیرند تا حالت کلید قابل‌حدس نباشد.
+    if (!hit || !ipAllowed(ip, hit.ipAllowlist)) {
       this.events.record({
         type: 'API_KEY_AUTH_FAILED',
         severity: 'WARNING',
-        ip: clientIp(req),
-        message: 'invalid API key presented',
-        dedupeKey: clientIp(req),
+        ip,
+        message: hit ? 'API key used from a disallowed IP' : 'invalid API key presented',
+        dedupeKey: ip,
       });
       throw new UnauthorizedException('کلید API نامعتبر یا غیرفعال است');
     }
-    return { type: 'api_key', sub: hit.id, tenantId: hit.tenantId, role: 'OWNER' };
+    recordApiKeyUse(this.controlDb, hit.id, ip);
+    return { type: 'api_key', sub: hit.id, tenantId: hit.tenantId, role: 'OWNER', scopes: hit.scopes };
   }
 }

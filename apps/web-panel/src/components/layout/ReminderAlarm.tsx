@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchActiveReminders, markReminderDone, snoozeReminder, type DashboardReminder } from "@/lib/api";
 import { playNotificationSound } from "@/lib/notification-sound";
 import { toPersianDigits } from "@/lib/persian";
+import { parseReminderAction } from "@/lib/push-client-pure";
 
 const SEEN_KEY = "exir-reminder-alarms-seen";
 
@@ -52,6 +53,33 @@ export function ReminderAlarm() {
       .catch(() => {});
   }
 
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    reloadRef.current = reload;
+  });
+
+  // دکمه‌های اعلان پوش («انجام شد» / «۱۰ دقیقه دیگر»): سرویس‌ورکر توکن ورود ندارد، پس برنامه را با ?reminder=…&act=… باز می‌کند
+  // (یا اگر برنامه باز بود پیام می‌دهد) و اقدام اینجا با نشست خود کاربر انجام می‌شود.
+  useEffect(() => {
+    const run = (id: string, act: "done" | "snooze") => {
+      (act === "done" ? markReminderDone(id) : snoozeReminder(id, 10)).catch(() => {}).finally(() => reloadRef.current());
+    };
+    const fromUrl = parseReminderAction(window.location.search);
+    if (fromUrl) {
+      run(fromUrl.id, fromUrl.act);
+      const u = new URL(window.location.href);
+      u.searchParams.delete("act");
+      u.searchParams.delete("reminder");
+      window.history.replaceState(null, "", u.pathname + (u.search || "") + u.hash);
+    }
+    const onEvt = (e: Event) => {
+      const d = (e as CustomEvent).detail as { id?: string; act?: string } | undefined;
+      if (d?.id && (d.act === "done" || d.act === "snooze")) run(d.id, d.act);
+    };
+    window.addEventListener("exir:reminder-action", onEvt);
+    return () => window.removeEventListener("exir:reminder-action", onEvt);
+  }, []);
+
   useEffect(() => {
     reload();
     const t = setInterval(reload, 20_000);
@@ -60,7 +88,9 @@ export function ReminderAlarm() {
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", reload);
+    window.addEventListener("exir:push-received", reload);
     return () => {
+      window.removeEventListener("exir:push-received", reload);
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", reload);

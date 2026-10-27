@@ -129,7 +129,17 @@ export class RemindersCronService {
       type: 'reminder.alarm',
       title: alertText(r.title, offset),
       body: r.note ? `${when} — ${r.note}` : when,
-      link: '/dashboard',
+      link: `/dashboard?reminder=${r.id}`,
+      entityType: 'reminder',
+      entityId: r.id,
+      category: 'reminders',
+      critical: offset === 0,
+      important: true,
+      tag: `reminder-${r.id}`,
+      actions: [
+        { action: 'done', title: 'انجام شد' },
+        { action: 'snooze', title: '۱۰ دقیقه دیگر' },
+      ],
       channels: { push: r.channels.includes('PUSH'), email: r.channels.includes('EMAIL'), sms },
     });
     void tenantId;

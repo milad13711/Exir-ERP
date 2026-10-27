@@ -18,6 +18,7 @@ import {
   ResolveProblemDto,
   SubmitResultDto,
   TaskSettingsDto,
+  MarkDeliveredDto,
 } from './dto/task-actions.dto.js';
 import { TasksService, type TaskListFilters } from './tasks.service.js';
 
@@ -49,6 +50,12 @@ export class TasksController {
       mine: query.mine,
       limit: query.limit ? Number(query.limit) : undefined,
     });
+  }
+
+  /** تیک «دریافت‌شد»: کلاینت وقتی کارت وظیفه‌ی ارجاع‌شده به کاربر نمایان شد شناسه‌ها را می‌فرستد (فقط ردیف خود کاربر). */
+  @Post('delivered')
+  delivered(@Body() dto: MarkDeliveredDto, @Ctx() ctx: TenantRequestContext) {
+    return this.tasks.markDeliveredExplicit(ctx, dto.ids);
   }
 
   @Get('summary')

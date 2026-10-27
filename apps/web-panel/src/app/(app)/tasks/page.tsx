@@ -8,6 +8,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { TaskTicks } from "@/components/tasks/TaskTicks";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { FIELD, PRIORITY_LABEL, PRIORITY_TONE, STATUS_LABEL, STATUS_TONE } from "@/components/tasks/task-ui";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -84,6 +85,20 @@ export default function TasksPage() {
     fetchTaskSummary(assigneeId || undefined).then((s) => isCurrent() && setSummary(s)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, beginRequest]);
+
+  // تیک‌های دریافت/مشاهده زنده بماند: با برگشت به تب و هر ۴۵ ثانیه (فقط وقتی تب دیده می‌شود) فهرست دوباره خوانده می‌شود.
+  const hasPendingTicks = !!tasks?.some((t) => t.tick && t.tick !== "none" && t.tick !== "seen" && t.status !== "APPROVED");
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") setReloadKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", refresh);
+    const timer = hasPendingTicks ? window.setInterval(refresh, 45_000) : null;
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      if (timer) window.clearInterval(timer);
+    };
+  }, [hasPendingTicks]);
 
   async function savePrefix() {
     try {
@@ -218,6 +233,7 @@ export default function TasksPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[11px] text-muted font-mono" dir="ltr">{task.code}</span>
                       <span className={clsx("text-[13.5px] font-semibold", (task.status === "APPROVED" || task.status === "CANCELLED") && "text-muted line-through")}>{task.title}</span>
+                      <TaskTicks task={task} />
                     </div>
                     <div className="text-[11.5px] text-muted mt-0.5">
                       {task.dueAt ? <span className={clsx(task.isOverdue && "text-danger font-bold")}>موعد: {formatJalaliDateTime(task.dueAt)}</span> : `ایجاد: ${formatJalaliDateTime(task.createdAt)}`}

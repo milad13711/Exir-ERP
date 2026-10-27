@@ -112,6 +112,12 @@ export class TenantPrismaService implements OnModuleInit, OnModuleDestroy {
     return client;
   }
 
+  /** نام دیتابیس تننتِ یک کلاینت کش‌شده (برای توکن ack پوش که فقط tenantDb دارد)؛ ناشناس → null. */
+  dbNameOf(client: unknown): string | null {
+    for (const [dbName, entry] of this.clients) if (entry.client === client) return dbName;
+    return null;
+  }
+
   private retire(client: PrismaClient): void {
     const t = setTimeout(() => void client.$disconnect().catch(() => undefined), RETIRE_GRACE_MS);
     t.unref();

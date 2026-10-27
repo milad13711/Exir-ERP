@@ -296,11 +296,13 @@ model Task {
 
 /// ارجاع‌گیرندگان وظیفه (چندنفره). seenAt = اولین بازدید همان نفر.
 model TaskAssignee {
-  id        String    @id @default(uuid())
-  taskId    String
-  userId    String
-  seenAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(uuid())
+  taskId      String
+  userId      String
+  /// «دریافت‌شد» (تیک خاکستری): وظیفه در سیستم به ارجاع‌گیرنده رسید (لیست/اعلان/ویجت) ولی هنوز باز نشده. seenAt ⇒ deliveredAt.
+  deliveredAt DateTime?
+  seenAt      DateTime?
+  createdAt   DateTime  @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -495,6 +497,7 @@ model ActivityLog {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([userId, moduleCode, createdAt])
   @@index([moduleCode, createdAt])
   @@index([actorType, createdAt])
   @@map("activity_logs")
@@ -524,18 +527,27 @@ model ErrorLog {
 // gate NotificationsService.notify() calls made from other modules ───────
 
 model Notification {
-  id        String    @id @default(uuid())
-  userId    String
-  type      String // e.g. "task.assigned", "leave.reviewed" — free-form, per calling module
-  title     String
-  body      String?
-  link      String? // relative in-app path to navigate to on click
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id           String    @id @default(uuid())
+  userId       String
+  type         String // e.g. "task.assigned", "leave.reviewed" — free-form, per calling module
+  title        String
+  body         String?
+  link         String? // relative in-app path to navigate to on click
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+  /// موجودیت مرتبط (مثلاً entityType=task / entityId=شناسه‌ی وظیفه) — برای واکنش ماژول‌ها به «تحویل» اعلان
+  entityType   String?
+  entityId     String?
+  /// دسته‌ی اعلان (messenger/tasks/reminders/correspondence/approvals/system/marketing)
+  category     String?
+  /// اولین باری که اعلان به دستگاه کاربر رسید (پوش/درون‌برنامه/سوکت)
+  deliveredAt  DateTime?
+  deliveredVia String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([entityType, entityId])
   @@map("notifications")
 }
 
@@ -558,11 +570,19 @@ model UserModulePermission {
 }
 
 model NotificationPreference {
-  userId       String  @id
-  emailEnabled Boolean @default(true)
-  smsEnabled   Boolean @default(false)
+  userId             String  @id
+  emailEnabled       Boolean @default(true)
+  smsEnabled         Boolean @default(false)
   /// پخش صدای کوتاه در مرورگر هنگام رسیدن اعلان جدید درون‌برنامه‌ای (زنگوله)
-  soundEnabled Boolean @default(true)
+  soundEnabled       Boolean @default(true)
+  /// ترجیح هر دسته × کانال: { [category]: { push?: boolean, inApp?: boolean, sms?: boolean } } — کلید غایب = پیش‌فرض
+  categoryPrefs      Json?
+  /// ساعات سکوت (وقت تهران، «HH:mm»)؛ اعلان‌های حیاتی (آلارم/امنیتی) از آن مستثنا هستند
+  quietHoursEnabled  Boolean @default(false)
+  quietStart         String  @default("22:00")
+  quietEnd           String  @default("07:00")
+  /// اگر پوش برای اعلان مهم نرسید، یک پیامک جایگزین (با سقف روزانه)
+  smsFallbackEnabled Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -574,16 +594,54 @@ model NotificationPreference {
 /// NotificationsService.notify() صدا زده شود، اگر کاربر حداقل یک اشتراک
 /// داشته باشد، به همه‌ی دستگاه‌هایش پوش هم ارسال می‌شود.
 model PushSubscription {
-  id        String   @id @default(uuid())
-  userId    String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
+  id            String    @id @default(uuid())
+  userId        String
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  createdAt     DateTime  @default(now())
+  /// برچسب دستگاه («Chrome روی Android») و UA خام
+  label         String?
+  userAgent     String?
+  lastSeenAt    DateTime?
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  /// شکست‌های پیاپی (با موفقیت صفر می‌شود)؛ از آستانه که گذشت اشتراک حذف می‌شود
+  failureCount  Int       @default(0)
+  /// اثرانگشت کلید VAPID هنگام اشتراک — تشخیص چرخش کلید
+  vapidKeyHash  String?
+  /// nonce زنجیره‌ی توکن چرخش (یک‌بارمصرف): با هر rotate/subscribe عوض می‌شود و توکن قبلی باطل می‌شود
+  rotateNonce   String?
+  lastRotateAt  DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// هر تلاش ارسال پوش/پیامک جایگزین به یک دستگاه — برای عیب‌یابی («۲۰ تلاش اخیر») و تأیید رسیدن (ack).
+model PushAttempt {
+  id             String    @id @default(uuid())
+  userId         String
+  subscriptionId String?
+  /// شناسه‌ی منطقی یک ارسال (همان است که در توکن ack می‌آید؛ برای اعلان‌های دارای ردیف = notificationId)
+  pushId         String
+  notificationId String?
+  category       String?
+  channel        String    @default("push") // push | sms
+  /// sent | failed | expired | skipped
+  status         String
+  httpCode       Int?
+  reason         String?
+  createdAt      DateTime  @default(now())
+  deliveredAt    DateTime?
+  /// کلید یکتا برای claim اتمیک سقف/cooldown پیامک (چند NULL مجاز است)
+  claimKey       String?   @unique
+
+  @@index([userId, createdAt])
+  @@index([pushId])
+  @@map("push_attempts")
 }
 
 // ── CRM: مدیریت ارتباط با مشتری (contacts, sales pipeline, activity timeline) ─
@@ -625,6 +683,8 @@ model CrmContact {
   isSupplier  Boolean        @default(false)
   birthDate   DateTime? // تاریخ تولد — فقط بخش تاریخ معنا دارد؛ ساعت صفر ذخیره می‌شود (مثل Employee.birthDate)؛ منبع رویداد تولد در تقویم داشبورد
   createdAt   DateTime       @default(now())
+  /// همگام‌سازی آفلاین: نسخه‌ی رکورد برای تشخیص تعارض (baseUpdatedAt) و دریافت دلتا
+  updatedAt   DateTime       @default(now()) @updatedAt
 
   // ── قیف سرنخ/مشتری و سلامت برند ──
   funnelStage        CrmFunnelStage @default(NEW_LEAD)
@@ -1678,6 +1738,8 @@ model Product {
   reorderPoint Int      @default(0) // نقطه سفارش مجدد؛ ۰ یعنی هشدار غیرفعال
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
+  /// همگام‌سازی آفلاین: دریافت دلتای کاتالوگ
+  updatedAt    DateTime @default(now()) @updatedAt
 
   // فروشگاه آنلاین — کالا فقط وقتی isPubliclyListed=true در سایت عمومی نشان
   // داده می‌شود؛ reservedQty یک شمارنده‌ی مستقل از StockMovement است (نه یک
@@ -2589,10 +2651,12 @@ model AiActionRequest {
   createdAt       DateTime  @default(now())
   decidedAt       DateTime?
   executedAt      DateTime?
+  requestedByKeyId String? // کلید API‌ای که این درخواست را ثبت کرده (برای سقف درخواست‌های معلق)
 
   decidedBy User? @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([requestedByKeyId, status])
   @@map("ai_action_requests")
 }
 
@@ -5628,4 +5692,30 @@ model CorrDelivery {
 
   @@index([letterId])
   @@map("corr_deliveries")
+}
+
+// ── همگام‌سازی آفلاین (ماژول offline-sync) ───────────────────────────────────
+
+/// لایه‌ی Idempotency سراسری: هر درخواست نوشتنی که هدر Idempotency-Key دارد یک ردیف می‌گیرد؛
+/// تکرار همان کلید (قطع شدن پاسخ/ارسال دوباره‌ی صف آفلاین) پاسخ ذخیره‌شده را برمی‌گرداند و رکورد دوم نمی‌سازد.
+/// یکتایی (userId, key) هم‌زمانیِ دو ارسال را در سطح DB حل می‌کند. بدنه‌ی درخواست ذخیره نمی‌شود (فقط هش).
+model SyncIdempotency {
+  id               String    @id @default(uuid())
+  userId           String // GlobalUser.id درخواست‌دهنده — کلید فقط در دامنه‌ی همان کاربر معتبر است
+  key              String
+  method           String
+  path             String // مسیر بدون کوئری، با شناسه‌ها (نه توکن)
+  requestHash      String // SHA-256 از method+path+query+body
+  status           String    @default("PENDING") // PENDING | DONE
+  responseStatus   Int?
+  responseBody     Json? // فقط پاسخ‌های کوچک؛ پاسخ بزرگ → فقط resourceId
+  resourceId       String?
+  offlineCreatedAt DateTime? // زمان دستگاه (X-Offline-Created-At) — فقط اطلاعاتی، نه مبنای ترتیب/مجوز
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+  expiresAt        DateTime
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("sync_idempotency")
 }

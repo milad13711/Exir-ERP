@@ -1,155 +1,215 @@
-// Exir ERP service worker — makes the app installable and keeps it usable
-// when the connection drops (common on Iranian mobile/international links):
-// - App shell + static assets: cache-first (they're content-hashed by Next.js,
-//   so a cached copy is always valid for its URL).
-// - Page navigations: network-first, falling back to the last cached copy of
-//   that page, then to /offline.html if nothing was ever cached for it.
-// - API GET requests: network-first, cached as a read-through fallback so
-//   switching screens while offline still shows last-known data.
-// Mutating API calls (POST/PUT/DELETE) are NOT handled here — those go
-// through the offline write queue in src/lib/offline (IndexedDB-backed),
-// since a queued write needs app-level retry/merge logic a cache can't do.
+// Exir ERP service worker. منطق خالص در /sw-core.js (قابل‌آزمون)؛ اینجا فقط اتصال به APIهای مرورگر.
+//
+// اصول:
+//  - HTML و /api و داده‌ی Next هرگز کش نمی‌شوند ⇒ JS/داده‌ی کهنه سرو نمی‌شود، پاسخ احراز‌شده روی دستگاه مشترک نمی‌ماند.
+//  - فقط فایل‌های هش‌دار /_next/static با cache-first؛ آیکون‌ها stale-while-revalidate؛ قطعی کامل ⇒ /offline.html.
+//  - push: payload امن پارس می‌شود، ack تحویل (fetch keepalive) حتی با برنامه‌ی بسته ثبت می‌شود.
+//  - pushsubscriptionchange: اشتراک جدید با «توکن دستگاه» (بدون نیاز به ورود) روی سرور جایگزین می‌شود.
+importScripts("/sw-core.js?v=5");
+// ── نقطه‌ی الحاق برای ماژول‌های دیگر: یک خط importScripts("/sw-sync.js?v=…") درست همین‌جا اضافه شود (پس از sw-core، پیش از هندلرها). ──
 
-const SHELL_CACHE = "exir-shell-v2";
-const API_CACHE = "exir-api-v1";
-const OFFLINE_URL = "/offline.html";
+const Core = self.ExirSwCore;
+const API_BASE = Core.apiBaseFromSearch(self.location.search, self.location.origin);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll([OFFLINE_URL])).then(() => self.skipWaiting()),
-  );
+  // SW هیچ وابستگی‌ای به نسخه‌ی صفحه ندارد؛ فعال‌سازی فوری امن است (chunkهای هش‌دار در کش بدون‌نسخه می‌مانند).
+  event.waitUntil(caches.open(Core.SHELL_CACHE).then((c) => c.addAll([Core.OFFLINE_URL])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== SHELL_CACHE && k !== API_CACHE)
-            .map((k) => caches.delete(k)),
-        ),
-      )
-      .then(() => self.clients.claim()),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(Core.cachesToDelete(keys).map((k) => caches.delete(k)));
+      if (self.registration.navigationPreload) await self.registration.navigationPreload.disable().catch(() => {});
+      await self.clients.claim();
+    })(),
   );
 });
 
-function isApiRequest(url) {
-  return url.pathname.startsWith("/api/");
-}
+self.addEventListener("message", (event) => {
+  const d = event.data;
+  if (d && d.type === "SKIP_WAITING") self.skipWaiting();
+});
 
-function isStaticAsset(url) {
-  return url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/");
+// ── fetch ───────────────────────────────────────────────────────────────────
+async function trimImmutable(cache) {
+  const keys = await cache.keys();
+  const extra = keys.length - Core.MAX_IMMUTABLE_ENTRIES;
+  for (let i = 0; i < extra; i++) await cache.delete(keys[i]);
 }
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return; // mutations are the offline queue's job, not the SW's
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
+  const kind = Core.classifyRequest({ method: req.method, url: req.url, mode: req.mode, hasRange: req.headers.has("range") }, self.location.origin);
+  if (kind === "skip") return;
 
-  if (isStaticAsset(url)) {
+  if (kind === "immutable") {
     event.respondWith(
-      caches.open(SHELL_CACHE).then(async (cache) => {
-        const cached = await cache.match(req);
-        if (cached) return cached;
+      caches.open(Core.IMMUTABLE_CACHE).then(async (cache) => {
+        const hit = await cache.match(req);
+        if (hit) return hit;
         const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
+        if (res.ok && res.type === "basic") {
+          cache.put(req, res.clone()).then(() => trimImmutable(cache)).catch(() => {});
+        }
         return res;
       }),
     );
     return;
   }
 
-  if (isApiRequest(url)) {
+  if (kind === "static") {
     event.respondWith(
-      caches.open(API_CACHE).then(async (cache) => {
-        try {
-          const res = await fetch(req);
-          if (res.ok) cache.put(req, res.clone());
-          return res;
-        } catch {
-          const cached = await cache.match(req);
-          if (cached) return cached;
-          return new Response(JSON.stringify({ offline: true, message: "داده‌ای برای نمایش آفلاین موجود نیست" }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+      caches.open(Core.SHELL_CACHE).then(async (cache) => {
+        const hit = await cache.match(req);
+        const network = fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(() => hit);
+        return hit || network;
       }),
     );
     return;
   }
 
-  // Page navigation
-  if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          caches.open(SHELL_CACHE).then((cache) => cache.put(req, res.clone()));
-          return res;
-        })
-        .catch(async () => {
-          const cache = await caches.open(SHELL_CACHE);
-          return (await cache.match(req)) ?? (await cache.match(OFFLINE_URL));
-        }),
-    );
-  }
-});
-
-// Web push (تسک‌های محول‌شده، اعلان جدید و مانند آن — همان الگوی
-// apps/admin-panel/public/sw.js، اینجا برای کاربران تننت).
-self.addEventListener("push", (event) => {
-  if (!event.data) return;
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: "اعلان جدید", body: event.data.text() };
-  }
-  const isMessenger = typeof payload.url === "string" && payload.url.startsWith("/messenger");
-  event.waitUntil(
-    self.registration.showNotification(payload.title || "اکسیر ERP", {
-      body: payload.body,
-      icon: payload.icon || "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { url: payload.url || "/dashboard" },
-      dir: "rtl",
-      lang: "fa",
-      // هم‌تگ = جایگزینی اعلان قبلی (مثلاً یک اعلان به‌ازای هر گفتگوی پیام‌رسان)
-      ...(payload.tag ? { tag: payload.tag, renotify: true } : {}),
-      // «پاسخ سریع» و مانند آن (فقط جایی که مرورگر دکمه‌ی اعلان را پشتیبانی کند نمایش داده می‌شود)
-      ...(Array.isArray(payload.actions) && payload.actions.length ? { actions: payload.actions.slice(0, 2) } : {}),
-      ...(isMessenger ? { timestamp: Date.now() } : {}),
+  // navigate: شبکه؛ فقط اگر واقعاً قطع بود صفحه‌ی آفلاین
+  event.respondWith(
+    fetch(req).catch(async () => {
+      const cache = await caches.open(Core.SHELL_CACHE);
+      return (await cache.match(Core.OFFLINE_URL)) || new Response("offline", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     }),
   );
 });
 
+// ── push ────────────────────────────────────────────────────────────────────
+function ackDelivery(payload) {
+  const ack = Core.buildAckRequest(payload, API_BASE);
+  if (!ack) return Promise.resolve();
+  return fetch(ack.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: ack.body,
+    keepalive: true,
+    credentials: "omit",
+  }).catch(() => {});
+}
+
+async function applyBadge(payload) {
+  try {
+    if (payload.badgeCount !== null && self.navigator && "setAppBadge" in self.navigator) {
+      await (payload.badgeCount > 0 ? self.navigator.setAppBadge(payload.badgeCount) : self.navigator.clearAppBadge());
+    }
+  } catch (e) {
+    // Badging API همه‌جا نیست — مهم نیست
+  }
+}
+
+async function handlePush(event) {
+  const payload = Core.parsePushPayload(event.data);
+  const ackP = ackDelivery(payload);
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true }).catch(() => []);
+  // برنامه الان باز است: به صفحه خبر بده تا فوراً تازه شود (زنگوله/صدا)
+  for (const c of windows) c.postMessage({ type: "push-received", category: payload.category, entityType: payload.entityType, entityId: payload.entityId });
+
+  if (Core.shouldSkipSystemNotification(payload, windows, self.navigator.userAgent)) {
+    await ackP;
+    return;
+  }
+  const { title, options } = Core.buildNotificationOptions(payload, Date.now());
+  try {
+    await self.registration.showNotification(title, options);
+  } catch (e) {
+    // برخی مرورگرها با actions/badge نامعتبر خطا می‌دهند: ساده‌شده دوباره تلاش کن تا اعلان هرگز گم نشود
+    await self.registration.showNotification(title, { body: options.body, icon: options.icon, dir: "rtl", lang: "fa", data: options.data, tag: options.tag });
+  }
+  await Promise.all([ackP, applyBadge(payload)]);
+}
+
+self.addEventListener("push", (event) => {
+  event.waitUntil(handlePush(event));
+});
+
+// ── click ───────────────────────────────────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  let url = event.notification.data?.url || "/dashboard";
-  const isMessenger = url.startsWith("/messenger");
-  // دکمه‌ی «پاسخ سریع»: همان گفتگو را باز می‌کند و نشانگر را در کادر پیام می‌گذارد
-  const focusComposer = event.action === "reply";
-  if (isMessenger && focusComposer) url += (url.includes("?") ? "&" : "?") + "focus=1";
-  const convMatch = isMessenger ? /[?&]c=([0-9a-fA-F-]{36})/.exec(url) : null;
+  const target = Core.resolveClickTarget(event.notification.data, event.action);
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-      // پیام‌رسان: اگر برنامه باز است، بدون بارگذاری مجدد صفحه، گفتگو را داخل همان تب باز کن
-      if (convMatch) {
-        const open = clients.find((c) => "focus" in c);
-        if (open) {
-          await open.focus();
-          open.postMessage({ type: "messenger-open", conversationId: convMatch[1], focus: focusComposer });
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const client = Core.pickClient(windows);
+      if (client && "focus" in client) {
+        try {
+          await client.focus();
+          client.postMessage(target.message);
           return;
-        }
-      } else {
-        for (const client of clients) {
-          if (client.url.includes(url) && "focus" in client) return client.focus();
+        } catch (e) {
+          // focus ممکن است رد شود (مثلاً پنجره‌ی در حال بسته‌شدن) ⇒ پنجره‌ی جدید
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
-    }),
+      if (self.clients.openWindow) await self.clients.openWindow(target.url);
+    })(),
   );
 });
+
+// ── pushsubscriptionchange ──────────────────────────────────────────────────
+async function readMeta() {
+  try {
+    const cache = await caches.open(Core.META_CACHE);
+    const res = await cache.match("/__exir_push_meta");
+    return res ? await res.json() : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+async function writeMeta(meta) {
+  try {
+    const cache = await caches.open(Core.META_CACHE);
+    await cache.put("/__exir_push_meta", new Response(JSON.stringify(meta), { headers: { "Content-Type": "application/json" } }));
+  } catch (e) {
+    /* بدون Cache API فقط ذخیره‌ی توکن بعدی ممکن نیست */
+  }
+}
+
+function b64urlToBytes(b64) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      const meta = await readMeta();
+      let sub = event.newSubscription || null;
+      if (!sub) {
+        const key = meta.publicKey ? b64urlToBytes(meta.publicKey) : event.oldSubscription && event.oldSubscription.options && event.oldSubscription.options.applicationServerKey;
+        if (!key) return;
+        sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      }
+      const json = sub.toJSON();
+      if (meta.rotateToken && json.keys) {
+        // توکن چرخش یک‌بارمصرف است: پاسخ موفق (۲۰۰) توکن بعدی را می‌دهد و باید جایگزین شود؛ ۲۰۴ یعنی رد شد (نشست/دستگاه نامعتبر)
+        const res = await fetch(API_BASE + "/push/rotate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ t: meta.rotateToken, endpoint: sub.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }),
+          keepalive: true,
+          credentials: "omit",
+        }).catch(() => null);
+        if (res && res.status === 200) {
+          const next = await res.json().catch(() => null);
+          if (next && typeof next.t === "string") await writeMeta({ ...meta, rotateToken: next.t });
+        }
+      }
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of windows) c.postMessage({ type: "push-resubscribed" });
+    })(),
+  );
+});
+
+// کار آفلاین و همگام‌سازی (ماژول offline-sync): رویداد Background Sync — منطق در sw-sync.js
+importScripts("/sw-sync.js");

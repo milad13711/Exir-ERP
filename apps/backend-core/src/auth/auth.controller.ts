@@ -9,6 +9,10 @@ import { twoFactorRequiredError, wouldBeRestrictedWithout2FA } from './tenant-tw
 import { TenantTwoFactorService } from './tenant-two-factor.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { clientIp } from '../security/client-ip.js';
+import { recordAuthActivity } from '../activity/auth-activity.js';
+
+/** IP و دستگاه برای ثبت «ورود» در آرشیو فعالیت کاربر (IP ماسک و UA خلاصه می‌شود). */
+const loginMeta = (req: Request) => ({ ip: clientIp(req), userAgent: req.headers['user-agent'] });
 
 @Controller('auth/otp')
 export class AuthController {
@@ -20,20 +24,20 @@ export class AuthController {
   }
 
   @Post('verify')
-  verify(@Body() dto: VerifyOtpDto) {
-    return this.auth.verifyOtp(dto.phone, dto.code, dto.tenantSlug);
+  verify(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    return this.auth.verifyOtp(dto.phone, dto.code, dto.tenantSlug, loginMeta(req));
   }
 
   /** گام دوم، فقط وقتی verify یک لیست انتخاب محیط کاری برگردانده باشد. */
   @Post('select-tenant')
-  selectTenant(@Body() dto: SelectTenantDto) {
-    return this.auth.selectTenant(dto.verificationToken, dto.tenantSlug);
+  selectTenant(@Body() dto: SelectTenantDto, @Req() req: Request) {
+    return this.auth.selectTenant(dto.verificationToken, dto.tenantSlug, loginMeta(req));
   }
 
   /** گام دوم ورود وقتی کاربر 2FA (TOTP) فعال کرده و verify/select-tenant مقدار requiresTotp داده است. */
   @Post('verify-totp')
   verifyTotp(@Body() dto: VerifyTotpLoginDto, @Req() req: Request) {
-    return this.auth.completeTotpLogin(dto.totpToken, dto.code, clientIp(req));
+    return this.auth.completeTotpLogin(dto.totpToken, dto.code, clientIp(req), req.headers['user-agent']);
   }
 }
 
@@ -67,6 +71,7 @@ export class TwoFactorController {
   async enable(@Body() dto: TotpCodeDto, @Req() req: Request) {
     const a = req.ctx!.auth;
     const res = await this.twoFactor.enable(this.who(req), dto.code);
+    void recordAuthActivity(req.ctx!.tenantDb, a.sub, { action: 'auth.2fa_enabled', summary: 'فعال‌سازی تأیید دومرحله‌ای', ...loginMeta(req) });
     // ثبت کامل شد: توکن عادی (بدون محدودیت t2fa) برای همین نشست؛ کلاینت توکن قبلی را جایگزین می‌کند.
     if (a.type !== 'tenant_user') return res;
     const session = await this.auth.reissueSession({ sub: a.sub, tenantId: a.tenantId, membershipId: a.membershipId });
@@ -79,6 +84,9 @@ export class TwoFactorController {
     const t = req.ctx!.twoFactor;
     // وقتی سیاست الزام اعمال می‌شود (یا مهلت تمام شده) خاموش‌کردن 2FA معنایی ندارد و نشست را فوراً قفل می‌کند.
     if (t && wouldBeRestrictedWithout2FA(t)) throw twoFactorRequiredError();
-    return this.twoFactor.disable(sub, dto.code);
+    return this.twoFactor.disable(sub, dto.code).then((r) => {
+      void recordAuthActivity(req.ctx!.tenantDb, sub, { action: 'auth.2fa_disabled', summary: 'غیرفعال‌سازی تأیید دومرحله‌ای', ...loginMeta(req) });
+      return r;
+    });
   }
 }

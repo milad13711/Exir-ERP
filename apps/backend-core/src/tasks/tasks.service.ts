@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -21,6 +21,8 @@ import type {
 import { startOfTehranDay } from './task-cron-logic.js';
 import { DEFAULT_TASK_PREFIX, formatTaskCode, parseTaskNumber, sanitizeTaskPrefix } from './task-number.js';
 import { nextOccurrence } from './task-recurrence.js';
+import { markTasksDelivered } from './task-delivery.js';
+import { deriveTaskTick, taskIdFromNotification } from './task-ticks.js';
 import { canManageTask, isTaskAssignee, resolveTaskRole, taskScopeWhere, type TaskRole } from './task-scope.js';
 import {
   ACTIVE_STATUSES,
@@ -46,7 +48,7 @@ const TASK_INCLUDE = {
 };
 
 type TaskRow = Awaited<ReturnType<TenantPrismaClient['task']['findFirstOrThrow']>> & {
-  assignees: Array<{ id: string; taskId: string; userId: string; seenAt: Date | null; createdAt: Date }>;
+  assignees: Array<{ id: string; taskId: string; userId: string; deliveredAt: Date | null; seenAt: Date | null; createdAt: Date }>;
 };
 
 export type TaskListFilters = {
@@ -70,6 +72,8 @@ export const taskLink = (id: string) => `/tasks?open=${id}`;
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger('TasksService');
+
   constructor(
     private readonly permissions: PermissionsService,
     private readonly notifications: NotificationsService,
@@ -146,11 +150,24 @@ export class TasksService {
     return tasks.map((t) => {
       const role = this.roleOf(t, actor);
       const rows = new Map(t.assignees.map((a) => [a.userId, a]));
-      const assignees = this.assigneeIdsOf(t).map((userId) => ({ userId, name: names.get(userId) ?? 'کاربر حذف‌شده', seenAt: rows.get(userId)?.seenAt ?? null }));
       const manage = canManageTask(role);
+      // تیک‌های دریافت/مشاهده فقط برای سازنده/مدیر؛ خود ارجاع‌گیرنده تیک نمی‌بیند.
+      const assignees = this.assigneeIdsOf(t).map((userId) => {
+        const row = rows.get(userId);
+        return {
+          userId,
+          name: names.get(userId) ?? 'کاربر حذف‌شده',
+          seenAt: row?.seenAt ?? null,
+          deliveredAt: manage ? (row?.deliveredAt ?? row?.seenAt ?? null) : null,
+        };
+      });
+      const tick = manage
+        ? deriveTaskTick(t, assignees.map((a) => ({ userId: a.userId, deliveredAt: a.deliveredAt, seenAt: a.seenAt })))
+        : null;
       return {
         ...t,
         assignees,
+        tick,
         code: formatTaskCode(prefix, t.number),
         createdBy: t.createdByUserId ? { id: t.createdByUserId, name: names.get(t.createdByUserId) ?? 'کاربر حذف‌شده' } : null,
         isOverdue: !!t.dueAt && t.dueAt.getTime() < now && ACTIVE_STATUSES.includes(t.status as TaskStatusValue),
@@ -216,7 +233,57 @@ export class TasksService {
       orderBy: [{ createdAt: 'desc' }],
       take: Math.min(Math.max(Number(f.limit) || 300, 1), 500),
     });
+    this.markDeliveredInBackground(ctx.tenantDb, actor.userId, tasks as unknown as TaskRow[]);
     return this.decorate(ctx, actor, tasks as unknown as TaskRow[]);
+  }
+
+  // ── تیک «دریافت‌شد» (deliveredAt) ─────────────────────────────────────
+
+  /**
+   * ثبت دریافت برای ردیف ارجاعِ خودِ کاربر (idempotent: فقط وقتی null است). فقط وظایف منتشرشده.
+   * یک findMany + یک updateMany + (در صورت وجود) یک createMany رویداد. ردیف قدیمیِ فقط-ستونی ساخته می‌شود.
+   * @returns تعداد وظایفی که همین الان «دریافت» شدند
+   */
+  async markDelivered(db: TenantPrismaClient, userId: string, taskIds: string[], now: Date = new Date()): Promise<number> {
+    return markTasksDelivered(db, userId, taskIds, now);
+  }
+
+  /** پس‌زمینه و بدون شکستن درخواست: فقط وظایف منتشرشده‌ای که این کاربر ارجاع‌گیرنده‌شان است و هنوز دریافت نشده. */
+  markDeliveredInBackground(
+    db: TenantPrismaClient,
+    userId: string | null,
+    tasks: Array<{ id: string; isPublished: boolean; assignedUserId: string | null; assignees?: Array<{ userId: string; deliveredAt?: Date | null }> }>,
+  ): void {
+    if (!userId) return;
+    const ids = tasks
+      .filter((t) => {
+        if (!t.isPublished) return false;
+        const row = (t.assignees ?? []).find((a) => a.userId === userId);
+        if (row) return !row.deliveredAt;
+        return t.assignedUserId === userId; // ستون قدیمی بدون ردیف
+      })
+      .map((t) => t.id);
+    if (ids.length === 0) return;
+    void this.markDelivered(db, userId, ids).catch((err) =>
+      this.logger.warn(`markDelivered failed: ${err instanceof Error ? err.message : err}`),
+    );
+  }
+
+  /** POST /tasks/delivered — فقط ردیف خود کاربر؛ شناسه‌های بیرون از دامنه/ناشناخته بی‌صدا نادیده گرفته می‌شوند. */
+  async markDeliveredExplicit(ctx: TenantRequestContext, ids: string[]) {
+    const actor = await this.actor(ctx);
+    if (!actor.userId) return { delivered: 0 };
+    return { delivered: await this.markDelivered(ctx.tenantDb, actor.userId, ids) };
+  }
+
+  /** هندلر NotificationDeliveryService: اعلانِ مربوط به وظیفه که تحویل شد ⇒ دریافتِ همان وظیفه برای همان کاربر. */
+  async handleNotificationDelivered(
+    db: TenantPrismaClient,
+    ev: { userId: string; entityType?: string | null; entityId?: string | null; link?: string | null },
+  ): Promise<number> {
+    const taskId = taskIdFromNotification(ev);
+    if (!taskId || !ev.userId) return 0;
+    return this.markDelivered(db, ev.userId, [taskId]);
   }
 
   /** شمارنده‌های داشبورد مدیر — با همان دامنه‌ی دید (غیرمدیر فقط وظایف خودش را می‌شمارد). */
@@ -241,6 +308,9 @@ export class TasksService {
   async detail(ctx: TenantRequestContext, id: string) {
     const actor = await this.actor(ctx);
     const task = await this.view(ctx, actor, id);
+    if (task.role.assignee && task.isPublished && actor.userId) {
+      void this.markDelivered(ctx.tenantDb, actor.userId, [id]).catch((err) => this.logger.warn(`markDelivered failed: ${err instanceof Error ? err.message : err}`));
+    }
     const [events, comments, results, extensions] = await Promise.all([
       ctx.tenantDb.taskEvent.findMany({ where: { taskId: id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
       ctx.tenantDb.taskComment.findMany({ where: { taskId: id }, orderBy: { createdAt: 'asc' } }),
@@ -290,7 +360,7 @@ export class TasksService {
   async notifyUsers(db: TenantPrismaClient, userIds: string[], exceptUserId: string | null, n: { type: string; title: string; body?: string; taskId: string }) {
     for (const userId of dedupe(userIds)) {
       if (userId === exceptUserId) continue;
-      await this.notifications.notify(db, { userId, type: n.type, title: n.title, body: n.body, link: taskLink(n.taskId) });
+      await this.notifications.notify(db, { userId, type: n.type, title: n.title, body: n.body, link: taskLink(n.taskId), entityType: 'Task', entityId: n.taskId });
     }
   }
 
@@ -523,6 +593,8 @@ export class TasksService {
       create: { taskId: id, userId: actor.userId },
       update: {},
     });
+    // seenAt ⇒ deliveredAt: اول دریافت (با رویداد DELIVERED)، بعد دیده‌شدن
+    await this.markDelivered(ctx.tenantDb, actor.userId, [id]);
     const first = await ctx.tenantDb.taskAssignee.updateMany({ where: { taskId: id, userId: actor.userId, seenAt: null }, data: { seenAt: new Date() } });
     if (first.count > 0) {
       const from = task.status as TaskStatusValue;
@@ -760,7 +832,7 @@ export class TasksService {
     const kept = new Set(task.assignees.map((a) => a.userId));
     const fresh = ids.filter((u) => !kept.has(u));
     if (fresh.length) await db.taskAssignee.createMany({ data: fresh.map((userId) => ({ taskId: task.id, userId })), skipDuplicates: true });
-    await db.taskAssignee.updateMany({ where: { taskId: task.id }, data: { seenAt: null } });
+    await db.taskAssignee.updateMany({ where: { taskId: task.id }, data: { seenAt: null, deliveredAt: null } });
     await this.transition(db, task, 'REASSIGN', actor.userId, 'reassigned', { assignedUserId: ids[0], completedAt: null, submittedAt: null }, note, { from: before, to: ids });
     if (task.isPublished) {
       const added = ids.filter((u) => !before.includes(u));

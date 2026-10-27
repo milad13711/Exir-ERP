@@ -38,6 +38,7 @@ import { FormsInboxWidget } from "@/components/dashboard/FormsInboxWidget";
 import { ProjectsProgressWidget } from "@/components/dashboard/ProjectsProgressWidget";
 import { DueOrOverdueInvoicesWidget } from "@/components/dashboard/DueOrOverdueInvoicesWidget";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
+import { TaskTicks } from "@/components/tasks/TaskTicks";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { isTaskFinished } from "@/components/tasks/task-ui";
 import { fetchCounters, type Counters } from "@/lib/correspondence-api";
@@ -335,6 +336,7 @@ function TasksWidget({ variant }: WidgetProps) {
                     {task.assignee ? ` · ${task.assignee.name}` : ""}
                   </div>
                 </div>
+                <TaskTicks task={task} className="mt-3 shrink-0" />
                 {task.priority !== "NORMAL" ? <Badge tone={task.priority === "URGENT" ? "danger" : "warning"} className="mt-2.5 shrink-0">{task.priority === "URGENT" ? "فوری" : "مهم"}</Badge> : null}
               </div>
             );

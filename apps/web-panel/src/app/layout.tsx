@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   description: "سامانه مدیریت یکپارچه کسب‌وکار اکسیر",
   manifest: "/manifest.webmanifest",
   // تأیید مالکیت وب‌سایت برای مجوز ساماندهی / بازار اپلیکیشن ایرانی
-  other: { "platform-verification": "wumtwucakk" },
+  other: { "platform-verification": "wumtwucakk", "mobile-web-app-capable": "yes" },
+  formatDetection: { telephone: false },
+  applicationName: "اکسیر ERP",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -16,11 +18,14 @@ export const metadata: Metadata = {
     ],
     apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
   },
-  appleWebApp: { capable: true, title: "اکسیر ERP", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "اکسیر ERP", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#011840",
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
   interactiveWidget: "resizes-content",
 };
 

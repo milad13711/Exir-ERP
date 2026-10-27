@@ -29,6 +29,8 @@ import { ManagementRoleModal } from "@/components/settings/ManagementRoleModal";
 import { UserPermissionsModal } from "@/components/settings/UserPermissionsModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { ShieldIcon } from "@/components/icons";
+import { Modal } from "@/components/ui/Modal";
+import { UserActivityArchive } from "@/components/activity/UserActivityArchive";
 import { OffboardUserModal } from "@/components/settings/OffboardUserModal";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -103,6 +105,7 @@ export default function UsersRolesPage() {
 
   const [mgmtUser, setMgmtUser] = useState<TenantUser | null>(null);
   // «حذف کاربر و انتقال رکوردها» (offboard) یا «انتقال رکوردها بدون حذف» (transfer)
+  const [activityUser, setActivityUser] = useState<TenantUser | null>(null);
   const [offboarding, setOffboarding] = useState<{ user: TenantUser; flow: "offboard" | "transfer" } | null>(null);
 
   async function handleCreateRole(e: React.FormEvent) {
@@ -334,6 +337,14 @@ export default function UsersRolesPage() {
                         ) : null}
                         {u.status !== "INVITED" ? (
                           <button
+                            onClick={() => setActivityUser(u)}
+                            className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-2.5 min-h-10 rounded-lg cursor-pointer whitespace-nowrap"
+                          >
+                            سوابق فعالیت
+                          </button>
+                        ) : null}
+                        {u.status !== "INVITED" ? (
+                          <button
                             onClick={() => setOffboarding({ user: u, flow: "transfer" })}
                             className="text-[11.5px] font-bold text-ink-soft bg-slate-100 px-2.5 min-h-10 rounded-lg cursor-pointer whitespace-nowrap"
                           >
@@ -541,6 +552,12 @@ export default function UsersRolesPage() {
         />
       ) : null}
       {permUser ? <UserPermissionsModal user={permUser} roles={rolesWithPerms} onClose={() => setPermUser(null)} /> : null}
+
+      {activityUser ? (
+        <Modal title={`سوابق فعالیت — ${activityUser.name}`} onClose={() => setActivityUser(null)} width="max-w-[720px]">
+          <UserActivityArchive userId={activityUser.id} />
+        </Modal>
+      ) : null}
 
       {offboarding && users ? (
         <OffboardUserModal

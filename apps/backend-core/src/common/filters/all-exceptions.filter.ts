@@ -79,6 +79,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: safePath,
       ...(requestId ? { requestId } : {}),
       message: typeof message === 'string' ? message : (message as { message?: string }).message,
+      // کد ماشینی (مثل STALE / IDEMPOTENCY_IN_PROGRESS / TWO_FACTOR_ENROLLMENT_REQUIRED) که کلاینت بر اساس آن تصمیم می‌گیرد
+      ...(typeof message === 'object' && message !== null && typeof (message as { code?: unknown }).code === 'string'
+        ? { code: (message as { code: string }).code }
+        : {}),
     });
   }
 }

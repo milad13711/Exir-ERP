@@ -37,6 +37,8 @@ export type ApiKeyAuthPayload = {
   sub: string; // ApiKey.id
   tenantId: string;
   role: TenantRole;
+  /** دامنه‌ی دسترسی کلید؛ خالی/نبود = کلید قدیمی با دسترسی کامل. واژگان: api-keys/api-key-scopes.ts */
+  scopes?: string[];
 };
 
 export type TenantAuthPayload = TenantJwtPayload | ApiKeyAuthPayload;

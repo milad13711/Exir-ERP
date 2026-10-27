@@ -8,5 +8,6 @@ import { OperationsService } from './operations.service.js';
   imports: [ModuleGuardModule, TasksModule],
   controllers: [OperationsController],
   providers: [OperationsService],
+  exports: [OperationsService],
 })
 export class OperationsModule {}

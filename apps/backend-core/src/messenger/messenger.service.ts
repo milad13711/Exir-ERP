@@ -626,14 +626,25 @@ export class MessengerService {
           hidePreview: settings.hidePreview,
           mentioned: msg.mentionIds.includes(r.userId),
         });
-        return this.push.sendToTenantUser(actor.tenantDb, r.userId, {
-          title,
-          body,
-          url: `/messenger?c=${conversation.id}`,
-          tag: `messenger-${conversation.id}`,
-          icon: '/icons/icon-192.png',
-          actions: [{ action: 'reply', title: 'پاسخ سریع' }],
-        });
+        return this.push.allowsPush(actor.tenantDb, r.userId, 'messenger').then((ok) =>
+          ok
+            ? this.push.sendToTenantUser(
+                actor.tenantDb,
+                r.userId,
+                {
+                  title,
+                  body,
+                  url: `/messenger?c=${conversation.id}`,
+                  tag: `messenger-${conversation.id}`,
+                  icon: '/icons/icon-192.png',
+                  actions: [{ action: 'reply', title: 'پاسخ سریع' }],
+                  entityType: 'conversation',
+                  entityId: conversation.id,
+                },
+                { category: 'messenger' },
+              )
+            : undefined,
+        );
       }),
     );
   }

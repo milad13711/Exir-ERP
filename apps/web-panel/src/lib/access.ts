@@ -1,6 +1,6 @@
 import { PERMISSION_GATED_MODULE_CODES, type Me } from "./api";
 
-const MANAGER_ONLY_SETTINGS_EXCEPTIONS = new Set(["/settings/profile", "/settings/notifications"]);
+const MANAGER_ONLY_SETTINGS_EXCEPTIONS = new Set(["/settings/profile", "/settings/notifications", "/settings/notifications/diagnostics"]);
 
 /** ماژول‌هایی که سرور برایشان فیلتر «فقط خودم» دارد (viewScope یا زنجیره‌ی سازمانی). */
 const OWN_SCOPED_MODULES = new Set(["crm", "sales", "accounting", "purchasing", "hr", "tasks", "projects", "contracts", "reports", "proposals", "tax", "dispatch", "correspondence"]);

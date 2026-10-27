@@ -1,84 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useInstall } from "@/hooks/useInstall";
+import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
+import { promptInstall } from "@/lib/push-client";
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-}
-
-type State = "unsupported" | "installed" | "available" | "prompting" | "dismissed";
-
-/**
- * نصب برنامه روی گوشی/دسکتاپ — با API استاندارد beforeinstallprompt (نه یک هیوریستیک سفارشی)
- * تا روی همه‌ی گوشی‌های اندروید/کروم به‌صورت یکسان کار کند. برای مرورگرهایی که این رویداد را
- * پشتیبانی نمی‌کنند (مثل iOS Safari) دکمه‌ای مرده نشان داده نمی‌شود — کل ردیف مخفی می‌ماند.
- */
+/** نصب برنامه — Android/Chrome/Edge: دکمه‌ی بومی؛ iOS Safari: راهنمای «افزودن به صفحه‌ی اصلی»؛ سایر مرورگرها: راهنمای منوی مرورگر. */
 export function InstallAppRow() {
-  const [deferredEvent, setDeferredEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [state, setState] = useState<State>("unsupported");
+  const install = useInstall();
+  const [sheet, setSheet] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!install.mounted) return null;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    if (window.matchMedia("(display-mode: standalone)").matches || nav.standalone) {
-      setState("installed");
-      return;
-    }
-    const onBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredEvent(e as BeforeInstallPromptEvent);
-      setState("available");
-    };
-    const onAppInstalled = () => {
-      setState("installed");
-      setDeferredEvent(null);
-    };
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onAppInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onAppInstalled);
-    };
-  }, []);
-
-  async function handleInstall() {
-    if (!deferredEvent) return;
-    setState("prompting");
-    try {
-      await deferredEvent.prompt();
-      const choice = await deferredEvent.userChoice;
-      setState(choice.outcome === "accepted" ? "installed" : "dismissed");
-    } catch {
-      setState("dismissed");
-    } finally {
-      setDeferredEvent(null);
-    }
-  }
-
-  // مرورگر این استاندارد را پشتیبانی نمی‌کند (مثلاً iOS Safari) — به‌جای دکمه‌ی مرده، کل ردیف مخفی می‌شود
-  if (state === "unsupported") return null;
+  const desc = install.installed
+    ? "این برنامه روی این دستگاه نصب شده است"
+    : install.canPrompt
+      ? "دسترسی سریع‌تر مثل یک اپلیکیشن، بدون نیاز به باز کردن مرورگر"
+      : install.iosManual
+        ? "روی آیفون/آیپد: Share ← Add to Home Screen. اعلان فقط برای برنامه‌ی نصب‌شده کار می‌کند."
+        : install.iosWrongBrowser
+          ? "نصب روی آیفون فقط از Safari ممکن است؛ این صفحه را در Safari باز کنید."
+          : "اگر دکمه‌ای نمی‌بینید، از منوی مرورگر «Install app / نصب برنامه» یا «Add to Home screen» را بزنید.";
 
   return (
-    <div className="flex items-center justify-between px-4 py-4 border-b border-border">
+    <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border">
       <div>
         <div className="text-[13px] font-bold">نصب برنامه روی این دستگاه</div>
-        <div className="text-[11.5px] text-muted mt-0.5">
-          {state === "installed" ? "این برنامه از قبل روی این دستگاه نصب شده است" : "دسترسی سریع‌تر مثل یک اپلیکیشن، بدون نیاز به باز کردن مرورگر"}
-        </div>
+        <div className="text-[11.5px] text-muted mt-0.5 leading-5">{desc}</div>
       </div>
-      {state === "installed" ? (
+      {install.installed ? (
         <span className="text-[11.5px] font-bold text-success shrink-0">نصب شده ✓</span>
-      ) : (
+      ) : install.canPrompt ? (
         <button
           type="button"
-          onClick={handleInstall}
-          disabled={state !== "available"}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await promptInstall();
+            setBusy(false);
+          }}
           className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50 shrink-0"
         >
-          {state === "prompting" ? "در حال نصب..." : "نصب برنامه"}
+          {busy ? "در حال نصب..." : "نصب برنامه"}
         </button>
-      )}
+      ) : install.iosManual ? (
+        <button type="button" onClick={() => setSheet(true)} className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer shrink-0">
+          راهنما
+        </button>
+      ) : null}
+      <IosInstallSheet open={sheet} onClose={() => setSheet(false)} />
     </div>
   );
 }

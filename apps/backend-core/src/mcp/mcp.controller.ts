@@ -5,6 +5,8 @@ import { Body, Controller, ForbiddenException, HttpCode, Post, UseGuards } from 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
+import { ApiKeySelfScoped } from '../common/decorators/api-key-self-scoped.decorator.js';
+import { toolAllowed } from '../api-keys/api-key-scopes.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { McpToolsService } from './mcp-tools.service.js';
@@ -57,11 +59,19 @@ const PROTOCOL_VERSION = '2025-06-18';
 @Controller('mcp')
 @UseGuards(JwtAuthGuard, ModuleGuard)
 @RequireModule('mcp')
+@ApiKeySelfScoped()
 export class McpController {
   constructor(
     private readonly toolsService: McpToolsService,
     private readonly aiActions: AiActionService,
   ) {}
+
+  private async validated(tool: Parameters<McpToolsService['precheck']>[0], rawArgs: unknown, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs)) throw new Error('آرگومان‌ها باید یک شیء باشند');
+    const args = rawArgs as Record<string, unknown>;
+    await this.toolsService.precheck(tool, args, ctx);
+    return args;
+  }
 
   @Post()
   @HttpCode(200)
@@ -71,6 +81,9 @@ export class McpController {
     if (ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
       throw new ForbiddenException('دسترسی به MCP فقط برای مالک یا مدیر است');
     }
+    // دامنه‌ی کلید: کلید قدیمی (scopes خالی) و نشست کاربری = همه‌ی ابزارها؛ کلید دامنه‌دار فقط ابزارهای مجاز را می‌بیند و می‌زند.
+    const scopes = ctx.auth.type === 'api_key' ? ctx.auth.scopes : undefined;
+    const allowedTools = this.toolsService.tools.filter((t) => toolAllowed(scopes, t));
     // A JSON-RPC *notification* (no id) never gets a response body.
     const respond = (result: unknown) =>
       body.id === undefined || body.id === null ? {} : { jsonrpc: '2.0', id: body.id, result };
@@ -93,17 +106,22 @@ export class McpController {
 
         case 'tools/list':
           return respond({
-            tools: this.toolsService.tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+            tools: allowedTools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
           });
 
         case 'tools/call': {
           const toolName = body.params?.name;
-          const tool = this.toolsService.tools.find((t) => t.name === toolName);
-          if (!tool) return respondError(-32602, `ابزار ناشناخته: ${String(toolName)}`);
+          const known = this.toolsService.tools.find((t) => t.name === toolName);
+          if (!known) return respondError(-32602, `ابزار ناشناخته: ${String(toolName)}`);
+          // دفاع در عمق: حتی اگر ایجنت نامی را که در tools/list ندیده حدس بزند، دامنه‌ی کلید دوباره سنجیده می‌شود.
+          const tool = allowedTools.find((t) => t.name === toolName);
+          if (!tool) return respond({ content: [{ type: 'text', text: 'خطا: این کلید API اجازه‌ی استفاده از این ابزار را ندارد' }], isError: true });
 
-          const args = (body.params?.arguments as Record<string, unknown>) ?? {};
+          const rawArgs = body.params?.arguments ?? {};
           try {
-            if (tool.operation === 'READ') {
+            // اعتبارسنجی ورودی + نصب‌بودن ماژول، پیش از اجرا یا ثبت درخواست تأیید (درخواست نامعتبر هرگز وارد صف نمی‌شود)
+            const args = (await this.validated(tool, rawArgs, ctx)) as Record<string, unknown>;
+            if (tool.kind === 'read') {
               const result = await tool.handler(args, ctx);
               return respond({ content: [{ type: 'text', text: JSON.stringify(result) }] });
             }

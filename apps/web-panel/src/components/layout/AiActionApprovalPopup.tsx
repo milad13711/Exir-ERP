@@ -18,11 +18,10 @@ export function AiActionApprovalPopup() {
   useEffect(() => {
     if (!installedModules.has("mcp")) return;
 
-    fetchAiActions()
+    fetchAiActions({ status: "PENDING", limit: 5 })
       .then((all) =>
         setPending(
-          all
-            .filter((a) => a.status === "PENDING")
+          all.items
             .map((a) => ({ id: a.id, toolName: a.toolName, operationType: a.operationType, summary: a.summary })),
         ),
       )
@@ -32,7 +31,7 @@ export function AiActionApprovalPopup() {
     if (!socket) return;
 
     function onPending(payload: PendingAction) {
-      setPending((prev) => (prev.some((p) => p.id === payload.id) ? prev : [...prev, payload]));
+      setPending((prev) => (prev.some((p) => p.id === payload.id) || prev.length >= 5 ? prev : [...prev, payload]));
     }
     function onResolved(payload: { id: string }) {
       setPending((prev) => prev.filter((p) => p.id !== payload.id));
@@ -77,13 +76,12 @@ export function AiActionApprovalPopup() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                disabled={busyId === action.id}
-                onClick={() => handleDecision(action.id, true)}
-                className="flex-1 text-[12px] font-bold text-white bg-primary px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+              <a
+                href={`/settings/ai-assistant?open=${action.id}`}
+                className="flex-1 text-center text-[12px] font-bold text-white bg-primary px-3 py-2 rounded-lg cursor-pointer"
               >
-                تأیید و اجرا
-              </button>
+                بررسی جزئیات و تصمیم
+              </a>
               <button
                 disabled={busyId === action.id}
                 onClick={() => handleDecision(action.id, false)}

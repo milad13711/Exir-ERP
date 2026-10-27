@@ -7,6 +7,7 @@ import { ActivityLogService } from '../../activity/activity-log.service.js';
 import { activityActorStorage, type ActivityActor } from '../../activity/activity-context.js';
 import { describeRoute, normalizeRoutePath } from '../../activity/activity-route.util.js';
 import { maskIp } from '../../activity/activity-redact.util.js';
+import { getOfflineMeta } from '../../sync/offline-meta.js';
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -71,7 +72,12 @@ export class AuditInterceptor implements NestInterceptor {
                 entityId: description.entityId ?? responseId,
                 summary: description.summary,
                 ip: maskIp(req.ip),
-                metadata: { method: req.method, path: normalizedPathForLog(routePattern) },
+                metadata: {
+                  method: req.method,
+                  path: normalizedPathForLog(routePattern),
+                  // ثبت‌شده‌ی آفلاین: زمان/دستگاه اعلامی کلاینت (فقط اطلاعاتی؛ مبنای ترتیب یا مجوز نیست)
+                  ...offlineAuditMeta(req),
+                },
               },
             );
           } catch (err) {
@@ -97,4 +103,17 @@ function safe<T>(fn: () => T): T | null {
   } catch {
     return null;
   }
+}
+
+function offlineAuditMeta(req: Request): Record<string, unknown> {
+  const m = getOfflineMeta(req);
+  if (!m) return {};
+  // همه‌ی مقادیر «ادعای کلاینت» است (جعل‌پذیر)؛ برچسب صریح تا در بازبینی مبنای قطعی حساب نشود
+  return {
+    offline: true,
+    offlineClaimedByClient: true,
+    ...(m.createdAt ? { offlineCreatedAtClaimed: m.createdAt.toISOString() } : {}),
+    ...(m.device ? { offlineDeviceClaimed: m.device } : {}),
+    ...(m.skewMs !== null && Math.abs(m.skewMs) > 120_000 ? { clockSkewSecClaimed: Math.round(m.skewMs / 1000) } : {}),
+  };
 }

@@ -33,6 +33,7 @@ import {
   type ApiTaskDetail,
   type TenantUser,
 } from "@/lib/api";
+import { TickIcon } from "@/components/tasks/TaskTicks";
 import { EVENT_LABEL, FIELD, LABEL, PRIORITY_LABEL, PRIORITY_TONE, RECURRENCE_LABEL, STATUS_LABEL, STATUS_TONE, filesToInputs, toIso, uploadErrorText } from "@/components/tasks/task-ui";
 
 type Panel = null | "result" | "problem" | "extension" | "return" | "resolve" | "reassign" | "cancel";
@@ -162,7 +163,13 @@ export function TaskDetailModal({ task: initial, onClose, onChanged }: { task: A
                 <span key={a.userId} className="font-semibold">
                   {i > 0 ? "، " : ""}
                   {a.name}
-                  {a.seenAt ? <span className="text-success" title={`دیده‌شده ${formatJalaliDateTime(a.seenAt)}`}> ✓</span> : null}
+                  {t.tick && t.tick !== "none" ? (
+                    <span className="inline-flex align-middle ms-1" title={a.seenAt ? `دیده شد ${formatJalaliDateTime(a.seenAt)}` : a.deliveredAt ? `دریافت شد ${formatJalaliDateTime(a.deliveredAt)}` : "ارسال شد"}>
+                      <TickIcon state={a.seenAt ? "seen" : a.deliveredAt ? "delivered" : "sent"} />
+                    </span>
+                  ) : a.seenAt ? (
+                    <span className="text-success" title={`دیده‌شده ${formatJalaliDateTime(a.seenAt)}`}> ✓</span>
+                  ) : null}
                 </span>
               ))}
             </div>

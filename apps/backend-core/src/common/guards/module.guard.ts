@@ -40,42 +40,18 @@ export class ModuleGuard implements CanActivate {
     const tenantId = req.ctx?.tenantId;
     if (!tenantId) return true; // نبود ctx یعنی JwtAuthGuard اجرا نشده یا مسیر تننت‌محور نیست — کار این گارد نیست
 
-    const allModules = await this.controlDb.moduleDefinition.findMany();
-    const byCode = new Map(allModules.map((m) => [m.code, m]));
+    const { reason, installs } = await this.evaluate(tenantId, moduleCode);
+    if (reason) throw new ForbiddenException(reason);
 
-    // استقرار اختصاصی: مجوز ماژول از لایسنس امضاشده می‌آید (نه فقط ردیف TenantModule که مشتری روی DB خودش می‌تواند دستکاری کند).
-    // ماژول‌های هسته (isCore) آزادند؛ بقیه باید در فهرست ماژول‌های لایسنس باشند.
-    if (this.license && !this.license.moduleAllowed(moduleCode) && !byCode.get(moduleCode)?.isCore) {
-      throw new ForbiddenException(
-        `ماژول «${byCode.get(moduleCode)?.name ?? moduleCode}» در لایسنس این نصب مجاز نیست — برای افزودن آن با پشتیبانی تماس بگیرید.`,
-      );
-    }
-    const codesToCheck = this.collectTransitiveDeps(moduleCode, byCode);
-
-    const installs = await this.controlDb.tenantModule.findMany({
-      where: { tenantId, moduleId: { in: [...byCode.values()].map((m) => m.id) } },
-    });
-    const installByModuleId = new Map(installs.map((i) => [i.moduleId, i]));
-
-    for (const code of codesToCheck) {
-      const module = byCode.get(code);
-      if (!module) continue; // کد ناشناخته را مسدود نمی‌کنیم — به‌جای شکستن دسترسی، فقط گیت نمی‌زنیم
-      const install = installByModuleId.get(module.id);
-      const allowed = install ? install.status === 'INSTALLED' || install.status === 'TRIAL' : module.isCore;
-      if (!allowed) {
-        throw new ForbiddenException(
-          `ماژول «${module.name}» برای این محیط کاری فعال نیست — از فروشگاه ماژول‌ها فعالش کنید یا با پشتیبانی تماس بگیرید.`,
-        );
-      }
-
+    for (const { install, moduleName } of installs) {
       // حالت دمو: فقط همان یک رکورد اول (اولین POST) مجاز است — با ثبت آن،
       // بلافاصله غیرفعال می‌شود تا استفاده‌ی نامحدود از نسخه‌ی آزمایشی ممکن نباشد.
       // (این یک قانون یکسان برای همه‌ی ماژول‌هاست: «اولین درخواست POST»، نه
       // لزوماً دقیقاً همان موجودیت اصلی هر ماژول — برای سادگی و پوشش عمومی.)
-      if (install?.status === 'TRIAL' && req.method === 'POST') {
+      if (install.status === 'TRIAL' && req.method === 'POST') {
         if (install.trialRecordCreatedAt) {
           throw new ForbiddenException(
-            `نسخه‌ی آزمایشی ماژول «${module.name}» به پایان رسیده است — برای ادامه، از سبد خرید تهیه کنید.`,
+            `نسخه‌ی آزمایشی ماژول «${moduleName}» به پایان رسیده است — برای ادامه، از سبد خرید تهیه کنید.`,
           );
         }
         await this.controlDb.tenantModule.update({
@@ -85,6 +61,53 @@ export class ModuleGuard implements CanActivate {
       }
     }
     return true;
+  }
+
+  /**
+   * فقط بررسی «آیا این ماژول (و وابستگی‌هایش) برای تننت فعال است؟» بدون اثر جانبی (دموی TRIAL مصرف نمی‌شود).
+   * برای مصرف‌کننده‌هایی غیر از روت HTTP، مثل ابزارهای MCP. null = فعال؛ وگرنه پیام فارسی علت.
+   */
+  async moduleUnavailableReason(tenantId: string, moduleCode: string): Promise<string | null> {
+    return (await this.evaluate(tenantId, moduleCode)).reason;
+  }
+
+  private async evaluate(
+    tenantId: string,
+    moduleCode: string,
+  ): Promise<{ reason: string | null; installs: Array<{ install: { id: string; status: string; trialRecordCreatedAt?: Date | null }; moduleName: string }> }> {
+    const allModules = await this.controlDb.moduleDefinition.findMany();
+    const byCode = new Map(allModules.map((m) => [m.code, m]));
+
+    // استقرار اختصاصی: مجوز ماژول از لایسنس امضاشده می‌آید (نه فقط ردیف TenantModule که مشتری روی DB خودش می‌تواند دستکاری کند).
+    // ماژول‌های هسته (isCore) آزادند؛ بقیه باید در فهرست ماژول‌های لایسنس باشند.
+    if (this.license && !this.license.moduleAllowed(moduleCode) && !byCode.get(moduleCode)?.isCore) {
+      return {
+        reason: `ماژول «${byCode.get(moduleCode)?.name ?? moduleCode}» در لایسنس این نصب مجاز نیست — برای افزودن آن با پشتیبانی تماس بگیرید.`,
+        installs: [],
+      };
+    }
+    const codesToCheck = this.collectTransitiveDeps(moduleCode, byCode);
+
+    const installs = await this.controlDb.tenantModule.findMany({
+      where: { tenantId, moduleId: { in: [...byCode.values()].map((m) => m.id) } },
+    });
+    const installByModuleId = new Map(installs.map((i) => [i.moduleId, i]));
+
+    const found: Array<{ install: { id: string; status: string; trialRecordCreatedAt?: Date | null }; moduleName: string }> = [];
+    for (const code of codesToCheck) {
+      const module = byCode.get(code);
+      if (!module) continue; // کد ناشناخته را مسدود نمی‌کنیم — به‌جای شکستن دسترسی، فقط گیت نمی‌زنیم
+      const install = installByModuleId.get(module.id);
+      const allowed = install ? install.status === 'INSTALLED' || install.status === 'TRIAL' : module.isCore;
+      if (!allowed) {
+        return {
+          reason: `ماژول «${module.name}» برای این محیط کاری فعال نیست — از فروشگاه ماژول‌ها فعالش کنید یا با پشتیبانی تماس بگیرید.`,
+          installs: [],
+        };
+      }
+      if (install) found.push({ install: install as never, moduleName: module.name });
+    }
+    return { reason: null, installs: found };
   }
 
   private collectTransitiveDeps(

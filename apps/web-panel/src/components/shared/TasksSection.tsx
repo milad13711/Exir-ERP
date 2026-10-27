@@ -3,6 +3,7 @@ import { CheckIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDateTime } from "@/lib/persian";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { isTaskFinished } from "@/components/tasks/task-ui";
+import { TaskTicks } from "@/components/tasks/TaskTicks";
 import { fetchTasks, toggleTask, type ApiTask } from "@/lib/api";
 
 export function TasksSection({ relatedModule, relatedEntityId }: { relatedModule: string; relatedEntityId: string }) {
@@ -52,6 +53,7 @@ export function TasksSection({ relatedModule, relatedEntityId }: { relatedModule
                   {t.assignee ? ` · ${t.assignee.name}` : ""}
                 </div>
               </div>
+              <TaskTicks task={t} />
             </div>
           ))}
         </div>

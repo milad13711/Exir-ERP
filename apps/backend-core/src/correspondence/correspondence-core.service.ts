@@ -119,7 +119,7 @@ export class CorrespondenceCoreService {
     const text = notificationText(kind, letter);
     const targets = [...new Set(userIds.filter((u): u is string => !!u && u !== exceptUserId))];
     for (const userId of targets) {
-      await this.notifications.notify(ctx.tenantDb, { userId, type, title: text.title, body: text.body, link: letterLink(letter.id) }).catch(() => undefined);
+      await this.notifications.notify(ctx.tenantDb, { userId, type, title: text.title, body: text.body, link: letterLink(letter.id), entityType: 'CorrespondenceLetter', entityId: letter.id, category: 'correspondence', important: type === 'correspondence.sign' || type === 'correspondence.review' }).catch(() => undefined);
     }
   }
 

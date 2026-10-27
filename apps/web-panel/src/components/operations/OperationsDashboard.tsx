@@ -1,5 +1,6 @@
 "use client";
 
+import { TickIcon } from "@/components/tasks/TaskTicks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -465,6 +466,7 @@ function AttentionRow({ item, canManage, onDone }: { item: OpsAttentionItem; can
           <div className="text-[11.5px] text-muted mt-0.5">
             {item.assignees.length ? item.assignees.map((a) => a.name).join("، ") + " · " : ""}
             {why}
+            {item.tick && item.tick !== "none" ? <span className="inline-flex align-middle ms-1.5"><TickIcon state={item.tick} /></span> : null}
           </div>
           {item.detail ? <div className="text-[12px] text-ink-soft mt-1 line-clamp-2">{item.detail}</div> : null}
           {item.extension ? (

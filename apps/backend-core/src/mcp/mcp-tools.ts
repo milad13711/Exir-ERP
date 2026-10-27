@@ -1,4 +1,4 @@
-import type { TenantRequestContext } from '../common/request-context.js';
+import type { McpTool } from './mcp-tool.types.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { InvoicesService } from '../sales/invoices.service.js';
 import type { PurchaseOrdersService } from '../purchasing/purchase-orders.service.js';
@@ -6,20 +6,6 @@ import type { ControlPrismaService } from '../prisma/control-prisma.service.js';
 
 /** Every module-suggestion ticket is tagged this way so list_module_suggestions can find them among regular support tickets without a schema change. */
 const MODULE_SUGGESTION_MARKER = '[پیشنهاد ماژول]';
-
-/** JSON Schema, kept intentionally loose (this repo has no schema-builder dependency yet). */
-type JsonSchema = Record<string, unknown>;
-
-export type McpTool = {
-  name: string;
-  description: string;
-  inputSchema: JsonSchema;
-  /** READ runs immediately when called. CREATE/UPDATE/DELETE never run on the caller's turn — see mcp.controller.ts — they only run once a human approves the pending request this produces, via the same handler. */
-  operation: 'READ' | 'CREATE' | 'UPDATE' | 'DELETE';
-  /** Required for every non-READ tool — the human-readable line shown on the approval popup/list. */
-  summarize?: (args: Record<string, unknown>) => string;
-  handler: (args: Record<string, unknown>, ctx: TenantRequestContext) => Promise<unknown>;
-};
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -30,11 +16,13 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * thing rather than re-deriving it — every other tool here talks to Prisma
  * directly, same lightweight pattern the first 5 tools already used.
  */
-export function buildMcpTools(invoices: InvoicesService, purchaseOrders: PurchaseOrdersService, controlDb: ControlPrismaService): McpTool[] {
+export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: PurchaseOrdersService, controlDb: ControlPrismaService): McpTool[] {
   return [
     // ── CRM ──────────────────────────────────────────────────────────────
     {
       name: 'list_crm_deals',
+      module: 'crm',
+      kind: 'read',
       description: 'فهرست فرصت‌های فروش CRM، به‌همراه نام مخاطب و مرحله‌ی فعلی. می‌تواند بر اساس مرحله فیلتر شود.',
       operation: 'READ',
       inputSchema: {
@@ -55,6 +43,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_crm_contact',
+      module: 'crm',
+      kind: 'write',
       description: 'ثبت یک مخاطب جدید در CRM (شخص حقیقی یا شرکت).',
       operation: 'CREATE',
       inputSchema: {
@@ -86,6 +76,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'update_crm_contact',
+      module: 'crm',
+      kind: 'write',
       description: 'ویرایش اطلاعات یک مخاطب موجود در CRM (فقط فیلدهای داده‌شده تغییر می‌کند).',
       operation: 'UPDATE',
       inputSchema: {
@@ -115,6 +107,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_crm_deal',
+      module: 'crm',
+      kind: 'write',
       description: 'ثبت یک فرصت فروش جدید برای یک مخاطب موجود.',
       operation: 'CREATE',
       inputSchema: {
@@ -145,6 +139,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── فروش ─────────────────────────────────────────────────────────────
     {
       name: 'list_sales_invoices',
+      module: 'sales',
+      kind: 'read',
       description: 'فهرست فاکتورهای فروش اخیر، به‌همراه وضعیت و مبلغ.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
@@ -159,6 +155,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_sales_invoice',
+      module: 'sales',
+      kind: 'write',
       description: 'ثبت یک فاکتور فروش جدید (پیش‌نویس) برای یک مشتری موجود، با یک یا چند قلم کالا/خدمت.',
       operation: 'CREATE',
       inputSchema: {
@@ -200,6 +198,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── خرید ─────────────────────────────────────────────────────────────
     {
       name: 'list_purchase_orders',
+      module: 'purchasing',
+      kind: 'read',
       description: 'فهرست سفارش‌های خرید اخیر، به‌همراه وضعیت و تأمین‌کننده.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
@@ -214,6 +214,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_purchase_order',
+      module: 'purchasing',
+      kind: 'write',
       description: 'ثبت یک سفارش خرید جدید از یک تأمین‌کننده‌ی موجود.',
       operation: 'CREATE',
       inputSchema: {
@@ -255,6 +257,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── انبار ────────────────────────────────────────────────────────────
     {
       name: 'list_products',
+      module: 'warehouse',
+      kind: 'read',
       description: 'فهرست کالاهای فعال انبار به‌همراه موجودی فعلی. می‌تواند بر اساس نام/کد جستجو کند.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'جستجو در نام یا کد کالا (اختیاری)' } } },
@@ -272,6 +276,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_product',
+      module: 'warehouse',
+      kind: 'write',
       description: 'ثبت یک کالای جدید در کاتالوگ انبار.',
       operation: 'CREATE',
       inputSchema: {
@@ -303,6 +309,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── حسابداری ─────────────────────────────────────────────────────────
     {
       name: 'get_accounting_summary',
+      module: 'accounting',
+      kind: 'read',
       description: 'خلاصه‌ی وضعیت مالی: موجودی نقد و بانک، درآمد و هزینه‌ی ماه جاری، تعداد اسناد پیش‌نویس.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
@@ -326,6 +334,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_journal_entry',
+      module: 'accounting',
+      kind: 'write',
       description: 'ثبت یک سند حسابداری دستی (باید مجموع بدهکار و بستانکار برابر باشد). کد حساب‌ها را از فهرست حساب‌ها بگیرید.',
       operation: 'CREATE',
       inputSchema: {
@@ -365,6 +375,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── منابع انسانی ─────────────────────────────────────────────────────
     {
       name: 'list_employees',
+      module: 'hr',
+      kind: 'read',
       description: 'فهرست کارمندان فعال، به‌همراه سمت و واحد.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
@@ -375,6 +387,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'create_leave_request',
+      module: 'hr',
+      kind: 'write',
       description: 'ثبت درخواست مرخصی برای یک کارمند موجود (نیازمند تأیید مدیر بالادستی، مستقل از این تأیید).',
       operation: 'CREATE',
       inputSchema: {
@@ -412,6 +426,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     // ── وظایف ────────────────────────────────────────────────────────────
     {
       name: 'list_tasks',
+      module: 'tasks',
+      kind: 'read',
       description: 'فهرست وظایف باز (انجام‌نشده) در سامانه.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
@@ -420,28 +436,11 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
         return tasks.map((t) => ({ id: t.id, title: t.title, priority: t.priority, dueAt: t.dueAt }));
       },
     },
-    {
-      name: 'create_task',
-      description: 'ثبت یک وظیفه‌ی جدید.',
-      operation: 'CREATE',
-      inputSchema: {
-        type: 'object',
-        properties: { title: { type: 'string' }, priority: { type: 'string', enum: ['NORMAL', 'MEDIUM', 'URGENT'] } },
-        required: ['title'],
-      },
-      summarize: (a) => `ثبت وظیفه‌ی جدید: «${String(a.title)}»`,
-      handler: async (args, ctx) => {
-        const assignedUserId = await resolveTenantUserId(ctx);
-        const task = await ctx.tenantDb.task.create({
-          data: { title: String(args.title), priority: (args.priority as 'NORMAL' | 'MEDIUM' | 'URGENT') ?? 'NORMAL', assignedUserId },
-        });
-        return { id: task.id, title: task.title };
-      },
-    },
-
     // ── پیشنهاد ماژول جدید به تیم اکسیر ─────────────────────────────────
     {
       name: 'suggest_new_module',
+      module: 'mcp',
+      kind: 'write',
       description:
         'وقتی یک نیاز تکرارشونده‌ی خاصِ این کسب‌وکار/صنف را شناسایی کردید که هیچ ماژول استانداردی امروز پاسخگویش نیست، این پیشنهاد را مستقیماً برای تیم اکسیر ثبت کنید تا بررسی و در صورت تأیید، به‌صورت یک ماژول واقعی ساخته شود. همیشه اول با کاربر مطرح کنید و فقط با رضایت او این ابزار را صدا بزنید.',
       operation: 'CREATE',
@@ -473,6 +472,8 @@ export function buildMcpTools(invoices: InvoicesService, purchaseOrders: Purchas
     },
     {
       name: 'list_module_suggestions',
+      module: 'mcp',
+      kind: 'read',
       description: 'فهرست پیشنهادهای ماژول جدیدی که قبلاً برای تیم اکسیر ثبت شده، به‌همراه وضعیت بررسی — برای این‌که ببینید آیا پیشنهاد قبلی به یک ماژول واقعی تبدیل شده.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },

@@ -18,13 +18,14 @@ function setup(opts: { me: string; matrix: Matrix; task?: Record<string, unknown
     user: { findUnique: vi.fn(async () => ({ id: opts.me })), findMany: vi.fn(async () => []), count: vi.fn(async (a: { where: { id: { in: string[] } } }) => a.where.id.in.length) },
     task: {
       findFirst: taskFindFirst,
+      findMany: vi.fn(async () => (task ? [{ id: (task as { id: string }).id, assignees: [{ deliveredAt: new Date() }] }] : [])),
       findUniqueOrThrow: vi.fn(async () => ({ ...task, status: 'DONE' })),
       create: vi.fn(async (a: { data: Record<string, unknown> }) => ({ id: 't-new', number: 1, status: 'NEW', assignees: [], checklist: [], ...a.data })),
       updateMany: vi.fn(async () => ({ count: 1 })),
       update: vi.fn(async () => task),
     },
-    taskAssignee: { upsert: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
-    taskEvent: { create: vi.fn() },
+    taskAssignee: { upsert: vi.fn(), createMany: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
+    taskEvent: { create: vi.fn(), findMany: vi.fn(async () => []), createMany: vi.fn() },
     taskResult: { create: vi.fn(async () => ({ id: 'r1' })), findFirst: vi.fn(async () => null), update: vi.fn() },
     taskComment: { create: vi.fn() },
     attachment: { createMany: vi.fn() },
@@ -110,6 +111,20 @@ describe('TasksService permissions', () => {
     await svc.markSeen(ctx, 't1');
     expect(db.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'SEEN' }) }));
     expect(notifications.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ userId: 'boss', type: 'task.seen' }));
+  });
+
+  it('ticks: creator/manager see them, the assignee does not; list marks delivered in the background', async () => {
+    const T = new Date();
+    const row = { id: 't1', number: 5, title: 'x', status: 'NEW', priority: 'NORMAL', isPublished: true, createdByUserId: 'boss', assignedUserId: 'emp', assignees: [{ id: 'a', taskId: 't1', userId: 'emp', deliveredAt: T, seenAt: null, createdAt: T }], checklist: [] };
+    const mgr = setup({ me: 'boss', matrix: OWN, task: row });
+    mgr.db.task.findMany = vi.fn(async () => [row]) as never;
+    const listed = await mgr.svc.list(mgr.ctx, {});
+    expect(listed[0].tick).toBe('delivered');
+    const emp = setup({ me: 'emp', matrix: OWN, task: row });
+    emp.db.task.findMany = vi.fn(async () => [{ ...row, assignees: [{ ...row.assignees[0], deliveredAt: null }] }]) as never;
+    const mine = await emp.svc.list(emp.ctx, {});
+    expect(mine[0].tick).toBeNull();
+    expect(mine[0].assignees[0].deliveredAt).toBeNull();
   });
 
   it('a scheduled (unpublished) task is invisible to the assignee: markSeen does not mark it seen', async () => {

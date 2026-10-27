@@ -14,5 +14,6 @@ import { DashboardLayoutService } from './dashboard-layout.service.js';
   imports: [PermissionsModule, SalesModule, NotificationsModule],
   controllers: [DashboardController],
   providers: [DashboardService, DashboardCalendarService, InvoiceDueRemindersService, DashboardRemindersService, RemindersCronService, DashboardLayoutService],
+  exports: [DashboardRemindersService],
 })
 export class DashboardModule {}

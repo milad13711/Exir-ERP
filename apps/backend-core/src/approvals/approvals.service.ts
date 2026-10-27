@@ -87,6 +87,9 @@ export class ApprovalsService {
           title: `در انتظار تأیید شما: ${input.title}`,
           body: input.summary,
           link: `/approvals?open=${created.id}`,
+          entityType: 'Approval',
+          entityId: created.id,
+          category: 'approvals',
         })
         .catch(() => undefined);
     }

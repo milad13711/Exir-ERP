@@ -35,6 +35,8 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
+  // پاک‌سازی اشتراک پوش محلی (push-client) — رویداد تا api.ts به push-client وابسته نشود
+  window.dispatchEvent(new Event("exir:session-ended"));
 }
 
 export class ApiError extends Error {
@@ -49,6 +51,9 @@ export class ApiError extends Error {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+type OfflineClientModule = typeof import("./offline/client");
+type OfflineManager = NonNullable<ReturnType<OfflineClientModule["getManager"]>>;
+
 /**
  * Whether the "افلاین" module is installed for this tenant — plain
  * module-level state (not React), set by WorkspaceProvider once /modules
@@ -61,27 +66,45 @@ const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 let offlineModuleInstalled = false;
 export function setOfflineModuleInstalled(installed: boolean): void {
   offlineModuleInstalled = installed;
-}
-
-/** Best-effort human label for a queued offline request, shown in the pending-sync list. */
-function describeQueuedRequest(method: string, path: string): string {
-  const segment = path.split("?")[0].split("/").filter(Boolean)[0] ?? "";
-  const labels: Record<string, string> = {
-    crm: "مشتریان (CRM)",
-    accounting: "حسابداری",
-    warehouse: "انبار",
-    hr: "منابع انسانی",
-    tasks: "وظایف",
-    support: "پشتیبانی",
-    users: "کاربران",
-  };
-  const label = labels[segment] ?? segment;
-  return `${method === "DELETE" ? "حذف" : method === "POST" ? "ثبت" : "ویرایش"} در ${label || "سیستم"}`;
+  if (typeof window !== "undefined") void import("./offline/client").then((m) => m.activateOffline(installed)).catch(() => undefined);
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const method = (options.method ?? "GET").toUpperCase();
+  const mutating = MUTATING_METHODS.has(method);
+
+  // ── کار آفلاین (فقط با ماژول offline-sync نصب‌شده؛ وگرنه این بخش کاملاً بی‌اثر است) ──
+  let off: OfflineClientModule | null = null;
+  let mgr: OfflineManager | null = null;
+  let hit: ReturnType<OfflineManager["matches"]> = null;
+  let idemKey: string | undefined;
+  if (offlineModuleInstalled && typeof window !== "undefined") {
+    off = await import("./offline/client");
+    mgr = off.getManager();
+    if (mgr) {
+      if (mutating) {
+        let parsed: unknown = null;
+        if (typeof options.body === "string") {
+          try {
+            parsed = JSON.parse(options.body);
+          } catch {
+            parsed = null;
+          }
+        }
+        hit = mgr.matches(method, path, parsed);
+        if (hit) {
+          idemKey = (globalThis.crypto.randomUUID().replace(/-/g, "") + globalThis.crypto.randomUUID().replace(/-/g, "")).slice(0, 48);
+          if (!navigator.onLine) return (await mgr.enqueue(method, path, options.body as string | undefined, hit, idemKey)) as T;
+        } else if (!navigator.onLine) {
+          throw new ApiError("این عملیات نیازمند اتصال اینترنت است", 0, "OFFLINE_REQUIRES_ONLINE");
+        }
+      } else if (method === "GET" && !navigator.onLine) {
+        const r = await mgr.readOffline(path);
+        if (r) return r.data as T;
+      }
+    }
+  }
 
   let res: Response;
   try {
@@ -91,18 +114,20 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(idemKey ? { "Idempotency-Key": idemKey, "X-Client-Time": new Date().toISOString() } : {}),
         ...options.headers,
       },
     });
   } catch (networkErr) {
-    // A rejected fetch() here means genuinely no connection (DNS/TCP never
-    // even completed) — a real HTTP error response would have resolved
-    // normally and hit the `!res.ok` branch below instead.
-    if (MUTATING_METHODS.has(method) && offlineModuleInstalled) {
-      const { enqueue, OfflineQueuedError } = await import("./offline/queue");
-      const description = describeQueuedRequest(method, path);
-      const queueId = await enqueue(method, path, (options.body as string) ?? null, description);
-      throw new OfflineQueuedError(queueId);
+    // fetch() رد‌شده = اتصال واقعاً نیست (پاسخ HTTP هرگز اینجا نمی‌آید). با همان Idempotency-Key صف می‌شود تا اگر
+    // درخواست به سرور رسیده و فقط پاسخ گم شده، دوباره ساخته نشود.
+    if (mgr && mutating) {
+      if (hit) return (await mgr.enqueue(method, path, options.body as string | undefined, hit, idemKey)) as T;
+      throw new ApiError("این عملیات نیازمند اتصال اینترنت است", 0, "OFFLINE_REQUIRES_ONLINE");
+    }
+    if (mgr && method === "GET") {
+      const r = await mgr.readOffline(path);
+      if (r) return r.data as T;
     }
     throw networkErr;
   }
@@ -118,6 +143,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       // response had no JSON body — keep the default message
     }
     if (res.status === 401 && typeof window !== "undefined") {
+      void off?.onSessionInvalid();
       clearToken();
     }
     // ۴۰۲ یعنی تننت PENDING_PAYMENT است — نه توکن بی‌اعتبار. کاربر را از
@@ -134,6 +160,11 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   }
 
   if (res.status === 204) return undefined as T;
+  if (mgr && method === "GET") {
+    const data = (await res.json()) as T;
+    void mgr.observe(path, data);
+    return data;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -696,9 +727,9 @@ export const PERMISSION_GATED_MODULE_CODES = [
 /**
  * ماژول‌هایی که عمداً در ماتریس نیستند چون بک‌اند با ماتریس گیتشان نمی‌کند:
  * messenger (سیاست مدیر/عضو در messenger-policy)، operations (مدیر = همه، بقیه = نمای شخصی)،
- * checks (زیرمجموعه‌ی دسترسی فروش/خرید). تست parity بک‌اند این فهرست را هم می‌خواند.
+ * checks (زیرمجموعه‌ی دسترسی فروش/خرید)، offline-sync (قابلیت پلتفرمی؛ با ModuleGuard + سیاست تننت کنترل می‌شود). تست parity بک‌اند این فهرست را هم می‌خواند.
  */
-export const PERMISSION_MATRIX_EXEMPT_MODULE_CODES = ["messenger", "operations", "checks"] as const;
+export const PERMISSION_MATRIX_EXEMPT_MODULE_CODES = ["messenger", "operations", "checks", "offline-sync"] as const;
 
 export type ModulePermissionEntry = {
   moduleCode: string;
@@ -764,7 +795,10 @@ export type TaskPriority = "NORMAL" | "MEDIUM" | "URGENT";
 export type TaskAction = "SEE" | "START" | "SUBMIT" | "REPORT_PROBLEM" | "RESOLVE_PROBLEM" | "APPROVE" | "RETURN" | "CANCEL" | "REASSIGN" | "REOPEN";
 export type TaskRecurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
-export type ApiTaskAssignee = { userId: string; name: string; seenAt: string | null };
+export type ApiTaskAssignee = { userId: string; name: string; seenAt: string | null; /** فقط برای سازنده/مدیر */ deliveredAt?: string | null };
+
+/** تیک‌های واتساپی: none=بدون تیک، sent=ارسال‌شده (کم‌رنگ)، delivered=دریافت‌شد (خاکستری)، seen=دیده‌شد (دو تیک آبی) */
+export type TaskTick = "none" | "sent" | "delivered" | "seen";
 
 export type ApiTask = {
   id: string;
@@ -785,6 +819,8 @@ export type ApiTask = {
   assignedUserId?: string | null;
   assignee?: { name: string } | null;
   assignees?: ApiTaskAssignee[];
+  /** null برای ارجاع‌گیرنده (تیک فقط برای سازنده/مدیر) */
+  tick?: TaskTick | null;
   createdBy?: { id: string; name: string } | null;
   relatedModule?: string | null;
   relatedEntityId?: string | null;
@@ -932,6 +968,11 @@ const taskPost = <T = ApiTask>(id: string, path: string, body: unknown = {}) =>
   apiFetch<T>(`/tasks/${id}/${path}`, { method: "POST", body: JSON.stringify(body) });
 
 export const markTaskSeen = (id: string) => taskPost(id, "seen");
+
+/** اختیاری: کلاینت وقتی کارت وظیفه نمایان شد «دریافت‌شد» را ثبت می‌کند (سرور هنگام فهرست‌کردن هم ثبت می‌کند). */
+export function markTasksDelivered(ids: string[]) {
+  return apiFetch<{ delivered: number }>("/tasks/delivered", { method: "POST", body: JSON.stringify({ ids: ids.slice(0, 200) }) });
+}
 export const startTask = (id: string) => taskPost(id, "start");
 export const submitTaskResult = (id: string, data: { text?: string; files?: TaskFileInput[] }) => taskPost(id, "result", data);
 export const reportTaskProblem = (id: string, data: { body: string; files?: TaskFileInput[] }) => taskPost(id, "problem", data);
@@ -1384,6 +1425,10 @@ export type AppNotification = {
   link: string | null;
   readAt: string | null;
   createdAt: string;
+  deliveredAt?: string | null;
+  category?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
 };
 
 export function fetchNotifications() {
@@ -1398,7 +1443,24 @@ export function markAllNotificationsRead() {
   return apiFetch<unknown>("/notifications/read-all", { method: "POST" });
 }
 
-export type NotificationPreferences = { emailEnabled: boolean; smsEnabled: boolean; soundEnabled: boolean };
+/** ack «تحویل درون‌برنامه» (دسته‌ای) — خطا نادیده گرفته می‌شود. */
+export function markNotificationsDelivered(ids: string[]) {
+  return apiFetch<{ delivered: number }>("/notifications/delivered", { method: "POST", body: JSON.stringify({ ids }) });
+}
+
+export type NotificationCategoryKey = "messenger" | "tasks" | "reminders" | "correspondence" | "approvals" | "system" | "marketing";
+export type CategoryChannelPref = { push?: boolean; inApp?: boolean; sms?: boolean };
+
+export type NotificationPreferences = {
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  soundEnabled: boolean;
+  categoryPrefs: Partial<Record<NotificationCategoryKey, CategoryChannelPref>>;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
+  smsFallbackEnabled: boolean;
+};
 
 export function fetchNotificationPreferences() {
   return apiFetch<NotificationPreferences>("/notifications/preferences");
@@ -1412,17 +1474,83 @@ export function updateNotificationPreferences(data: Partial<NotificationPreferen
 }
 
 export function fetchPushVapidKey() {
-  return apiFetch<{ publicKey: string | null; configured: boolean }>("/notifications/push/vapid-public-key");
+  return apiFetch<{ publicKey: string | null; configured: boolean; keyHash?: string | null }>("/notifications/push/vapid-public-key");
 }
 
-export function subscribePush(data: { endpoint: string; p256dh: string; auth: string }) {
-  return apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(data) });
+export function subscribePush(data: { endpoint: string; p256dh: string; auth: string; label?: string }) {
+  return apiFetch<{ success: boolean; id?: string; label?: string; rotateToken?: string | null; keyHash?: string | null }>("/notifications/push/subscribe", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export function unsubscribePush(endpoint: string) {
   return apiFetch<{ success: boolean }>(`/notifications/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`, {
     method: "DELETE",
   });
+}
+
+export type PushDevice = {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastSeenAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastRotateAt?: string | null;
+  failureCount: number;
+  vapidMismatch: boolean;
+  isCurrent: boolean;
+};
+
+export type PushStatus = { configured: boolean; publicKey: string | null; keyHash: string | null; serverTime: string; devices: PushDevice[]; currentRegistered: boolean };
+
+export function fetchPushStatus(endpoint?: string) {
+  return apiFetch<PushStatus>(`/notifications/push/status${endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : ""}`);
+}
+
+export function renamePushDevice(id: string, label: string) {
+  return apiFetch<{ success: boolean }>(`/notifications/push/devices/${id}`, { method: "PATCH", body: JSON.stringify({ label }) });
+}
+
+export function removePushDevice(id: string) {
+  return apiFetch<{ success: boolean }>(`/notifications/push/devices/${id}`, { method: "DELETE" });
+}
+
+export type PushTestResult = {
+  success: boolean;
+  notificationId: string;
+  configured: boolean;
+  total: number;
+  sent: number;
+  failed: number;
+  skipped: string | null;
+  results: { subscriptionId: string; label: string | null; status: string; httpCode: number | null; reason: string; explanation: string }[];
+};
+
+export function sendPushTest(subscriptionId?: string) {
+  return apiFetch<PushTestResult>("/notifications/push/test", { method: "POST", body: JSON.stringify(subscriptionId ? { subscriptionId } : {}) });
+}
+
+export function fetchPushTestResult(id: string) {
+  return apiFetch<{ delivered: boolean; deliveredAt: string | null; via: string | null }>(`/notifications/push/test/${id}`);
+}
+
+export type PushAttemptRow = {
+  id: string;
+  createdAt: string;
+  channel: string;
+  category: string | null;
+  status: string;
+  httpCode: number | null;
+  reason: string | null;
+  explanation: string;
+  deliveredAt: string | null;
+  device: string;
+};
+
+export function fetchPushAttempts() {
+  return apiFetch<{ items: PushAttemptRow[]; keyHash: string | null }>("/notifications/push/attempts");
 }
 
 // ── Support ──────────────────────────────────────────────────────────────
@@ -3375,16 +3503,43 @@ export type ApiKeyEntry = {
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  /** خالی = «کلید قدیمی – دسترسی کامل»؛ واژگان: read | propose | write | module:<code> | mcp:tools:<name> */
+  scopes: string[];
+  expiresAt: string | null;
+  ipAllowlist: string[];
+  lastUsedIp: string | null;
+  useCount: number;
+  rotatedFromId: string | null;
+};
+
+export type ApiKeyPreset = "read_only" | "read_propose" | "full";
+
+export type CreateApiKeyInput = {
+  name: string;
+  preset: ApiKeyPreset;
+  modules?: string[];
+  tools?: string[];
+  expiresInDays?: number;
+  ipAllowlist?: string[];
 };
 
 export function fetchApiKeys() {
   return apiFetch<ApiKeyEntry[]>("/settings/api-keys");
 }
 
-export function createApiKey(name: string) {
+/** کلید خام فقط در همین پاسخ برمی‌گردد (یک‌بار). */
+export function createApiKey(input: CreateApiKeyInput) {
   return apiFetch<ApiKeyEntry & { rawKey: string }>("/settings/api-keys", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
+  });
+}
+
+/** چرخش: کلید جدید با همان دامنه‌ها؛ کلید قدیمی پس از graceHours (پیش‌فرض ۲۴، ۰ = فوری) منقضی می‌شود. */
+export function rotateApiKey(id: string, graceHours?: number) {
+  return apiFetch<ApiKeyEntry & { rawKey: string }>(`/settings/api-keys/${id}/rotate`, {
+    method: "POST",
+    body: JSON.stringify(graceHours === undefined ? {} : { graceHours }),
   });
 }
 
@@ -4768,6 +4923,8 @@ export type AiActionRequest = {
   toolName: string;
   operationType: "CREATE" | "UPDATE" | "DELETE";
   summary: string;
+  /** آرگومان‌های اعتبارسنجی‌شده‌ی ابزار — مبنای واقعی تصمیم؛ نه متن آزاد ایجنت */
+  arguments: Record<string, unknown>;
   status: AiActionStatus;
   error: string | null;
   createdAt: string;
@@ -4775,8 +4932,18 @@ export type AiActionRequest = {
   decidedBy: { id: string; name: string } | null;
 };
 
-export function fetchAiActions() {
-  return apiFetch<AiActionRequest[]>("/ai-actions");
+export function fetchAiActions(params: { status?: AiActionStatus; cursor?: string; limit?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.cursor) qs.set("cursor", params.cursor);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.toString();
+  return apiFetch<{ items: AiActionRequest[]; nextCursor: string | null }>(`/ai-actions${suffix ? `?${suffix}` : ""}`);
+}
+
+/** مقدار فعلی رکورد در حال ویرایش برای نمایش تفاوت (null = ندارد). */
+export function fetchAiActionCurrent(id: string) {
+  return apiFetch<Record<string, unknown> | null>(`/ai-actions/${id}/current`);
 }
 
 export function approveAiAction(id: string) {
@@ -9153,4 +9320,54 @@ export function saveTaxProductCode(data: { productId: string; sstid: string; uni
 }
 export function removeTaxProductCode(productId: string) {
   return apiFetch<{ success: boolean }>(`/tax/product-codes/${productId}`, { method: "DELETE" });
+}
+
+// ── آرشیو فعالیت کاربر (تب «سوابق فعالیت») ───────────────────────────────
+
+export type ActivityTimelineItem = {
+  id: string;
+  at: string;
+  source: string;
+  moduleCode: string;
+  moduleLabel: string;
+  actionType: string;
+  title: string;
+  entityType: string | null;
+  entityId: string | null;
+  actorType: "MANUAL" | "AUTOMATIC" | "SYSTEM";
+  ip?: string | null;
+  link?: string | null;
+};
+export type ActivityFilters = { module?: string; actionType?: string; from?: string; to?: string; q?: string };
+export type UserActivitySummary = {
+  subject: { id: string; name: string; deleted: boolean; inactive: boolean; offboarding: { mode: string; at: string; performedByName: string | null; toUserName: string | null; reason?: string | null } | null };
+  viewer: { level: "self" | "admin" | "hr"; canExport: boolean; canSeeNetwork: boolean };
+  lastLoginAt: string | null;
+  lastActiveAt: string | null;
+  count30d: number;
+  daily: Array<{ date: string; count: number }>;
+  modules: Array<{ code: string; label: string; count: number }>;
+  devices: Array<{ at: string; ip: string | null; device: string | null }>;
+};
+
+function activityQuery(f: ActivityFilters, extra: Record<string, string | undefined> = {}) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...f, ...extra })) if (v) p.set(k, v);
+  const qs = p.toString();
+  return qs ? `?${qs}` : "";
+}
+/** userId می‌تواند "me" باشد (آرشیو خود کاربر). */
+export const fetchUserActivity = (userId: string, f: ActivityFilters, cursor?: string) =>
+  apiFetch<{ items: ActivityTimelineItem[]; nextCursor: string | null; level: string }>(`/users/${encodeURIComponent(userId)}/activity${activityQuery(f, { cursor, limit: "30" })}`);
+export const fetchUserActivitySummary = (userId: string) => apiFetch<UserActivitySummary>(`/users/${encodeURIComponent(userId)}/activity/summary`);
+export async function downloadUserActivityCsv(userId: string, f: ActivityFilters): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/users/${encodeURIComponent(userId)}/activity/export.csv${activityQuery(f)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new ApiError(res.status === 429 ? "تعداد درخواست‌های خروجی زیاد است؛ چند دقیقه بعد تلاش کنید" : "دریافت خروجی ناموفق بود", res.status);
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "user-activity.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }

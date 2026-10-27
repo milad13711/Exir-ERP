@@ -49,6 +49,7 @@ export const EVENT_LABEL: Record<string, string> = {
   created: "وظیفه ایجاد شد",
   scheduled: "ارسال زمان‌بندی شد",
   sent: "برای ارجاع‌گیرنده ارسال شد",
+  delivered: "به ارجاع‌گیرنده رسید",
   viewed: "مشاهده شد",
   started: "شروع شد",
   result_submitted: "نتیجه ثبت شد",

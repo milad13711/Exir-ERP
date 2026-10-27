@@ -8,10 +8,12 @@ import {
   fetchNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  markNotificationsDelivered,
   fetchNotificationPreferences,
   type AppNotification,
 } from "@/lib/api";
 import { playNotificationSound } from "@/lib/notification-sound";
+import { setAppBadge } from "@/lib/push-client";
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -22,6 +24,24 @@ export function NotificationBell() {
   // پس «صدا هنگام رسیدن» یعنی صدا وقتی یک poll نسبت به poll قبلی تعداد نخوانده‌ی بیشتری برگرداند.
   const prevUnreadRef = useRef<number | null>(null);
   const soundEnabledRef = useRef(true);
+  // ack «تحویل درون‌برنامه»: شناسه‌های اعلان‌هایی که هنوز تحویل‌نشده‌اند، دسته‌ای و با تأخیر کوتاه فرستاده می‌شوند (هر شناسه حداکثر یک‌بار)
+  const ackedRef = useRef<Set<string>>(new Set());
+  const pendingAckRef = useRef<Set<string>>(new Set());
+  const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function queueDeliveredAck(list: AppNotification[]) {
+    for (const n of list) {
+      if (!n.deliveredAt && !n.readAt && !ackedRef.current.has(n.id)) pendingAckRef.current.add(n.id);
+    }
+    if (pendingAckRef.current.size === 0 || ackTimerRef.current) return;
+    ackTimerRef.current = setTimeout(() => {
+      ackTimerRef.current = null;
+      const ids = [...pendingAckRef.current].slice(0, 100);
+      pendingAckRef.current.clear();
+      ids.forEach((id) => ackedRef.current.add(id));
+      markNotificationsDelivered(ids).catch(() => ids.forEach((id) => ackedRef.current.delete(id)));
+    }, 1200);
+  }
 
   function reload() {
     // pref هم اینجا (با همان تناوب) تازه می‌شود تا تغییر کلید در صفحه‌ی تنظیمات — بدون رفرش کامل —
@@ -39,6 +59,8 @@ export function NotificationBell() {
         prevUnreadRef.current = data.unreadCount;
         setUnreadCount(data.unreadCount);
         setItems(data.items);
+        setAppBadge(data.unreadCount);
+        queueDeliveredAck(data.items);
       })
       .catch(() => {});
   }
@@ -51,8 +73,14 @@ export function NotificationBell() {
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", reload);
+    // سرویس‌ورکر خبر داد پوش رسیده (برنامه باز است): بدون انتظار برای poll بعدی تازه شو
+    window.addEventListener("exir:push-received", reload);
+    window.addEventListener("online", reload);
     return () => {
       clearInterval(interval);
+      window.removeEventListener("exir:push-received", reload);
+      window.removeEventListener("online", reload);
+      if (ackTimerRef.current) clearTimeout(ackTimerRef.current);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", reload);
     };

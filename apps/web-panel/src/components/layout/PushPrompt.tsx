@@ -1,118 +1,107 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchPushVapidKey, subscribePush } from "@/lib/api";
+import { useInstall } from "@/hooks/useInstall";
+import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
+import { canShowPrompt, dismissPrompt, enablePushOnThisDevice, getPushSupport, isPushOptedOut, promptInstall } from "@/lib/push-client";
+import { fetchPushVapidKey } from "@/lib/api";
 
-const DISMISS_KEY = "exir-push-prompt-dismissed-at";
-const DISMISS_DAYS = 7;
+type Mode = "push" | "install" | "ios" | null;
 
-function urlBase64ToUint8Array(base64Url: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
-  const raw = atob((base64Url + padding).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
-
-type InstallEvent = Event & { prompt: () => Promise<void> };
-
-/** پیشنهاد یک‌بارِ فعال‌سازی اعلان و نصب برنامه — تا کاربر مجبور نباشد دنبال تنظیمات بگردد. */
+/**
+ * پیشنهاد نصب و فعال‌سازی اعلان — فقط با کلیک کاربر مجوز می‌خواهد (iOS/Safari بدون gesture رد می‌کند)،
+ * با backoff (۳ ← ۷ ← ۱۴ ← ۳۰ روز) تا مزاحم نشود، و بسته به دستگاه: Android/دسکتاپ «نصب»، iOS راهنمای «افزودن به صفحه‌ی اصلی».
+ */
 export function PushPrompt() {
-  const [canPush, setCanPush] = useState(false);
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
-  const [isIos] = useState(
-    () =>
-      typeof navigator !== "undefined" &&
-      /iphone|ipad|ipod/i.test(navigator.userAgent) &&
-      !window.matchMedia("(display-mode: standalone)").matches,
-  );
-  const [mounted, setMounted] = useState(false);
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return Date.now() - Number(localStorage.getItem(DISMISS_KEY) ?? 0) < DISMISS_DAYS * 86400_000;
-    } catch {
-      return false;
-    }
-  });
+  const install = useInstall();
+  const [pushReady, setPushReady] = useState(false);
+  const [delayed, setDelayed] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    queueMicrotask(() => setMounted(true));
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as InstallEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-
-    if ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window && Notification.permission === "default") {
+    // چند ثانیه بعد از ورود تا همان لحظه‌ی اول با پنجره مزاحم نشویم
+    const t = setTimeout(() => setDelayed(true), 8000);
+    if (getPushSupport().state === "ready" && "Notification" in window && Notification.permission === "default" && !isPushOptedOut()) {
       fetchPushVapidKey()
-        .then(async ({ configured }) => {
-          if (!configured) return;
-          const reg = await navigator.serviceWorker.ready;
-          if (!(await reg.pushManager.getSubscription())) setCanPush(true);
-        })
+        .then(({ configured }) => setPushReady(configured))
         .catch(() => {});
     }
-    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+    return () => clearTimeout(t);
   }, []);
 
-  function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, String(Date.now()));
-    } catch {}
-    setDismissed(true);
+  let mode: Mode = null;
+  if (install.mounted && delayed && !hidden) {
+    if (pushReady && canShowPrompt("push")) mode = "push";
+    else if (install.canPrompt && !install.installed && canShowPrompt("install")) mode = "install";
+    else if (install.iosManual && canShowPrompt("install")) mode = "ios";
+  }
+  if (!mode) return <IosInstallSheet open={sheet} onClose={() => setSheet(false)} />;
+
+  function later() {
+    dismissPrompt(mode === "push" ? "push" : "install");
+    setHidden(true);
   }
 
-  async function enablePush() {
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        const { publicKey } = await fetchPushVapidKey();
-        if (publicKey) {
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-          });
-          const json = sub.toJSON();
-          await subscribePush({ endpoint: sub.endpoint, p256dh: json.keys!.p256dh, auth: json.keys!.auth });
-        }
-      }
-    } catch {}
-    setCanPush(false);
+  async function enable() {
+    setBusy(true);
+    const out = await enablePushOnThisDevice();
+    setBusy(false);
+    if (out.ok) setHidden(true);
+    else if (out.reason === "denied") {
+      dismissPrompt("push");
+      setNote("اعلان مسدود شد. برای فعال‌سازی بعداً از «تنظیمات ← اعلان‌ها» دستورالعمل را ببینید.");
+      setTimeout(() => setHidden(true), 5000);
+    } else if (out.reason !== "dismissed") {
+      setNote("فعال‌سازی انجام نشد؛ از «تنظیمات ← اعلان‌ها ← عیب‌یابی» وضعیت را بررسی کنید.");
+    }
   }
 
-  async function install() {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    setInstallEvent(null);
+  async function doInstall() {
+    const r = await promptInstall();
+    if (r !== "accepted") dismissPrompt("install");
+    setHidden(true);
   }
-
-  if (!mounted || dismissed || (!canPush && !installEvent && !isIos)) return null;
 
   return (
-    <div
-      className="fixed inset-x-3 bottom-20 lg:bottom-5 lg:end-5 lg:start-auto lg:w-[360px] z-40 bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex flex-col gap-2.5"
-      dir="rtl"
-    >
-      <div className="text-[13px] font-bold">اعلان‌ها را روی این دستگاه فعال کنید</div>
-      <div className="text-[12px] text-muted leading-6">
-        {isIos && !installEvent
-          ? "برای دریافت اعلان روی آیفون: در Safari گزینه‌ی «Share» ← «Add to Home Screen» را بزنید و برنامه را از صفحه‌ی اصلی باز کنید."
-          : "وظیفه‌ی جدید، تماس و تیکت‌ها را حتی وقتی برنامه بسته است، فوری ببینید."}
-      </div>
-      <div className="flex items-center gap-2">
-        {canPush ? (
-          <button onClick={enablePush} className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer">
-            فعال‌سازی اعلان
+    <>
+      <div
+        className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-5 lg:end-5 lg:start-auto lg:w-[360px] z-40 bg-surface border border-border rounded-2xl shadow-2xl p-3.5 flex flex-col gap-2.5"
+        dir="rtl"
+      >
+        <div className="text-[13px] font-bold">
+          {mode === "push" ? "اعلان پیام‌ها، یادآوری‌ها و وظایف را روی این دستگاه فعال کنید" : "اکسیر را مثل یک اپ نصب کنید"}
+        </div>
+        <div className="text-[12px] text-muted leading-6">
+          {note ??
+            (mode === "push"
+              ? "حتی وقتی برنامه بسته است، پیام جدید، آلارم یادآوری و وظیفه‌ی محول‌شده را فوری ببینید."
+              : mode === "ios"
+                ? "روی آیفون، اعلان فقط برای برنامه‌ی افزوده‌شده به صفحه‌ی اصلی کار می‌کند."
+                : "دسترسی سریع از صفحه‌ی اصلی گوشی/کامپیوتر، تمام‌صفحه و با اعلان.")}
+        </div>
+        <div className="flex items-center gap-2">
+          {mode === "push" ? (
+            <button onClick={enable} disabled={busy} className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-60">
+              {busy ? "در حال فعال‌سازی..." : "فعال‌سازی اعلان"}
+            </button>
+          ) : mode === "install" ? (
+            <button onClick={doInstall} className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer">
+              نصب اپ
+            </button>
+          ) : (
+            <button onClick={() => setSheet(true)} className="flex-1 py-2 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer">
+              نحوه‌ی نصب
+            </button>
+          )}
+          <button onClick={later} className="px-3 py-2 rounded-lg text-muted text-[12px] font-bold cursor-pointer">
+            بعداً
           </button>
-        ) : null}
-        {installEvent ? (
-          <button onClick={install} className="flex-1 py-2 rounded-lg bg-slate-100 text-ink-soft text-[12px] font-bold cursor-pointer">
-            نصب برنامه
-          </button>
-        ) : null}
-        <button onClick={dismiss} className="px-3 py-2 rounded-lg text-muted text-[12px] font-bold cursor-pointer">
-          بعداً
-        </button>
+        </div>
       </div>
-    </div>
+      <IosInstallSheet open={sheet} onClose={() => setSheet(false)} />
+    </>
   );
 }

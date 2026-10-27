@@ -3,6 +3,7 @@ import { safeHref } from "@/lib/safe-url";
 import { deleteEmployee } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
+import { UserActivityArchive } from "@/components/activity/UserActivityArchive";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
@@ -61,6 +62,7 @@ export function EmployeeModal({
   onChanged?: () => void;
 }) {
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
+  const [showActivity, setShowActivity] = useState(false);
   const [managerId, setManagerId] = useState("");
   const [docTitle, setDocTitle] = useState("");
   const [docType, setDocType] = useState<EmployeeDocumentType>("CONTRACT");
@@ -251,6 +253,11 @@ export function EmployeeModal({
         <div className="py-10 text-center text-muted text-sm">در حال بارگذاری...</div>
       ) : (
         <div className="flex flex-col gap-5">
+          {employee.userId ? (
+            <button type="button" onClick={() => setShowActivity(true)} className="self-start text-[12px] font-bold text-primary bg-primary-soft px-3 min-h-9 rounded-lg cursor-pointer">
+              سوابق فعالیت
+            </button>
+          ) : null}
           {editing ? (
             <div className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">
               <input
@@ -773,6 +780,11 @@ export function EmployeeModal({
           </div>
         </div>
       )}
+      {showActivity && employee?.userId ? (
+        <Modal title="سوابق فعالیت" onClose={() => setShowActivity(false)} width="max-w-[720px]">
+          <UserActivityArchive userId={employee.userId} />
+        </Modal>
+      ) : null}
       <DeleteRecordButton confirmText="این پرسنل حذف شود؟ اگر فیش حقوقی، مرخصی یا سوابق دیگری دارد حذف نمی‌شود و باید «خاتمه‌ی همکاری» ثبت کنید." onDelete={() => deleteEmployee(employeeId)} onDeleted={() => { onChanged?.(); onClose(); }} />
     </Modal>
   );

@@ -14,6 +14,7 @@ import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import type { OtpPurpose, Tenant } from '../../generated/control-client/index.js';
 import type { TenantJwtPayload, TenantSelectionTicketPayload, TenantTotpChallengePayload } from './jwt-payload.type.js';
+import { recordAuthActivity, type AuthActivityMeta } from '../activity/auth-activity.js';
 import { SecurityEventsService } from '../security/security-events.service.js';
 import { SessionEpochService } from '../security/session-epoch.service.js';
 import { maskPhone } from '../security/mask.js';
@@ -277,6 +278,7 @@ export class AuthService {
     phone: string,
     code: string,
     tenantSlug?: string,
+    meta?: AuthActivityMeta,
   ): Promise<
     | {
         accessToken: string;
@@ -292,7 +294,7 @@ export class AuthService {
     await this.consumeLoginOtp(phone, code);
 
     if (tenantSlug) {
-      return this.resolveTenantLogin(phone, tenantSlug);
+      return this.resolveTenantLogin(phone, tenantSlug, false, meta);
     }
 
     const globalUser = await this.controlDb.globalUser.findUnique({ where: { phone } });
@@ -316,7 +318,7 @@ export class AuthService {
       throw new NotFoundException('این شماره در هیچ محیط کاری فعال عضو نیست');
     }
     if (memberships.length === 1) {
-      return this.resolveTenantLogin(phone, memberships[0].tenant.slug);
+      return this.resolveTenantLogin(phone, memberships[0].tenant.slug, false, meta);
     }
 
     const ticketPayload: TenantSelectionTicketPayload = { type: 'tenant_selection_ticket', phone };
@@ -326,7 +328,7 @@ export class AuthService {
   }
 
   /** گام دوم ورود وقتی verify/select-tenant مقدار requiresTotp برگردانده است. */
-  async completeTotpLogin(totpToken: string, code: string, ip?: string) {
+  async completeTotpLogin(totpToken: string, code: string, ip?: string, userAgent?: string) {
     let payload: TenantTotpChallengePayload;
     try {
       payload = await this.jwt.verifyAsync<TenantTotpChallengePayload>(totpToken, { algorithms: ['HS256'] });
@@ -344,11 +346,11 @@ export class AuthService {
       throw new UnauthorizedException('کد تأیید نادرست است');
     }
     this.totpFailures.delete(user.id);
-    return this.resolveTenantLogin(payload.phone, payload.tenantSlug, true);
+    return this.resolveTenantLogin(payload.phone, payload.tenantSlug, true, { ip, userAgent });
   }
 
   /** برای گام دوم انتخاب محیط کاری — کد OTP دوباره لازم نیست، چون همین الان مصرف شده است. */
-  async selectTenant(verificationToken: string, tenantSlug: string) {
+  async selectTenant(verificationToken: string, tenantSlug: string, meta?: AuthActivityMeta) {
     let payload: TenantSelectionTicketPayload;
     try {
       payload = await this.jwt.verifyAsync<TenantSelectionTicketPayload>(verificationToken);
@@ -358,7 +360,7 @@ export class AuthService {
     if (payload.type !== 'tenant_selection_ticket') {
       throw new UnauthorizedException('نشست انتخاب محیط کاری نامعتبر است');
     }
-    return this.resolveTenantLogin(payload.phone, tenantSlug);
+    return this.resolveTenantLogin(payload.phone, tenantSlug, false, meta);
   }
 
   /** برای سوییچ محیط کاری از داخل خود پنل (هدر) — کاربر از قبل با JWT وارد شده است. */
@@ -457,7 +459,7 @@ export class AuthService {
     return this.issueSession(tenant, membership, globalUser);
   }
 
-  private async resolveTenantLogin(phone: string, tenantSlug: string, mfaDone = false) {
+  private async resolveTenantLogin(phone: string, tenantSlug: string, mfaDone = false, meta?: AuthActivityMeta) {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug: tenantSlug } });
     // یک تننت PENDING_PAYMENT (تریال تمام‌شده) هم اجازه‌ی ورود می‌گیرد — فقط
     // با یک نشست قفل‌شده که JwtAuthGuard آن را به دیدن/پرداخت فاکتور محدود
@@ -508,6 +510,14 @@ export class AuthService {
     });
 
     const { accessToken, twoFactor } = await this.issueSession(tenant, membership, globalUser);
+
+    // آرشیو فعالیت کاربر: ورود موفق (پس‌زمینه؛ هرگز ورود را کند/خراب نمی‌کند)
+    try {
+      const loginDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+      void recordAuthActivity(loginDb, globalUser.id, { action: 'auth.login', summary: 'ورود به سیستم', ...meta });
+    } catch {
+      /* ignore */
+    }
 
     let billingLocked: boolean | undefined;
     let outstandingInvoiceId: string | null = null;

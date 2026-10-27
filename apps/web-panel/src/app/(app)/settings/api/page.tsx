@@ -5,10 +5,12 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { DocsIcon, WebhookIcon, BotIcon, PlusIcon } from "@/components/icons";
 import { formatJalaliDate } from "@/lib/persian";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import {
   API_URL,
   fetchApiKeys,
   revokeApiKey,
+  rotateApiKey,
   fetchWebhooks,
   fetchWebhookEvents,
   toggleWebhook,
@@ -16,29 +18,61 @@ import {
   type ApiKeyEntry,
   type WebhookSubscription,
 } from "@/lib/api";
-import { NewApiKeyModal } from "@/components/api/NewApiKeyModal";
+import { NewApiKeyModal, RawKeyReveal } from "@/components/api/NewApiKeyModal";
+import { McpConnectGuide } from "@/components/api/McpConnectGuide";
+import { describeKey, isKeyExpired, moduleLabel } from "@/components/api/key-scopes";
+import { Modal } from "@/components/ui/Modal";
 import { NewWebhookModal } from "@/components/api/NewWebhookModal";
 import { WebhookDeliveriesModal } from "@/components/api/WebhookDeliveriesModal";
 import { WEBHOOK_EVENT_LABELS } from "@/components/api/webhook-labels";
 import { useWorkspace } from "@/lib/workspace-context";
 
-const MCP_TOOLS_REFERENCE = [
-  { name: "list_crm_deals", desc: "فهرست فرصت‌های فروش CRM" },
-  { name: "create_crm_contact", desc: "ثبت مخاطب جدید در CRM" },
-  { name: "update_crm_contact", desc: "ویرایش مخاطب CRM" },
-  { name: "create_crm_deal", desc: "ثبت فرصت فروش جدید" },
-  { name: "list_sales_invoices", desc: "فهرست فاکتورهای فروش" },
-  { name: "create_sales_invoice", desc: "ثبت فاکتور فروش جدید" },
-  { name: "list_purchase_orders", desc: "فهرست سفارش‌های خرید" },
-  { name: "create_purchase_order", desc: "ثبت سفارش خرید جدید" },
-  { name: "list_products", desc: "فهرست کالاهای انبار" },
-  { name: "create_product", desc: "ثبت کالای جدید" },
-  { name: "get_accounting_summary", desc: "خلاصه‌ی وضعیت مالی" },
-  { name: "create_journal_entry", desc: "ثبت سند حسابداری" },
-  { name: "list_employees", desc: "فهرست کارمندان" },
-  { name: "create_leave_request", desc: "ثبت درخواست مرخصی" },
-  { name: "list_tasks", desc: "فهرست وظایف باز" },
-  { name: "create_task", desc: "ثبت وظیفه‌ی جدید" },
+type ToolRef = { name: string; desc: string; module: string; kind: "read" | "write" };
+
+/** هم‌خوان با src/mcp/*: هر ابزار ماژول و نوع (read فوری / write فقط درخواست تأیید) دارد. */
+const MCP_TOOLS_REFERENCE: ToolRef[] = [
+  { name: "list_crm_deals", desc: "فهرست فرصت‌های فروش CRM", module: "crm", kind: "read" },
+  { name: "search_crm_contacts", desc: "جست‌وجوی مخاطبان و مرحله‌ی قیف", module: "crm", kind: "read" },
+  { name: "create_crm_contact", desc: "ثبت مخاطب جدید در CRM", module: "crm", kind: "write" },
+  { name: "update_crm_contact", desc: "ویرایش مخاطب CRM", module: "crm", kind: "write" },
+  { name: "create_crm_deal", desc: "ثبت فرصت فروش جدید", module: "crm", kind: "write" },
+  { name: "update_funnel_stage", desc: "جابه‌جایی مرحله‌ی سرنخ در قیف", module: "crm", kind: "write" },
+  { name: "disqualify_lead", desc: "رد صلاحیت سرنخ با دلیل", module: "crm", kind: "write" },
+  { name: "convert_lead_to_customer", desc: "تبدیل سرنخ به مشتری", module: "crm", kind: "write" },
+  { name: "list_sales_invoices", desc: "فهرست فاکتورهای فروش", module: "sales", kind: "read" },
+  { name: "create_sales_invoice", desc: "ثبت فاکتور فروش جدید", module: "sales", kind: "write" },
+  { name: "list_purchase_orders", desc: "فهرست سفارش‌های خرید", module: "purchasing", kind: "read" },
+  { name: "create_purchase_order", desc: "ثبت سفارش خرید جدید", module: "purchasing", kind: "write" },
+  { name: "list_products", desc: "فهرست کالاهای انبار", module: "warehouse", kind: "read" },
+  { name: "get_stock_levels", desc: "موجودی فعلی و کالاهای زیر نقطه‌ی سفارش", module: "warehouse", kind: "read" },
+  { name: "create_product", desc: "ثبت کالای جدید", module: "warehouse", kind: "write" },
+  { name: "get_accounting_summary", desc: "خلاصه‌ی وضعیت مالی", module: "accounting", kind: "read" },
+  { name: "create_journal_entry", desc: "ثبت سند حسابداری", module: "accounting", kind: "write" },
+  { name: "list_employees", desc: "فهرست کارمندان", module: "hr", kind: "read" },
+  { name: "create_leave_request", desc: "ثبت درخواست مرخصی", module: "hr", kind: "write" },
+  { name: "list_tasks", desc: "فهرست وظایف باز", module: "tasks", kind: "read" },
+  { name: "search_tasks", desc: "جست‌وجوی وظایف با فیلتر و شماره‌ی TASK-000123", module: "tasks", kind: "read" },
+  { name: "get_task", desc: "جزئیات و خط زمان یک وظیفه", module: "tasks", kind: "read" },
+  { name: "create_task", desc: "ثبت وظیفه‌ی جدید (مسئول‌ها، موعد، جزئیات بیشتر)", module: "tasks", kind: "write" },
+  { name: "add_task_comment", desc: "افزودن نظر به وظیفه", module: "tasks", kind: "write" },
+  { name: "reassign_task", desc: "تغییر مسئول وظیفه", module: "tasks", kind: "write" },
+  { name: "get_operations_overview", desc: "شمارنده‌های داشبورد عملیات", module: "operations", kind: "read" },
+  { name: "search_letters", desc: "جست‌وجوی نامه‌های دبیرخانه (بدون سری)", module: "correspondence", kind: "read" },
+  { name: "get_letter", desc: "وضعیت و خط زمان نامه", module: "correspondence", kind: "read" },
+  { name: "list_pending_letter_actions", desc: "نامه‌های منتظر امضا و ارجاع‌های باز", module: "correspondence", kind: "read" },
+  { name: "create_letter_draft", desc: "ایجاد پیش‌نویس نامه‌ی صادره/داخلی", module: "correspondence", kind: "write" },
+  { name: "register_incoming_letter", desc: "ثبت نامه‌ی وارده با شماره‌ی دبیرخانه", module: "correspondence", kind: "write" },
+  { name: "search_shipments", desc: "فهرست بارها (راننده، منطقه، وضعیت، وزن)", module: "dispatch", kind: "read" },
+  { name: "get_shipment", desc: "جزئیات، وزن‌ها و خط زمان بار", module: "dispatch", kind: "read" },
+  { name: "get_dispatch_overview", desc: "شمارنده‌ی بارهای فعال", module: "dispatch", kind: "read" },
+  { name: "declare_shipment", desc: "اعلام بار (دستی یا از فاکتور/تولید)", module: "dispatch", kind: "write" },
+  { name: "list_booking_services", desc: "فهرست خدمات قابل رزرو", module: "booking", kind: "read" },
+  { name: "list_free_slots", desc: "وقت‌های آزاد یک خدمت در یک روز", module: "booking", kind: "read" },
+  { name: "list_appointments", desc: "فهرست نوبت‌ها", module: "booking", kind: "read" },
+  { name: "create_appointment", desc: "ثبت نوبت برای مشتری", module: "booking", kind: "write" },
+  { name: "create_reminder", desc: "ثبت یادآوری در تقویم داشبورد", module: "dashboard", kind: "write" },
+  { name: "suggest_new_module", desc: "پیشنهاد ماژول جدید به تیم اکسیر", module: "mcp", kind: "write" },
+  { name: "list_module_suggestions", desc: "پیگیری پیشنهادهای ماژول", module: "mcp", kind: "read" },
 ];
 
 const sections = [
@@ -82,6 +116,8 @@ export default function ApiDocsSettingsPage() {
   const [newWebhookOpen, setNewWebhookOpen] = useState(false);
   const [deliveriesFor, setDeliveriesFor] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [rotated, setRotated] = useState<{ rawKey: string; name: string } | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApiKeys().then(setKeys).catch(() => setKeys([]));
@@ -92,6 +128,19 @@ export default function ApiDocsSettingsPage() {
   async function handleRevoke(id: string) {
     const updated = await revokeApiKey(id);
     setKeys((prev) => prev?.map((k) => (k.id === id ? updated : k)) ?? prev);
+  }
+
+  async function handleRotate(k: ApiKeyEntry) {
+    if (!window.confirm(`کلید «${k.name}» چرخانده شود؟ کلید جدید با همان دسترسی‌ها ساخته می‌شود و کلید قبلی تا ۲۴ ساعت دیگر هنوز کار می‌کند تا فرصت جایگزینی داشته باشید.`)) return;
+    setKeyError(null);
+    try {
+      const created = await rotateApiKey(k.id);
+      setRotated({ rawKey: created.rawKey, name: created.name });
+      const fresh = await fetchApiKeys();
+      setKeys(fresh);
+    } catch (err) {
+      setKeyError(err instanceof Error ? err.message : "چرخش کلید انجام نشد");
+    }
   }
 
   async function handleToggleWebhook(id: string) {
@@ -106,7 +155,10 @@ export default function ApiDocsSettingsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-extrabold">API، وب‌هوک و MCP</h1>
+      <h1 className="text-xl font-extrabold flex items-center gap-2">
+        API، وب‌هوک و MCP
+        <ModuleHelp code="mcp" />
+      </h1>
       <p className="text-[13.5px] text-muted mt-1">
         نرم‌افزارها و ایجنت‌های مستقل خودتان را به محیط کاری اکسیر متصل کنید
       </p>
@@ -146,42 +198,71 @@ export default function ApiDocsSettingsPage() {
             ساخت کلید جدید
           </button>
         </div>
-        <p className="text-[11.5px] text-muted mb-3">همان کلید برای REST API و MCP Server استفاده می‌شود.</p>
+        <p className="text-[11.5px] text-muted mb-3">
+          همان کلید برای REST API و MCP Server استفاده می‌شود. هر کلید یک سطح دسترسی دارد؛ برای ایجنت‌ها «فقط‌خواندنی» یا «خواندن + درخواست تأیید» را بگذارید.
+        </p>
+        {keyError ? <div className="text-[12px] text-danger bg-danger-soft rounded-xl p-3 mb-3">{keyError}</div> : null}
         {keys === null ? (
           <div className="py-6 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : keys.length === 0 ? (
           <div className="py-6 text-center text-muted text-sm">هنوز کلیدی نساخته‌اید</div>
         ) : (
-          keys.map((k, i) => (
-            <div
-              key={k.id}
-              className={`flex items-center justify-between py-3 ${i < keys.length - 1 ? "border-b border-border" : ""}`}
-            >
-              <div>
-                <div className="text-[13px] font-semibold">{k.name}</div>
-                <div className="text-[11.5px] text-muted mt-0.5 font-mono" dir="ltr">
-                  {k.keyPrefix}••••••••
+          keys.map((k, i) => {
+            const access = describeKey(k);
+            const expired = isKeyExpired(k);
+            const dead = !!k.revokedAt || expired;
+            return (
+              <div
+                key={k.id}
+                className={`flex items-start justify-between gap-3 py-3 ${i < keys.length - 1 ? "border-b border-border" : ""}`}
+              >
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold">{k.name}</div>
+                  <div className="text-[11.5px] text-muted mt-0.5 font-mono" dir="ltr">
+                    {k.keyPrefix}••••••••
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <Badge tone={access.legacy ? "warning" : access.level === "read_only" ? "success" : access.level === "read_propose" ? "primary" : "danger"}>
+                      {access.levelLabel}
+                    </Badge>
+                    {access.modules.map((m) => (
+                      <Badge key={m} tone="neutral">
+                        {moduleLabel(m)}
+                      </Badge>
+                    ))}
+                    {access.tools.length ? <Badge tone="neutral">{access.tools.length} ابزار مجاز</Badge> : null}
+                    {k.ipAllowlist.length ? <Badge tone="neutral">محدود به IP</Badge> : null}
+                    {k.expiresAt ? (
+                      <Badge tone={expired ? "danger" : "neutral"}>
+                        {expired ? "منقضی‌شده" : `انقضا: ${formatJalaliDate(k.expiresAt)}`}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="text-[10.5px] text-muted mt-1.5">
+                    ساخته‌شده: {formatJalaliDate(k.createdAt)}
+                    {k.lastUsedAt
+                      ? ` · آخرین استفاده: ${formatJalaliDate(k.lastUsedAt)}${k.lastUsedIp ? ` از ${k.lastUsedIp}` : ""} · ${k.useCount.toLocaleString("fa-IR")} فراخوانی`
+                      : " · هنوز استفاده نشده"}
+                  </div>
                 </div>
-                <div className="text-[10.5px] text-muted mt-0.5">
-                  ساخته‌شده: {formatJalaliDate(k.createdAt)}
-                  {k.lastUsedAt ? ` · آخرین استفاده: ${formatJalaliDate(k.lastUsedAt)}` : " · هنوز استفاده نشده"}
-                </div>
+                {k.revokedAt ? (
+                  <Badge tone="danger">باطل‌شده</Badge>
+                ) : (
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Badge tone={expired ? "danger" : "success"}>{expired ? "منقضی" : "فعال"}</Badge>
+                    {!dead ? (
+                      <button onClick={() => handleRotate(k)} className="text-[11.5px] font-bold text-primary cursor-pointer">
+                        چرخش
+                      </button>
+                    ) : null}
+                    <button onClick={() => handleRevoke(k.id)} className="text-[11.5px] font-bold text-danger cursor-pointer">
+                      ابطال
+                    </button>
+                  </div>
+                )}
               </div>
-              {k.revokedAt ? (
-                <Badge tone="danger">باطل‌شده</Badge>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Badge tone="success">فعال</Badge>
-                  <button
-                    onClick={() => handleRevoke(k.id)}
-                    className="text-[11.5px] font-bold text-danger cursor-pointer"
-                  >
-                    ابطال
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </Card>
 
@@ -270,16 +351,28 @@ export default function ApiDocsSettingsPage() {
           <div className="text-[11.5px] text-muted mb-2">ابزارهای در دسترس</div>
           <div className="flex flex-col gap-1.5">
             {MCP_TOOLS_REFERENCE.map((t) => (
-              <div key={t.name} className="flex items-center justify-between text-[12px]">
-                <code className="font-mono text-ink-soft" dir="ltr">
-                  {t.name}
-                </code>
-                <span className="text-muted">{t.desc}</span>
+              <div key={t.name} className="flex items-center justify-between gap-3 text-[12px]">
+                <span className="flex items-center gap-2 min-w-0">
+                  <code className="font-mono text-ink-soft truncate" dir="ltr">
+                    {t.name}
+                  </code>
+                  <Badge tone={t.kind === "read" ? "success" : "warning"} className="!py-0.5 shrink-0">
+                    {t.kind === "read" ? "فوری" : "نیازمند تأیید"}
+                  </Badge>
+                </span>
+                <span className="text-muted text-end">{t.desc}</span>
               </div>
             ))}
           </div>
         </div>
+        <McpConnectGuide mcpUrl={`${API_URL}/mcp`} />
       </Card>
+      ) : null}
+
+      {rotated ? (
+        <Modal title={`کلید جدید برای «${rotated.name}»`} onClose={() => setRotated(null)}>
+          <RawKeyReveal rawKey={rotated.rawKey} onClose={() => setRotated(null)} note="کلید قبلی تا ۲۴ ساعت دیگر هنوز کار می‌کند؛ بعد از جایگزینی آن را «ابطال» کنید." />
+        </Modal>
       ) : null}
 
       {newKeyOpen ? (

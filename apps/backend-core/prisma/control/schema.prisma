@@ -146,6 +146,14 @@ model ApiKey {
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
   revokedAt  DateTime?
+  // ── دامنه‌ی دسترسی کلید (افزودنی). scopes خالی = کلید قدیمی با دسترسی کامل (رفتار پیشین)؛
+  //    کلید جدید همیشه حداقل `read` دارد. واژگان: read | propose | write | module:<code> | mcp:tools:<name>
+  scopes      String[]  @default([])
+  expiresAt   DateTime?
+  ipAllowlist String[]  @default([]) // IP یا CIDR؛ خالی = بدون محدودیت
+  lastUsedIp  String?
+  useCount    Int       @default(0)
+  rotatedFromId String? // کلیدی که با چرخش جایگزین شده (فقط برای نمایش)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

@@ -19,7 +19,9 @@ export type SecurityEventType =
   | 'SESSIONS_INVALIDATED'
   | 'API_KEY_AUTH_FAILED'
   | 'SSRF_BLOCKED'
-  | 'CONFIG_INSECURE';
+  | 'CONFIG_INSECURE'
+  | 'PUSH_ENDPOINT_ROTATED'
+  | 'PUSH_ENDPOINT_REJECTED';
 
 export type SecurityEvent = {
   type: SecurityEventType;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { UserActivityArchive } from "@/components/activity/UserActivityArchive";
 import { TwoFactorCard } from "@/components/settings/TwoFactorCard";
 import { useWorkspace } from "@/lib/workspace-context";
 import { getInitials } from "@/lib/persian";
@@ -21,6 +22,7 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 export default function ProfileSettingsPage() {
   const { me, loading, refreshMe } = useWorkspace();
+  const [tab, setTab] = useState<"profile" | "activity">("profile");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -91,7 +93,15 @@ export default function ProfileSettingsPage() {
       <h1 className="text-xl font-extrabold">پروفایل من</h1>
       <p className="text-[13.5px] text-muted mt-1">نام، تصویر و ایمیل شخصی شما — این تصویر و نام در همه‌ی محیط‌های کاری شما یکسان است.</p>
 
-      <Card className="mt-6 p-6 max-w-[480px]">
+      <div className="mt-5 flex gap-1 border-b border-border" role="tablist">
+        {([["profile", "اطلاعات"], ["activity", "سوابق فعالیت"]] as const).map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-4 min-h-10 text-[13px] font-bold border-b-2 cursor-pointer ${tab === k ? "border-primary text-primary" : "border-transparent text-muted"}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "activity" ? <div className="mt-5 max-w-[720px]"><UserActivityArchive userId="me" /></div> : null}
+
+      <Card className={`mt-6 p-6 max-w-[480px] ${tab === "profile" ? "" : "hidden"}`}>
         {loading ? (
           <div className="py-6 text-center text-muted text-sm">در حال بارگذاری...</div>
         ) : (
@@ -164,8 +174,8 @@ export default function ProfileSettingsPage() {
         )}
       </Card>
 
-      {me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN" ? <TwoFactorCard id="two-factor" /> : null}
-      {me?.user.membershipRole === "OWNER" ? <StampDelegateCard /> : null}
+      {tab === "profile" && (me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN") ? <TwoFactorCard id="two-factor" /> : null}
+      {tab === "profile" && me?.user.membershipRole === "OWNER" ? <StampDelegateCard /> : null}
     </div>
   );
 }

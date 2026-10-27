@@ -69,6 +69,8 @@ MODULES = {
     "webhooks": (["webhooks"], None, None),
     "api-access": (["api-keys"], "settings/api", None),
     "currency-exchange": (["exchange-rates"], "settings/currencies", None),
+    "offline-sync": (["sync"], "settings/offline-sync", "offline"),  # + web-panel/src/lib/offline و public/sw-sync.js
+
     "checks-supplier-risk": (["crm"], None, None),  # supplier-risk lives inside crm — see crm package
 }
 

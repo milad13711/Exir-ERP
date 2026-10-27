@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
+import { HumanOnly } from '../common/decorators/human-only.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -16,6 +17,7 @@ import { WEBHOOK_EVENTS } from './webhook-events.js';
 @UseGuards(JwtAuthGuard, ModuleGuard, RolesGuard)
 @RequireModule('webhooks')
 @Roles('OWNER', 'ADMIN')
+@HumanOnly()
 export class WebhooksController {
   constructor(private readonly controlDb: ControlPrismaService) {}
 
@@ -29,6 +31,7 @@ export class WebhooksController {
     return this.controlDb.webhookSubscription.findMany({
       where: { tenantId: ctx.tenantId },
       orderBy: { createdAt: 'desc' },
+      omit: { secret: true }, // راز امضا فقط یک‌بار هنگام ساخت برمی‌گردد
     });
   }
 
@@ -57,6 +60,7 @@ export class WebhooksController {
     return this.controlDb.webhookSubscription.update({
       where: { id },
       data: { isActive: !sub.isActive },
+      omit: { secret: true },
     });
   }
 

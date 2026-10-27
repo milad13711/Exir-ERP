@@ -5,6 +5,7 @@ import { iranHolidaysForYear } from '../booking/iran-holidays.js';
 import { tehranParts } from '../booking/tehran-time.js';
 import { toReminderView } from './dashboard-reminders.service.js';
 import { taskScopeWhere } from '../tasks/task-scope.js';
+import { markTasksDelivered } from '../tasks/task-delivery.js';
 
 export type CalendarEventType =
   | 'birthday-employee'
@@ -162,6 +163,8 @@ export class DashboardCalendarService {
         link: '/crm',
       });
     }
+    // تیک «دریافت‌شد» برای وظایفی که تقویم به ارجاع‌گیرنده نشان داد (پس‌زمینه؛ هرگز درخواست را خراب نمی‌کند)
+    if (me && tasks.length) void markTasksDelivered(ctx.tenantDb, me, tasks.map((t) => t.id)).catch(() => undefined);
     for (const t of tasks) {
       const { day } = toJalaliDate(t.dueAt!);
       push(day, { id: t.id, type: 'task', title: t.title, link: '/tasks' });

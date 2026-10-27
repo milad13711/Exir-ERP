@@ -52,6 +52,8 @@ export type OpsAttentionItem = {
   score: number;
   detail: string | null;
   assignees: Array<{ userId: string; name: string }>;
+  /** تیک دریافت/مشاهده (فقط مدیر/سازنده) */
+  tick?: "none" | "sent" | "delivered" | "seen" | null;
   extension: { id: string; proposedDueAt: string; reason: string | null; requestedByName: string } | null;
 };
 export type OpsAttention = { scope: OpsScope; unseenHours: number; items: OpsAttentionItem[] };

@@ -27,7 +27,7 @@ export const MODULE_LICENSE_USD: Record<string, number> = {
   "webhooks": 230,
   "mcp": 575,
   "currency-exchange": 175,
-  "offline-sync": 175,
+  "offline-sync": 210,
   "voip": 290,
   "automation": 465,
   "qr-code": 160,

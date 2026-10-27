@@ -111,9 +111,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         setInstalledModules(installed);
         setOfflineModuleInstalled(installed.has("offline-sync"));
+        if (installed.has("offline-sync")) {
+          // نمای لحظه‌ای فضای کار برای شروع سرد هنگام آفلاین (رمزنگاری‌شده، مخصوص همین کاربر)
+          void import("./offline/client").then((m) => m.saveWorkspaceSnapshot({ me: meData, subscription: subData, license: licenseData, modules: [...installed] }));
+        }
         applyTenantBranding(meData.tenant);
       })
-      .catch((err) => {
+      .catch(async (err) => {
+        if (!(err instanceof ApiError) && typeof navigator !== "undefined" && !navigator.onLine) {
+          // شروع سرد آفلاین: از نمای ذخیره‌شده استفاده کن (فقط اگر ماژول قبلاً فعال بوده)
+          const { loadWorkspaceSnapshot } = await import("./offline/client");
+          const snap = await loadWorkspaceSnapshot<{ me: Me; subscription: Subscription; license: LicenseStatus; modules: string[] }>();
+          if (snap) {
+            setMe(snap.me);
+            setSubscription(snap.subscription);
+            setLicense(snap.license);
+            setInstalledModules(new Set(snap.modules));
+            setOfflineModuleInstalled(snap.modules.includes("offline-sync"));
+            return;
+          }
+        }
         if (err instanceof ApiError && err.code === "TWO_FACTOR_ENROLLMENT_REQUIRED") {
           router.replace("/two-factor-setup"); // نشست محدود (الزام 2FA) — نه توکن نامعتبر
           return;

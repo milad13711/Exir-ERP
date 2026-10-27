@@ -106,3 +106,11 @@ export class TaskSettingsDto {
   @Matches(/^[A-Za-z0-9]{1,10}$/, { message: 'پیشوند فقط حروف/ارقام لاتین و حداکثر ۱۰ نویسه' })
   numberPrefix!: string;
 }
+
+export class MarkDeliveredDto {
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  ids!: string[];
+}

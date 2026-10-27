@@ -35,6 +35,6 @@ import { CorrespondenceDocsModule } from './docs.module.js';
     CorrespondenceCronService,
     CorrespondencePublicService,
   ],
-  exports: [CorrespondenceCoreService],
+  exports: [CorrespondenceCoreService, CorrespondenceLettersService],
 })
 export class CorrespondenceModule {}

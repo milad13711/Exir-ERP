@@ -13,6 +13,8 @@ import { OnboardingGuide } from "./OnboardingGuide";
 import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { PushPrompt } from "./PushPrompt";
+import { OfflineToaster } from "./OfflineToaster";
+import { PushSync } from "@/components/pwa/PushSync";
 import { MessengerRuntime } from "@/components/messenger/MessengerRuntime";
 import { TwoFactorGraceBanner } from "./TwoFactorGraceBanner";
 import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
@@ -110,6 +112,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
         <MobileBottomNav />
       </div>
       <PushPrompt />
+      <OfflineToaster />
+      <PushSync />
 
       {installedModules.has("messenger") && canViewModule(me, installedModules, "messenger") && !pathname.startsWith("/messenger") ? (
         <Link

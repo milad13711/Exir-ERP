@@ -1,3 +1,4 @@
+import { deriveTaskTick } from '../tasks/task-ticks.js';
 import { Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { TasksService, type TaskActor } from '../tasks/tasks.service.js';
@@ -151,7 +152,7 @@ export class OperationsService {
     // آخرین فعالیت هر نفر: یک groupBy برای همه (نه یک کوئری برای هر نفر)
     const [last, nm] = await Promise.all([
       userIds.length
-        ? ctx.tenantDb.taskEvent.groupBy({ by: ['actorUserId'], where: { actorUserId: { in: userIds } }, _max: { createdAt: true } })
+        ? ctx.tenantDb.taskEvent.groupBy({ by: ['actorUserId'], where: { actorUserId: { in: userIds }, type: { notIn: ['delivered', 'viewed'] } }, _max: { createdAt: true } })
         : Promise.resolve([] as Array<{ actorUserId: string | null; _max: { createdAt: Date | null } }>),
       this.names(ctx, userIds),
     ]);
@@ -177,7 +178,7 @@ export class OperationsService {
     const own: Where = actor.manager
       ? {}
       : { OR: [{ assignedUserId: actor.userId }, { assignees: { some: { userId: actor.userId } } }] };
-    const sel = { id: true, number: true, title: true, priority: true, dueAt: true, assignedUserId: true, createdByUserId: true, status: true, submittedAt: true, updatedAt: true, createdAt: true, publishedAt: true, sendAt: true, assignees: { select: { userId: true } } } as const;
+    const sel = { id: true, number: true, title: true, priority: true, dueAt: true, assignedUserId: true, createdByUserId: true, status: true, submittedAt: true, updatedAt: true, createdAt: true, publishedAt: true, sendAt: true, isPublished: true, assignees: { select: { userId: true, deliveredAt: true, seenAt: true } } } as const;
     const unseenBefore = new Date(now.getTime() - unseenHours * 3_600_000);
 
     const [approvals, problems, extensions, overdue, unseen, scheduled] = await Promise.all([
@@ -261,6 +262,17 @@ export class OperationsService {
           score: r.score,
           detail: r.detail ?? null,
           assignees: ids.map((id) => ({ userId: id, name: nm.get(id) ?? 'کاربر حذف‌شده' })),
+          // تیک دریافت/مشاهده فقط برای مدیر یا سازنده (ارجاع‌گیرنده‌ی ردیف «تأخیر خودش» تیک نمی‌بیند)
+          tick:
+            actor.manager || (actor.userId && r.task.createdByUserId === actor.userId)
+              ? deriveTaskTick(
+                  r.task,
+                  ids.map((id) => {
+                    const row = r.task.assignees.find((x) => x.userId === id);
+                    return { userId: id, deliveredAt: row?.deliveredAt ?? row?.seenAt ?? null, seenAt: row?.seenAt ?? null };
+                  }),
+                )
+              : null,
           extension: r.extension
             ? { id: r.extension.id, proposedDueAt: r.extension.proposedDueAt, reason: r.extension.reason, requestedByName: nm.get(r.extension.requestedByUserId) ?? 'کاربر حذف‌شده' }
             : null,
@@ -276,7 +288,7 @@ export class OperationsService {
     const limit = clampLimit(limitRaw, 30, 100);
     const cursor = decodeCursor(cursorRaw);
     const events = await ctx.tenantDb.taskEvent.findMany({
-      where: { task: where } as never,
+      where: { task: where, type: { not: 'delivered' } } as never,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
