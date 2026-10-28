@@ -1,4 +1,5 @@
 import type { McpTool } from './mcp-tool.types.js';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { InvoicesService } from '../sales/invoices.service.js';
 import type { PurchaseOrdersService } from '../purchasing/purchase-orders.service.js';
@@ -365,6 +366,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
         const totalCredit = resolved.reduce((s, l) => s + l.credit, 0n);
         if (totalDebit !== totalCredit) throw new Error(`سند نامتوازن است: بدهکار ${totalDebit} ≠ بستانکار ${totalCredit}`);
 
+        await assertPeriodOpen(ctx.tenantDb, new Date());
         const entry = await ctx.tenantDb.journalEntry.create({
           data: { date: new Date(), description: String(args.description), status: 'POSTED', postedAt: new Date(), createdByUserId: userId, lines: { create: resolved } },
         });

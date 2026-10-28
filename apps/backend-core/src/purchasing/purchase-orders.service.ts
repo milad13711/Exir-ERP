@@ -1,4 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -238,6 +240,7 @@ export class PurchaseOrdersService implements OnModuleInit {
       receiptLines.map((l, i) => this.costing.nextSalePriceOnReceipt(ctx, l.productId!, nextCostPrices[i])),
     );
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const [entry] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {
@@ -316,6 +319,7 @@ export class PurchaseOrdersService implements OnModuleInit {
     const newPaidAmount = order.paidAmount + dto.amount;
     const newStatus = newPaidAmount >= order.total ? 'PAID' : 'PARTIALLY_PAID';
 
+    await assertPeriodOpen(ctx.tenantDb, paidAt);
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.purchasePayment.create({
         data: { orderId: id, amount: dto.amount, method, note: dto.note, paidAt },

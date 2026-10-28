@@ -13,6 +13,8 @@ import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { InvoicesService } from './invoices.service.js';
+import { InvoiceSigningService } from './invoice-signing.service.js';
+import { RequestInvoiceSignatureDto, SetSignaturePolicyDto } from './dto/request-invoice-signature.dto.js';
 import { SalesInvoicePdfService } from './sales-invoice-pdf.service.js';
 import { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import { ReviseInvoiceDto } from './dto/revise-invoice.dto.js';
@@ -33,6 +35,7 @@ export class InvoicesController {
     private readonly pdf: SalesInvoicePdfService,
     private readonly controlDb: ControlPrismaService,
     private readonly evidence: SignatureEvidenceService,
+    private readonly signing: InvoiceSigningService,
   ) {}
 
   /** کاربر «فقط خودم» فقط روی فاکتورهای خودش می‌تواند عملیات انجام دهد؛ خارج از دامنه → ۴۰۴. */
@@ -93,6 +96,17 @@ export class InvoicesController {
     }
     await this.invoices.setPaymentReminderDays(ctx, body.days);
     return { days: await this.invoices.getPaymentReminderDays(ctx.tenantDb) };
+  }
+
+  /** سیاست «نیاز به امضای داخلی برای فاکتور»: off | optional | required (پیش از صدور). */
+  @Get('settings/signature-policy')
+  async getSignaturePolicy(@Ctx() ctx: TenantRequestContext) {
+    return { policy: await this.signing.getPolicy(ctx) };
+  }
+
+  @Put('settings/signature-policy')
+  async setSignaturePolicy(@Body() dto: SetSignaturePolicyDto, @Ctx() ctx: TenantRequestContext) {
+    return { policy: await this.signing.setPolicy(ctx, dto.policy) };
   }
 
   @Get(':id')
@@ -198,6 +212,28 @@ export class InvoicesController {
     return result;
   }
 
+  /** وضعیت امضای داخلی فاکتور: سیاست، امضاکنندگان مجاز، درخواست در انتظار، آخرین رد، کهنه‌بودن امضا. */
+  @Get(':id/signing')
+  async signingState(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.assertInvoiceInScope(ctx, id);
+    return this.signing.state(ctx, id);
+  }
+
+  /** «درخواست امضا»: فاکتور را برای امضا/مهر به کارتابل امضاکننده می‌فرستد. */
+  @Post(':id/sign-request')
+  async requestSignature(@Param('id') id: string, @Body() dto: RequestInvoiceSignatureDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
+    return this.signing.requestSignature(ctx, id, dto);
+  }
+
+  @Post(':id/sign-request/cancel')
+  async cancelSignRequest(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'sales');
+    await this.assertInvoiceInScope(ctx, id);
+    return this.signing.cancelRequest(ctx, id);
+  }
+
   /** لینک عمومی مشاهده/پرداخت آنلاین فاکتور را با پیامک برای مشتری می‌فرستد. */
   @Post(':id/send-payment-link')
   async sendPaymentLink(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
@@ -267,6 +303,8 @@ export class InvoicesController {
         signedByName: invoice.signedByName,
         signatureDataUrl: invoice.signatureDataUrl,
         signedAt: invoice.signedAt,
+        stampDataUrl: invoice.stampDataUrl,
+        signatureKind: invoice.signatureKind,
         deliveryConfirmedName: invoice.deliveryConfirmedName,
         deliverySignatureDataUrl: invoice.deliverySignatureDataUrl,
         deliveryConfirmedAt: invoice.deliveryConfirmedAt,

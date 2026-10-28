@@ -61,6 +61,19 @@ export class ApprovalsController {
         clientEvidence: dto.evidence,
       });
     }
+    // مدرک مخصوص نوع سند (مثل امضای فاکتور: IP/دستگاه/زمان/موقعیت) — شکست ثبت، تصمیم را خراب نمی‌کند.
+    if (dto.approved && result.status === 'APPROVED') {
+      const spec = await this.approvals.evidenceFor(ctx, result, { withStamp: !!dto.withStamp });
+      if (spec) {
+        await this.evidence.tryRecord(ctx, {
+          ...spec,
+          signerUserId: (await resolveTenantUserId(ctx).catch(() => null)) ?? undefined,
+          signerRole: ctx.auth.role,
+          req,
+          clientEvidence: dto.evidence,
+        });
+      }
+    }
     return result;
   }
 }

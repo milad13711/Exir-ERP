@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { assertNotTaxLocked } from './tax-lock.util.js';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
@@ -7,6 +8,8 @@ import * as bcrypt from 'bcryptjs';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
+import { SIGN_ENTITY_TYPE, clearInvoiceSignature, invoiceContentHash, isSignatureStale, maskPhone, readSignaturePolicy } from './invoice-signing.js';
+import { MissingAccountError, SALES_ACCOUNT, buildPaymentJournalLines, buildSaleJournalLines, isAccountingActive } from './accounting-link.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
@@ -42,11 +45,11 @@ const DEFAULT_DELIVERY_SMS_TEMPLATE = 'کد تأیید تحویل فاکتور �
 const PAYMENT_REMINDER_DAYS_KEY = 'paymentReminderDaysBefore';
 const DEFAULT_PAYMENT_REMINDER_DAYS = 3;
 
-function generateDeliveryCode(): string {
+export function generateDeliveryCode(): string {
   return String(randomInt(100000, 1000000));
 }
 
-function renderDeliverySmsTemplate(template: string, vars: { code: string; invoiceNo: number }): string {
+export function renderDeliverySmsTemplate(template: string, vars: { code: string; invoiceNo: number }): string {
   return template.replace(/\{code\}/g, vars.code).replace(/\{invoiceNo\}/g, String(vars.invoiceNo));
 }
 
@@ -75,20 +78,8 @@ export function buildPaymentInstructionLine(
   }
 }
 
-// Standard account codes from the default chart of accounts — see
-// src/accounting/default-chart-of-accounts.ts. Confirming an invoice or
-// recording a payment posts against these directly rather than asking the
-// user to pick accounts each time, matching how a small-business ERP's
-// sales cycle usually works (the accountant reconciles the chart once).
-const ACCOUNT = {
-  CASH: '1010',
-  BANK: '1020',
-  RECEIVABLE: '1030',
-  INVENTORY: '1040',
-  TAX_PAYABLE: '2020',
-  REVENUE: '4010',
-  COGS: '5010',
-};
+// کدهای حساب استاندارد (ر.ک. accounting-link.ts) — فقط وقتی ماژول حسابداری نصب است استفاده می‌شوند.
+const ACCOUNT = SALES_ACCOUNT;
 
 const INVOICE_INCLUDE = {
   contact: {
@@ -374,9 +365,10 @@ export class InvoicesService {
    * controller already asserted that baseline before calling this).
    */
   async sign(ctx: TenantRequestContext, id: string, dto: SignInvoiceDto) {
-    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
+    const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { lines: true } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status === 'DRAFT') throw new BadRequestException('ابتدا باید فاکتور تأیید (نهایی) شود');
+    if (invoice.status === 'CANCELLED') throw new BadRequestException('فاکتور باطل‌شده قابل امضا نیست');
     if (invoice.isOfficial && ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN') {
       throw new ForbiddenException('فاکتور رسمی فقط توسط مالک یا مدیر سیستم قابل امضا است');
     }
@@ -391,6 +383,11 @@ export class InvoicesService {
         signedByUserId: userId,
         signedByName: user?.name ?? null,
         signatureDataUrl: dto.signatureDataUrl,
+        stampDataUrl: null,
+        signatureKind: 'DRAWN',
+        signedContentHash: invoiceContentHash(invoice),
+        signatureInvalidatedAt: null,
+        signatureInvalidReason: null,
         signedAt: new Date(),
       },
       include: INVOICE_INCLUDE,
@@ -478,6 +475,11 @@ export class InvoicesService {
         deliveryCodeSentAt: new Date(),
       },
     });
+    // همین کد از صفحه‌ی عمومی فاکتور هم قابل ثبت است (با شمارنده‌ی تلاش و قفل) — کدهای قبلی باطل می‌شوند.
+    await ctx.tenantDb.invoiceDeliveryOtp.updateMany({ where: { invoiceId: id, consumedAt: null }, data: { consumedAt: new Date() } });
+    await ctx.tenantDb.invoiceDeliveryOtp.create({
+      data: { invoiceId: id, codeHash, phoneMasked: maskPhone(invoice.contact.phone), expiresAt: new Date(Date.now() + DELIVERY_CODE_TTL_MS) },
+    });
 
     let smsSent = false;
     if (invoice.contact.phone) {
@@ -518,6 +520,8 @@ export class InvoicesService {
       data: {
         deliveryConfirmedAt: new Date(),
         deliveryConfirmedName: dto.confirmerName,
+        deliveryMethod: dto.method,
+        deliveryChannel: 'PANEL',
         deliverySignatureDataUrl: dto.method === 'SIGNATURE' ? dto.signatureDataUrl : null,
         deliveryCodeHash: null,
         deliveryCodeExpiresAt: null,
@@ -526,36 +530,27 @@ export class InvoicesService {
     });
   }
 
-  /**
-   * سطرهای سند فروش: بدهکار حساب‌های دریافتنی به‌اندازه‌ی کل فاکتور / بستانکار درآمد (خالص از مالیات) /
-   * بستانکار مالیات پرداختنی؛ و در صورت وجود بهای تمام‌شده: بدهکار بهای کالای فروش‌رفته / بستانکار موجودی کالا.
-   * مبلغ فاکتور شامل مالیات است، اما درآمد شناسایی‌شده فقط جمع اقلام پس از تخفیف است.
-   * هم تأیید فاکتور و هم ویرایش پس از تأیید از همین یک منبع استفاده می‌کنند تا سند هر دو مسیر یکی بماند.
-   */
+  /** سطرهای سند فروش (منبع واحد: accounting-link.ts) — کد حساب ناموجود به خطای ۴۰۰ فارسی تبدیل می‌شود. */
   private async buildSaleJournalLines(
     ctx: TenantRequestContext,
     amounts: { total: number; taxAmount: number; cogsAmount: number },
   ): Promise<Array<{ accountId: string; debit: bigint; credit: bigint }>> {
-    const receivable = await this.getAccount(ctx, ACCOUNT.RECEIVABLE);
-    const revenue = await this.getAccount(ctx, ACCOUNT.REVENUE);
-    const netRevenue = amounts.total - amounts.taxAmount;
-    const journalLines = [
-      { accountId: receivable.id, debit: BigInt(amounts.total), credit: BigInt(0) },
-      { accountId: revenue.id, debit: BigInt(0), credit: BigInt(netRevenue) },
-    ];
-    if (amounts.taxAmount > 0) {
-      const taxPayable = await this.getAccount(ctx, ACCOUNT.TAX_PAYABLE);
-      journalLines.push({ accountId: taxPayable.id, debit: BigInt(0), credit: BigInt(amounts.taxAmount) });
+    try {
+      return await buildSaleJournalLines(ctx.tenantDb, amounts);
+    } catch (e) {
+      if (e instanceof MissingAccountError) throw new BadRequestException(e.message);
+      throw e;
     }
-    if (amounts.cogsAmount > 0) {
-      const cogs = await this.getAccount(ctx, ACCOUNT.COGS);
-      const inventory = await this.getAccount(ctx, ACCOUNT.INVENTORY);
-      journalLines.push(
-        { accountId: cogs.id, debit: BigInt(amounts.cogsAmount), credit: BigInt(0) },
-        { accountId: inventory.id, debit: BigInt(0), credit: BigInt(amounts.cogsAmount) },
-      );
-    }
-    return journalLines;
+  }
+
+  /** سیاست امضای داخلی فاکتور (تنظیمات فروش): off | optional | required */
+  getSignaturePolicy(tenantDb: TenantRequestContext['tenantDb']) {
+    return readSignaturePolicy(tenantDb);
+  }
+
+  /** حسابداری برای این تننت فعال است؟ (ر.ک. accounting-link.ts) */
+  private accountingActive(ctx: TenantRequestContext): Promise<boolean> {
+    return isAccountingActive(this.controlDb, ctx.tenantId);
   }
 
   /**
@@ -567,13 +562,26 @@ export class InvoicesService {
    * until this runs.
    */
   async confirm(ctx: TenantRequestContext, id: string) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    // فاکتور به حسابداری وابسته نیست: اگر نصب است سند ثبت می‌شود، وگرنه فقط آرشیو فاکتور + حواله‌ی انبار.
+    const accounting = await this.accountingActive(ctx);
+    if (accounting) await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({
       where: { id },
       include: { lines: { include: { product: true } } },
     });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status !== 'DRAFT') throw new BadRequestException('فقط فاکتور پیش‌نویس قابل تأیید است');
+
+    // سیاست «امضای داخلی الزامی»: بدون امضای معتبر مدیر، فاکتور صادر (تأیید) نمی‌شود.
+    const signatureStale = isSignatureStale(invoice, invoiceContentHash(invoice));
+    if ((await this.getSignaturePolicy(ctx.tenantDb)) === 'required') {
+      if (!invoice.signedAt) {
+        throw new BadRequestException('طبق تنظیمات فروش، این فاکتور پیش از صدور باید امضا شود — با «درخواست امضا» آن را به کارتابل مدیر بفرستید');
+      }
+      if (signatureStale) {
+        throw new BadRequestException('محتوای فاکتور پس از امضا تغییر کرده و امضا بی‌اعتبار شده است — دوباره «درخواست امضا» بزنید');
+      }
+    }
 
     // ماژول «اعلام بار» (dispatch): فاکتوری که بارش «نیاز به وزن‌کشی» دارد تا تأیید وزن نهایی و تعدیل اقلام نهایی نمی‌شود.
     // فقط وقتی ماژول نصب است؛ فاکتورهای بدون این نیاز دقیقاً مثل قبل عمل می‌کنند.
@@ -584,46 +592,67 @@ export class InvoicesService {
 
     const userId = await resolveTenantUserId(ctx);
     const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
-    const lineCosts = await Promise.all(
-      invoice.lines.map((l) => (l.productId ? this.costing.costIssue(ctx, l.productId, l.quantity) : Promise.resolve(0))),
-    );
-    const cogsAmount = lineCosts.reduce((sum, c) => sum + c, 0);
+    const stockOps = () =>
+      invoice.lines
+      .filter((l) => l.productId)
+      .map((l) =>
+        ctx.tenantDb.stockMovement.create({
+          data: {
+            productId: l.productId!,
+            warehouseId: warehouse.id,
+            type: 'ISSUE',
+            quantityDelta: -l.quantity,
+            reference: `فاکتور فروش #${invoice.invoiceNo}`,
+            createdByUserId: userId,
+          },
+        }),
+      );
 
-    const journalLines = await this.buildSaleJournalLines(ctx, { total: invoice.total, taxAmount: invoice.taxAmount, cogsAmount });
-
-    const [entry] = await ctx.tenantDb.$transaction([
-      ctx.tenantDb.journalEntry.create({
-        data: {
-          date: new Date(),
-          description: `فاکتور فروش شماره ${invoice.invoiceNo}`,
-          status: 'POSTED',
-          postedAt: new Date(),
-          createdByUserId: userId,
-          lines: { create: journalLines },
-        },
-      }),
-      ...invoice.lines
-        .filter((l) => l.productId)
-        .map((l) =>
-          ctx.tenantDb.stockMovement.create({
-            data: {
-              productId: l.productId!,
-              warehouseId: warehouse.id,
-              type: 'ISSUE',
-              quantityDelta: -l.quantity,
-              reference: `فاکتور فروش #${invoice.invoiceNo}`,
-              createdByUserId: userId,
-            },
-          }),
-        ),
-    ]);
+    let journalEntryId: string | null = null;
+    if (accounting) {
+      const lineCosts = await Promise.all(
+        invoice.lines.map((l) => (l.productId ? this.costing.costIssue(ctx, l.productId, l.quantity) : Promise.resolve(0))),
+      );
+      const cogsAmount = lineCosts.reduce((sum, c) => sum + c, 0);
+      const journalLines = await this.buildSaleJournalLines(ctx, { total: invoice.total, taxAmount: invoice.taxAmount, cogsAmount });
+      await assertPeriodOpen(ctx.tenantDb, new Date());
+      const [entry] = await ctx.tenantDb.$transaction([
+        ctx.tenantDb.journalEntry.create({
+          data: {
+            date: new Date(),
+            description: `فاکتور فروش شماره ${invoice.invoiceNo}`,
+            status: 'POSTED',
+            postedAt: new Date(),
+            createdByUserId: userId,
+            lines: { create: journalLines },
+          },
+        }),
+        ...stockOps(),
+      ]);
+      journalEntryId = entry.id;
+    } else {
+      await ctx.tenantDb.$transaction(stockOps());
+    }
 
     const confirmed = await ctx.tenantDb.salesInvoice.update({
       where: { id },
-      data: { status: 'CONFIRMED', confirmedAt: new Date(), journalEntryId: entry.id },
+      data: {
+        status: 'CONFIRMED',
+        confirmedAt: new Date(),
+        journalEntryId,
+        accountingPosted: journalEntryId !== null,
+        // امضای کهنه (محتوا پس از امضا عوض شده) هرگز روی فاکتور صادرشده نمی‌ماند
+        ...(signatureStale
+          ? { signedAt: null, signedByUserId: null, signedByName: null, signatureDataUrl: null, stampDataUrl: null, signatureKind: null, signedContentHash: null, signatureInvalidatedAt: new Date(), signatureInvalidReason: 'محتوای فاکتور پس از امضا تغییر کرده بود' }
+          : {}),
+      },
       include: INVOICE_INCLUDE,
     });
-    if (confirmed.isOfficial && !confirmed.signedAt) {
+    if (signatureStale) await this.approvals.closeForEntity(ctx, SIGN_ENTITY_TYPE, id, 'REJECTED');
+    const pendingSignRequest = confirmed.isOfficial && !confirmed.signedAt
+      ? await ctx.tenantDb.approvalRequest.findFirst({ where: { entityType: SIGN_ENTITY_TYPE, entityId: id, status: 'PENDING' }, select: { id: true } })
+      : null;
+    if (confirmed.isOfficial && !confirmed.signedAt && !pendingSignRequest) {
       await this.approvals.request(ctx, {
         moduleCode: 'sales',
         entityType: 'SALES_INVOICE',
@@ -639,7 +668,8 @@ export class InvoicesService {
   }
 
   async recordPayment(ctx: TenantRequestContext, id: string, dto: RecordPaymentDto) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const accounting = await this.accountingActive(ctx);
+    if (accounting) await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (invoice.status !== 'CONFIRMED' && invoice.status !== 'PARTIALLY_PAID') {
@@ -659,17 +689,22 @@ export class InvoicesService {
     if (method === 'CHECK' && (!dto.checkSayadId || !dto.checkDueDate)) {
       throw new BadRequestException('برای پرداخت چکی، شماره صیادی و تاریخ سررسید الزامی است');
     }
-    const cashAccountCode = method === 'CASH' || method === 'POS' ? ACCOUNT.CASH : ACCOUNT.BANK;
-    const cashAccount = await this.getAccount(ctx, cashAccountCode);
-    const receivable = await this.getAccount(ctx, ACCOUNT.RECEIVABLE);
+    // بدون حسابداری فقط وضعیت پرداخت ثبت می‌شود (accountingPosted=false تا ثبت اسناد قبلی بعداً آن را برداشت کند).
+    const paymentJournalLines = accounting
+      ? await buildPaymentJournalLines(ctx.tenantDb, method, dto.amount).catch((e) => {
+          if (e instanceof MissingAccountError) throw new BadRequestException(e.message);
+          throw e;
+        })
+      : null;
     const userId = await resolveTenantUserId(ctx);
 
     const newPaidAmount = invoice.paidAmount + dto.amount;
     const newStatus = newPaidAmount >= invoice.total ? 'PAID' : 'PARTIALLY_PAID';
 
+    if (paymentJournalLines) await assertPeriodOpen(ctx.tenantDb, paidAt);
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.salesPayment.create({
-        data: { invoiceId: id, amount: dto.amount, method, note: dto.note, paidAt },
+        data: { invoiceId: id, amount: dto.amount, method, note: dto.note, paidAt, accountingPosted: paymentJournalLines !== null },
       }),
       ...(method === 'CHECK'
         ? [
@@ -688,21 +723,20 @@ export class InvoicesService {
             }),
           ]
         : []),
-      ctx.tenantDb.journalEntry.create({
-        data: {
-          date: paidAt,
-          description: `دریافت وجه فاکتور فروش شماره ${invoice.invoiceNo}`,
-          status: 'POSTED',
-          postedAt: new Date(),
-          createdByUserId: userId,
-          lines: {
-            create: [
-              { accountId: cashAccount.id, debit: BigInt(dto.amount), credit: BigInt(0) },
-              { accountId: receivable.id, debit: BigInt(0), credit: BigInt(dto.amount) },
-            ],
-          },
-        },
-      }),
+      ...(paymentJournalLines
+        ? [
+            ctx.tenantDb.journalEntry.create({
+              data: {
+                date: paidAt,
+                description: `دریافت وجه فاکتور فروش شماره ${invoice.invoiceNo}`,
+                status: 'POSTED',
+                postedAt: new Date(),
+                createdByUserId: userId,
+                lines: { create: paymentJournalLines },
+              },
+            }),
+          ]
+        : []),
       ctx.tenantDb.salesInvoice.update({
         where: { id },
         data: { paidAmount: newPaidAmount, status: newStatus },
@@ -737,12 +771,6 @@ export class InvoicesService {
       }
     }
     return updatedInvoice;
-  }
-
-  private async getAccount(ctx: TenantRequestContext, code: string) {
-    const account = await ctx.tenantDb.account.findUnique({ where: { code } });
-    if (!account) throw new BadRequestException(`کدینگ حسابداری ${code} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
-    return account;
   }
 
   /** برای صفحه‌ی عمومی مشاهده/پرداخت فاکتور — با publicToken (نه id/شماره‌ی قابل حدس) پیدا می‌شود. */
@@ -873,6 +901,18 @@ export class InvoicesService {
 
     const f = await this.prepareFields(ctx, dto, invoice);
 
+    // ویرایش فاکتور امضاشده، امضا را بی‌اعتبار می‌کند — فقط با تأیید صریح کاربر؛ سپس امضا پاک و در تاریخچه ثبت می‌شود.
+    if (invoice.signedAt) {
+      if (!dto.acknowledgeSignatureInvalidation) {
+        throw new ConflictException('این فاکتور امضا شده است و ویرایش آن امضا را بی‌اعتبار می‌کند؛ برای ادامه، بی‌اعتبار شدن امضا را تأیید کنید (باید دوباره امضا شود)');
+      }
+      const editorId = await resolveTenantUserId(ctx).catch(() => null);
+      await clearInvoiceSignature(ctx, this.approvals, id, 'فاکتور پس از امضا ویرایش شد', editorId);
+    } else {
+      // درخواست امضای در انتظار مربوط به نسخه‌ی قبلی محتواست؛ امضاکننده نباید چیزی را که دیگر وجود ندارد امضا کند
+      await this.approvals.closeForEntity(ctx, SIGN_ENTITY_TYPE, id, 'REJECTED');
+    }
+
     await ctx.tenantDb.salesInvoiceLine.deleteMany({ where: { invoiceId: id } });
     return ctx.tenantDb.salesInvoice.update({
       where: { id },
@@ -905,12 +945,15 @@ export class InvoicesService {
    * فاکتور دارای پرداخت/چک/مرجوعی/تحویل‌تأییدشده/امضا/بار فعال یا در جریان مودیان مسدود است (ر.ک. invoiceEditBlock).
    */
   async editConfirmed(ctx: TenantRequestContext, id: string, dto: CreateInvoiceDto, reason: string) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({
       where: { id },
       include: { lines: true, contact: { select: { name: true, company: true } } },
     });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    // سندی که قبلاً برای این فاکتور ثبت شده حتی اگر حسابداری الان خاموش باشد با ویرایش هماهنگ می‌ماند؛
+    // فاکتور بدون سند فقط وقتی حسابداری نصب است سند می‌گیرد.
+    const maintainJournal = !!invoice.journalEntryId || (await this.accountingActive(ctx));
+    if (maintainJournal) await ensureDefaultChartOfAccounts(ctx.tenantDb);
     await assertNotTaxLocked(ctx.tenantDb, id, 'ویرایش فاکتور');
     const block = invoiceEditBlock(await this.amendableState(ctx, invoice));
     if (block) throw new BadRequestException(block);
@@ -935,11 +978,14 @@ export class InvoicesService {
       }
     }
 
-    const lineCosts = await Promise.all(
-      f.lines.map((l) => (l.productId ? this.costing.costIssue(ctx, l.productId, l.quantity) : Promise.resolve(0))),
-    );
-    const cogsAmount = lineCosts.reduce((sum, c) => sum + c, 0);
-    const newJournalLines = await this.buildSaleJournalLines(ctx, { total: f.total, taxAmount: f.taxAmount, cogsAmount });
+    let newJournalLines: Array<{ accountId: string; debit: bigint; credit: bigint }> | null = null;
+    if (maintainJournal) {
+      const lineCosts = await Promise.all(
+        f.lines.map((l) => (l.productId ? this.costing.costIssue(ctx, l.productId, l.quantity) : Promise.resolve(0))),
+      );
+      const cogsAmount = lineCosts.reduce((sum, c) => sum + c, 0);
+      newJournalLines = await this.buildSaleJournalLines(ctx, { total: f.total, taxAmount: f.taxAmount, cogsAmount });
+    }
     const original = invoice.journalEntryId
       ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: invoice.journalEntryId }, include: { lines: true } })
       : null;
@@ -965,6 +1011,8 @@ export class InvoicesService {
     if (changes.length === 0) throw new BadRequestException('هیچ تغییری نسبت به فاکتور فعلی انجام نشده است');
     const revisionNo = invoice.revisionCount + 1;
     const now = new Date();
+    if (original) await assertPeriodOpen(ctx.tenantDb, original.date);
+    if (original || newJournalLines) await assertPeriodOpen(ctx.tenantDb, now);
 
     await ctx.tenantDb.$transaction(async (tx) => {
       // قفل خوش‌بینانه: اگر هم‌زمان پرداختی ثبت یا ویرایش دیگری انجام شده باشد، هیچ‌چیز نوشته نمی‌شود.
@@ -988,16 +1036,18 @@ export class InvoicesService {
         });
         await tx.journalEntry.update({ where: { id: original.id }, data: { voidedAt: now, voidReason: `ویرایش فاکتور: ${reason}` } });
       }
-      const entry = await tx.journalEntry.create({
-        data: {
-          date: now,
-          description: `فاکتور فروش شماره ${invoice.invoiceNo} (ویرایش ${revisionNo})`,
-          status: 'POSTED',
-          postedAt: now,
-          createdByUserId: userId ?? undefined,
-          lines: { create: newJournalLines },
-        },
-      });
+      const entry = newJournalLines
+        ? await tx.journalEntry.create({
+            data: {
+              date: now,
+              description: `فاکتور فروش شماره ${invoice.invoiceNo} (ویرایش ${revisionNo})`,
+              status: 'POSTED',
+              postedAt: now,
+              createdByUserId: userId ?? undefined,
+              lines: { create: newJournalLines },
+            },
+          })
+        : null;
       for (const d of deltas) {
         await tx.stockMovement.create({
           data: {
@@ -1027,7 +1077,7 @@ export class InvoicesService {
           notes: dto.notes ?? null,
           paymentMethod: f.paymentMethod,
           paymentBankInfo: f.paymentBankInfo,
-          journalEntryId: entry.id,
+          ...(entry ? { journalEntryId: entry.id, accountingPosted: true } : {}),
           zarinpalAuthority: null, // مبلغ عوض شده؛ تراکنش درگاهِ باز قبلی دیگر معتبر نیست
           lines: { create: f.lines },
         },
@@ -1058,6 +1108,7 @@ export class InvoicesService {
     await this.assertNoPendingDispatchAdjustment(ctx, id);
     await ctx.tenantDb.salesInvoice.delete({ where: { id } });
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
+    await this.approvals.closeForEntity(ctx, SIGN_ENTITY_TYPE, id, 'REJECTED');
     return { success: true };
   }
 
@@ -1085,9 +1136,9 @@ export class InvoicesService {
   }
 
   private async cancelConfirmed(ctx: TenantRequestContext, id: string, reason: string) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, include: { lines: true } });
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
+    // فقط سندی که واقعاً وجود دارد معکوس می‌شود؛ فاکتور بدون سند (حسابداری نصب نبود) اثر حسابداری ندارد.
     await assertNotTaxLocked(ctx.tenantDb, id, 'ابطال فاکتور'); // دوباره: ممکن است پس از ثبت درخواست تأیید، صورتحساب مالیاتی ساخته شده باشد
     this.assertVoidable(invoice, await this.amendableState(ctx, invoice)); // شامل مرجوعی/تحویل/بار فعال؛ دوباره چون ممکن است بعد از ثبت درخواست تأیید تغییر کرده باشد
 
@@ -1098,6 +1149,10 @@ export class InvoicesService {
       ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: invoice.journalEntryId }, include: { lines: true } })
       : null;
 
+    if (original) {
+      await assertPeriodOpen(ctx.tenantDb, original.date);
+      await assertPeriodOpen(ctx.tenantDb, new Date());
+    }
     await ctx.tenantDb.$transaction([
       ...(original
         ? [
@@ -1150,6 +1205,7 @@ export class InvoicesService {
     ]);
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE_CANCEL', id, 'APPROVED');
     await this.approvals.closeForEntity(ctx, 'SALES_INVOICE', id, 'REJECTED');
+    await this.approvals.closeForEntity(ctx, SIGN_ENTITY_TYPE, id, 'REJECTED');
     await this.reverseFunnelPurchase(ctx, invoice.contactId, id, invoice.status === 'PAID');
     return { success: true };
   }

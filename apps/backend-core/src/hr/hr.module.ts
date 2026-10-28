@@ -16,9 +16,12 @@ import { KpiService } from './kpi.service.js';
 import { DepartmentsController } from './departments.controller.js';
 import { UsersModule } from '../users/users.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
+import { SmsModule } from '../sms/sms.module.js';
+import { HrRequestSmsService } from './request-sms.service.js';
+import { RequestSmsController } from './request-sms.controller.js';
 
 @Module({
-  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule, UsersModule, SettingsModule],
+  imports: [NotificationsModule, PermissionsModule, ModuleGuardModule, AutomationModule, UsersModule, SettingsModule, SmsModule],
   controllers: [
     EmployeesController,
     AttendanceController,
@@ -29,7 +32,8 @@ import { SettingsModule } from '../settings/settings.module.js';
     PersonnelPenaltiesController,
     KpiController,
     DepartmentsController,
+    RequestSmsController,
   ],
-  providers: [PayrollPdfService, HrAutomationTriggers, KpiService],
+  providers: [PayrollPdfService, HrAutomationTriggers, KpiService, HrRequestSmsService],
 })
 export class HrModule {}

@@ -19,6 +19,8 @@ export type RecordSignatureEvidenceInput = {
   contentHash?: string;
   /** تصویر امضا؛ فقط هش آن ذخیره می‌شود. */
   signatureData?: string;
+  /** سطح تأیید هویت امضاکننده؛ مثلاً 'link_only' = فقط دارنده‌ی لینک عمومی (هویت راستی‌آزمایی نشده). در device ذخیره و در هش یکپارچگی لحاظ می‌شود. */
+  verification?: string;
   req: Request;
   clientEvidence?: ClientSignatureEvidence;
 };
@@ -73,6 +75,7 @@ export class SignatureEvidenceService {
       touch: typeof ce?.touch === 'boolean' ? ce.touch : null,
       serverTimeUtc: serverTime.toISOString(),
       serverTimeTehran: formatTehran(serverTime),
+      ...(str(input.verification, 40) ? { verification: str(input.verification, 40) } : {}),
     };
     const base = {
       id: randomUUID(),

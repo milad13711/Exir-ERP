@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, OnModuleInit, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, OnModuleInit, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -9,6 +9,10 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { CreateJournalEntryDto } from './dto/create-journal-entry.dto.js';
 import { ensureDefaultChartOfAccounts } from './default-chart-of-accounts.js';
+import { assertPeriodOpen } from './periods/period-lock.js';
+import { reverseJournalEntry } from './journal-posting.js';
+import { resolvePeriod, type PeriodQuery } from './periods/jalali-periods.js';
+import { getFiscalStartMonth } from './periods/accounting-settings.js';
 
 const entryInclude = {
   lines: { include: { account: { select: { id: true, code: true, name: true } } } },
@@ -61,21 +65,12 @@ export class JournalEntriesController implements OnModuleInit {
     if (entry.status !== 'POSTED') throw new ConflictException('فقط سند قطعی‌شده ابطال می‌شود؛ پیش‌نویس را حذف کنید');
     if (entry.voidedAt) throw new ConflictException('این سند قبلاً باطل شده است');
     if (entry.reversalOfId) throw new ConflictException('سند معکوس را نمی‌توان دوباره باطل کرد');
+    // ماه قفل‌شده: نه سند اصلی قابل ابطال است و نه سند معکوس (با تاریخ امروز) در ماه بسته ثبت می‌شود
+    await assertPeriodOpen(ctx.tenantDb, entry.date);
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const userId = await resolveTenantUserId(ctx).catch(() => null);
-    const [reversal] = await ctx.tenantDb.$transaction([
-      ctx.tenantDb.journalEntry.create({
-        data: {
-          date: new Date(),
-          description: `ابطال سند شماره ${entry.number}: ${reason}`,
-          status: 'POSTED',
-          postedAt: new Date(),
-          reversalOfId: entry.id,
-          createdByUserId: userId ?? undefined,
-          lines: { create: entry.lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, description: l.description })) },
-        },
-      }),
-      ctx.tenantDb.journalEntry.update({ where: { id }, data: { voidedAt: new Date(), voidReason: reason } }),
-    ]);
+    // ادعای اتمیک + رد ابطال سطر تطبیق‌خورده با صورت‌حساب، داخل reverseJournalEntry
+    const reversal = await ctx.tenantDb.$transaction((tx) => reverseJournalEntry(tx, id, reason, userId));
     await this.approvals.closeForEntity(ctx, 'JOURNAL_VOID', id, 'APPROVED');
     return reversal;
   }
@@ -88,6 +83,8 @@ export class JournalEntriesController implements OnModuleInit {
     if (!entry) throw new NotFoundException('سند حسابداری یافت نشد');
     if (entry.status !== 'DRAFT') throw new ConflictException('سند قطعی‌شده ویرایش نمی‌شود؛ آن را باطل و سند اصلاحی ثبت کنید');
     this.validateLines(dto.lines);
+    await assertPeriodOpen(ctx.tenantDb, entry.date);
+    await assertPeriodOpen(ctx.tenantDb, dto.date);
     const [, updated] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalLine.deleteMany({ where: { entryId: id } }),
       ctx.tenantDb.journalEntry.update({
@@ -130,12 +127,15 @@ export class JournalEntriesController implements OnModuleInit {
     return outcome.executed ? { success: true, pendingApproval: false } : { success: true, pendingApproval: true };
   }
 
+  /** فهرست اسناد؛ بدون پارامتر همه‌ی اسناد، با period=YYYY-MM (ماه جلالی) / fiscalYear / from / to فقط همان بازه. */
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query() q: PeriodQuery, @Ctx() ctx: TenantRequestContext) {
     const scope = await this.permissions.viewScope(ctx, 'accounting', 'createdByUserId');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const filtered = q.period || q.fiscalYear || q.from || q.to;
+    const range = filtered && q.period !== 'all' ? resolvePeriod(q, { startMonth: await getFiscalStartMonth(ctx.tenantDb) }) : null;
     return ctx.tenantDb.journalEntry.findMany({
-      where: scope,
+      where: { ...scope, ...(range ? { date: { gte: range.from, lt: range.toExclusive } } : {}) },
       include: entryInclude,
       orderBy: [{ date: 'desc' }, { number: 'desc' }],
     });
@@ -166,6 +166,7 @@ export class JournalEntriesController implements OnModuleInit {
       }
     }
 
+    await assertPeriodOpen(ctx.tenantDb, dto.date);
     const createdByUserId = await resolveTenantUserId(ctx);
     const entry = await ctx.tenantDb.journalEntry.create({
       data: {
@@ -205,6 +206,7 @@ export class JournalEntriesController implements OnModuleInit {
     if (entry.status === 'POSTED') {
       throw new BadRequestException('این سند قبلاً ثبت قطعی شده است');
     }
+    await assertPeriodOpen(ctx.tenantDb, entry.date);
 
     const userId = await resolveTenantUserId(ctx);
     const posted = await ctx.tenantDb.journalEntry.update({

@@ -36,6 +36,8 @@ type InvoiceForPdf = {
   signedByName: string | null;
   signatureDataUrl: string | null;
   signedAt: Date | null;
+  stampDataUrl?: string | null;
+  signatureKind?: string | null;
   deliveryConfirmedName: string | null;
   deliverySignatureDataUrl: string | null;
   deliveryConfirmedAt: Date | null;
@@ -88,7 +90,7 @@ export class SalesInvoicePdfService implements OnModuleDestroy {
     const page = await browser.newPage();
     await hardenPage(page);
     try {
-      await page.setContent(buildHtml(invoice, seller), { waitUntil: 'load' });
+      await page.setContent(buildInvoiceHtml(invoice, seller), { waitUntil: 'load' });
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -111,7 +113,7 @@ export class SalesInvoicePdfService implements OnModuleDestroy {
   }
 }
 
-function buildHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
+export function buildInvoiceHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
   const remaining = invoice.total - invoice.paidAmount;
   return /* html */ `
 <!doctype html>
@@ -247,13 +249,14 @@ function buildHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
   ${invoice.notes ? `<div class="section-title">یادداشت</div><div class="box">${escapeHtml(invoice.notes)}</div>` : ''}
 
   ${
-    invoice.signatureDataUrl || invoice.deliverySignatureDataUrl || invoice.deliveryConfirmedName
+    invoice.signatureDataUrl || invoice.stampDataUrl || invoice.deliverySignatureDataUrl || invoice.deliveryConfirmedName
       ? `<div class="signatures">
     ${
-      invoice.signatureDataUrl
+      invoice.signatureDataUrl || invoice.stampDataUrl
         ? `<div class="sig-box">
-      <div class="sig-title">امضای فروشنده</div>
-      <img src="${safeImgSrc(invoice.signatureDataUrl)}" />
+      <div class="sig-title">${invoice.stampDataUrl ? 'مهر و امضای شرکت' : 'امضای فروشنده'}</div>
+      ${invoice.stampDataUrl ? `<img src="${safeImgSrc(invoice.stampDataUrl)}" style="max-height:70px;margin-left:8px;" />` : ''}
+      ${invoice.signatureDataUrl ? `<img src="${safeImgSrc(invoice.signatureDataUrl)}" />` : ''}
       <div class="sig-name">${escapeHtml(invoice.signedByName ?? '')}</div>
       ${invoice.signedAt ? `<div class="sig-date">${formatJalaliDate(invoice.signedAt)}</div>` : ''}
     </div>`

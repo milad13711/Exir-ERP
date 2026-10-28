@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { isAccountingActive } from '../sales/accounting-link.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import { accountBalance } from '../accounting/balance.js';
@@ -9,8 +11,12 @@ import { JALALI_MONTHS, toJalaliYearMonth } from '../common/jalali.js';
 
 @Injectable()
 export class DashboardService {
+  constructor(@Optional() private readonly controlDb?: ControlPrismaService) {}
+
   async summary(ctx: TenantRequestContext) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    // فروش مستقل از حسابداری است: بدون حسابداری، نقد/روند فروش از فاکتورها خوانده می‌شود و کدینگ حسابداری ساخته نمی‌شود.
+    const accounting = this.controlDb ? await isAccountingActive(this.controlDb, ctx.tenantId) : true;
+    if (accounting) await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const now = new Date();
     const sixMonthsAgo = new Date(now.getTime() - 183 * 86_400_000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -25,14 +31,23 @@ export class DashboardService {
       products,
       monthConfirmedInvoiceCount,
     ] = await Promise.all([
-      ctx.tenantDb.account.findMany({
-        where: { isCashAccount: true },
-        include: { lines: { where: { entry: { status: 'POSTED' } }, select: { debit: true, credit: true } } },
-      }),
-      ctx.tenantDb.journalLine.findMany({
-        where: { entry: { status: 'POSTED', date: { gte: sixMonthsAgo } }, account: { type: 'REVENUE' } },
-        select: { debit: true, credit: true, entry: { select: { date: true } } },
-      }),
+      accounting
+        ? ctx.tenantDb.account.findMany({
+            where: { isCashAccount: true },
+            include: { lines: { where: { entry: { status: 'POSTED' } }, select: { debit: true, credit: true } } },
+          })
+        : Promise.resolve([] as Array<{ type: never; lines: Array<{ debit: bigint; credit: bigint }> }>),
+      accounting
+        ? ctx.tenantDb.journalLine.findMany({
+            where: { entry: { status: 'POSTED', date: { gte: sixMonthsAgo } }, account: { type: 'REVENUE' } },
+            select: { debit: true, credit: true, entry: { select: { date: true } } },
+          })
+        : ctx.tenantDb.salesInvoice
+            .findMany({
+              where: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] }, confirmedAt: { gte: sixMonthsAgo } },
+              select: { total: true, taxAmount: true, confirmedAt: true },
+            })
+            .then((rows) => rows.map((r) => ({ debit: 0, credit: r.total - r.taxAmount, entry: { date: r.confirmedAt! } }))),
       ctx.tenantDb.salesInvoice.findMany({
         where: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID'] }, dueAt: { lt: now } },
         select: { id: true, invoiceNo: true, total: true, paidAmount: true, dueAt: true, contact: { select: { name: true, company: true } } },

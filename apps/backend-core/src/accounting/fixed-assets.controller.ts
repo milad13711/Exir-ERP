@@ -1,4 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { assertPeriodOpen } from './periods/period-lock.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -111,6 +112,7 @@ export class FixedAssetsController {
     const expense = await this.getAccount(ctx, FIXED_ASSET_ACCOUNT.DEPRECIATION_EXPENSE);
     const accumulated = await this.getAccount(ctx, FIXED_ASSET_ACCOUNT.ACCUMULATED_DEPRECIATION);
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {

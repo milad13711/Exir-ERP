@@ -9,3 +9,14 @@ export class CreateWorkCenterDto {
   @IsInt()
   sequenceOrder?: number;
 }
+
+export class UpdateWorkCenterDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  sequenceOrder?: number;
+}

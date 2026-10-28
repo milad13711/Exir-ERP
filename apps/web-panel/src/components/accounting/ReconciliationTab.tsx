@@ -14,7 +14,7 @@ import {
   type ReconciliationOverview,
 } from "@/lib/api";
 
-export function ReconciliationTab() {
+export function ReconciliationTab({ initialAccountId }: { initialAccountId?: string } = {}) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
   const [overview, setOverview] = useState<ReconciliationOverview | null>(null);
@@ -31,9 +31,9 @@ export function ReconciliationTab() {
     fetchAccounts().then((list) => {
       const cashAccounts = list.filter((a) => a.isCashAccount);
       setAccounts(cashAccounts);
-      setAccountId((prev) => prev || cashAccounts[0]?.id || "");
+      setAccountId((prev) => prev || (initialAccountId && cashAccounts.some((a) => a.id === initialAccountId) ? initialAccountId : cashAccounts[0]?.id) || "");
     });
-  }, []);
+  }, [initialAccountId]);
 
   function reload() {
     if (!accountId) return;

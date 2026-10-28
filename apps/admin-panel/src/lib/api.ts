@@ -53,6 +53,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       window.localStorage.setItem(MUST_CHANGE_KEY, "1");
       if (!window.location.pathname.startsWith("/account")) window.location.replace("/account");
     }
+    // مدیر بدون تأیید دومرحله‌ای: فقط صفحه‌ی راه‌اندازی 2FA در «حساب من» در دسترس است
+    if (res.status === 403 && code === "TOTP_ENROLLMENT_REQUIRED" && typeof window !== "undefined") {
+      if (!window.location.pathname.startsWith("/account")) window.location.replace("/account");
+    }
     throw new ApiError(message, res.status, code);
   }
 

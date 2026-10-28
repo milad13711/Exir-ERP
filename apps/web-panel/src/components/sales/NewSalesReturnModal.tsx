@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { useWorkspace } from "@/lib/workspace-context";
 import { createSalesReturn, ApiError, type SalesInvoiceDetail } from "@/lib/api";
 
 type DraftLine = { productId: string | null; description: string; maxQuantity: number; quantity: string; unitPrice: number };
@@ -13,6 +14,7 @@ export function NewSalesReturnModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const accountingOn = useWorkspace().installedModules.has("accounting");
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<DraftLine[]>(
     invoice.lines.map((l) => ({
@@ -103,7 +105,7 @@ export function NewSalesReturnModal({
           disabled={submitting || !hasAnyLine}
           className="w-full py-2.5 rounded-xl bg-danger text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت مرجوعی — بازگشت به انبار و اصلاح سند حسابداری"}
+          {submitting ? "در حال ثبت..." : (accountingOn ? "ثبت مرجوعی — بازگشت به انبار و اصلاح سند حسابداری" : "ثبت مرجوعی — بازگشت به انبار")}
         </button>
       </form>
     </Modal>

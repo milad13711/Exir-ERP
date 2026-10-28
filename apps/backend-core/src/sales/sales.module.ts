@@ -24,6 +24,10 @@ import { SalesReturnsService } from './sales-returns.service.js';
 import { RecurringInvoicesController } from './recurring-invoices.controller.js';
 import { RecurringInvoicesService } from './recurring-invoices.service.js';
 import { SalesAutomationTriggers } from './sales-automation.triggers.js';
+import { InvoiceSigningService } from './invoice-signing.service.js';
+import { PublicInvoiceDeliveryService } from './public-invoice-delivery.service.js';
+import { SalesAccountingBackfillController } from './sales-accounting-backfill.controller.js';
+import { SalesAccountingBackfillService } from './sales-accounting-backfill.service.js';
 
 @Module({
   imports: [PermissionsModule, SmsModule, CrmModule, NotificationsModule, WarehouseModule, ModuleGuardModule, AutomationModule, BillingModule, PaymentGatewayModule, WarrantyModule, ReferralMarketingModule, SettingsModule],
@@ -34,6 +38,7 @@ import { SalesAutomationTriggers } from './sales-automation.triggers.js';
     PublicSalesInvoiceController,
     SalesReturnsController,
     RecurringInvoicesController,
+    SalesAccountingBackfillController,
   ],
   providers: [
     InvoicesService,
@@ -43,6 +48,9 @@ import { SalesAutomationTriggers } from './sales-automation.triggers.js';
     SalesReturnsService,
     RecurringInvoicesService,
     SalesAutomationTriggers,
+    InvoiceSigningService,
+    PublicInvoiceDeliveryService,
+    SalesAccountingBackfillService,
   ],
   exports: [InvoicesService, PaymentReminderService],
 })

@@ -24,6 +24,7 @@ const OWNED: Record<string, { module: string; ownerField: string; model: 'salesQ
 
 /** Entities in modules whose list is view-all only (no per-record owner scope). */
 const VIEW_ALL_ONLY: Record<string, string> = {
+  bank_transaction: 'accounting', // رسید/مدرک تراکنش بانک و صندوق
   production_order: 'production',
 };
 

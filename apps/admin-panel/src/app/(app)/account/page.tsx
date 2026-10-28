@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -215,6 +215,15 @@ function TwoFaCard({ onChanged }: { onChanged: () => void }) {
   }, []);
   useEffect(load, [load]);
 
+  const forced = !!status && status.required && !status.enabled;
+  // ورود اجباری: به‌جای منتظر ماندن برای کلیک، راه‌اندازی خودکار شروع می‌شود
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!forced || autoStarted.current) return;
+    autoStarted.current = true;
+    beginTwoFaSetup().then(setSetup).catch((e) => setMsg(errMsg(e)));
+  }, [forced]);
+
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setMsg(null);
@@ -238,7 +247,10 @@ function TwoFaCard({ onChanged }: { onChanged: () => void }) {
   }
 
   return (
-    <Card className="mt-5 p-5">
+    <Card className={`mt-5 p-5 ${forced ? "border-warning" : ""}`}>
+      {forced ? (
+        <div className="mb-4"><Notice kind="err">فعال‌سازی تأیید دومرحله‌ای برای ورود به پنل مدیریت الزامی است. تا آن را فعال نکنید، سایر بخش‌ها در دسترس نیست.</Notice></div>
+      ) : null}
       <div className="flex items-center gap-2 mb-1">
         <div className="text-[15px] font-extrabold">احراز هویت دو مرحله‌ای</div>
         {status ? <Badge tone={status.enabled ? "success" : "warning"}>{status.enabled ? "فعال" : "غیرفعال"}</Badge> : null}

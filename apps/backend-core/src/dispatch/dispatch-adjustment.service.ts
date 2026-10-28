@@ -193,7 +193,7 @@ export class DispatchAdjustmentService implements OnModuleInit {
     try {
       await this.invoices.confirm(ctx, adj.invoiceId);
       await ctx.tenantDb.dispatchInvoiceAdjustment.update({ where: { id: adj.id }, data: { finalizedAt: new Date(), finalizeError: null } });
-      await logEvent(ctx.tenantDb, adj.shipmentId, { type: 'invoice_finalized', actor: null, note: 'فاکتور پس از تأیید وزن، خودکار نهایی و سند حسابداری ثبت شد' });
+      await logEvent(ctx.tenantDb, adj.shipmentId, { type: 'invoice_finalized', actor: null, note: 'فاکتور پس از تأیید وزن، خودکار نهایی شد (در صورت نصب حسابداری، سند هم ثبت شد)' });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await ctx.tenantDb.dispatchInvoiceAdjustment.update({ where: { id: adj.id }, data: { finalizeError: msg.slice(0, 500) } });

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { formatJalaliDateTime } from "@/lib/persian";
-import { decideApproval, fetchApprovals, fetchApprovalDetail, ApiError, type ApprovalDetail, type ApprovalRequest } from "@/lib/api";
+import { openSalesInvoicePdf, decideApproval, fetchApprovals, fetchApprovalDetail, ApiError, type ApprovalDetail, type ApprovalRequest } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 
 const MODULE_LABELS: Record<string, string> = { recruitment: "جذب و استخدام", purchasing: "خرید", hr: "منابع انسانی", sales: "فروش", contracts: "قراردادها", projects: "پروژه‌ها" };
@@ -49,15 +49,20 @@ export function ApprovalsList({
 
   async function decide(item: ApprovalRequest, approved: boolean, withStamp = false) {
     let note: string | undefined;
+    const isSign = item.entityType === "SALES_INVOICE_SIGN";
     if (!approved) {
-      const reason = window.prompt("دلیل رد (اختیاری):");
+      const reason = window.prompt(isSign ? "دلیل رد (الزامی — به ثبت‌کننده اعلام می‌شود):" : "دلیل رد (اختیاری):");
       if (reason === null) return;
+      if (isSign && reason.trim().length < 3) {
+        setError("برای رد درخواست امضا، دلیل را بنویسید");
+        return;
+      }
       note = reason || undefined;
     }
     setBusyId(item.id);
     setError(null);
     try {
-      await decideApproval(item.id, { approved, withStamp, note });
+      await decideApproval(item.id, { approved, withStamp, note, withEvidence: isSign });
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ثبت تصمیم ناموفق بود");
@@ -104,7 +109,7 @@ export function ApprovalsList({
                 disabled={busyId === item.id}
                 className="text-[12px] font-bold px-3 py-1.5 rounded-lg bg-success text-white disabled:opacity-50 cursor-pointer"
               >
-                تأیید
+                {item.entityType === "SALES_INVOICE_SIGN" ? "تأیید با امضا" : "تأیید"}
               </button>
               {item.isOfficial && (
                 <button
@@ -112,7 +117,7 @@ export function ApprovalsList({
                   disabled={busyId === item.id}
                   className="text-[12px] font-bold px-3 py-1.5 rounded-lg bg-primary text-white disabled:opacity-50 cursor-pointer"
                 >
-                  تأیید و اجازه‌ی درج مهر و امضا
+                  {item.entityType === "SALES_INVOICE_SIGN" ? "تأیید با مهر و امضای شرکت" : "تأیید و اجازه‌ی درج مهر و امضا"}
                 </button>
               )}
               <button
@@ -144,12 +149,17 @@ export function ApprovalsList({
               ))}
               {detail.detail.fields.length === 0 && <div className="px-3 py-3 text-muted">جزئیات بیشتری برای این سند ثبت نشده است.</div>}
             </div>
+            {detail.request.entityType === "SALES_INVOICE_SIGN" ? (
+              <button type="button" onClick={() => openSalesInvoicePdf(detail.request.entityId).catch(() => setError("باز کردن PDF ناموفق بود"))} className="text-[12px] font-bold text-primary text-right cursor-pointer">
+                پیش‌نمایش PDF فاکتور ←
+              </button>
+            ) : null}
             {detail.request.status === "PENDING" ? (
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={() => { decide(detail.request, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-success text-white cursor-pointer">تأیید</button>
+                <button onClick={() => { decide(detail.request, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-success text-white cursor-pointer">{detail.request.entityType === "SALES_INVOICE_SIGN" ? "تأیید با امضا" : "تأیید"}</button>
                 {detail.request.isOfficial && <SignatureConsentNotice className="w-full" />}
                 {detail.request.isOfficial && (
-                  <button onClick={() => { decide(detail.request, true, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white cursor-pointer">تأیید و اجازه‌ی درج مهر و امضا</button>
+                  <button onClick={() => { decide(detail.request, true, true).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-primary text-white cursor-pointer">{detail.request.entityType === "SALES_INVOICE_SIGN" ? "تأیید با مهر و امضای شرکت" : "تأیید و اجازه‌ی درج مهر و امضا"}</button>
                 )}
                 <button onClick={() => { decide(detail.request, false).then(() => setDetail(null)); }} className="text-[12px] font-bold px-3 py-2 rounded-lg bg-danger-soft text-danger cursor-pointer">رد</button>
                 {detail.request.link && (

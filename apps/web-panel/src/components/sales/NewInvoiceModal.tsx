@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { useWorkspace } from "@/lib/workspace-context";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import {
   fetchProducts,
@@ -57,6 +58,7 @@ export function NewInvoiceModal({
   invoice?: SalesInvoiceDetail;
 }) {
   const revising = !!editing && editing.status !== "DRAFT";
+  const accountingOn = useWorkspace().installedModules.has("accounting");
   const [reason, setReason] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [contactId, setContactId] = useState(editing?.contact.id ?? prefill?.contactId ?? "");
@@ -125,9 +127,15 @@ export function NewInvoiceModal({
       setError("برای روش پرداخت بانکی، شماره کارت/حساب را وارد کنید");
       return;
     }
+    let acknowledgeSignatureInvalidation: boolean | undefined;
+    if (editing && !revising && editing.signedAt) {
+      if (!window.confirm("این فاکتور امضا شده است. ویرایش آن امضا را بی‌اعتبار می‌کند و باید دوباره امضا شود. ادامه می‌دهید؟")) return;
+      acknowledgeSignatureInvalidation = true;
+    }
     setSubmitting(true);
     try {
       const payload = {
+        acknowledgeSignatureInvalidation,
         contactId,
         dealId: prefill?.dealId,
         projectId: prefill?.projectId,
@@ -171,7 +179,7 @@ export function NewInvoiceModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {revising ? (
           <div className="text-[12px] leading-6 bg-warning-soft border border-border rounded-xl px-3.5 py-3 text-ink-soft">
-            این فاکتور تأیید شده است. با ذخیره، سند حسابداری قبلی با سند معکوس ابطال و سند تازه ثبت می‌شود و اختلاف موجودی انبار اصلاح می‌گردد؛ همه‌ی
+            این فاکتور تأیید شده است. با ذخیره، {accountingOn ? "سند حسابداری قبلی با سند معکوس ابطال و سند تازه ثبت می‌شود و " : ""}اختلاف موجودی انبار اصلاح می‌گردد؛ همه‌ی
             این‌ها هم‌زمان و با ثبت دلیل در تاریخچه انجام می‌شود. فاکتور دارای پرداخت، چک، تحویل‌تأییدشده، امضا یا بار حمل قابل ویرایش نیست.
           </div>
         ) : null}
@@ -351,7 +359,7 @@ export function NewInvoiceModal({
           disabled={submitting || !contactId || (revising && reason.trim().length < 3)}
           className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : revising ? "ذخیره‌ی ویرایش و اصلاح سند حسابداری" : "ثبت پیش‌نویس فاکتور"}
+          {submitting ? "در حال ثبت..." : revising ? (accountingOn ? "ذخیره‌ی ویرایش و اصلاح سند حسابداری" : "ذخیره‌ی ویرایش") : "ثبت پیش‌نویس فاکتور"}
         </button>
       </form>
     </Modal>

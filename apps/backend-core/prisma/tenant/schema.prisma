@@ -937,6 +937,23 @@ model SalesInvoice {
   paymentMethod   SalesInvoicePaymentMethod @default(CASH)
   paymentBankInfo String? // شماره کارت/حساب + یادداشت انتخابی صادرکننده — فقط برای BANK_TRANSFER
 
+  // ── استقلال از حسابداری ─────────────────────────────────────────────────
+  // true = سند فروش این فاکتور در حسابداری ثبت شده (یا پیش از جداسازی ماژول‌ها ثبت می‌شده است).
+  // اگر ماژول حسابداری نصب نبود، false می‌ماند تا «ثبت اسناد حسابداری فاکتورهای قبلی» بعداً فقط همین‌ها را ثبت کند.
+  accountingPosted Boolean @default(false)
+
+  // ── امضای داخلی (درخواست امضا از کارتابل مدیر) ─────────────────────────────
+  signatureKind          String? // DRAWN (امضای دست‌نویس مستقیم) | SIGNATURE | STAMP_AND_SIGNATURE (تصاویر ثبت‌شده‌ی شرکت)
+  stampDataUrl           String? // تصویر مهر شرکت (فقط برای STAMP_AND_SIGNATURE)
+  signedContentHash      String? // هش محتوای فاکتور در لحظه‌ی امضا — برای تشخیص تغییر پس از امضا
+  signatureInvalidatedAt DateTime?
+  signatureInvalidReason String?
+
+  // ── تحویل کالا ──────────────────────────────────────────────────────────
+  deliveryMethod  String? // CODE | SIGNATURE
+  deliveryChannel String? // PANEL (کاربر پنل) | PUBLIC_LINK (مشتری از لینک عمومی)
+  deliveryOtps    InvoiceDeliveryOtp[]
+
   contact           CrmContact         @relation(fields: [contactId], references: [id])
   deal              CrmDeal?           @relation(fields: [dealId], references: [id], onDelete: SetNull)
   project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -1105,6 +1122,7 @@ model SalesReturn {
   notes           String?
   createdByUserId String?
   journalEntryId  String? // برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
+  accountingPosted Boolean @default(false) // سند مرجوعی در حسابداری ثبت شده؟
   createdAt       DateTime @default(now())
 
   invoice   SalesInvoice      @relation(fields: [invoiceId], references: [id])
@@ -1225,6 +1243,9 @@ model SalesPayment {
   method    SalesPaymentMethod @default(CASH)
   paidAt    DateTime           @default(now())
   note      String?
+  // سند دریافت وجه در حسابداری (فقط وقتی ماژول حسابداری نصب بوده)؛ false = هنوز ثبت نشده
+  accountingPosted Boolean @default(false)
+  journalEntryId   String?
 
   invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -1335,6 +1356,7 @@ model Check {
   invoice           SalesInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   createdBy         User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  chequeLeaf        ChequeLeaf? // برگ دسته‌چکی که این چک صادرشده روی آن نوشته شده (اختیاری)
 
   @@index([dueDate])
   @@index([status])
@@ -1572,6 +1594,8 @@ model Account {
   lines              JournalLine[]
   bankStatementLines BankStatementLine[]
   budgetLines        BudgetLine[]
+  bankAccounts       BankAccount[]
+  cashBoxes          CashBox[]
 
   @@map("accounting_accounts")
 }
@@ -2038,6 +2062,28 @@ enum LeaveStatus {
   REJECTED
 }
 
+/// گزارش پیامک‌های اطلاع‌رسانی تصمیم درخواست‌های منابع انسانی (مرخصی و ...). متن پیامک عمداً ذخیره نمی‌شود؛
+/// claimKey یکتا (نوع:شناسه:رویداد) هم dedupe است هم سقف روزانه را از روی شمارش ردیف‌ها می‌دهد.
+/// requesterEmployeeId/actorUserId عمداً بدون FK (رکورد تاریخی/بدون وابستگی مالکیت).
+model HrRequestSmsLog {
+  id                  String   @id @default(uuid())
+  requestType         String // LEAVE_REQUEST
+  requestId           String
+  event               String // SUBMITTED | APPROVED | REJECTED | CANCELLED
+  requesterEmployeeId String?
+  /// SENT | FAILED | SKIPPED
+  status              String
+  reason              String?
+  maskedPhone         String?
+  parts               Int      @default(0)
+  claimKey            String   @unique
+  createdAt           DateTime @default(now())
+
+  @@index([requestType, requestId])
+  @@index([createdAt])
+  @@map("hr_request_sms_logs")
+}
+
 model LeaveRequest {
   id               String      @id @default(uuid())
   employeeId       String
@@ -2153,13 +2199,17 @@ model AttachmentConversion {
 /// در هر لحظه برای هر محصول — نسخه‌ی قبلی isActive=false می‌شود، تاریخچه
 /// حفظ می‌شود (دستورهای تولید قدیمی همچنان به فرمول قدیمی وصل می‌مانند).
 model BillOfMaterial {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   outputProductId String
   batchOutputQty  Int
-  version         Int      @default(1)
-  isActive        Boolean  @default(true)
+  version         Int       @default(1)
+  isActive        Boolean   @default(true)
   createdByUserId String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
+  /// توضیحات فرمول (اختیاری)
+  notes           String?
+  /// بایگانی دستی (isActive=false و archivedAt پر) در برابر «جایگزین‌شده با نسخه‌ی جدید» (isActive=false و archivedAt خالی)
+  archivedAt      DateTime?
 
   outputProduct    Product              @relation("BomOutput", fields: [outputProductId], references: [id])
   createdBy        User?                @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -2237,10 +2287,11 @@ model ProductionOrder {
 /// ایستگاه/بخش تولید — داده‌ی پایه‌ی قابل‌تعریف توسط خود تننت (خط دانه‌بندی،
 /// خط پلت، بسته‌بندی و ...)، sequenceOrder ترتیب پیش‌فرض نمایش/توالی است.
 model WorkCenter {
-  id            String  @id @default(uuid())
+  id            String    @id @default(uuid())
   name          String
-  sequenceOrder Int     @default(0)
-  isActive      Boolean @default(true)
+  sequenceOrder Int       @default(0)
+  isActive      Boolean   @default(true)
+  archivedAt    DateTime?
 
   stages ProductionOrderStage[]
 
@@ -2639,18 +2690,18 @@ model CallLog {
 // اتفاق می‌افتد (همان handler ثبت‌شده‌ی ابزار، دوباره فراخوانی می‌شود).
 
 model AiActionRequest {
-  id              String    @id @default(uuid())
-  toolName        String
-  operationType   String // CREATE | UPDATE | DELETE
-  summary         String // توضیح قابل‌فهم برای پاپ‌آپ تأیید
-  arguments       Json
-  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED | FAILED
-  result          Json?
-  error           String?
-  decidedByUserId String?
-  createdAt       DateTime  @default(now())
-  decidedAt       DateTime?
-  executedAt      DateTime?
+  id               String    @id @default(uuid())
+  toolName         String
+  operationType    String // CREATE | UPDATE | DELETE
+  summary          String // توضیح قابل‌فهم برای پاپ‌آپ تأیید
+  arguments        Json
+  status           String    @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED | FAILED
+  result           Json?
+  error            String?
+  decidedByUserId  String?
+  createdAt        DateTime  @default(now())
+  decidedAt        DateTime?
+  executedAt       DateTime?
   requestedByKeyId String? // کلید API‌ای که این درخواست را ثبت کرده (برای سقف درخواست‌های معلق)
 
   decidedBy User? @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
@@ -5007,6 +5058,27 @@ model MessengerPresence {
 // ── Signature evidence (legal audit trail for every e-signature / public "I accept") ──
 
 /// مدرک حقوقی هر امضای الکترونیک/تأیید لینک عمومی: هویت، زمان، IP، دستگاه، موقعیت، هش محتوا/امضا و هش یکپارچگی (HMAC).
+/// کد یکبارمصرف «تأیید تحویل» که از صفحه‌ی عمومی فاکتور برای مشتری پیامک می‌شود (ماژول delivery-signature).
+/// فقط هش کد نگه‌داری می‌شود؛ شمارنده‌ی تلاش و قفل برای جلوگیری از حدس‌زدن.
+model InvoiceDeliveryOtp {
+  id          String    @id @default(uuid())
+  invoiceId   String
+  codeHash    String
+  phoneMasked String?
+  ipHash      String? // SHA-256 نمکی از IP درخواست‌کننده — فقط برای سقف نرخ، نه شناسایی
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  lockedUntil DateTime?
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, createdAt])
+  @@index([createdAt])
+  @@map("invoice_delivery_otps")
+}
+
 model SignatureEvidence {
   id            String    @id @default(uuid())
   entityType    String
@@ -5718,4 +5790,150 @@ model SyncIdempotency {
   @@unique([userId, key])
   @@index([expiresAt])
   @@map("sync_idempotency")
+}
+
+// ── حسابداری ماهانه (قفل دوره) و بانک/صندوق/دسته‌چک ─────────────────────────
+// وضعیت‌ها عمداً String (نه enum) تا مهاجرت فقط افزایشی و بدون مقدار enum جدید باشد؛ مقادیر مجاز در کد ثابت‌اند.
+
+/// قفل ماه مالی (جلالی). ماه قفل‌شده هیچ سندی (ایجاد/ویرایش/ابطال) با تاریخ داخل آن نمی‌پذیرد.
+/// بازکردن قفل ردیف را حذف نمی‌کند (isLocked=false) و در ActivityLog هم ثبت می‌شود.
+model AccountingPeriodLock {
+  id               String    @id @default(uuid())
+  periodKey        String    @unique // "1405-07" (سال-ماه جلالی)
+  fromDate         DateTime
+  toDate           DateTime // انتهای انحصاری (اولین لحظه‌ی ماه بعد، به وقت تهران)
+  isLocked         Boolean   @default(true)
+  lockedAt         DateTime  @default(now())
+  lockedByUserId   String?
+  lockNote         String?
+  unlockedAt       DateTime?
+  unlockedByUserId String?
+  unlockReason     String?
+
+  @@map("accounting_period_locks")
+}
+
+/// حساب بانکی — هر حساب بانکی به یک حساب دفتر کل (دارایی) وصل است؛ مانده همیشه از روی دفتر کل خوانده می‌شود.
+model BankAccount {
+  id              String   @id @default(uuid())
+  name            String
+  bankName        String?
+  branch          String?
+  accountNumber   String?
+  sheba           String? // IR + ۲۴ رقم (اعتبارسنجی mod-97)
+  cardNumber      String? // ۱۶ رقم (اعتبارسنجی Luhn)
+  currency        String   @default("IRT")
+  openingBalance  BigInt   @default(0) // تومان؛ منفی = مانده بدهکاری (اضافه‌برداشت)
+  openingDate     DateTime
+  openingEntryId  String? // سند افتتاحیه‌ی ثبت‌شده در دفتر کل
+  linkedAccountId String
+  isActive        Boolean  @default(true)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  linkedAccount Account           @relation(fields: [linkedAccountId], references: [id])
+  chequeBooks   ChequeBook[]
+  transactions  BankTransaction[] @relation("BankTxBank")
+  transfersIn   BankTransaction[] @relation("BankTxToBank")
+
+  @@index([linkedAccountId])
+  @@map("accounting_bank_accounts")
+}
+
+/// صندوق (نقد) — با مسئول صندوق (custodianUserId) و حساب دفتر کل جداگانه.
+model CashBox {
+  id              String   @id @default(uuid())
+  name            String
+  custodianUserId String?
+  openingBalance  BigInt   @default(0)
+  openingDate     DateTime
+  openingEntryId  String?
+  linkedAccountId String
+  isActive        Boolean  @default(true)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  linkedAccount Account           @relation(fields: [linkedAccountId], references: [id])
+  transactions  BankTransaction[] @relation("BankTxCash")
+  transfersIn   BankTransaction[] @relation("BankTxToCash")
+
+  @@index([linkedAccountId])
+  @@map("accounting_cash_boxes")
+}
+
+/// دسته‌چک — status: ACTIVE | EXHAUSTED | CLOSED. هر برگ یک ChequeLeaf است.
+model ChequeBook {
+  id              String   @id @default(uuid())
+  bankAccountId   String
+  name            String
+  series          String? // پیشوند/سری چاپی (نمایشی)
+  startSerial     Int
+  endSerial       Int
+  leafCount       Int
+  status          String   @default("ACTIVE")
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  bankAccount BankAccount  @relation(fields: [bankAccountId], references: [id])
+  leaves      ChequeLeaf[]
+
+  @@index([bankAccountId])
+  @@map("accounting_cheque_books")
+}
+
+/// برگ چک — status: UNUSED | ISSUED | CLEARED | BOUNCED | VOID | LOST
+model ChequeLeaf {
+  id            String   @id @default(uuid())
+  chequeBookId  String
+  serial        Int
+  status        String   @default("UNUSED")
+  linkedCheckId String?  @unique
+  statusNote    String?
+  updatedAt     DateTime @default(now())
+
+  chequeBook  ChequeBook @relation(fields: [chequeBookId], references: [id], onDelete: Cascade)
+  linkedCheck Check?     @relation(fields: [linkedCheckId], references: [id], onDelete: SetNull)
+
+  @@unique([chequeBookId, serial])
+  @@index([status])
+  @@map("accounting_cheque_leaves")
+}
+
+/// تراکنش بانک/صندوق — type: RECEIPT | PAYMENT | TRANSFER؛ status: POSTED | VOIDED.
+/// هر تراکنش یک سند حسابداری متوازن می‌سازد (journalEntryId)؛ ابطال = سند معکوس، نه حذف.
+model BankTransaction {
+  id               String    @id @default(uuid())
+  number           Int       @unique @default(autoincrement())
+  type             String
+  date             DateTime
+  amount           BigInt // تومان، همیشه مثبت
+  description      String?
+  referenceNo      String?
+  bankAccountId    String?
+  cashBoxId        String?
+  toBankAccountId  String? // فقط TRANSFER
+  toCashBoxId      String? // فقط TRANSFER
+  counterAccountId String? // حساب مقابل دفتر کل (دریافت/پرداخت بدون طرف‌حساب)
+  contactId        String?
+  chequeLeafId     String?
+  status           String    @default("POSTED")
+  journalEntryId   String?
+  reversalEntryId  String?
+  voidedAt         DateTime?
+  voidReason       String?
+  voidedByUserId   String?
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+
+  bankAccount   BankAccount? @relation("BankTxBank", fields: [bankAccountId], references: [id])
+  cashBox       CashBox?     @relation("BankTxCash", fields: [cashBoxId], references: [id])
+  toBankAccount BankAccount? @relation("BankTxToBank", fields: [toBankAccountId], references: [id])
+  toCashBox     CashBox?     @relation("BankTxToCash", fields: [toCashBoxId], references: [id])
+
+  @@index([date])
+  @@index([bankAccountId])
+  @@index([cashBoxId])
+  @@index([journalEntryId])
+  @@map("accounting_bank_transactions")
 }

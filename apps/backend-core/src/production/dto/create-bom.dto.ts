@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsInt, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class BomLineDto {
@@ -23,4 +23,9 @@ export class CreateBomDto {
   @ValidateNested({ each: true })
   @Type(() => BomLineDto)
   lines!: BomLineDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
 }

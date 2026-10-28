@@ -1,9 +1,12 @@
-import { Controller, Get, NotFoundException, Param, Post, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service.js';
 import { InvoicesService, buildPaymentInstructionLine } from './invoices.service.js';
+import { PublicInvoiceDeliveryService } from './public-invoice-delivery.service.js';
+import { PublicDeliveryConfirmDto } from './dto/public-delivery.dto.js';
+import { maskPhone } from './invoice-signing.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
 
@@ -36,6 +39,7 @@ export class PublicSalesInvoiceController {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly gateway: PaymentGatewayService,
     private readonly invoices: InvoicesService,
+    private readonly delivery: PublicInvoiceDeliveryService,
   ) {}
 
   private async resolveCtx(slug: string): Promise<TenantRequestContext> {
@@ -73,7 +77,13 @@ export class PublicSalesInvoiceController {
       confirmedAt: invoice.confirmedAt,
       signedAt: invoice.signedAt,
       signedByName: invoice.signedByName,
+      // تصاویر امضا/مهر شرکت همان چیزی‌اند که روی PDF فاکتور هم به مشتری داده می‌شود
+      signatureKind: invoice.signedAt ? invoice.signatureKind : null,
+      signatureImage: invoice.signedAt ? invoice.signatureDataUrl : null,
+      stampImage: invoice.signedAt ? invoice.stampDataUrl : null,
       deliveryConfirmedAt: invoice.deliveryConfirmedAt,
+      // بخش «تأیید تحویل» فقط وقتی ماژول امضای تحویل نصب است؛ وگرنه null و صفحه چیزی نشان نمی‌دهد
+      delivery: await this.delivery.viewSection(ctx, invoice),
       cancelReason: invoice.status === 'CANCELLED' ? invoice.cancelReason : null,
       invoiceNo: invoice.invoiceNo,
       status: invoice.status,
@@ -103,6 +113,18 @@ export class PublicSalesInvoiceController {
         invoice.paidAmount < invoice.total,
       gatewayAvailable: await this.gateway.isConfigured(ctx),
     };
+  }
+
+  /** ارسال کد تحویل پیامکی به مشتری (ماژول delivery-signature؛ سقف نرخ، هش، قفل). */
+  @Post(':token/delivery/code')
+  async deliveryCode(@Param('slug') slug: string, @Param('token') token: string, @Req() req: Request) {
+    return this.delivery.sendCode(await this.resolveCtx(slug), token, req);
+  }
+
+  /** تأیید تحویل با کد پیامکی یا امضای ترسیمی + ثبت مدرک حقوقی همان لحظه. */
+  @Post(':token/delivery/confirm')
+  async deliveryConfirm(@Param('slug') slug: string, @Param('token') token: string, @Body() dto: PublicDeliveryConfirmDto, @Req() req: Request) {
+    return this.delivery.confirm(await this.resolveCtx(slug), token, dto, req);
   }
 
   @Post(':token/pay')
@@ -154,10 +176,4 @@ export class PublicSalesInvoiceController {
 
     return res.send(`${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>رسید برای شما ثبت شد.</p>${backLink}${BRAND_PAGE_TAIL}`);
   }
-}
-
-function maskPhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  const d = phone.replace(/\s/g, '');
-  return d.length >= 7 ? `${d.slice(0, 4)}***${d.slice(-3)}` : null;
 }

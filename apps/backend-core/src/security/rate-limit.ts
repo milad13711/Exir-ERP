@@ -87,6 +87,8 @@ export function buildRouteRules(): RouteRuleSet[] {
     { match: (m, p) => m === 'GET' && /^\/api\/correspondence\/letters\/[^/]+\/(pdf|slip)\/?$/.test(p), rules: [{ name: 'corr-pdf-token', limit: n(process.env.RL_CORR_PDF_PER_MIN, 20), windowSec: 60, by: 'token' }] },
     // دلتای همگام‌سازی آفلاین (کوئری‌های پرحجم): به ازای توکن
     { match: (m, p) => m === 'GET' && p.startsWith('/api/sync/'), rules: [{ name: 'sync-read-token', limit: n(process.env.RL_SYNC_PER_MIN, 240), windowSec: 60, by: 'token' }] },
+    // تأیید تحویل از صفحه‌ی عمومی فاکتور (کد پیامکی/امضا): ضد SMS-pumping و حدس کد — علاوه بر سقف‌های دیتابیسی به‌ازای فاکتور/IP
+    { match: (m, p) => m === 'POST' && /^\/api\/public\/tenants\/[^/]+\/invoices\/[^/]+\/delivery\/(code|confirm)\/?$/.test(p), rules: [{ name: 'invoice-delivery-ip', limit: n(process.env.RL_INVOICE_DELIVERY_PER_IP_15M, 30), windowSec: 900, by: 'ip' }] },
     // نوشتن در endpointهای عمومی بدون ورود (ثبت فرم/سفارش/نوبت/... ) — ضد اسپم و SMS-pumping
     { match: (m, p) => m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && p.startsWith('/api/public/'), rules: [{ name: 'public-write-ip', limit: n(process.env.RL_PUBLIC_WRITE_PER_IP_MIN, 120), windowSec: 60, by: 'ip' }] },
     { match: (m, p) => (m === 'GET' || m === 'HEAD') && p.startsWith('/api/public/'), rules: [{ name: 'public-read-ip', limit: n(process.env.RL_PUBLIC_READ_PER_IP_MIN, 600), windowSec: 60, by: 'ip' }] },

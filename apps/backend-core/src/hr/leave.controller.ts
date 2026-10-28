@@ -11,6 +11,8 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto.js';
+import { ReviewLeaveDto } from './dto/review-leave.dto.js';
+import { HrRequestSmsService } from './request-sms.service.js';
 import { isInManagerChain } from './org-chain.util.js';
 import { resolveVisibilityFilter } from './employees.controller.js';
 
@@ -25,6 +27,7 @@ export class LeaveController implements OnModuleInit {
     private readonly permissions: PermissionsService,
     private readonly automation: AutomationEngineService,
     private readonly approvals: ApprovalsService,
+    private readonly hrSms: HrRequestSmsService,
   ) {}
 
   onModuleInit(): void {
@@ -32,8 +35,8 @@ export class LeaveController implements OnModuleInit {
       approve: async (ctx, id) => {
         await this.review(id, 'APPROVED', ctx, true);
       },
-      reject: async (ctx, id) => {
-        await this.review(id, 'REJECTED', ctx, true);
+      reject: async (ctx, id, opts) => {
+        await this.review(id, 'REJECTED', ctx, true, opts?.note);
       },
       describe: async (ctx, id) => {
         const l = await ctx.tenantDb.leaveRequest.findUniqueOrThrow({ where: { id }, include: { employee: true } });
@@ -79,7 +82,7 @@ export class LeaveController implements OnModuleInit {
         daysCount,
         reason: dto.reason,
       },
-      include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+      include: { employee: { select: { id: true, fullName: true, employeeCode: true, phone: true, userId: true } } },
     });
 
     // تأییدکننده: مدیر مستقیم کارمند (اگر کاربر داشته باشد)، وگرنه مدیران سیستم
@@ -95,7 +98,10 @@ export class LeaveController implements OnModuleInit {
       link: '/hr',
       assigneeUserId: manager,
     });
-    return created;
+    this.smsNotice(ctx, created, 'SUBMITTED');
+    // phone/userId فقط برای پیامک لازم بود؛ در پاسخ API نمی‌آید
+    const { phone: _p, userId: _u, ...employee } = created.employee;
+    return { ...created, employee };
   }
 
   /** حذف درخواست مرخصی — فقط در انتظار/ردشده؛ مرخصی تأییدشده روی حقوق و حضور اثر دارد. */
@@ -106,8 +112,13 @@ export class LeaveController implements OnModuleInit {
     const l = await ctx.tenantDb.leaveRequest.findUnique({ where: { id } });
     if (!l) throw new NotFoundException('درخواست مرخصی یافت نشد');
     if (l.status === 'APPROVED') throw new ConflictException('مرخصی تأییدشده حذف نمی‌شود');
+    const wasPending = l.status === 'PENDING';
+    const withEmployee = wasPending
+      ? await ctx.tenantDb.leaveRequest.findUnique({ where: { id }, include: { employee: { select: { id: true, fullName: true, phone: true, userId: true } } } })
+      : null;
     await ctx.tenantDb.leaveRequest.delete({ where: { id } });
     await this.approvals.closeForEntity(ctx, 'LEAVE_REQUEST', id, 'REJECTED');
+    if (withEmployee) this.smsNotice(ctx, withEmployee, 'CANCELLED');
     return { success: true };
   }
 
@@ -117,11 +128,31 @@ export class LeaveController implements OnModuleInit {
   }
 
   @Post(':id/reject')
-  async reject(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.review(id, 'REJECTED', ctx);
+  async reject(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Body() dto?: ReviewLeaveDto) {
+    return this.review(id, 'REJECTED', ctx, false, dto?.note);
   }
 
-  private async review(id: string, status: 'APPROVED' | 'REJECTED', ctx: TenantRequestContext, fromApprovals = false) {
+  /** اطلاع‌رسانی پیامکی به درخواست‌کننده — بعد از ثبت نتیجه، در پس‌زمینه و بدون اثر روی عملیات اصلی. */
+  private smsNotice(
+    ctx: TenantRequestContext,
+    l: { id: string; startDate: Date; endDate: Date; employee: { id: string; fullName: string; phone?: string | null; userId?: string | null } },
+    event: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED',
+    extra: { approverName?: string | null; note?: string | null } = {},
+  ): void {
+    void this.hrSms
+      .notify(ctx, {
+        type: 'LEAVE_REQUEST',
+        requestId: l.id,
+        event,
+        employee: l.employee,
+        fromDate: faDate(l.startDate),
+        toDate: faDate(l.endDate),
+        ...extra,
+      })
+      .catch(() => undefined);
+  }
+
+  private async review(id: string, status: 'APPROVED' | 'REJECTED', ctx: TenantRequestContext, fromApprovals = false, note?: string) {
     const request = await ctx.tenantDb.leaveRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('درخواست مرخصی یافت نشد');
     if (request.status !== 'PENDING') {
@@ -148,7 +179,7 @@ export class LeaveController implements OnModuleInit {
     const updated = await ctx.tenantDb.leaveRequest.update({
       where: { id },
       data: { status, reviewedByUserId, reviewedAt: new Date() },
-      include: { employee: { select: { id: true, fullName: true, employeeCode: true, userId: true } } },
+      include: { employee: { select: { id: true, fullName: true, employeeCode: true, userId: true, phone: true } } },
     });
 
     if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'LEAVE_REQUEST', id, status);
@@ -159,10 +190,18 @@ export class LeaveController implements OnModuleInit {
         userId: updated.employee.userId,
         type: 'leave.reviewed',
         title: `درخواست مرخصی شما ${statusFa}`,
-        body: `درخواست مرخصی شما از ${faDate(updated.startDate)} تا ${faDate(updated.endDate)} ${statusFa}.`,
+        body: `درخواست مرخصی شما از ${faDate(updated.startDate)} تا ${faDate(updated.endDate)} ${statusFa}.${status === 'REJECTED' && note ? ` دلیل: ${note.slice(0, 200)}` : ''}`,
         link: '/hr',
+        entityType: 'LEAVE_REQUEST',
+        entityId: updated.id,
+        category: 'approvals',
       });
     }
+
+    const approver = reviewedByUserId
+      ? await ctx.tenantDb.user.findUnique({ where: { id: reviewedByUserId }, select: { name: true } }).catch(() => null)
+      : null;
+    this.smsNotice(ctx, updated, status, { approverName: approver?.name, note });
 
     if (status === 'APPROVED' && updated.employee.userId) {
       await this.automation.emit(ctx, 'hr.leave.approved', {
@@ -174,6 +213,8 @@ export class LeaveController implements OnModuleInit {
       });
     }
 
-    return updated;
+    // phone/userId فقط برای اعلان/پیامک لازم بود؛ در پاسخ API نمی‌آید (مثل create)
+    const { phone: _p, userId: _u, ...employee } = updated.employee;
+    return { ...updated, employee };
   }
 }

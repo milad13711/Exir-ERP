@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { InvoiceSigningPanel } from "@/components/sales/InvoiceSigningPanel";
 import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
 import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { Modal } from "@/components/ui/Modal";
@@ -100,6 +101,7 @@ export function InvoiceDetailModal({
 }) {
   const { installedModules } = useWorkspace();
   const deliverySignatureEnabled = installedModules.has("delivery-signature");
+  const accountingOn = installedModules.has("accounting");
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [cancelMsg, setCancelMsg] = useState<string | null>(null);
@@ -478,7 +480,7 @@ export function InvoiceDetailModal({
                     </div>
                     <DeleteRecordButton
                       label="حذف مرجوعی"
-                      confirmText="این مرجوعی حذف شود؟ سند حسابداری و موجودی انبار با سند معکوس برگردانده می‌شود."
+                      confirmText={accountingOn ? "این مرجوعی حذف شود؟ سند حسابداری و موجودی انبار با سند معکوس برگردانده می‌شود." : "این مرجوعی حذف شود؟ موجودی انبار برگردانده می‌شود."}
                       onDelete={() => deleteSalesReturn(r.id)}
                       onDeleted={() => {
                         reload();
@@ -491,15 +493,18 @@ export function InvoiceDetailModal({
             </div>
           ) : null}
 
+          <InvoiceSigningPanel invoiceId={invoice.id} status={invoice.status} refreshKey={invoice.signedAt ? 1 : 0} onChanged={reload} />
+
           {invoice.status !== "DRAFT" ? (
             <div className="flex flex-col gap-2">
               <div className="text-[12px] text-muted">امضا و تحویل</div>
 
               {invoice.signatureDataUrl ? (
                 <div className="flex items-center gap-3 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5">
+                  {invoice.stampDataUrl ? <img src={invoice.stampDataUrl} alt="مهر" className="h-10 bg-white rounded-md border border-border" /> : null}
                   <img src={invoice.signatureDataUrl} alt="امضا" className="h-10 bg-white rounded-md border border-border" />
                   <div className="text-[12px]">
-                    <div className="font-bold">امضای فروشنده: {invoice.signedByName}</div>
+                    <div className="font-bold">{invoice.signatureKind === "STAMP_AND_SIGNATURE" ? "مهر و امضای شرکت" : "امضای فروشنده"}: {invoice.signedByName}</div>
                     {invoice.signedAt ? <div className="text-muted">{formatJalaliDate(invoice.signedAt)}</div> : null}
                   </div>
                 </div>
@@ -621,7 +626,7 @@ export function InvoiceDetailModal({
                 disabled={busy}
                 className="w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
               >
-                {busy ? "در حال تأیید..." : "تأیید فاکتور — کسر از انبار و ثبت سند حسابداری"}
+                {busy ? "در حال تأیید..." : (accountingOn ? "تأیید فاکتور — کسر از انبار و ثبت سند حسابداری" : "تأیید فاکتور — کسر از انبار")}
               </button>
             ) : null}
 

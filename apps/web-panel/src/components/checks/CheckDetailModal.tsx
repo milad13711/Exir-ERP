@@ -108,6 +108,9 @@ export function CheckDetailModal({
             <span className="text-muted">سررسید</span>
             <span className="font-bold">{formatJalaliDate(check.dueDate)}</span>
           </div>
+          {check.chequeLeaf ? (
+            <div className="text-[12.5px] text-ink-soft">برگ دسته‌چک: <span className="font-bold">{check.chequeLeaf.serial}</span></div>
+          ) : null}
           {check.bankName ? (
             <div className="flex justify-between">
               <span className="text-muted">بانک</span>

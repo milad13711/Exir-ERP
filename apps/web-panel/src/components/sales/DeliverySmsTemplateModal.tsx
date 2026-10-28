@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { SalesSettingsExtras } from "@/components/sales/SalesSettingsExtras";
 import { setDeliverySmsTemplate, fetchPaymentReminderDays, setPaymentReminderDays, ApiError } from "@/lib/api";
 
 export function DeliverySmsTemplateModal({
@@ -42,7 +43,7 @@ export function DeliverySmsTemplateModal({
   }
 
   return (
-    <Modal title="تنظیمات فاکتور" onClose={onClose} width="max-w-[460px]">
+    <Modal title="تنظیمات فاکتور" onClose={onClose} width="max-w-[520px]">
       <form onSubmit={handleSave} className="flex flex-col gap-4">
         <div>
           <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">متن پیامک کد تأیید تحویل</label>
@@ -78,6 +79,8 @@ export function DeliverySmsTemplateModal({
             className="w-full text-[13px] outline-none bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors"
           />
         </div>
+
+        <SalesSettingsExtras />
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
 

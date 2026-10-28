@@ -2607,12 +2607,41 @@ export type Bom = {
   version: number;
   isActive: boolean;
   createdAt: string;
+  notes?: string | null;
+  /** پر بودن یعنی بایگانی دستی؛ isActive=false با archivedAt خالی یعنی «جایگزین‌شده با نسخه‌ی جدید» */
+  archivedAt?: string | null;
+  /** تعداد دستورهای تولیدی که از این فرمول استفاده کرده‌اند */
+  usageCount?: number;
   outputProduct: { id: string; name: string; unit: string; sku: string };
   lines: BomLine[];
 };
 
-export function fetchBoms() {
-  return apiFetch<Bom[]>("/production/boms");
+export type BomListStatus = "active" | "archived" | "history" | "all";
+
+export function fetchBoms(status: BomListStatus = "active") {
+  return apiFetch<Bom[]>(`/production/boms${status === "active" ? "" : `?status=${status}`}`);
+}
+
+export function updateBom(
+  id: string,
+  data: { batchOutputQty?: number; lines?: Array<{ rawMaterialProductId: string; quantityPerBatch: number }>; notes?: string },
+) {
+  return apiFetch<Bom & { versioned?: boolean; previousVersionId?: string }>(`/production/boms/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function archiveBom(id: string) {
+  return apiFetch<Bom>(`/production/boms/${id}/archive`, { method: "POST" });
+}
+
+export function restoreBom(id: string) {
+  return apiFetch<Bom>(`/production/boms/${id}/restore`, { method: "POST" });
+}
+
+export function deleteBom(id: string) {
+  return apiFetch<{ success: boolean }>(`/production/boms/${id}`, { method: "DELETE" });
 }
 
 export function fetchBom(id: string) {
@@ -2622,15 +2651,32 @@ export function fetchBom(id: string) {
 export function createBom(data: {
   outputProductId: string;
   batchOutputQty: number;
+  notes?: string;
   lines: Array<{ rawMaterialProductId: string; quantityPerBatch: number }>;
 }) {
   return apiFetch<Bom>("/production/boms", { method: "POST", body: JSON.stringify(data) });
 }
 
-export type WorkCenter = { id: string; name: string; sequenceOrder: number; isActive: boolean };
+export type WorkCenter = { id: string; name: string; sequenceOrder: number; isActive: boolean; archivedAt?: string | null; usageCount?: number };
 
-export function fetchWorkCenters() {
-  return apiFetch<WorkCenter[]>("/production/work-centers");
+export function fetchWorkCenters(status: "active" | "archived" | "all" = "active") {
+  return apiFetch<WorkCenter[]>(`/production/work-centers${status === "active" ? "" : `?status=${status}`}`);
+}
+
+export function updateWorkCenter(id: string, data: { name?: string; sequenceOrder?: number }) {
+  return apiFetch<WorkCenter>(`/production/work-centers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function archiveWorkCenter(id: string) {
+  return apiFetch<WorkCenter>(`/production/work-centers/${id}/archive`, { method: "POST" });
+}
+
+export function restoreWorkCenter(id: string) {
+  return apiFetch<WorkCenter>(`/production/work-centers/${id}/restore`, { method: "POST" });
+}
+
+export function deleteWorkCenter(id: string) {
+  return apiFetch<{ success: boolean }>(`/production/work-centers/${id}`, { method: "DELETE" });
 }
 
 export function createWorkCenter(data: { name: string; sequenceOrder?: number }) {
@@ -3427,8 +3473,38 @@ export function approveLeaveRequest(id: string) {
   return apiFetch<LeaveRequest>(`/hr/leave/${id}/approve`, { method: "POST" });
 }
 
-export function rejectLeaveRequest(id: string) {
-  return apiFetch<LeaveRequest>(`/hr/leave/${id}/reject`, { method: "POST" });
+export function rejectLeaveRequest(id: string, note?: string) {
+  return apiFetch<LeaveRequest>(`/hr/leave/${id}/reject`, { method: "POST", body: JSON.stringify(note ? { note } : {}) });
+}
+
+// ── پیامک تصمیم درخواست‌های منابع انسانی ──
+export type HrSmsEventKey = "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type HrRequestSmsSettings = {
+  enabled: boolean;
+  events: Record<HrSmsEventKey, boolean>;
+  types: Record<string, boolean>;
+  templates: Record<HrSmsEventKey, string>;
+  dailyCap: number;
+};
+export type HrRequestSmsSettingsResponse = {
+  settings: HrRequestSmsSettings;
+  placeholders: Array<{ key: string; label: string }>;
+  events: Array<{ key: HrSmsEventKey; label: string }>;
+  types: Array<{ key: string; label: string }>;
+  defaultTemplates: Record<HrSmsEventKey, string>;
+};
+export type HrRequestSmsLogRow = { id: string; event: HrSmsEventKey; status: "PENDING" | "SENT" | "FAILED" | "SKIPPED"; reason: string | null; maskedPhone: string | null; parts: number; createdAt: string };
+
+export function fetchHrRequestSmsSettings() {
+  return apiFetch<HrRequestSmsSettingsResponse>("/hr/request-sms/settings");
+}
+
+export function updateHrRequestSmsSettings(data: Partial<HrRequestSmsSettings>) {
+  return apiFetch<{ settings: HrRequestSmsSettings }>("/hr/request-sms/settings", { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function fetchHrRequestSmsLog(type: string, id: string) {
+  return apiFetch<HrRequestSmsLogRow[]>(`/hr/request-sms/log/${type}/${id}`);
 }
 
 export function fetchPayroll(year: number, month: number) {
@@ -3655,6 +3731,13 @@ export type SalesInvoice = {
   signedByName: string | null;
   signatureDataUrl: string | null;
   signedAt: string | null;
+  stampDataUrl?: string | null;
+  signatureKind?: "DRAWN" | "SIGNATURE" | "STAMP_AND_SIGNATURE" | null;
+  deliveryMethod?: "CODE" | "SIGNATURE" | null;
+  deliveryChannel?: "PANEL" | "PUBLIC_LINK" | null;
+  /** فقط وقتی حسابداری نصب است معنا دارد */
+  journalEntryId?: string | null;
+  accountingPosted?: boolean;
   deliveryConfirmedAt: string | null;
   deliveryConfirmedName: string | null;
   deliverySignatureDataUrl: string | null;
@@ -3713,6 +3796,8 @@ export function createSalesInvoice(data: {
   paymentBankInfo?: string;
   isOfficial?: boolean;
   taxRate?: number;
+  /** ویرایش پیش‌نویسِ امضاشده: کاربر بی‌اعتبار شدن امضا را می‌پذیرد */
+  acknowledgeSignatureInvalidation?: boolean;
   lines: Array<{
     productId?: string;
     description: string;
@@ -3951,7 +4036,12 @@ export type PublicSalesInvoiceView = {
   confirmedAt: string | null;
   signedAt: string | null;
   signedByName: string | null;
+  signatureKind: "DRAWN" | "SIGNATURE" | "STAMP_AND_SIGNATURE" | null;
+  signatureImage: string | null;
+  stampImage: string | null;
   deliveryConfirmedAt: string | null;
+  /** null = ماژول امضای تحویل نصب نیست؛ بخش «تأیید تحویل» نمایش داده نمی‌شود */
+  delivery: PublicDeliverySection | null;
   cancelReason: string | null;
   lines: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
   payments: Array<{ amount: number; method: SalesPaymentMethod; paidAt: string }>;
@@ -3961,6 +4051,34 @@ export type PublicSalesInvoiceView = {
   canPayOnline: boolean;
   gatewayAvailable: boolean;
 };
+
+export type PublicDeliverySection = {
+  available: boolean;
+  confirmed: boolean;
+  confirmedAt: string | null;
+  method: string | null;
+  codeAvailable: boolean;
+  phoneMasked: string | null;
+};
+
+export function sendPublicDeliveryCode(tenantSlug: string, token: string) {
+  return apiFetch<{ sent: true; expiresInSeconds: number; resendAfterSeconds: number; phoneMasked: string | null }>(
+    `/public/tenants/${tenantSlug}/invoices/${token}/delivery/code`,
+    { method: "POST" },
+  );
+}
+
+export async function confirmPublicDelivery(
+  tenantSlug: string,
+  token: string,
+  data: { method: "CODE" | "SIGNATURE"; code?: string; signatureDataUrl?: string; confirmerName: string; consent?: boolean },
+) {
+  const evidence = await collectSignatureEvidence({ askLocation: true });
+  return apiFetch<{ confirmed: boolean; confirmedAt: string; method: string }>(`/public/tenants/${tenantSlug}/invoices/${token}/delivery/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ ...data, evidence }),
+  });
+}
 
 export function fetchPublicSalesInvoice(tenantSlug: string, token: string) {
   return apiFetch<PublicSalesInvoiceView>(`/public/tenants/${tenantSlug}/invoices/${token}`);
@@ -4511,6 +4629,8 @@ export type Check = {
   endorsedToContact: { id: string; name: string; company: string | null } | null;
   invoice: { id: string; invoiceNo: number } | null;
   purchaseOrder: { id: string; orderNo: number } | null;
+  /** برگ دسته‌چکی که چک صادرشده روی آن نوشته شده (اگر از دسته‌چک صادر شده باشد) */
+  chequeLeaf?: { id: string; serial: number; chequeBookId: string } | null;
 };
 
 export function fetchChecks(filters?: { direction?: CheckDirection; status?: CheckStatus; dueSoonDays?: number; contactId?: string }) {
@@ -4537,6 +4657,9 @@ export function createCheck(data: {
   supplierId?: string;
   reminderDaysBefore?: number;
   note?: string;
+  /** چک صادرشده: انتخاب دسته‌چک (برگ بعدی خودکار) یا برگ مشخص */
+  chequeBookId?: string;
+  chequeLeafId?: string;
 }) {
   return apiFetch<Check>("/checks", { method: "POST", body: JSON.stringify(data) });
 }
@@ -8510,8 +8633,9 @@ export function fetchPendingApprovalCount() {
   return apiFetch<{ count: number }>("/approvals/pending-count");
 }
 
-export async function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string }) {
-  const body = data.approved && data.withStamp ? await withEvidence(data) : data;
+export async function decideApproval(id: string, data: { approved: boolean; withStamp?: boolean; note?: string; withEvidence?: boolean }) {
+  const { withEvidence: wantEvidence, ...payload } = data;
+  const body = data.approved && (data.withStamp || wantEvidence) ? await withEvidence(payload) : payload;
   return apiFetch<ApprovalRequest>(`/approvals/${id}/decision`, { method: "POST", body: JSON.stringify(body) });
 }
 
@@ -9371,3 +9495,58 @@ export async function downloadUserActivityCsv(userId: string, f: ActivityFilters
   a.click();
   URL.revokeObjectURL(url);
 }
+
+
+// ── امضای داخلی فاکتور (درخواست امضا از کارتابل مدیر) ───────────────────────
+export type SignaturePolicy = "off" | "optional" | "required";
+export type InvoiceSigningState = {
+  policy: SignaturePolicy;
+  requiredBeforeIssue: boolean;
+  canRequest: boolean;
+  blockedReason: string | null;
+  hasSignatureImage: boolean;
+  hasStampImage: boolean;
+  signers: Array<{ userId: string; name: string; role: "OWNER" | "DELEGATE"; isDefault: boolean }>;
+  pending: { requestId: string; assigneeUserId: string | null; assigneeName: string | null; createdAt: string; requestedByUserId: string | null } | null;
+  canDecide: boolean;
+  lastRejection: { note: string | null; decidedAt: string | null } | null;
+  signed: boolean;
+  stale: boolean;
+  signatureKind: "DRAWN" | "SIGNATURE" | "STAMP_AND_SIGNATURE" | null;
+  signatureInvalidatedAt: string | null;
+  signatureInvalidReason: string | null;
+};
+export const fetchInvoiceSigningState = (id: string) => apiFetch<InvoiceSigningState>(`/sales/invoices/${id}/signing`);
+export const requestInvoiceSignature = (id: string, data: { signerUserId?: string; note?: string }) =>
+  apiFetch<{ requestId: string; signerUserId: string; signerName: string }>(`/sales/invoices/${id}/sign-request`, { method: "POST", body: JSON.stringify(data) });
+export const cancelInvoiceSignRequest = (id: string) => apiFetch<{ success: boolean }>(`/sales/invoices/${id}/sign-request/cancel`, { method: "POST" });
+export const fetchSignaturePolicy = () => apiFetch<{ policy: SignaturePolicy }>("/sales/invoices/settings/signature-policy");
+export const setSignaturePolicy = (policy: SignaturePolicy) =>
+  apiFetch<{ policy: SignaturePolicy }>("/sales/invoices/settings/signature-policy", { method: "PUT", body: JSON.stringify({ policy }) });
+
+// ── ثبت اسناد حسابداری فاکتورهای قبلی ───────────────────────────────────────
+export type AccountingBackfillIssue = { type: "INVOICE" | "PAYMENT" | "RETURN"; id: string; no: number | null; reason: string };
+export type AccountingBackfillReport = {
+  runId: string;
+  startedAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  byUser: string | null;
+  posted: { invoices: number; payments: number; returns: number };
+  skipped: number;
+  failed: number;
+  issues: AccountingBackfillIssue[];
+};
+export type AccountingBackfillPreview = {
+  accountingActive: boolean;
+  invoices: { count: number; total: number; from: string | null; to: string | null };
+  payments: { count: number; total: number };
+  returns: { count: number; total: number };
+  blocked: AccountingBackfillIssue[];
+  blockedCount: number;
+  lastReport: AccountingBackfillReport | null;
+};
+export type AccountingBackfillBatch = { runId: string; stage: string; cursor: string | null; done: boolean; batch: { posted: number; skipped: number; failed: number }; report: AccountingBackfillReport };
+export const fetchAccountingBackfillPreview = () => apiFetch<AccountingBackfillPreview>("/sales/accounting-backfill/preview");
+export const runAccountingBackfill = (data: { confirm: true; limit?: number; stage?: string; cursor?: string | null; runId?: string; dateMode?: "ORIGINAL" | "TODAY_IF_LOCKED" }) =>
+  apiFetch<AccountingBackfillBatch>("/sales/accounting-backfill/run", { method: "POST", body: JSON.stringify(data) });

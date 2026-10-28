@@ -29,6 +29,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
     },
     user: { findUnique: vi.fn().mockResolvedValue({ id: 'user-1', name: 'تستر' }) },
     moduleSetting: { findUnique: vi.fn().mockResolvedValue(null) },
+    accountingPeriodLock: { findUnique: vi.fn().mockResolvedValue(null) },
     product: { findUnique: vi.fn().mockResolvedValue(null) },
     salesInvoice: {
       findUnique: vi.fn(),

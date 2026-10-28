@@ -5,7 +5,25 @@ import { getManagerUsers } from '../common/manager-users.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 
-export type ApprovalDecisionOptions = { stampApplied: boolean; note?: string; requestedByUserId?: string | null; requestSummary?: string | null };
+export type ApprovalDecisionOptions = {
+  stampApplied: boolean;
+  note?: string;
+  requestedByUserId?: string | null;
+  requestSummary?: string | null;
+  /** تأییدکننده‌ی تعیین‌شده‌ی درخواست و شناسه‌ی خود درخواست — برای پردازشگرهایی که باید هویت تصمیم‌گیرنده را کنترل کنند. */
+  assigneeUserId?: string | null;
+  requestId?: string;
+};
+
+/** مدرک حقوقی (SignatureEvidence) که کنترلر کارتابل پس از تصمیم برای سند ثبت می‌کند. */
+export type ApprovalEvidenceSpec = {
+  entityType: string;
+  entityId: string;
+  action: string;
+  signerName?: string;
+  contentHash?: string;
+  signatureData?: string;
+};
 
 export type ApprovalDetail = { fields: Array<{ label: string; value: string }> };
 
@@ -15,6 +33,8 @@ export type ApprovalHandler = {
   reject(ctx: TenantRequestContext, entityId: string, opts: ApprovalDecisionOptions): Promise<void>;
   /** جزئیات سند برای نمایش در کارتابل — مدیر قبل از تصمیم همه‌ی اطلاعات را می‌بیند */
   describe?(ctx: TenantRequestContext, entityId: string): Promise<ApprovalDetail>;
+  /** مدرک امضا برای تصمیم «تأیید»؛ null = مدرکی لازم نیست. */
+  evidenceFor?(ctx: TenantRequestContext, entityId: string, decision: { withStamp: boolean }): Promise<ApprovalEvidenceSpec | null>;
 };
 
 export type ApprovalRequestInput = {
@@ -28,6 +48,8 @@ export type ApprovalRequestInput = {
   requestedByUserId?: string;
   /** تأییدکننده‌ی مشخص (غیرمدیر)؛ خالی یعنی مدیران. */
   assigneeUserId?: string;
+  /** فقط تأییدکننده‌ی مشخص اعلان بگیرد (نه همه‌ی مدیران) — برای درخواست‌هایی که فقط او مجاز به تصمیم است. */
+  notifyAssigneeOnly?: boolean;
 };
 
 @Injectable()
@@ -77,7 +99,7 @@ export class ApprovalsService {
     // تأییدکننده‌ی مشخص + مدیران بالادستی (مالک/ادمین) هر دو اعلان می‌گیرند
     const managers = await getManagerUsers(this.controlDb, ctx.tenantDb, ctx.tenantId);
     const recipients = assigneeUserId
-      ? [{ tenantUserId: assigneeUserId }, ...managers.filter((m) => m.tenantUserId !== assigneeUserId)]
+      ? [{ tenantUserId: assigneeUserId }, ...(input.notifyAssigneeOnly ? [] : managers.filter((m) => m.tenantUserId !== assigneeUserId))]
       : managers;
     for (const m of recipients) {
       await this.notifications
@@ -173,6 +195,13 @@ export class ApprovalsService {
     return { request, detail };
   }
 
+  /** مدرک حقوقی تصمیم «تأیید» برای نوع سندی که پردازشگرش evidenceFor دارد (فراخوانی از کنترلر پس از decide). */
+  async evidenceFor(ctx: TenantRequestContext, request: { entityType: string; entityId: string }, decision: { withStamp: boolean }): Promise<ApprovalEvidenceSpec | null> {
+    const handler = this.handlers.get(request.entityType);
+    if (!handler?.evidenceFor) return null;
+    return handler.evidenceFor(ctx, request.entityId, decision).catch(() => null);
+  }
+
   async decide(ctx: TenantRequestContext, id: string, approved: boolean, opts: { withStamp?: boolean; note?: string }) {
     const request = await ctx.tenantDb.approvalRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('این درخواست یافت نشد');
@@ -190,20 +219,25 @@ export class ApprovalsService {
     // تأییدکننده‌ی تعیین‌شده (غیرمدیر) فقط برای همین سند از طرف مدیر عمل می‌کند؛
     // اجرای handler با نقش مدیر است، ولی هیچ اندپوینت دیگری باز نمی‌شود.
     const actingCtx: TenantRequestContext = this.isManager(ctx) ? ctx : { ...ctx, auth: { ...ctx.auth, role: 'ADMIN' } };
-    const handlerOpts = { stampApplied, note: opts.note, requestedByUserId: request.requestedByUserId, requestSummary: request.summary };
-    if (approved) await handler.approve(actingCtx, request.entityId, handlerOpts);
-    else await handler.reject(actingCtx, request.entityId, { ...handlerOpts, stampApplied: false });
-
+    const handlerOpts = { stampApplied, note: opts.note, requestedByUserId: request.requestedByUserId, requestSummary: request.summary, assigneeUserId: request.assigneeUserId, requestId: request.id };
     const decidedByUserId = await resolveTenantUserId(ctx).catch(() => undefined);
-    return ctx.tenantDb.approvalRequest.update({
-      where: { id },
-      data: {
-        status: approved ? 'APPROVED' : 'REJECTED',
-        decidedAt: new Date(),
-        decidedByUserId,
-        stampApplied,
-        decisionNote: opts.note,
-      },
+    const newStatus = approved ? 'APPROVED' : 'REJECTED';
+    // ادعای اتمیک پیش از اجرای handler: دو تصمیم هم‌زمان (دو مدیر / دو کلیک) فقط یکی را وارد handler می‌کند.
+    const claim = await ctx.tenantDb.approvalRequest.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: newStatus, decidedAt: new Date(), decidedByUserId, stampApplied, decisionNote: opts.note },
     });
+    if (claim.count !== 1) throw new BadRequestException('درباره‌ی این درخواست قبلاً تصمیم‌گیری شده است');
+    try {
+      if (approved) await handler.approve(actingCtx, request.entityId, handlerOpts);
+      else await handler.reject(actingCtx, request.entityId, { ...handlerOpts, stampApplied: false });
+    } catch (e) {
+      // شکست handler: ادعا برگردانده می‌شود تا درخواست در کارتابل معلق نماند
+      await ctx.tenantDb.approvalRequest
+        .updateMany({ where: { id, status: newStatus }, data: { status: 'PENDING', decidedAt: null, decidedByUserId: null, stampApplied: false, decisionNote: null } })
+        .catch(() => undefined);
+      throw e;
+    }
+    return ctx.tenantDb.approvalRequest.findUniqueOrThrow({ where: { id } });
   }
 }

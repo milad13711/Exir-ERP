@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -12,6 +12,9 @@ import { CreateAccountDto } from './dto/create-account.dto.js';
 import { UpdateAccountDto } from './dto/update-account.dto.js';
 import { ensureDefaultChartOfAccounts } from './default-chart-of-accounts.js';
 import { accountBalance } from './balance.js';
+import { computeLedger, loadSums, natural, sumFor, toNum, type AccountType as PrAccountType } from './period-reports.js';
+import { getFiscalStartMonth } from './periods/accounting-settings.js';
+import { resolvePeriod, type PeriodQuery } from './periods/jalali-periods.js';
 
 const ACCOUNT_EXCEL_HEADERS = ['کد', 'نام', 'نوع', 'حساب نقدی'];
 
@@ -32,10 +35,27 @@ const ACCOUNT_TYPE_FROM_FA: Record<string, string> = Object.fromEntries(
 export class AccountsController {
   constructor(private readonly permissions: PermissionsService) {}
 
+  /**
+   * بدون پارامتر: مانده‌ی تجمعی همه‌ی زمان‌ها (رفتار قبلی). با period=YYYY-MM / fiscalYear / from / to:
+   * برای حساب‌های ترازنامه‌ای مانده‌ی پایان دوره و برای درآمد/هزینه فقط گردش همان دوره.
+   */
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query() q: PeriodQuery, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'accounting');
     await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    if (q.period || q.fiscalYear || q.from || q.to) {
+      const period = resolvePeriod(q, { startMonth: await getFiscalStartMonth(ctx.tenantDb) });
+      const [accounts, upToEnd, inPeriod] = await Promise.all([
+        ctx.tenantDb.account.findMany({ orderBy: { code: 'asc' } }),
+        loadSums(ctx.tenantDb, { lt: period.toExclusive }),
+        loadSums(ctx.tenantDb, { gte: period.from, lt: period.toExclusive }),
+      ]);
+      return accounts.map((account) => {
+        const pnl = account.type === 'REVENUE' || account.type === 'EXPENSE';
+        const s = sumFor(pnl ? inPeriod : upToEnd, account.id);
+        return { ...account, balance: natural(account.type as PrAccountType, s.debit - s.credit) };
+      });
+    }
     const accounts = await ctx.tenantDb.account.findMany({
       include: { lines: { where: { entry: { status: 'POSTED' } }, select: { debit: true, credit: true } } },
       orderBy: { code: 'asc' },
@@ -180,35 +200,50 @@ export class AccountsController {
     return summarize(results);
   }
 
+  /**
+   * دفتر حساب. بدون پارامتر کل تاریخچه (opening=0)؛ با period/fiscalYear/from/to فقط ردیف‌های آن بازه، با «مانده‌ی ابتدای دوره»
+   * (حساب‌های ترازنامه‌ای: مانده‌ی تجمعی قبل از شروع؛ درآمد/هزینه: از ابتدای سال مالی) و مانده‌ی جاری ردیف‌به‌ردیف.
+   */
   @Get(':id/ledger')
-  async ledger(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+  async ledger(@Param('id') id: string, @Query() q: PeriodQuery, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertViewAll(ctx, 'accounting');
     const account = await ctx.tenantDb.account.findUnique({ where: { id } });
     if (!account) throw new NotFoundException('حساب یافت نشد');
+    const period = resolvePeriod(q, { startMonth: await getFiscalStartMonth(ctx.tenantDb), defaultMode: 'all' });
+    const pnl = account.type === 'REVENUE' || account.type === 'EXPENSE';
 
-    const lines = await ctx.tenantDb.journalLine.findMany({
-      where: { accountId: id, entry: { status: 'POSTED' } },
-      include: { entry: { select: { number: true, date: true, description: true } } },
-      orderBy: { entry: { date: 'asc' } },
-    });
-
-    let running = 0;
-    const sign = account.type === 'ASSET' || account.type === 'EXPENSE' ? 1 : -1;
-    const rows = lines.map((l) => {
-      const debit = Number(l.debit);
-      const credit = Number(l.credit);
-      running += sign * (debit - credit);
-      return {
+    const [before, lines] = await Promise.all([
+      ctx.tenantDb.journalLine.aggregate({
+        where: { accountId: id, entry: { status: 'POSTED', date: { gte: pnl ? period.fiscalYearStart : new Date(0), lt: period.from } } },
+        _sum: { debit: true, credit: true },
+      }),
+      ctx.tenantDb.journalLine.findMany({
+        where: { accountId: id, entry: { status: 'POSTED', date: { gte: period.from, lt: period.toExclusive } } },
+        include: { entry: { select: { number: true, date: true, description: true } } },
+        orderBy: [{ entry: { date: 'asc' } }, { entry: { number: 'asc' } }],
+      }),
+    ]);
+    const openingNet = (before._sum.debit ?? 0n) - (before._sum.credit ?? 0n);
+    const ledger = computeLedger(
+      account.type as PrAccountType,
+      openingNet,
+      lines.map((l) => ({
         id: l.id,
         entryNumber: l.entry.number,
         date: l.entry.date,
         description: l.description ?? l.entry.description,
-        debit,
-        credit,
-        runningBalance: running,
-      };
-    });
-
-    return { account: { ...account, balance: running }, rows };
+        debit: toNum(l.debit),
+        credit: toNum(l.credit),
+      })),
+    );
+    return {
+      account: { ...account, balance: ledger.closing },
+      period: { mode: period.mode, key: period.key, label: period.label },
+      openingBalance: ledger.opening,
+      closingBalance: ledger.closing,
+      totalDebit: ledger.totalDebit,
+      totalCredit: ledger.totalCredit,
+      rows: ledger.rows,
+    };
   }
 }

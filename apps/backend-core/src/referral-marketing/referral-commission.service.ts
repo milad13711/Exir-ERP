@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
@@ -76,6 +77,7 @@ export class ReferralCommissionService {
       },
     });
 
+    await assertPeriodOpen(tenantDb, new Date());
     const entry = await tenantDb.journalEntry.create({
       data: {
         date: new Date(),

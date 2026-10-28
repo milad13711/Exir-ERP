@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import { fetchAccountLedger, deleteAccount, ApiError, type Account, type LedgerRow } from "@/lib/api";
+import { deleteAccount, ApiError, type Account } from "@/lib/api";
+import { fetchPeriodLedger, type PeriodSel, type PeriodLedger } from "@/lib/accounting-api";
+import { PeriodPicker } from "./PeriodPicker";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_TONES } from "./accounting-shared";
 import { NewAccountModal } from "./NewAccountModal";
 import { PencilIcon, TrashIcon } from "@/components/icons";
@@ -19,17 +21,24 @@ export function LedgerModal({
   onDeleted?: (accountId: string) => void;
 }) {
   const [account, setAccount] = useState<Account | null>(null);
-  const [rows, setRows] = useState<LedgerRow[] | null>(null);
+  const [sel, setSel] = useState<PeriodSel>({ mode: "all" });
+  const [ledger, setLedger] = useState<PeriodLedger | null>(null);
+  const rows = ledger?.rows ?? null;
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAccountLedger(accountId).then((data) => {
-      setAccount(data.account);
-      setRows(data.rows);
+    let alive = true;
+    fetchPeriodLedger(accountId, sel).then((data) => {
+      if (!alive) return;
+      setAccount((prev) => ({ ...(data.account as Account), ...(prev ? { code: prev.code, name: prev.name, type: prev.type, isSystem: prev.isSystem, isCashAccount: prev.isCashAccount } : {}), balance: data.closingBalance }));
+      setLedger(data);
     });
-  }, [accountId]);
+    return () => {
+      alive = false;
+    };
+  }, [accountId, sel]);
 
   async function handleDelete() {
     if (!account) return;
@@ -63,10 +72,19 @@ export function LedgerModal({
               </Badge>
             </div>
             <div className="text-left">
-              <div className="text-[11px] text-muted">مانده فعلی</div>
+              <div className="text-[11px] text-muted">{sel.mode === "all" ? "مانده فعلی" : "مانده پایان دوره"}</div>
               <div className="text-lg font-extrabold text-primary">{formatToman(account.balance)}</div>
             </div>
           </div>
+
+          <PeriodPicker value={sel} onChange={setSel} />
+
+          {ledger && sel.mode !== "all" ? (
+            <div className="text-[12.5px] bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex justify-between gap-3">
+              <span className="text-ink-soft">مانده ابتدای دوره ({ledger.period.label})</span>
+              <b>{formatToman(ledger.openingBalance)}</b>
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-2">
             <button
@@ -91,7 +109,7 @@ export function LedgerModal({
 
           {rows.length === 0 ? (
             <div className="text-[12.5px] text-muted text-center py-10 bg-slate-50 rounded-xl border border-border">
-              هنوز سند ثبت‌شده‌ای برای این حساب وجود ندارد
+              {sel.mode === "all" ? "هنوز سند ثبت‌شده‌ای برای این حساب وجود ندارد" : "در این بازه گردشی برای این حساب نیست"}
             </div>
           ) : (
             <div className="overflow-x-auto -mx-1">
@@ -126,7 +144,7 @@ export function LedgerModal({
       {editing && account ? (
         <NewAccountModal
           account={account}
-          hasMovements={(rows?.length ?? 0) > 0}
+          hasMovements={(rows?.length ?? 0) > 0 || (ledger?.openingBalance ?? 0) !== 0}
           onClose={() => setEditing(false)}
           onUpdated={(updated) => {
             setAccount(updated);

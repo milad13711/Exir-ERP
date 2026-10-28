@@ -40,6 +40,7 @@ function setup(opts: { accounting?: boolean; liveBatch?: boolean; batchMovements
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
     account: { count: vi.fn(async () => 5), findUnique: vi.fn(async ({ where }: any) => ({ id: `acc-${where.code}`, code: where.code, type: 'EQUITY' })) },
+    accountingPeriodLock: { findUnique: vi.fn(async () => null) },
     journalEntry: {
       create: vi.fn(async ({ data }: any) => { journalCreates.push(data); return { id: `je-${journalCreates.length}` }; }),
       findUnique: vi.fn(async () => ({ id: 'je1', lines: [{ accountId: 'acc-1040', debit: 100n, credit: 0n, description: null }, { accountId: 'acc-3010', debit: 0n, credit: 100n, description: null }] })),

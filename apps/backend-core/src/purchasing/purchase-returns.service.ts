@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
@@ -84,6 +85,7 @@ export class PurchaseReturnsService {
     const payable = await this.getAccount(ctx, ACCOUNT.PAYABLE);
     const inventory = await this.getAccount(ctx, ACCOUNT.INVENTORY);
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const [entry, ret] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {
@@ -152,6 +154,10 @@ export class PurchaseReturnsService {
       ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: ret.journalEntryId }, include: { lines: true } })
       : null;
 
+    if (original) {
+      await assertPeriodOpen(ctx.tenantDb, original.date);
+      await assertPeriodOpen(ctx.tenantDb, new Date());
+    }
     await ctx.tenantDb.$transaction([
       ...(original
         ? [

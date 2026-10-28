@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LogoMark, ReceiptIcon } from "@/components/icons";
+import { PublicDeliverySection } from "./PublicDeliverySection";
 import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
 import { payPublicSalesInvoice, ApiError, type PublicSalesInvoiceView } from "@/lib/api";
 
@@ -117,6 +118,14 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
                   {invoice.signedByName ? `${invoice.signedByName} — ` : ""}
                   {formatJalaliDate(new Date(invoice.signedAt))}
                 </div>
+                {invoice.stampImage || invoice.signatureImage ? (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {invoice.stampImage ? <img src={invoice.stampImage} alt="مهر" className="h-10 object-contain" /> : null}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {invoice.signatureImage ? <img src={invoice.signatureImage} alt="امضا" className="h-10 object-contain" /> : null}
+                  </div>
+                ) : null}
               </div>
             )}
             {invoice.deliveryConfirmedAt && (
@@ -215,6 +224,8 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
               </div>
             )}
           </div>
+
+          {invoice.delivery ? <PublicDeliverySection tenantSlug={tenantSlug} token={token} section={invoice.delivery} /> : null}
 
           {invoice.canPayOnline && invoice.gatewayAvailable && (
             <div className="mt-6">

@@ -101,6 +101,8 @@ export type SignatureEvidenceRecord = {
     timezone?: string | null;
     screen?: { w: number; h: number } | null;
     touch?: boolean | null;
+    /** link_only = دارنده‌ی لینک عمومی؛ هویت راستی‌آزمایی نشده */
+    verification?: string | null;
     serverTimeUtc?: string;
     serverTimeTehran?: string;
   } | null;

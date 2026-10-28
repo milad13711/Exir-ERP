@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
@@ -48,6 +49,7 @@ export class PartyTransactionsService {
             { accountId: cashAccount.id, debit: BigInt(0), credit: BigInt(dto.amount) },
           ];
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const [entry, transaction] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {
@@ -99,6 +101,7 @@ export class PartyTransactionsService {
     const payable = await this.getAccount(ctx, ACCOUNT.PAYABLE);
     const description = `تسویه‌ی مستقیم: ${fromParty.name} → ${toParty.name}${dto.note ? ` (${dto.note})` : ''}`;
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const [entry] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {

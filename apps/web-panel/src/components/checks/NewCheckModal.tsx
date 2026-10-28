@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { createCheck, ApiError, type Check, type CheckDirection } from "@/lib/api";
+import { fetchAvailableLeaves, type AvailableBook } from "@/lib/accounting-api";
+import { toPersianDigits } from "@/lib/persian";
 
 export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onCreated: (check: Check) => void }) {
   const [direction, setDirection] = useState<CheckDirection>("RECEIVED");
@@ -12,8 +14,22 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
   const [dueDate, setDueDate] = useState("");
   const [bankName, setBankName] = useState("");
   const [reminderDaysBefore, setReminderDaysBefore] = useState("3");
+  const [books, setBooks] = useState<AvailableBook[]>([]);
+  const [bookId, setBookId] = useState("");
+  const [leafId, setLeafId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // دسته‌چک‌های فعال (فقط برای چک صادرشده)؛ اگر ماژول حسابداری/دسترسی نباشد فهرست خالی می‌ماند و فرم مثل قبل کار می‌کند.
+  useEffect(() => {
+    if (direction !== "ISSUED") return;
+    let alive = true;
+    fetchAvailableLeaves().then((b) => alive && setBooks(b)).catch(() => alive && setBooks([]));
+    return () => {
+      alive = false;
+    };
+  }, [direction]);
+  const book = direction === "ISSUED" ? books.find((b) => b.id === bookId) : undefined;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +42,9 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
         sayadId: sayadId.trim(),
         amount: Number(amount),
         dueDate,
-        bankName: bankName.trim() || undefined,
+        bankName: bankName.trim() || book?.bankName || undefined,
+        chequeBookId: book ? book.id : undefined,
+        chequeLeafId: book && leafId ? leafId : undefined,
         contactId: direction === "RECEIVED" ? partyId : undefined,
         supplierId: direction === "ISSUED" ? partyId : undefined,
         reminderDaysBefore: Number(reminderDaysBefore) || 0,
@@ -83,6 +101,46 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
             placeholder={direction === "RECEIVED" ? "جستجوی مشتری (نام، شرکت، موبایل)..." : "جستجوی تأمین‌کننده (نام، شرکت، موبایل)..."}
           />
         </div>
+
+        {direction === "ISSUED" && books.length > 0 ? (
+          <div className="bg-slate-50 border border-border rounded-xl p-3 flex flex-col gap-2.5">
+            <div>
+              <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">صدور از دسته‌چک (اختیاری)</label>
+              <select
+                value={bookId}
+                onChange={(e) => {
+                  setBookId(e.target.value);
+                  setLeafId("");
+                }}
+                className="w-full min-h-[44px] text-[16px] sm:text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5"
+              >
+                <option value="">بدون دسته‌چک</option>
+                {books.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankAccountName} — {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {book ? (
+              <div>
+                <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">برگ چک</label>
+                <select
+                  value={leafId}
+                  onChange={(e) => setLeafId(e.target.value)}
+                  className="w-full min-h-[44px] text-[16px] sm:text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5"
+                >
+                  <option value="">برگ بعدی خودکار{book.nextSerial ? ` (${toPersianDigits(book.nextSerial)})` : ""}</option>
+                  {book.leaves.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {toPersianDigits(l.serial)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-2">
           <div className="flex-1">

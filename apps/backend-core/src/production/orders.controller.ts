@@ -70,6 +70,9 @@ export class ProductionOrdersController {
       if (workCenters.length !== new Set(dto.stages.map((s) => s.workCenterId)).size) {
         throw new NotFoundException('یکی از ایستگاه‌های تولید یافت نشد');
       }
+      if (workCenters.some((w) => !w.isActive)) {
+        throw new BadRequestException('یکی از ایستگاه‌های انتخاب‌شده بایگانی شده است');
+      }
     }
 
     const userId = await resolveTenantUserId(ctx);

@@ -7,14 +7,10 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { AccountingIcon, PlusIcon, WarningIcon } from "@/components/icons";
 import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
-import {
-  fetchAccounts,
-  fetchJournalEntries,
-  fetchAccountingSummary,
-  type Account,
-  type JournalEntry,
-  type AccountingSummary,
-} from "@/lib/api";
+import { fetchAccounts, type Account, type JournalEntry } from "@/lib/api";
+import { fetchPeriodSummary, fetchEntriesByPeriod, type PeriodSummary, type PeriodSel } from "@/lib/accounting-api";
+import { currentMonthKey } from "@/components/accounting/PeriodPicker";
+import { BankingTab } from "@/components/accounting/BankingTab";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_TONES,
@@ -33,13 +29,25 @@ import { BudgetsTab } from "@/components/accounting/BudgetsTab";
 import { FixedAssetsTab } from "@/components/accounting/FixedAssetsTab";
 
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
-type Tab = "entries" | "accounts" | "reports" | "reconciliation" | "budgets" | "fixedAssets" | "parties";
+type Tab = "entries" | "accounts" | "banking" | "reports" | "reconciliation" | "budgets" | "fixedAssets" | "parties";
+
+/** ماه قبل/بعد روی کلید «YYYY-MM» جلالی. */
+function shiftKey(key: string, delta: number): string {
+  const [y, m] = key.split("-").map(Number);
+  const idx = y * 12 + (m - 1) + delta;
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+}
 
 export default function AccountingPage() {
   const [tab, setTab] = useState<Tab>("entries");
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [entries, setEntries] = useState<JournalEntry[] | null>(null);
-  const [summary, setSummary] = useState<AccountingSummary | null>(null);
+  const [entriesFor, setEntriesFor] = useState<string | null>(null);
+  const [summary, setSummary] = useState<PeriodSummary | null>(null);
+  // ماه انتخابی کارت‌ها و فهرست اسناد؛ پیش‌فرض ماه جاری جلالی. «all» = همه‌ی اسناد/تجمیعی.
+  const [monthKey, setMonthKey] = useState<string>(currentMonthKey());
+  const [reconAccountId, setReconAccountId] = useState<string | undefined>(undefined);
+  const monthSel: PeriodSel = monthKey === "all" ? { mode: "all" } : { mode: "month", key: monthKey };
 
   const [openEntryId, setOpenEntryId] = useState<string | null>(null);
   const [openAccountId, setOpenAccountId] = useState<string | null>(null);
@@ -47,14 +55,30 @@ export default function AccountingPage() {
   const [newAccountOpen, setNewAccountOpen] = useState(false);
 
   function reloadSummary() {
-    fetchAccountingSummary().then(setSummary).catch(() => {});
+    fetchPeriodSummary(monthSel).then(setSummary).catch(() => {});
   }
 
   useEffect(() => {
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]));
-    fetchJournalEntries().then(setEntries).catch(() => setEntries([]));
-    reloadSummary();
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetchEntriesByPeriod(monthSel)
+      .then((r) => {
+        if (!alive) return;
+        setEntries(r);
+        setEntriesFor(monthKey);
+      })
+      .catch(() => alive && (setEntries([]), setEntriesFor(monthKey)));
+    fetchPeriodSummary(monthSel)
+      .then((r) => alive && setSummary(r))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthKey]);
 
   const cashAccounts = useMemo(() => (accounts ?? []).filter((a) => a.isCashAccount), [accounts]);
 
@@ -89,11 +113,48 @@ export default function AccountingPage() {
         ) : null}
       </div>
 
+      <div className="flex items-center gap-2 mt-6 flex-wrap" aria-label="دوره‌ی نمایش">
+        <button
+          type="button"
+          aria-label="ماه قبل"
+          disabled={monthKey === "all"}
+          onClick={() => setMonthKey((k) => shiftKey(k, -1))}
+          className="w-10 h-10 rounded-xl border border-border flex items-center justify-center cursor-pointer disabled:opacity-40"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+        <span className="min-w-[130px] text-center text-[14px] font-extrabold">{summary?.period.label ?? (monthKey === "all" ? "کل دوره" : toPersianDigits(monthKey))}</span>
+        <button
+          type="button"
+          aria-label="ماه بعد"
+          disabled={monthKey === "all" || monthKey >= currentMonthKey()}
+          onClick={() => setMonthKey((k) => shiftKey(k, 1))}
+          className="w-10 h-10 rounded-xl border border-border flex items-center justify-center cursor-pointer disabled:opacity-40"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMonthKey((k) => (k === "all" ? currentMonthKey() : "all"))}
+          className="min-h-[40px] px-3.5 rounded-xl bg-slate-100 text-ink-soft text-[12.5px] font-bold cursor-pointer"
+        >
+          {monthKey === "all" ? "بازگشت به ماه جاری" : "نمایش تجمیعی"}
+        </button>
+        {summary?.period.locked ? <Badge tone="warning">ماه بسته شده</Badge> : null}
+      </div>
+
       {summary ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <KpiCard label="موجودی نقد و بانک" value={summary.cashBalance} unitSuffix="تومان" tone="primary" icon={<AccountingIcon />} />
-          <KpiCard label="درآمد این ماه" value={summary.monthRevenue} unitSuffix="تومان" tone="success" icon={<AccountingIcon />} />
-          <KpiCard label="هزینه این ماه" value={summary.monthExpense} unitSuffix="تومان" tone="danger" icon={<AccountingIcon />} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          <KpiCard label="موجودی نقد و بانک (تا پایان دوره)" value={summary.cashBalance} unitSuffix="تومان" tone="primary" icon={<AccountingIcon />} />
+          <KpiCard label={monthKey === "all" ? "درآمد کل دوره" : "درآمد این ماه"} value={summary.monthRevenue} unitSuffix="تومان" tone="success" icon={<AccountingIcon />} />
+          <KpiCard label={monthKey === "all" ? "هزینه کل دوره" : "هزینه این ماه"} value={summary.monthExpense} unitSuffix="تومان" tone="danger" icon={<AccountingIcon />} />
+          <KpiCard
+            label="سود (زیان) خالص"
+            value={summary.monthNetIncome}
+            unitSuffix="تومان"
+            tone={summary.monthNetIncome >= 0 ? "success" : "danger"}
+            icon={<AccountingIcon />}
+          />
           <KpiCard
             label="اسناد پیش‌نویس"
             value={summary.draftCount}
@@ -126,6 +187,7 @@ export default function AccountingPage() {
           [
             ["entries", "اسناد حسابداری"],
             ["accounts", "کدینگ حساب‌ها"],
+            ["banking", "بانک و صندوق"],
             ["parties", "بدهکاران و بستانکاران"],
             ["reconciliation", "مغایرت‌گیری بانکی"],
             ["budgets", "بودجه‌بندی"],
@@ -147,21 +209,28 @@ export default function AccountingPage() {
       </div>
 
       {tab === "reports" ? (
-        <ReportsTab />
+        <ReportsTab initialMonthKey={monthKey === "all" ? undefined : monthKey} />
+      ) : tab === "banking" ? (
+        <BankingTab
+          onOpenReconciliation={(accountId) => {
+            setReconAccountId(accountId);
+            setTab("reconciliation");
+          }}
+        />
       ) : tab === "parties" ? (
         <PartiesLedgerTab />
       ) : tab === "reconciliation" ? (
-        <ReconciliationTab />
+        <ReconciliationTab initialAccountId={reconAccountId} />
       ) : tab === "budgets" ? (
         <BudgetsTab />
       ) : tab === "fixedAssets" ? (
         <FixedAssetsTab />
       ) : tab === "entries" ? (
         <Card className="mt-5 p-2">
-          {entries === null ? (
+          {entries === null || entriesFor !== monthKey ? (
             <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
           ) : entries.length === 0 ? (
-            <div className="p-8 text-center text-muted text-sm">هنوز سندی ثبت نشده است</div>
+            <div className="p-8 text-center text-muted text-sm">{monthKey === "all" ? "هنوز سندی ثبت نشده است" : "در این ماه سندی ثبت نشده است"}</div>
           ) : (
             entries.map((entry, i) => {
               const total = entry.lines.reduce((s, l) => s + l.debit, 0);

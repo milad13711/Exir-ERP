@@ -48,6 +48,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
         return Promise.resolve({ id: 'p1', ...args.data });
       }),
     },
+    accountingPeriodLock: { findUnique: vi.fn(async () => null) },
     journalEntry: {
       create: vi.fn((args: { data: Record<string, unknown> }) => {
         journalEntryCalls.push(args.data);

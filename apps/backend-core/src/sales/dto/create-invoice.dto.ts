@@ -75,6 +75,11 @@ export class CreateInvoiceDto {
   @IsBoolean()
   isOfficial?: boolean;
 
+  /** ویرایش پیش‌نویسِ امضاشده: کاربر آگاهانه بی‌اعتبار شدن امضا را می‌پذیرد. */
+  @IsOptional()
+  @IsBoolean()
+  acknowledgeSignatureInvalidation?: boolean;
+
   @IsOptional()
   @IsInt()
   @Min(0)

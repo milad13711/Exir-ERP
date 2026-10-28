@@ -46,7 +46,7 @@ export function ReasonDialog({
       <form onSubmit={submit} className="flex flex-col gap-3">
         <p className="text-[12.5px] leading-7 text-ink-soft">{description}</p>
         <div>
-          <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">دلیل (الزامی)</label>
+          <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">دلیل {minLength > 0 ? "(الزامی)" : "(اختیاری)"}</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}

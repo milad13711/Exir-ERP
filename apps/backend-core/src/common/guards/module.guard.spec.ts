@@ -34,8 +34,8 @@ function makeReflector(moduleCode: string | undefined) {
 
 const CRM: ModuleRow = { id: 'm-crm', code: 'crm', name: 'CRM', isCore: false, dependsOn: [] };
 const ACCOUNTING: ModuleRow = { id: 'm-acc', code: 'accounting', name: 'حسابداری', isCore: false, dependsOn: [] };
-const SALES: ModuleRow = { id: 'm-sales', code: 'sales', name: 'فروش', isCore: false, dependsOn: ['crm', 'accounting'] };
-const CHECKS: ModuleRow = { id: 'm-checks', code: 'checks', name: 'چک‌ها', isCore: false, dependsOn: ['crm', 'sales'] };
+const SALES: ModuleRow = { id: 'm-sales', code: 'sales', name: 'فروش', isCore: false, dependsOn: ['crm'] };
+const CHECKS: ModuleRow = { id: 'm-checks', code: 'checks', name: 'چک‌ها', isCore: false, dependsOn: ['crm', 'sales', 'accounting'] };
 const TASKS: ModuleRow = { id: 'm-tasks', code: 'tasks', name: 'وظایف', isCore: true, dependsOn: [] };
 
 describe('ModuleGuard', () => {
@@ -76,7 +76,15 @@ describe('ModuleGuard', () => {
     await expect(g.canActivate(makeContext('t1'))).resolves.toBe(true);
   });
 
-  it('walks dependsOn transitively — requesting checks also requires sales AND (via sales) accounting/crm', async () => {
+  it('sales is independent of accounting — a tenant can install crm + sales alone', async () => {
+    const modules = [CRM, ACCOUNTING, SALES];
+    const salesOnly: InstallRow[] = [CRM, SALES].map((m) => ({ moduleId: m.id, status: 'INSTALLED' }));
+    await expect(guard(modules, salesOnly, 'sales').canActivate(makeContext('t1'))).resolves.toBe(true);
+    // و بدون CRM همچنان مسدود است
+    await expect(guard(modules, [{ moduleId: SALES.id, status: 'INSTALLED' }], 'sales').canActivate(makeContext('t1'))).rejects.toThrow(ForbiddenException);
+  });
+
+  it('walks dependsOn transitively — requesting checks requires sales, crm AND accounting', async () => {
     const modules = [CRM, ACCOUNTING, SALES, CHECKS];
     const allInstalled: InstallRow[] = modules.map((m) => ({ moduleId: m.id, status: 'INSTALLED' }));
 
@@ -85,7 +93,7 @@ describe('ModuleGuard', () => {
       guard(modules, allInstalled, 'checks').canActivate(makeContext('t1')),
     ).resolves.toBe(true);
 
-    // Remove accounting (two hops down: checks -> sales -> accounting) — must still block.
+    // Remove accounting (checks now depends on it explicitly, since sales no longer pulls it in) — must still block.
     const withoutAccounting = allInstalled.filter((i) => i.moduleId !== ACCOUNTING.id);
     await expect(
       guard(modules, withoutAccounting, 'checks').canActivate(makeContext('t1')),

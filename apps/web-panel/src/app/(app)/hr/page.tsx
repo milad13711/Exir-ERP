@@ -54,6 +54,9 @@ import { GrantAccessModal } from "@/components/hr/GrantAccessModal";
 import { useWorkspace } from "@/lib/workspace-context";
 import { EmployeeModal } from "@/components/hr/EmployeeModal";
 import { NewLeaveModal } from "@/components/hr/NewLeaveModal";
+import { RequestSmsSettingsPanel, RequestSmsLog } from "@/components/hr/RequestSmsPanel";
+import { ReasonDialog } from "@/components/ui/ReasonDialog";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { NewDepartmentModal } from "@/components/hr/NewDepartmentModal";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { TrashIcon } from "@/components/icons";
@@ -509,6 +512,8 @@ function AttendanceTab() {
 
 function LeaveTab() {
   const [leaves, setLeaves] = useState<LeaveRequest[] | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const hrCan = useModuleCan("hr");
 
   function reload() {
     fetchLeaveRequests().then(setLeaves).catch(() => setLeaves([]));
@@ -519,12 +524,14 @@ function LeaveTab() {
     await approveLeaveRequest(id);
     reload();
   }
-  async function handleReject(id: string) {
-    await rejectLeaveRequest(id);
+  async function handleReject(id: string, note: string) {
+    await rejectLeaveRequest(id, note);
     reload();
   }
 
   return (
+    <>
+    {hrCan.manager ? <RequestSmsSettingsPanel /> : null}
     <Card className="mt-5 p-2">
       {leaves === null ? (
         <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
@@ -557,7 +564,7 @@ function LeaveTab() {
                   تأیید
                 </button>
                 <button
-                  onClick={() => handleReject(l.id)}
+                  onClick={() => setRejecting(l.id)}
                   className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 py-1.5 rounded-lg cursor-pointer"
                 >
                   رد
@@ -580,10 +587,22 @@ function LeaveTab() {
                 حذف
               </button>
             ) : null}
+            {hrCan.manager ? <RequestSmsLog type="LEAVE_REQUEST" id={l.id} /> : null}
           </div>
         ))
       )}
     </Card>
+    {rejecting ? (
+      <ReasonDialog
+        title="رد درخواست مرخصی"
+        description="دلیل رد برای درخواست‌کننده (در اعلان و پیامک کوتاه‌شده) ارسال می‌شود."
+        confirmLabel="رد درخواست"
+        minLength={0}
+        onConfirm={(note) => handleReject(rejecting, note)}
+        onClose={() => setRejecting(null)}
+      />
+    ) : null}
+    </>
   );
 }
 

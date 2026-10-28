@@ -37,4 +37,14 @@ export class CreateCheckDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  /** فقط چک صادرشده: برگ بعدیِ مصرف‌نشده‌ی این دسته‌چک خودکار انتخاب می‌شود. */
+  @IsOptional()
+  @IsUUID()
+  chequeBookId?: string;
+
+  /** فقط چک صادرشده: برگ مشخصی از دسته‌چک (اولویت با این است). */
+  @IsOptional()
+  @IsUUID()
+  chequeLeafId?: string;
 }

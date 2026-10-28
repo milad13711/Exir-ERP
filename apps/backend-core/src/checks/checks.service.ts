@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -8,6 +9,7 @@ import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
+import { claimLeaf, syncLeafWithCheck } from '../accounting/banking/cheque-leaf.util.js';
 import type { CreateCheckDto } from './dto/create-check.dto.js';
 
 const ACCOUNT = {
@@ -20,6 +22,7 @@ const CHECK_INCLUDE = {
   endorsedToContact: { select: { id: true, name: true, company: true } },
   invoice: { select: { id: true, invoiceNo: true } },
   purchaseOrder: { select: { id: true, orderNo: true } },
+  chequeLeaf: { select: { id: true, serial: true, chequeBookId: true } },
 };
 
 const CHECKS_SETTINGS_MODULE = 'checks';
@@ -87,7 +90,31 @@ export class ChecksService {
     if (dto.direction === 'ISSUED' && !dto.supplierId) {
       throw new BadRequestException('برای چک صادرشده، انتخاب تأمین‌کننده الزامی است');
     }
+    if ((dto.chequeBookId || dto.chequeLeafId) && dto.direction !== 'ISSUED') {
+      throw new BadRequestException('دسته‌چک فقط برای چک صادرشده قابل انتخاب است');
+    }
     const createdByUserId = await resolveTenantUserId(ctx);
+    if (dto.chequeBookId || dto.chequeLeafId) {
+      // صدور از دسته‌چک: ساخت چک و رزرو برگ در یک تراکنش — یا هر دو یا هیچ‌کدام
+      return ctx.tenantDb.$transaction(async (tx) => {
+        const created = await tx.check.create({
+          data: {
+            direction: dto.direction,
+            sayadId: dto.sayadId,
+            amount: dto.amount,
+            dueDate: new Date(dto.dueDate),
+            bankName: dto.bankName,
+            contactId: dto.supplierId,
+            reminderDaysBefore: dto.reminderDaysBefore ?? 3,
+            note: dto.note,
+            createdByUserId,
+          },
+        });
+        const leaf = await claimLeaf(tx, { chequeLeafId: dto.chequeLeafId, chequeBookId: dto.chequeBookId }, created.id);
+        if (!dto.bankName && leaf.bankName) await tx.check.update({ where: { id: created.id }, data: { bankName: leaf.bankName } });
+        return tx.check.findUniqueOrThrow({ where: { id: created.id }, include: CHECK_INCLUDE });
+      });
+    }
     return ctx.tenantDb.check.create({
       data: {
         direction: dto.direction,
@@ -121,11 +148,13 @@ export class ChecksService {
     if (check.status !== 'PENDING' && check.status !== 'DEPOSITED') {
       throw new BadRequestException('فقط چک ثبت‌شده یا واگذارشده به بانک قابل تغییر است');
     }
-    return ctx.tenantDb.check.update({
+    const updated = await ctx.tenantDb.check.update({
       where: { id },
       data: { status: 'CLEARED', clearedAt: new Date() },
       include: CHECK_INCLUDE,
     });
+    await syncLeafWithCheck(ctx.tenantDb, id, 'CLEARED');
+    return updated;
   }
 
   async markBounced(ctx: TenantRequestContext, id: string) {
@@ -136,6 +165,7 @@ export class ChecksService {
     }
 
     const updated = await ctx.tenantDb.check.update({ where: { id }, data: { status: 'BOUNCED' } });
+    await syncLeafWithCheck(ctx.tenantDb, id, 'BOUNCED');
 
     // چک برگشتی مشتری به‌طور خودکار روی سابقه‌ی اعتباری او ثبت می‌شود.
     if (updated.direction === 'RECEIVED' && updated.contactId) {
@@ -221,6 +251,7 @@ export class ChecksService {
     const receivable = await this.getAccount(ctx, ACCOUNT.RECEIVABLE);
     const payable = await this.getAccount(ctx, ACCOUNT.PAYABLE);
 
+    await assertPeriodOpen(ctx.tenantDb, new Date());
     const [entry] = await ctx.tenantDb.$transaction([
       ctx.tenantDb.journalEntry.create({
         data: {
@@ -281,7 +312,9 @@ export class ChecksService {
     if (check.status !== 'PENDING' && check.status !== 'DEPOSITED') {
       throw new BadRequestException('فقط چک ثبت‌شده یا واگذارشده به بانک قابل لغو است');
     }
-    return ctx.tenantDb.check.update({ where: { id }, data: { status: 'CANCELLED' }, include: CHECK_INCLUDE });
+    const cancelled = await ctx.tenantDb.check.update({ where: { id }, data: { status: 'CANCELLED' }, include: CHECK_INCLUDE });
+    await syncLeafWithCheck(ctx.tenantDb, id, 'CANCELLED');
+    return cancelled;
   }
 
   async updateReminderDays(ctx: TenantRequestContext, id: string, days: number) {

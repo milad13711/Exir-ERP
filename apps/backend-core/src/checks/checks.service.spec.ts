@@ -21,6 +21,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
         return Promise.resolve({ id: 'contact-1', ...args.data });
       }),
     },
+    chequeLeaf: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     user: { findMany: vi.fn().mockResolvedValue([]) },
     moduleSetting: { findUnique: vi.fn().mockResolvedValue(null) },
     ...overrides,

@@ -58,6 +58,7 @@ function setup(opts: { invoice?: ReturnType<typeof baseInvoice>; counts?: Partia
       findUnique: vi.fn(async () => ({ name: 'کالا', unit: 'عدد', costPrice: opts.costPrice ?? 40 })),
     },
     moduleSetting: { findUnique: vi.fn(async () => null) },
+    accountingPeriodLock: { findUnique: vi.fn(async () => null) },
     user: { findUnique: vi.fn(async () => ({ id: 'u1', name: 'مدیر' })) },
     journalEntry: {
       findUnique: vi.fn(async () => ({

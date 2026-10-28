@@ -1,17 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { ensureDefaultChartOfAccounts } from '../accounting/default-chart-of-accounts.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { CostingService } from '../warehouse/costing.service.js';
+import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { buildReturnJournalLines, isAccountingActive, MissingAccountError } from './accounting-link.js';
 import type { CreateSalesReturnDto } from './dto/create-sales-return.dto.js';
-
-const ACCOUNT = {
-  RECEIVABLE: '1030',
-  INVENTORY: '1040',
-  REVENUE: '4010',
-  COGS: '5010',
-};
 
 const RETURN_INCLUDE = {
   invoice: { select: { id: true, invoiceNo: true, contactId: true } },
@@ -20,7 +16,10 @@ const RETURN_INCLUDE = {
 
 @Injectable()
 export class SalesReturnsService {
-  constructor(private readonly costing: CostingService) {}
+  constructor(
+    private readonly costing: CostingService,
+    private readonly controlDb: ControlPrismaService,
+  ) {}
 
   list(ctx: TenantRequestContext) {
     return ctx.tenantDb.salesReturn.findMany({
@@ -84,14 +83,8 @@ export class SalesReturnsService {
     return { hasReturnable };
   }
 
-  private async getAccount(ctx: TenantRequestContext, code: string) {
-    const account = await ctx.tenantDb.account.findUnique({ where: { code } });
-    if (!account) throw new BadRequestException(`کدینگ حسابداری ${code} یافت نشد — ابتدا از بخش حسابداری بازدید کنید`);
-    return account;
-  }
-
   async create(ctx: TenantRequestContext, dto: CreateSalesReturnDto) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
+    const accounting = await isAccountingActive(this.controlDb, ctx.tenantId);
     const invoice = await ctx.tenantDb.salesInvoice.findUnique({
       where: { id: dto.invoiceId },
       include: { lines: true },
@@ -117,41 +110,42 @@ export class SalesReturnsService {
     const userId = await resolveTenantUserId(ctx);
     const warehouse = await ensureDefaultWarehouse(ctx.tenantDb);
 
-    const receivable = await this.getAccount(ctx, ACCOUNT.RECEIVABLE);
-    const revenue = await this.getAccount(ctx, ACCOUNT.REVENUE);
-    const linesWithCost = await Promise.all(
-      lines.map(async (l) => {
-        if (!l.productId) return { ...l, cost: 0 };
-        const unitCost = await this.costing.currentUnitCost(ctx, l.productId);
-        return { ...l, cost: unitCost * l.quantity };
-      }),
-    );
-    const cogsAmount = linesWithCost.reduce((sum, l) => sum + l.cost, 0);
-
-    const journalLines = [
-      { accountId: revenue.id, debit: BigInt(subtotal), credit: BigInt(0) },
-      { accountId: receivable.id, debit: BigInt(0), credit: BigInt(subtotal) },
-    ];
-    if (cogsAmount > 0) {
-      const cogs = await this.getAccount(ctx, ACCOUNT.COGS);
-      const inventory = await this.getAccount(ctx, ACCOUNT.INVENTORY);
-      journalLines.push(
-        { accountId: inventory.id, debit: BigInt(cogsAmount), credit: BigInt(0) },
-        { accountId: cogs.id, debit: BigInt(0), credit: BigInt(cogsAmount) },
+    // سند مرجوعی فقط وقتی حسابداری نصب است و سند خودِ فاکتور هم ثبت شده باشد؛ وگرنه (فاکتور قدیمی‌ای که هنوز
+    // سندش ثبت نشده) مرجوعی همراه فاکتور در «ثبت اسناد حسابداری فاکتورهای قبلی» ثبت می‌شود تا درآمد منفی نشود.
+    const postJournal = accounting && invoice.accountingPosted !== false;
+    let journalLines: Awaited<ReturnType<typeof buildReturnJournalLines>> | null = null;
+    if (postJournal) {
+      await ensureDefaultChartOfAccounts(ctx.tenantDb);
+      const linesWithCost = await Promise.all(
+        lines.map(async (l) => {
+          if (!l.productId) return { ...l, cost: 0 };
+          const unitCost = await this.costing.currentUnitCost(ctx, l.productId);
+          return { ...l, cost: unitCost * l.quantity };
+        }),
       );
+      const cogsAmount = linesWithCost.reduce((sum, l) => sum + l.cost, 0);
+      journalLines = await buildReturnJournalLines(ctx.tenantDb, subtotal, cogsAmount).catch((e) => {
+        if (e instanceof MissingAccountError) throw new BadRequestException(e.message);
+        throw e;
+      });
     }
 
-    const [entry, ret] = await ctx.tenantDb.$transaction([
-      ctx.tenantDb.journalEntry.create({
-        data: {
-          date: new Date(),
-          description: `مرجوعی فروش برای فاکتور شماره ${invoice.invoiceNo}`,
-          status: 'POSTED',
-          postedAt: new Date(),
-          createdByUserId: userId,
-          lines: { create: journalLines },
-        },
-      }),
+    if (journalLines) await assertPeriodOpen(ctx.tenantDb, new Date());
+    const results = await ctx.tenantDb.$transaction([
+      ...(journalLines
+        ? [
+            ctx.tenantDb.journalEntry.create({
+              data: {
+                date: new Date(),
+                description: `مرجوعی فروش برای فاکتور شماره ${invoice.invoiceNo}`,
+                status: 'POSTED',
+                postedAt: new Date(),
+                createdByUserId: userId,
+                lines: { create: journalLines },
+              },
+            }),
+          ]
+        : []),
       ctx.tenantDb.salesReturn.create({
         data: {
           invoiceId: dto.invoiceId,
@@ -160,6 +154,7 @@ export class SalesReturnsService {
           subtotal,
           total: subtotal,
           createdByUserId: userId,
+          accountingPosted: journalLines !== null,
           lines: { create: lines },
         },
         include: RETURN_INCLUDE,
@@ -179,8 +174,10 @@ export class SalesReturnsService {
           }),
         ),
     ]);
+    const entry = journalLines ? (results[0] as { id: string }) : null;
+    const ret = results[journalLines ? 1 : 0] as { id: string };
 
-    await ctx.tenantDb.salesReturn.update({ where: { id: ret.id }, data: { journalEntryId: entry.id } });
+    if (entry) await ctx.tenantDb.salesReturn.update({ where: { id: ret.id }, data: { journalEntryId: entry.id } });
     return ret;
   }
 
@@ -194,7 +191,6 @@ export class SalesReturnsService {
    * (و خطوطش با onDelete: Cascade) حذف می‌شود — تا سقف قابل‌مرجوع فاکتور هم دوباره باز شود.
    */
   async remove(ctx: TenantRequestContext, id: string) {
-    await ensureDefaultChartOfAccounts(ctx.tenantDb);
     const ret = await ctx.tenantDb.salesReturn.findUnique({ where: { id }, include: { lines: true, invoice: true } });
     if (!ret) throw new NotFoundException('مرجوعی فروش یافت نشد');
 
@@ -204,6 +200,10 @@ export class SalesReturnsService {
       ? await ctx.tenantDb.journalEntry.findUnique({ where: { id: ret.journalEntryId }, include: { lines: true } })
       : null;
 
+    if (original) {
+      await assertPeriodOpen(ctx.tenantDb, original.date);
+      await assertPeriodOpen(ctx.tenantDb, new Date());
+    }
     await ctx.tenantDb.$transaction([
       ...(original
         ? [

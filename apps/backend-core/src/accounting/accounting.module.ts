@@ -10,6 +10,9 @@ import { ReconciliationController } from './reconciliation.controller.js';
 import { BudgetsController } from './budgets.controller.js';
 import { FixedAssetsController } from './fixed-assets.controller.js';
 import { PartyLedgerController } from './party-ledger.controller.js';
+import { PeriodsController } from './periods.controller.js';
+import { BankingController } from './banking/banking.controller.js';
+import { BankingService } from './banking/banking.service.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, CrmModule],
@@ -22,6 +25,9 @@ import { PartyLedgerController } from './party-ledger.controller.js';
     BudgetsController,
     FixedAssetsController,
     PartyLedgerController,
+    PeriodsController,
+    BankingController,
   ],
+  providers: [BankingService],
 })
 export class AccountingModule {}

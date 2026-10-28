@@ -12,6 +12,8 @@ const ACTION_LABEL: Record<string, string> = {
   public_sign: "امضا از لینک عمومی",
   public_accept: "پذیرش از لینک عمومی",
   invoice_sign: "امضای فاکتور",
+  invoice_sign_signature: "امضای فاکتور از کارتابل (امضا)",
+  invoice_sign_stamp_and_signature: "امضای فاکتور از کارتابل (مهر و امضای شرکت)",
   delivery_confirm_signature: "تأیید تحویل با امضا",
   delivery_confirm_code: "تأیید تحویل با کد",
   consent_sign: "امضای رضایت‌نامه",
@@ -54,6 +56,7 @@ export function SignatureEvidencePanel({ entityType, entityId }: { entityType: s
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-bold">{r.signerName ?? "—"}</span>
             <Badge tone="primary">{ACTION_LABEL[r.action] ?? r.action}</Badge>
+            {r.device?.verification === "link_only" && <Badge tone="warning">تأیید هویت نشده (فقط دارنده‌ی لینک)</Badge>}
             <Badge tone={r.integrityOk ? "success" : "danger"}>{r.integrityOk ? "یکپارچگی تأیید شد" : "هشدار: دستکاری یا نبود کلید"}</Badge>
           </div>
           <Row k="زمان سرور (تهران)">{r.device?.serverTimeTehran ?? formatJalaliDateTime(r.serverTime)}</Row>

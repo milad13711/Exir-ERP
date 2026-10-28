@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -195,6 +196,7 @@ export class StockImportService {
 
         let journalEntryId: string | null = null;
         if (inventoryId && equityId) {
+          await assertPeriodOpen(tx, now);
           const entry = await tx.journalEntry.create({
             data: {
               date: now,
@@ -294,6 +296,8 @@ export class StockImportService {
           });
         }
         if (original) {
+          await assertPeriodOpen(tx, original.date);
+          await assertPeriodOpen(tx, now);
           await tx.journalEntry.create({
             data: {
               date: now,

@@ -94,6 +94,12 @@ export default function SalesPage() {
   const [smsTemplateModalOpen, setSmsTemplateModalOpen] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const openParam = searchParams.get("open");
+  // لینک اعلان‌ها (?open=<id>) مستقیم جزئیات فاکتور را باز می‌کند
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (openParam) setOpenInvoiceId(openParam);
+  }, [openParam]);
 
   const dealPrefill: InvoicePrefill | undefined = searchParams.get("dealId")
     ? {
@@ -166,7 +172,7 @@ export default function SalesPage() {
             <ModuleHelp code="sales" />
           </div>
           <p className="text-[13.5px] text-muted mt-1">
-            از سفارش فروش تا فاکتور و پرداخت — با اتصال خودکار به انبار و حسابداری
+            از سفارش فروش تا فاکتور و پرداخت — با اتصال خودکار به انبار (و حسابداری، در صورت نصب)
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

@@ -19,6 +19,7 @@ function makeCtx(opts: { ret: unknown; original?: unknown }) {
         return Promise.resolve({});
       }),
     },
+    accountingPeriodLock: { findUnique: vi.fn(async () => null) },
     journalEntry: {
       findUnique: vi.fn().mockResolvedValue(opts.original ?? null),
       create: vi.fn((a) => {

@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { PlusIcon, TrashIcon } from "@/components/icons";
-import { fetchProducts, createBom, ApiError, type Product } from "@/lib/api";
+import { fetchProducts, createBom, updateBom, ApiError, type Bom, type Product } from "@/lib/api";
 
 const inputClass =
-  "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
+  "w-full text-[16px] sm:text-[13px] min-h-10 outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
 const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 type LineDraft = { rawMaterialProductId: string; quantityPerBatch: string };
 
-export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function NewBomModal({ onClose, onCreated, bom }: { onClose: () => void; onCreated: () => void; bom?: Bom }) {
+  const editing = !!bom;
   const [products, setProducts] = useState<Product[]>([]);
-  const [outputProductId, setOutputProductId] = useState("");
-  const [batchOutputQty, setBatchOutputQty] = useState("1000");
-  const [lines, setLines] = useState<LineDraft[]>([{ rawMaterialProductId: "", quantityPerBatch: "" }]);
+  const [outputProductId, setOutputProductId] = useState(bom?.outputProductId ?? "");
+  const [batchOutputQty, setBatchOutputQty] = useState(bom ? String(bom.batchOutputQty) : "1000");
+  const [notes, setNotes] = useState(bom?.notes ?? "");
+  const [lines, setLines] = useState<LineDraft[]>(
+    bom
+      ? bom.lines.map((l) => ({ rawMaterialProductId: l.rawMaterialProductId, quantityPerBatch: String(l.quantityPerBatch) }))
+      : [{ rawMaterialProductId: "", quantityPerBatch: "" }],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,11 +44,12 @@ export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCre
     setSubmitting(true);
     setError(null);
     try {
-      await createBom({
-        outputProductId,
-        batchOutputQty: Number(batchOutputQty),
-        lines: lines.map((l) => ({ rawMaterialProductId: l.rawMaterialProductId, quantityPerBatch: Number(l.quantityPerBatch) })),
-      });
+      const payloadLines = lines.map((l) => ({ rawMaterialProductId: l.rawMaterialProductId, quantityPerBatch: Number(l.quantityPerBatch) }));
+      if (bom) {
+        await updateBom(bom.id, { batchOutputQty: Number(batchOutputQty), lines: payloadLines, notes });
+      } else {
+        await createBom({ outputProductId, batchOutputQty: Number(batchOutputQty), lines: payloadLines, notes: notes || undefined });
+      }
       onCreated();
       onClose();
     } catch (err) {
@@ -53,15 +60,19 @@ export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCre
   }
 
   return (
-    <Modal title="فرمول تولید جدید" onClose={onClose} width="max-w-[560px]">
+    <Modal title={editing ? "ویرایش فرمول تولید" : "فرمول تولید جدید"} onClose={onClose} width="max-w-[560px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <p className="text-[11.5px] text-muted -mt-1">
-          اگر این محصول قبلاً فرمول فعال داشته باشد، نسخه‌ی قبلی غیرفعال و این فرمول جایگزین آن می‌شود.
+          {editing
+            ? (bom?.usageCount ?? 0) > 0
+              ? `این فرمول در ${bom?.usageCount} دستور تولید استفاده شده است. با ذخیره، یک نسخه‌ی جدید ساخته می‌شود و دستورهای قبلی با همان فرمول قدیمی (و همان بهای تمام‌شده) باقی می‌مانند.`
+              : "این فرمول در هیچ دستور تولیدی استفاده نشده و مستقیم ویرایش می‌شود."
+            : "اگر این محصول قبلاً فرمول فعال داشته باشد، نسخه‌ی قبلی غیرفعال و این فرمول جایگزین آن می‌شود."}
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>محصول نهایی</label>
-            <select value={outputProductId} onChange={(e) => setOutputProductId(e.target.value)} className={inputClass}>
+            <select value={outputProductId} onChange={(e) => setOutputProductId(e.target.value)} disabled={editing} className={inputClass}>
               <option value="">انتخاب کنید...</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -100,7 +111,7 @@ export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCre
                 <select
                   value={line.rawMaterialProductId}
                   onChange={(e) => updateLine(i, { rawMaterialProductId: e.target.value })}
-                  className="flex-[2] text-[12px] bg-surface border border-border rounded-lg px-2 py-2 outline-none min-w-0"
+                  className="flex-[2] text-[16px] sm:text-[12px] min-h-10 bg-surface border border-border rounded-lg px-2 py-2 outline-none min-w-0"
                 >
                   <option value="">ماده اولیه...</option>
                   {products
@@ -117,13 +128,13 @@ export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCre
                   placeholder="مقدار مصرف"
                   dir="ltr"
                   inputMode="numeric"
-                  className="flex-1 text-[12px] bg-surface border border-border rounded-lg px-2 py-2 outline-none min-w-0"
+                  className="flex-1 text-[16px] sm:text-[12px] min-h-10 bg-surface border border-border rounded-lg px-2 py-2 outline-none min-w-0"
                 />
                 <button
                   type="button"
                   onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
                   disabled={lines.length <= 1}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer disabled:opacity-30 shrink-0"
+                  className="w-10 h-10 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer disabled:opacity-30 shrink-0"
                 >
                   <TrashIcon className="w-3.5 h-3.5" />
                 </button>
@@ -132,13 +143,18 @@ export function NewBomModal({ onClose, onCreated }: { onClose: () => void; onCre
           </div>
         </div>
 
+        <div>
+          <label className={labelClass}>توضیحات (اختیاری)</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} className={inputClass} />
+        </div>
+
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}
         <button
           type="submit"
           disabled={submitting || !valid}
           className="mt-1.5 w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ذخیره..." : "ذخیره فرمول"}
+          {submitting ? "در حال ذخیره..." : editing ? "ذخیره تغییرات" : "ذخیره فرمول"}
         </button>
       </form>
     </Modal>
