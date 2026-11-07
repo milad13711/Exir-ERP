@@ -39,7 +39,7 @@ FROM deps AS build
 COPY apps/backend-core/ ./
 RUN npx prisma generate --schema prisma/control/schema.prisma \
  && npx prisma generate --schema prisma/tenant/schema.prisma \
- && npm run build
+ && NODE_OPTIONS=--max-old-space-size=3072 npm run build
 
 # مانیفست یکپارچگی امضاشده (SHA-256 همه‌ی فایل‌های dist). کلید امضا فقط به‌صورت BuildKit secret داده می‌شود و در هیچ لایه‌ای نمی‌ماند:
 #   docker build --secret id=license_signing_key,src=keys/<kid>.private.pem [--secret id=license_signing_passphrase,src=pass.txt] ...
