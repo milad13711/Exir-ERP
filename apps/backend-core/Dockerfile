@@ -26,7 +26,13 @@ COPY apps/backend-core/package.json apps/backend-core/package-lock.json ./
 # Alpine's musl libc — skip its download here and use the apk-installed
 # system Chromium in the runtime stage instead (PUPPETEER_EXECUTABLE_PATH).
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-RUN npm ci
+# The production host's network resets long registry downloads (ECONNRESET) —
+# fewer parallel sockets + generous retries make `npm ci` finish reliably.
+RUN npm config set fetch-retries 8 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm config set maxsockets 4 \
+ && (npm ci || npm ci || npm ci)
 
 # Build stage reuses the deps layers (no second 1.5 GB copy of node_modules).
 FROM deps AS build
