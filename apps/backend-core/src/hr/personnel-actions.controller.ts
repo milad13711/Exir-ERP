@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards, Patch } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -6,6 +6,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { UpdatePersonnelActionDto } from './dto/update-personnel-action.dto.js';
 import { CreatePersonnelActionDto } from './dto/create-personnel-action.dto.js';
 
 async function findEmployeeOrThrow(ctx: TenantRequestContext, employeeId: string) {
@@ -45,6 +46,19 @@ export class PersonnelRewardsController {
         date: dto.date ? new Date(dto.date) : new Date(),
         createdByUserId,
       },
+      include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+    });
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdatePersonnelActionDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
+    const row = await ctx.tenantDb.personnelReward.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('این پاداش یافت نشد');
+    return ctx.tenantDb.personnelReward.update({
+      where: { id },
+      data: { title: dto.title, description: dto.description, amount: dto.amount, ...(dto.date ? { date: new Date(dto.date) } : {}) },
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
     });
   }
@@ -91,6 +105,19 @@ export class PersonnelPenaltiesController {
         date: dto.date ? new Date(dto.date) : new Date(),
         createdByUserId,
       },
+      include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+    });
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdatePersonnelActionDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr'); // رکوردهای مالی/پرسنلی مالک مشخص ندارند — فقط با «مشاهده‌ی همه»
+    const row = await ctx.tenantDb.personnelPenalty.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('این جریمه یافت نشد');
+    return ctx.tenantDb.personnelPenalty.update({
+      where: { id },
+      data: { title: dto.title, description: dto.description, amount: dto.amount, ...(dto.date ? { date: new Date(dto.date) } : {}) },
       include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
     });
   }

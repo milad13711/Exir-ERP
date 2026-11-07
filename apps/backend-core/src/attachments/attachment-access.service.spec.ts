@@ -6,6 +6,8 @@ function make(opts: { role?: string; matrix?: Record<string, any>; scope?: Recor
   const perms = {
     getEffective: vi.fn(async (_c: unknown, m: string) => opts.matrix?.[m] ?? { canViewAll: false, canViewOwn: false, canCreate: false, canEdit: false, canDelete: false }),
     viewScope: vi.fn(async () => opts.scope ?? {}),
+    hasEditGrant: vi.fn(async () => false),
+    viewScopeGranted: vi.fn(async () => (opts as any).grantedScope ?? opts.scope ?? {}),
     assertViewAll: vi.fn(async (_c: unknown, m: string) => {
       if (!opts.matrix?.[m]?.canViewAll) throw new ForbiddenException('x');
     }),
@@ -22,6 +24,7 @@ function make(opts: { role?: string; matrix?: Record<string, any>; scope?: Recor
         findFirst: vi.fn(async () => ((opts as any).docsHandler ? { id: 't1' } : null)),
         findMany: vi.fn(async () => []),
       },
+      documentReferral: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
       shipment: { findFirst: vi.fn(async () => (opts.found === false ? null : { id: 's1' })) },
       proposal: {
         findFirst: vi.fn(async () => (opts.found === false ? null : { id: 'p1' })),
@@ -29,7 +32,7 @@ function make(opts: { role?: string; matrix?: Record<string, any>; scope?: Recor
       },
     },
   } as any;
-  return { svc: new AttachmentAccessService(perms, {} as any), ctx };
+  return { svc: new AttachmentAccessService(perms, {} as any), ctx, perms };
 }
 
 describe('AttachmentAccessService', () => {
@@ -51,6 +54,16 @@ describe('AttachmentAccessService', () => {
   it('view-own user can read their own contact attachments', async () => {
     const { svc, ctx } = make({ scope: { ownerUserId: 'me' }, matrix: { crm: { canViewOwn: true } } });
     await expect(svc.assertAccess(ctx, 'CrmContact', 'c1', 'read')).resolves.toBeUndefined();
+  });
+
+  it('referral/task grant widens READ only: reads use viewScopeGranted, writes keep the strict viewScope', async () => {
+    const { svc, ctx, perms } = make({ scope: { ownerUserId: 'me' }, matrix: { crm: { canViewOwn: true, canEdit: true } } });
+    await svc.assertAccess(ctx, 'CrmContact', 'c1', 'read');
+    expect(perms.viewScopeGranted).toHaveBeenCalledWith(ctx, 'crm', 'ownerUserId', 'CrmContact');
+    perms.viewScope.mockClear();
+    await svc.assertAccess(ctx, 'CrmContact', 'c1', 'write');
+    expect(perms.viewScope).toHaveBeenCalledTimes(1);
+    expect(perms.viewScopeGranted).toHaveBeenCalledTimes(1);
   });
 
   it('adding/removing requires edit or create on the module', async () => {

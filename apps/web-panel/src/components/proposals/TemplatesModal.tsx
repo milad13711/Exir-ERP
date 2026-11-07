@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { formatJalaliDate, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, moneyUnit } from "@/lib/persian";
 import { ApiError, deleteProposalTemplate, fetchProposalTemplates, updateProposalTemplate, type ProposalTemplate } from "@/lib/api";
 import { inputClass, labelClass } from "./constants";
 
@@ -77,7 +77,7 @@ export function TemplatesModal({ onClose }: { onClose: () => void }) {
               <input value={editing.durationText ?? ""} onChange={(e) => setEditing({ ...editing, durationText: e.target.value || null })} className={inputClass} />
             </label>
             <label className="flex flex-col gap-1.5">
-              <span className={labelClass}>مبلغ (تومان)</span>
+              <span className={labelClass}>مبلغ ({moneyUnit()})</span>
               <input type="number" min={0} value={editing.amount} onChange={(e) => setEditing({ ...editing, amount: Math.max(0, Number(e.target.value) || 0) })} className={inputClass} />
             </label>
             <label className="flex flex-col gap-1.5">
@@ -109,7 +109,7 @@ export function TemplatesModal({ onClose }: { onClose: () => void }) {
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-bold truncate">{t.name}</div>
                 <div className="text-[11.5px] text-muted truncate">
-                  {t.title} · {formatToman(t.amount)} · {formatJalaliDate(t.updatedAt)}
+                  {t.title} · {formatMoney(t.amount)} · {formatJalaliDate(t.updatedAt)}
                 </div>
               </div>
               <button onClick={() => setEditing(t)} className="text-[12px] font-bold text-primary cursor-pointer">ویرایش</button>

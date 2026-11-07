@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -25,7 +26,7 @@ export class StockImportController {
   @Get('template')
   async template(@Ctx() ctx: TenantRequestContext, @Res() res: Response) {
     await this.permissions.assertView(ctx, 'warehouse');
-    const buffer = await this.imports.template();
+    const buffer = await this.imports.template(await loadUnitLabel(ctx.tenantDb));
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="opening-stock-template.xlsx"');
     res.send(buffer);

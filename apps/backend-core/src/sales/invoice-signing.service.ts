@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -165,13 +166,14 @@ export class InvoiceSigningService implements OnModuleInit {
     // امضای قدیمیِ بی‌اعتبارشده پاک می‌شود تا وضعیت «امضاشده» کاذب نماند
     if (invoice.signedAt) await this.clearSignature(ctx, invoiceId, 'محتوای فاکتور پس از امضا تغییر کرده بود', me);
 
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const summaryNote = dto.note?.trim() ? ` — ${dto.note.trim().slice(0, 300)}` : '';
     const request = await this.approvals.request(ctx, {
       moduleCode: SALES_MODULE,
       entityType: SIGN_ENTITY_TYPE,
       entityId: invoiceId,
       title: `درخواست امضای فاکتور ${invoice.invoiceNo}`,
-      summary: `${invoice.contact?.company || invoice.contact?.name || ''} — ${invoice.total.toLocaleString('en-US')} تومان${summaryNote}`,
+      summary: `${invoice.contact?.company || invoice.contact?.name || ''} — ${invoice.total.toLocaleString('en-US')} ${unit}${summaryNote}`,
       link: `/sales?open=${invoiceId}`,
       isOfficial: true, // کارتابل گزینه‌ی «تأیید با مهر و امضای شرکت» را نشان می‌دهد
       requestedByUserId: me ?? undefined,
@@ -290,6 +292,7 @@ export class InvoiceSigningService implements OnModuleInit {
 
   private async describe(ctx: TenantRequestContext, id: string) {
     const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: { contact: true, lines: true } });
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const images = await this.stamp.getStamp(ctx);
     return {
       fields: [
@@ -297,9 +300,9 @@ export class InvoiceSigningService implements OnModuleInit {
         { label: 'وضعیت فاکتور', value: inv.status === 'DRAFT' ? 'پیش‌نویس — امضا پیش از صدور' : inv.status === 'CANCELLED' ? 'باطل‌شده' : 'صادرشده' },
         { label: 'مشتری', value: `${inv.contact.company || inv.contact.name}${inv.contact.phone ? ` — ${inv.contact.phone}` : ''}` },
         { label: 'اقلام', value: inv.lines.map((l) => `${l.description} × ${l.quantity} @ ${l.unitPrice.toLocaleString('en-US')}`).join('\n') },
-        { label: 'تخفیف', value: `${inv.discount.toLocaleString('en-US')} تومان` },
-        { label: 'مالیات', value: `${inv.taxAmount.toLocaleString('en-US')} تومان` },
-        { label: 'مبلغ نهایی', value: `${inv.total.toLocaleString('en-US')} تومان` },
+        { label: 'تخفیف', value: `${inv.discount.toLocaleString('en-US')} ${unit}` },
+        { label: 'مالیات', value: `${inv.taxAmount.toLocaleString('en-US')} ${unit}` },
+        { label: 'مبلغ نهایی', value: `${inv.total.toLocaleString('en-US')} ${unit}` },
         { label: 'یادداشت', value: inv.notes ?? '—' },
         { label: 'گزینه‌های تصمیم', value: `فقط «تأیید با امضا»${images.stampImage ? ' یا «تأیید با مهر و امضای شرکت»' : ''} یا «رد با دلیل» — از تصاویر ثبت‌شده در تنظیمات عمومی استفاده می‌شود` },
       ],

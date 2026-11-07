@@ -9,13 +9,17 @@ import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useWorkspace } from "@/lib/workspace-context";
-import { toPersianDigits, formatJalaliDateTime, formatJalaliDate, formatToman } from "@/lib/persian";
+import { useModuleCan } from "@/hooks/useModuleCan";
+import { toPersianDigits, formatJalaliDateTime, formatJalaliDate, formatMoney, moneyUnit } from "@/lib/persian";
 import {
   fetchApplicant,
   specialistDecision,
   managementDecision,
   hireApplicant,
   scheduleInterview,
+  updateInterview,
+  cancelInterview,
+  updateApplicant,
   recordInterviewReport,
   createOrUpdateOffer,
   sendOffer,
@@ -58,6 +62,59 @@ const STAGE_TONES: Record<ApplicantStage, "neutral" | "success" | "warning" | "d
   MANAGEMENT_REJECTED: "danger",
   HIRED: "success",
 };
+
+function ApplicantEditPanel({ applicant, onSaved }: { applicant: JobApplicant; onSaved: () => void }) {
+  const can = useModuleCan("recruitment");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(applicant.name);
+  const [phone, setPhone] = useState(applicant.phone);
+  const [education, setEducation] = useState(applicant.educationField ?? "");
+  const [skills, setSkills] = useState(applicant.skillTags.join("، "));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!can.canEdit) return null;
+  const input = "w-full min-h-10 text-[16px] sm:text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2 focus:border-primary";
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((v) => !v)} className="text-[12px] font-bold text-primary min-h-10 cursor-pointer">
+        {open ? "بستن ویرایش" : "ویرایش اطلاعات متقاضی"}
+      </button>
+      {open ? (
+        <form
+          className="flex flex-col gap-2 border border-border rounded-xl p-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setError(null);
+            try {
+              await updateApplicant(applicant.id, {
+                name: name.trim(),
+                phone: phone.trim(),
+                educationField: education.trim() || undefined,
+                skillTags: skills.split(/[،,]/).map((x) => x.trim()).filter(Boolean),
+              });
+              setOpen(false);
+              onSaved();
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : "ذخیره ناموفق بود");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className={input} />
+          <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="شماره تماس" dir="ltr" inputMode="tel" className={input} />
+          <input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="رشته‌ی تحصیلی" className={input} />
+          <input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="تخصص‌ها (با ویرگول جدا کنید)" className={input} />
+          {error ? <div className="text-[12px] text-danger">{error}</div> : null}
+          <button type="submit" disabled={busy || name.trim().length < 2 || phone.trim().length < 10} className="min-h-10 rounded-lg bg-primary text-white text-[12.5px] font-bold cursor-pointer disabled:opacity-50">
+            {busy ? "در حال ذخیره..." : "ذخیره"}
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
 
 export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const { me } = useWorkspace();
@@ -108,6 +165,8 @@ export function ApplicantDetailModal({ id, onClose, onChanged }: { id: string; o
             {applicant.skillTags.length > 0 ? applicant.skillTags.map((t) => <Badge key={t} tone="neutral">{t}</Badge>) : "—"}
           </div>
         </div>
+
+        <ApplicantEditPanel applicant={applicant} onSaved={afterAction} />
 
         {applicant.resumeFile && (
           <a href={applicant.resumeFile} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-primary">
@@ -252,6 +311,9 @@ function InterviewsSection({
   const [interviewerUserId, setInterviewerUserId] = useState("");
   const [location, setLocation] = useState("");
   const [reportingId, setReportingId] = useState<string | null>(null);
+  const can = useModuleCan("recruitment");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [newTime, setNewTime] = useState("");
 
   useEffect(() => {
     if (!scheduling) return;
@@ -365,9 +427,61 @@ function InterviewsSection({
               )}
               {iv.overallNote && <div className="text-[11.5px] text-muted mt-1">{iv.overallNote}</div>}
               {iv.status === "SCHEDULED" && (
-                <button onClick={() => setReportingId(reportingId === iv.id ? null : iv.id)} className="text-[11.5px] font-bold text-primary mt-1.5 cursor-pointer">
-                  ثبت گزارش مصاحبه
-                </button>
+                <div className="flex items-center gap-3 flex-wrap mt-1.5">
+                  <button onClick={() => setReportingId(reportingId === iv.id ? null : iv.id)} className="text-[11.5px] font-bold text-primary min-h-10 cursor-pointer">
+                    ثبت گزارش مصاحبه
+                  </button>
+                  {can.canEdit ? (
+                    <>
+                      <button onClick={() => { setReschedulingId(reschedulingId === iv.id ? null : iv.id); setNewTime(""); }} className="text-[11.5px] font-bold text-ink-soft min-h-10 cursor-pointer">
+                        تغییر زمان
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={async () => {
+                          if (!window.confirm("این مصاحبه لغو شود؟")) return;
+                          setBusy(true);
+                          setError(null);
+                          try {
+                            await cancelInterview(iv.id);
+                            onScheduled();
+                          } catch (err) {
+                            setError(err instanceof ApiError ? err.message : "لغو مصاحبه ناموفق بود");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                        className="text-[11.5px] font-bold text-danger min-h-10 cursor-pointer disabled:opacity-50"
+                      >
+                        لغو مصاحبه
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              )}
+              {reschedulingId === iv.id && (
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <JalaliDateTimeInput value={newTime} onChange={setNewTime} placeholder="زمان جدید" />
+                  <button
+                    disabled={busy || !newTime}
+                    onClick={async () => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        await updateInterview(iv.id, { scheduledAt: new Date(newTime).toISOString() });
+                        setReschedulingId(null);
+                        onScheduled();
+                      } catch (err) {
+                        setError(err instanceof ApiError ? err.message : "تغییر زمان ناموفق بود");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className="min-h-10 px-3 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    ثبت زمان جدید
+                  </button>
+                </div>
               )}
               {reportingId === iv.id && (
                 <InterviewReportForm
@@ -579,7 +693,7 @@ function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onCha
                 ))}
               </select>
             </LabeledField>
-            <LabeledField label="حقوق ماهانه (تومان)">
+            <LabeledField label={`حقوق ماهانه (${moneyUnit()})`}>
               <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} className={FIELD} />
             </LabeledField>
           </div>
@@ -615,7 +729,7 @@ function OfferSection({ applicant, onChanged }: { applicant: JobApplicant; onCha
         <div className="flex flex-col gap-2">
           <div className="text-[12.5px]">{offer.jobDescription}</div>
           <div className="text-[12px] text-muted">
-            {offer.collaborationType} · {formatToman(offer.salary)}
+            {offer.collaborationType} · {formatMoney(offer.salary)}
             {offer.workingHours ? ` · ساعت حضور روزانه: ${offer.workingHours}` : ""}
             {offer.startDate ? ` · شروع: ${formatJalaliDate(offer.startDate)}` : ""}
           </div>

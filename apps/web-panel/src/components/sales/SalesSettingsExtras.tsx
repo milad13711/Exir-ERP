@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   ApiError,
   fetchAccountingBackfillPreview,
@@ -97,8 +97,8 @@ function AccountingBackfill() {
       ) : (
         <>
           <div className="text-[12px] leading-6">
-            {toPersianDigits(preview.invoices.count)} فاکتور ({formatToman(preview.invoices.total)})
-            {preview.invoices.from && preview.invoices.to ? ` از ${formatJalaliDate(new Date(preview.invoices.from))} تا ${formatJalaliDate(new Date(preview.invoices.to))}` : ""}، {toPersianDigits(preview.payments.count)} پرداخت ({formatToman(preview.payments.total)})، {toPersianDigits(preview.returns.count)} مرجوعی
+            {toPersianDigits(preview.invoices.count)} فاکتور ({formatMoney(preview.invoices.total)})
+            {preview.invoices.from && preview.invoices.to ? ` از ${formatJalaliDate(new Date(preview.invoices.from))} تا ${formatJalaliDate(new Date(preview.invoices.to))}` : ""}، {toPersianDigits(preview.payments.count)} پرداخت ({formatMoney(preview.payments.total)})، {toPersianDigits(preview.returns.count)} مرجوعی
           </div>
           {preview.blockedCount > 0 ? (
             <div className="text-[11.5px] text-warning bg-warning-soft rounded-lg px-3 py-2 leading-6">

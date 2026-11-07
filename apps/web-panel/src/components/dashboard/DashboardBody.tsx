@@ -6,6 +6,7 @@ import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { PencilIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
 import { fetchDashboardLayout, type DashboardMyLayout, type DashboardWidgetSize } from "@/lib/api";
+import { AttentionCard } from "@/components/notifications/AttentionCard";
 import { DashboardEditor } from "@/components/dashboard/DashboardEditor";
 import { DashboardSummaryProvider, SUMMARY_WIDGET_KEYS, WIDGET_RENDERERS } from "@/components/dashboard/DashboardWidgets";
 
@@ -72,6 +73,8 @@ export function DashboardBody() {
           </button>
         ) : null}
       </div>
+
+      <AttentionCard />
 
       {failed ? (
         <div className="rounded-2xl border border-border bg-surface p-6 text-center text-sm text-muted">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { setPurchaseApprovalThreshold, ApiError } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 export function ApprovalThresholdModal({
   currentThreshold,
@@ -47,7 +48,7 @@ export function ApprovalThresholdModal({
 
         {enabled ? (
           <div>
-            <label className="text-[12px] text-muted mb-1.5 block">آستانه‌ی مبلغ (تومان)</label>
+            <label className="text-[12px] text-muted mb-1.5 block">آستانه‌ی مبلغ ({moneyUnit()})</label>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}

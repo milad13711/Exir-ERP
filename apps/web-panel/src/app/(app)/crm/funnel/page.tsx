@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { CurrencyIcon, ClockIcon, WarningIcon, StarIcon, CloseIcon, SettingsIcon } from "@/components/icons";
-import { toPersianDigits, formatJalaliDate } from "@/lib/persian";
+import { toPersianDigits, formatJalaliDate, moneyUnit } from "@/lib/persian";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { StageLabelsModal } from "@/components/crm/StageLabelsModal";
 import { FunnelStageBadge, FunnelStageControls } from "@/components/crm/FunnelStageControls";
@@ -79,7 +79,7 @@ export default function FunnelPage() {
           <KpiCard
             label="میانگین هزینه‌ی جذب سرنخ"
             value={kpis.avgAcquisitionCost ?? 0}
-            unitSuffix="تومان"
+            unitSuffix={moneyUnit()}
             tone="accent"
             icon={<CurrencyIcon />}
           />

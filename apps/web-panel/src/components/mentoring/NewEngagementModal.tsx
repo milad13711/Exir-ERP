@@ -16,6 +16,7 @@ import {
   type MentoringEngagement,
   type MentoringPricingModel,
 } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -190,7 +191,7 @@ export function NewEngagementModal({
 
         {pricingModel === "HOURLY" && (
           <div>
-            <label className={labelClass}>نرخ ساعتی (تومان)</label>
+            <label className={labelClass}>نرخ ساعتی ({moneyUnit()})</label>
             <input
               value={hourlyRate}
               onChange={(e) => setHourlyRate(e.target.value.replace(/[^0-9]/g, ""))}
@@ -211,7 +212,7 @@ export function NewEngagementModal({
               />
             </div>
             <div className="flex-1">
-              <label className={labelClass}>قیمت کل بسته (تومان)</label>
+              <label className={labelClass}>قیمت کل بسته ({moneyUnit()})</label>
               <input
                 value={packagePrice}
                 onChange={(e) => setPackagePrice(e.target.value.replace(/[^0-9]/g, ""))}
@@ -223,7 +224,7 @@ export function NewEngagementModal({
         )}
         {pricingModel === "SUBSCRIPTION" && (
           <div>
-            <label className={labelClass}>مبلغ اشتراک ماهانه (تومان)</label>
+            <label className={labelClass}>مبلغ اشتراک ماهانه ({moneyUnit()})</label>
             <input
               value={subscriptionMonthlyPrice}
               onChange={(e) => setSubscriptionMonthlyPrice(e.target.value.replace(/[^0-9]/g, ""))}

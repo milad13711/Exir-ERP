@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckIcon, ChevronDownIcon, TrashIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import { placePublicStoreOrder, trackPublicStoreEvent, ApiError } from "@/lib/api";
 import { getSessionToken, getCart, setCartQuantity, removeFromCart, clearCart, cartTotal, type Cart } from "@/lib/store-cart";
 
@@ -106,7 +106,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
                 <div key={l.productId} className="flex items-center gap-3 border border-border rounded-2xl p-3.5">
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-bold truncate">{l.name}</div>
-                    <div className="text-[12px] text-muted mt-0.5">{formatToman(l.price)}</div>
+                    <div className="text-[12px] text-muted mt-0.5">{formatMoney(l.price)}</div>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-2.5 py-1.5 shrink-0">
                     <button
@@ -123,7 +123,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
                       −
                     </button>
                   </div>
-                  <div className="text-[13px] font-extrabold w-24 text-left shrink-0">{formatToman(l.price * l.quantity)}</div>
+                  <div className="text-[13px] font-extrabold w-24 text-left shrink-0">{formatMoney(l.price * l.quantity)}</div>
                   <button
                     onClick={() => setCart(removeFromCart(slug, l.productId))}
                     className="text-muted hover:text-danger cursor-pointer shrink-0"
@@ -136,7 +136,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
 
             <div className="flex items-center justify-between text-[15px] font-extrabold pt-3 border-t border-border">
               <span>جمع کل</span>
-              <span>{formatToman(total)}</span>
+              <span>{formatMoney(total)}</span>
             </div>
 
             <button
@@ -150,7 +150,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between text-[13px] font-bold">
               <span>{toPersianDigits(lines.length)} قلم کالا</span>
-              <span>{formatToman(total)}</span>
+              <span>{formatMoney(total)}</span>
             </div>
 
             <div>

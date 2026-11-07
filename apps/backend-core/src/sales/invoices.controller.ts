@@ -1,4 +1,6 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { assertRelationsAllowed } from '../referrals/grant-edit.js';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Request, Response } from 'express';
 import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
 import type { ClientSignatureEvidenceDto } from '../common/signature-evidence/signature-evidence.dto.js';
@@ -45,13 +47,19 @@ export class InvoicesController {
     return scope;
   }
 
+  /** دامنه‌ی فقط-خواندن: دید عادی + سند ارجاع‌شده/وظیفه‌ی پیوندخورده به کاربر. */
+  private async assertInvoiceReadScope(ctx: TenantRequestContext, id: string) {
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesInvoice');
+    await assertInScope(ctx.tenantDb.salesInvoice, scope, { id }, { message: 'فاکتور یافت نشد' });
+  }
+
   @Get()
   async list(
     @Query('contactId') contactId: string | undefined,
     @Query('q') q: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesInvoice');
     return this.invoices.list(ctx, contactId ? { ...scope, contactId } : scope, q);
   }
 
@@ -111,7 +119,7 @@ export class InvoicesController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesInvoice');
     return this.invoices.detail(ctx, id, scope);
   }
 
@@ -123,8 +131,17 @@ export class InvoicesController {
 
   @Put(':id')
   async updateDraft(@Param('id') id: string, @Body() dto: CreateInvoiceDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'sales');
-    await this.assertInvoiceInScope(ctx, id);
+    // ارجاع فعال/وظیفه‌ی باز: ویرایش همین یک فاکتور (قواعد وضعیت — فقط پیش‌نویس — در سرویس اعمال می‌شود)
+    if (await this.permissions.hasEditGrant(ctx, 'SalesInvoice', id)) {
+      const existing = await ctx.tenantDb.salesInvoice.findUnique({ where: { id }, select: { contactId: true, dealId: true } });
+      if (!existing) throw new NotFoundException('فاکتور یافت نشد');
+      await assertRelationsAllowed(this.permissions, ctx, dto, existing);
+      // «اصلاح/ابطال امضا» و رسمی‌شدن تصمیم مالی است، نه ویرایش محتوا
+      dto = { ...dto, acknowledgeSignatureInvalidation: undefined };
+    } else {
+      await this.permissions.assertEdit(ctx, 'sales');
+      await this.assertInvoiceInScope(ctx, id);
+    }
     return this.invoices.updateDraft(ctx, id, dto);
   }
 
@@ -143,7 +160,7 @@ export class InvoicesController {
 
   @Get(':id/revisions')
   async revisions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesInvoice');
     return this.invoices.revisions(ctx, id, scope);
   }
 
@@ -215,7 +232,7 @@ export class InvoicesController {
   /** وضعیت امضای داخلی فاکتور: سیاست، امضاکنندگان مجاز، درخواست در انتظار، آخرین رد، کهنه‌بودن امضا. */
   @Get(':id/signing')
   async signingState(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.assertInvoiceInScope(ctx, id);
+    await this.assertInvoiceReadScope(ctx, id);
     return this.signing.state(ctx, id);
   }
 
@@ -277,7 +294,7 @@ export class InvoicesController {
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesInvoice');
     const invoice = await this.invoices.detail(ctx, id, scope);
     const [settingsRows, tenant] = await Promise.all([
       ctx.tenantDb.moduleSetting.findMany({ where: { moduleCode: GENERAL_SETTINGS_MODULE } }),
@@ -285,8 +302,10 @@ export class InvoicesController {
     ]);
     const byKey = Object.fromEntries(settingsRows.map((r) => [r.key, r.value as string]));
 
+    const unitLabel = await loadUnitLabel(ctx.tenantDb);
     const pdf = await this.pdf.render(
       {
+        unitLabel,
         invoiceNo: invoice.invoiceNo,
         officialInvoiceNo: invoice.officialInvoiceNo,
         status: invoice.status,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../../common/guards/module.guard.js';
 import { RequireModule } from '../../common/decorators/require-module.decorator.js';
@@ -7,6 +7,7 @@ import type { TenantRequestContext } from '../../common/request-context.js';
 import { PermissionsService } from '../../permissions/permissions.service.js';
 import type { PeriodQuery } from '../periods/jalali-periods.js';
 import { BankingService } from './banking.service.js';
+import { BankingLifecycleService } from './banking-lifecycle.service.js';
 import {
   CreateBankAccountDto,
   CreateBankTransactionDto,
@@ -30,6 +31,7 @@ export class BankingController {
   constructor(
     private readonly permissions: PermissionsService,
     private readonly banking: BankingService,
+    private readonly lifecycle: BankingLifecycleService,
   ) {}
 
   // ── حساب‌های بانکی ──
@@ -49,6 +51,13 @@ export class BankingController {
   async updateBank(@Param('id') id: string, @Body() dto: UpdateBankAccountDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
     return this.banking.updateBank(ctx, id, dto);
+  }
+
+  /** حذف قطعی فقط برای حساب بی‌سابقه؛ در غیر این صورت ۴۰۹ و باید غیرفعال شود. */
+  @Delete('banks/:id')
+  async deleteBank(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'accounting');
+    return this.lifecycle.deleteBank(ctx, id);
   }
 
   @Get('banks/:id/statement')
@@ -86,6 +95,12 @@ export class BankingController {
   async updateCashBox(@Param('id') id: string, @Body() dto: UpdateCashBoxDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
     return this.banking.updateCashBox(ctx, id, dto);
+  }
+
+  @Delete('cash-boxes/:id')
+  async deleteCashBox(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'accounting');
+    return this.lifecycle.deleteCashBox(ctx, id);
   }
 
   @Get('cash-boxes/:id/statement')
@@ -152,6 +167,12 @@ export class BankingController {
   async updateChequeBook(@Param('id') id: string, @Body() dto: UpdateChequeBookDto, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertEdit(ctx, 'accounting');
     return this.banking.updateChequeBook(ctx, id, dto);
+  }
+
+  @Delete('cheque-books/:id')
+  async deleteChequeBook(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'accounting');
+    return this.lifecycle.deleteChequeBook(ctx, id);
   }
 
   @Post('cheque-leaves/:id/status')

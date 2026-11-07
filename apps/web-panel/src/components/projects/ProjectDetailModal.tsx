@@ -1,3 +1,4 @@
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -10,7 +11,7 @@ import { ProjectNotesSection } from "@/components/projects/ProjectNotesSection";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { StageDetailsPanel } from "@/components/projects/StageDetailsPanel";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import { NewProjectModal } from "@/components/projects/NewProjectModal";
 import { NewInvoiceModal } from "@/components/sales/NewInvoiceModal";
 import {
@@ -225,6 +226,7 @@ export function ProjectDetailModal({
   return (
     <Modal title={`پروژه شماره ${project.projectNo}`} onClose={onClose} width="max-w-[560px]">
       <div className="flex flex-col gap-4">
+          <ReferralPanel entityType="Project" entityId={project.id} />
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[15px] font-bold">{project.name}</div>
@@ -271,7 +273,7 @@ export function ProjectDetailModal({
           {project.budget != null && (
             <div className="bg-slate-50 rounded-xl p-3">
               <div className="text-[11px] text-muted mb-1">بودجه</div>
-              <div className="text-[13.5px] font-extrabold">{formatToman(project.budget)}</div>
+              <div className="text-[13.5px] font-extrabold">{formatMoney(project.budget)}</div>
             </div>
           )}
           {project.manager && (

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, TrashIcon } from "@/components/icons";
-import { fetchDrivers, createDriver, updateDriver, deactivateDriver, type Driver } from "@/lib/api";
+import { MasterDeleteDialog } from "@/components/production/MasterDeleteDialog";
+import { useModuleCan } from "@/hooks/useModuleCan";
+import { fetchDrivers, createDriver, updateDriver, deleteDriver, archiveDriver, restoreDriver, fetchDriverUsage, type Driver } from "@/lib/api";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const inputClass =
@@ -110,6 +112,10 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const can = useModuleCan("fleet");
+  const [filter, setFilter] = useState<"active" | "archived">("active");
+  const [deleteTarget, setDeleteTarget] = useState<{ driver: Driver; usage: number } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function reload() {
     fetchDrivers().then(setDrivers).catch(() => setDrivers([]));
@@ -130,13 +136,28 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
     onChanged();
   }
 
-  async function handleDeactivate(id: string) {
-    if (!window.confirm("این راننده غیرفعال شود؟")) return;
-    setBusyId(id);
+  async function openDelete(d: Driver) {
+    setBusyId(d.id);
+    setActionError(null);
     try {
-      await deactivateDriver(id);
+      const u = await fetchDriverUsage(d.id);
+      setDeleteTarget({ driver: d, usage: u.total });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "بررسی سوابق راننده ناموفق بود");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRestore(id: string) {
+    setBusyId(id);
+    setActionError(null);
+    try {
+      await restoreDriver(id);
       reload();
       onChanged();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "بازیابی ناموفق بود");
     } finally {
       setBusyId(null);
     }
@@ -145,6 +166,7 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
   return (
     <Modal title="راننده‌ها" onClose={onClose} width="max-w-[600px]">
       <div className="flex flex-col gap-4">
+        {can.canCreate ? (
         <button
           type="button"
           onClick={() => setAddOpen((v) => !v)}
@@ -153,6 +175,21 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
           <PlusIcon className="w-3.5 h-3.5" />
           راننده جدید
         </button>
+        ) : null}
+
+        <div className="flex items-center gap-2">
+          {(["active", "archived"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`text-[12px] font-semibold px-3.5 min-h-10 rounded-[10px] border cursor-pointer ${filter === f ? "bg-primary text-white border-primary" : "bg-surface border-border text-ink-soft"}`}
+            >
+              {f === "active" ? "فعال" : "بایگانی"}
+            </button>
+          ))}
+        </div>
+        {actionError ? <div className="text-[12px] text-danger font-semibold">{actionError}</div> : null}
 
         {addOpen ? <DriverForm onSave={handleCreate} onCancel={() => setAddOpen(false)} /> : null}
 
@@ -171,10 +208,10 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
         <div className="flex flex-col gap-2 max-h-[440px] overflow-y-auto">
           {drivers === null ? (
             <div className="py-8 text-center text-muted text-sm">در حال بارگذاری...</div>
-          ) : drivers.length === 0 ? (
-            <div className="py-8 text-center text-muted text-sm">راننده‌ای ثبت نشده</div>
+          ) : drivers.filter((d) => (filter === "active" ? d.isActive : !d.isActive)).length === 0 ? (
+            <div className="py-8 text-center text-muted text-sm">{filter === "active" ? "راننده‌ی فعالی ثبت نشده" : "راننده‌ی بایگانی‌شده‌ای وجود ندارد"}</div>
           ) : (
-            drivers.map((d) =>
+            drivers.filter((d) => (filter === "active" ? d.isActive : !d.isActive)).map((d) =>
               editingId === d.id ? (
                 <DriverForm key={d.id} initial={d} onSave={(data) => handleUpdate(d.id, data)} onCancel={() => setEditingId(null)} />
               ) : (
@@ -194,24 +231,36 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(d.id)}
-                      className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
-                    >
-                      ویرایش
-                    </button>
-                    {d.isActive && (
+                    {can.canEdit ? (
                       <button
                         type="button"
-                        onClick={() => handleDeactivate(d.id)}
-                        disabled={busyId === d.id}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer disabled:opacity-50"
-                        aria-label="غیرفعال‌سازی"
+                        onClick={() => setEditingId(d.id)}
+                        className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 min-h-10 rounded-lg cursor-pointer"
                       >
-                        <TrashIcon className="w-3.5 h-3.5" />
+                        ویرایش
                       </button>
-                    )}
+                    ) : null}
+                    {!d.isActive && can.canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => handleRestore(d.id)}
+                        disabled={busyId === d.id}
+                        className="text-[11px] font-bold text-success bg-success-soft px-2.5 min-h-10 rounded-lg cursor-pointer disabled:opacity-50"
+                      >
+                        بازیابی
+                      </button>
+                    ) : null}
+                    {can.canDelete || can.canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => openDelete(d)}
+                        disabled={busyId === d.id}
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-muted hover:bg-danger-soft hover:text-danger cursor-pointer disabled:opacity-50"
+                        aria-label="حذف"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ),
@@ -219,6 +268,21 @@ export function DriversModal({ onClose, onChanged }: { onClose: () => void; onCh
           )}
         </div>
       </div>
+      {deleteTarget ? (
+        <MasterDeleteDialog
+          title={deleteTarget.driver.name}
+          usageCount={deleteTarget.usage}
+          usageNoun="بار و پیشنهاد بار"
+          canDelete={can.canDelete}
+          onDelete={() => deleteDriver(deleteTarget.driver.id)}
+          onArchive={() => archiveDriver(deleteTarget.driver.id)}
+          onClose={() => setDeleteTarget(null)}
+          onDone={() => {
+            reload();
+            onChanged();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

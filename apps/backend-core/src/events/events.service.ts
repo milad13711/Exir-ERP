@@ -175,6 +175,27 @@ export class EventsService {
     });
   }
 
+  /**
+   * حذف قطعی رویداد فقط وقتی هیچ رزرو/بلیطی ندارد (پیش‌نویس یا لغوشده‌ی بی‌سابقه)؛ وگرنه «لغو» —
+   * رزروها و بلیط‌های صادرشده سابقه‌ی مالی/مشتری‌اند.
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.event.findUnique({ where: { id }, select: { id: true, status: true } });
+    if (!existing) throw new NotFoundException('این رویداد یافت نشد');
+    const [bookings, tickets] = await Promise.all([
+      ctx.tenantDb.eventBooking.count({ where: { eventId: id } }),
+      ctx.tenantDb.eventTicket.count({ where: { eventId: id } }),
+    ]);
+    if (bookings > 0 || tickets > 0) {
+      throw new ConflictException(`این رویداد ${bookings} رزرو و ${tickets} بلیط دارد و حذف نمی‌شود. به‌جای حذف آن را لغو کنید.`);
+    }
+    if (existing.status === 'PUBLISHED') {
+      throw new ConflictException('رویداد منتشرشده را ابتدا به پیش‌نویس برگردانید یا لغو کنید');
+    }
+    await ctx.tenantDb.event.delete({ where: { id } }); // انواع بلیط cascade
+    return { ok: true };
+  }
+
   async setStatus(ctx: TenantRequestContext, id: string, status: 'PUBLISHED' | 'CANCELLED' | 'DRAFT') {
     const existing = await ctx.tenantDb.event.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('این رویداد یافت نشد');

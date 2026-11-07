@@ -131,14 +131,15 @@ export function planOpeningStockImport(
     else if (!Number.isInteger(qty)) messages.push('تعداد باید عدد صحیح باشد');
     else quantity = qty;
 
-    const cost = parseCellNumber(raw['بهای واحد (تومان)']);
+    // عنوان ستون به ارز پایه‌ی تننت بستگی دارد؛ هر دو برچسب (و بدون پرانتز) پذیرفته می‌شود
+    const cost = parseCellNumber(raw['بهای واحد (تومان)'] ?? raw['بهای واحد (ریال)'] ?? raw['بهای واحد']);
     let unitCost: number | null = null;
     if (cost === null) {
       unitCost = product && product.costPrice > 0 ? product.costPrice : null;
       warnings.push(unitCost ? 'بهای واحد خالی بود؛ از بهای فعلی کالا استفاده شد' : 'بهای واحد ندارد — ارزش موجودی صفر ثبت می‌شود');
     } else if (Number.isNaN(cost)) messages.push('بهای واحد عدد معتبر نیست');
     else if (cost < 0) messages.push('بهای واحد منفی است');
-    else if (!Number.isInteger(cost)) messages.push('بهای واحد باید عدد صحیح (تومان) باشد');
+    else if (!Number.isInteger(cost)) messages.push('بهای واحد باید عدد صحیح باشد');
     else unitCost = cost;
 
     // ── تکراری بودن ──

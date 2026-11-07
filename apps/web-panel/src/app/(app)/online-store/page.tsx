@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { StoreIcon, SendIcon, SettingsIcon, StarIcon, CheckIcon, CloseIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
-import { formatToman, toPersianDigits, formatJalaliDateTime } from "@/lib/persian";
+import { formatMoney, toPersianDigits, formatJalaliDateTime, moneyUnit } from "@/lib/persian";
 import {
   fetchStoreAnalyticsSummary,
   fetchStoreOrders,
@@ -119,7 +119,7 @@ export default function OnlineStorePage() {
                 <KpiCard label={`بازدید (${toPersianDigits(summary.periodDays)} روز اخیر)`} value={summary.uniqueVisitors} unit="نفر" tone="primary" icon={<StoreIcon className="w-4 h-4" />} />
                 <KpiCard label="سفارش ثبت‌شده" value={summary.totalOrders} unit="سفارش" tone="accent" icon={<StoreIcon className="w-4 h-4" />} />
                 <KpiCard label="سبد خرید رهاشده" value={summary.abandonedCarts} unit="سبد" tone="warning" icon={<StoreIcon className="w-4 h-4" />} />
-                <KpiCard label="فروش (بدون لغوشده‌ها)" value={summary.revenue} unitSuffix="تومان" tone="success" icon={<StoreIcon className="w-4 h-4" />} />
+                <KpiCard label="فروش (بدون لغوشده‌ها)" value={summary.revenue} unitSuffix={moneyUnit()} tone="success" icon={<StoreIcon className="w-4 h-4" />} />
               </div>
 
               <Card className="p-5">
@@ -189,7 +189,7 @@ export default function OnlineStorePage() {
                     {formatJalaliDateTime(o.createdAt)} · {toPersianDigits(o.lines.length)} قلم
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold">{formatToman(o.subtotal)}</div>
+                <div className="text-[13px] font-extrabold">{formatMoney(o.subtotal)}</div>
                 <Badge tone={STORE_ORDER_STATUS_TONES[o.status]}>{STORE_ORDER_STATUS_LABELS[o.status]}</Badge>
               </button>
             ))
@@ -226,7 +226,7 @@ export default function OnlineStorePage() {
                     </div>
                   </div>
                   <div className="text-[12px] text-muted shrink-0">موجود: {toPersianDigits(p.available)}</div>
-                  <div className="text-[13px] font-extrabold w-[130px] text-left shrink-0">{formatToman(p.salePrice)}</div>
+                  <div className="text-[13px] font-extrabold w-[130px] text-left shrink-0">{formatMoney(p.salePrice)}</div>
                   <SettingsIcon className="w-4 h-4 text-muted shrink-0" />
                 </button>
               ))

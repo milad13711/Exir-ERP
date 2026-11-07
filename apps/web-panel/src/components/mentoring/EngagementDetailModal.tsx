@@ -4,7 +4,7 @@ import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, StarIcon, PencilIcon, TrashIcon } from "@/components/icons";
-import { formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, moneyUnit } from "@/lib/persian";
 import {
   fetchMentoringEngagement,
   updateMentoringEngagement,
@@ -152,7 +152,7 @@ function SessionRow({ session, engagement, onChanged }: { session: MentoringSess
         <div className="mt-3">
           {invoiceOpen ? (
             <div className="flex items-center gap-2">
-              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" placeholder="مبلغ (تومان)" className={`${inputClass} flex-1`} />
+              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" placeholder={`مبلغ (${moneyUnit()})`} className={`${inputClass} flex-1`} />
               <button disabled={busy || !amount} onClick={submitInvoice} className="text-[11.5px] font-bold px-3 py-2 rounded-lg bg-primary text-white cursor-pointer disabled:opacity-50">
                 صدور فاکتور
               </button>
@@ -369,7 +369,7 @@ export function EngagementDetailModal({ engagementId, onClose, onChanged }: { en
         </div>
 
         {engagement.pricingModel === "PACKAGE" && engagement.packagePrice != null && (
-          <div className="text-[12px] text-muted">قیمت بسته: {formatToman(engagement.packagePrice)}</div>
+          <div className="text-[12px] text-muted">قیمت بسته: {formatMoney(engagement.packagePrice)}</div>
         )}
         {(engagement.contract || engagement.project || engagement.notes) && (
           <div className="flex flex-col gap-1 text-[12px] text-muted">

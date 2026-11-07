@@ -47,6 +47,7 @@ model User {
   stockMovements                 StockMovement[]
   reviewedLeaveRequests          LeaveRequest[]
   notifications                  Notification[]
+  moduleReleaseReads             ModuleReleaseRead[]
   notificationPreference         NotificationPreference?
   createdInvoices                SalesInvoice[]
   signedInvoices                 SalesInvoice[]              @relation("SalesInvoiceSigner")
@@ -543,10 +544,15 @@ model Notification {
   /// اولین باری که اعلان به دستگاه کاربر رسید (پوش/درون‌برنامه/سوکت)
   deliveredAt  DateTime?
   deliveredVia String?
+  /// اعلان «نیازمند اقدام» (ارجاع/تأیید/وظیفه‌ی ارجاع‌شده/امضا…): در بنر «نیاز به توجه شما»، توست چسبنده و یادآوری مجدد استفاده می‌شود
+  important    Boolean   @default(false)
+  /// زمان ارسال یادآوری مجدد برای این اعلان (حداکثر یک‌بار؛ ادعای اتمیک برای idempotency کرون)
+  remindedAt   DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, readAt, important])
   @@index([entityType, entityId])
   @@map("notifications")
 }
@@ -583,6 +589,11 @@ model NotificationPreference {
   quietEnd           String  @default("07:00")
   /// اگر پوش برای اعلان مهم نرسید، یک پیامک جایگزین (با سقف روزانه)
   smsFallbackEnabled Boolean @default(false)
+  /// نمایش توست/بنر زنده هنگام رسیدن اعلان جدید در برنامه
+  toastEnabled       Boolean @default(true)
+  /// یادآوری مجدد اعلان مهمِ نخوانده (پیش‌فرض روشن، بعد از ۴ ساعت، فقط در ساعات کاری و بیرون از سکوت)
+  reminderEnabled    Boolean @default(true)
+  reminderAfterHours Int     @default(4)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -3866,12 +3877,19 @@ model BookOrder {
   paymentRefId      Int?
   paidAt            DateTime?
   invoiceId         String?
+  /// نسخه‌ی الکترونیک: کد مجوز FK-XXXX-XXXX-XXXX-XXXX (HMAC شماره‌سفارش|تلفن با FK_LICENSE_SECRET) — هنگام پرداخت ثبت می‌شود
+  licenseCode       String?
+  /// زمانی که نسخه‌ی مهرخورده‌ی اختصاصی خریدار (PDF+EPUB) با موفقیت ساخته شد
+  ebookIssuedAt     DateTime?
+  /// آخرین خطای ساخت نسخه‌ی اختصاصی (برای پیگیری پشتیبانی؛ دانلود بعدی دوباره تلاش می‌کند)
+  ebookError        String?
   createdAt         DateTime        @default(now())
 
   contact CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
   invoice SalesInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([buyerPhone])
   @@map("book_orders")
 }
 
@@ -5936,4 +5954,131 @@ model BankTransaction {
   @@index([cashBoxId])
   @@index([journalEntryId])
   @@map("accounting_bank_transactions")
+}
+
+
+/// وضعیت «دیده‌شده» هر کاربر برای هر انتشار به‌روزرسانی ماژول (خودِ انتشار در دیتابیس کنترل است، پس FK ندارد).
+model ModuleReleaseRead {
+  id        String   @id @default(uuid())
+  userId    String
+  releaseId String
+  readAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, releaseId])
+  @@index([releaseId])
+  @@map("module_release_reads")
+}
+
+// ── تغییر ارز پایه (ریال ⇄ تومان ⇄ ...) — فقط افزایشی؛ وضعیت‌ها TEXT ───────────
+
+/// یک عملیات بازمقیاس‌سازی همه‌ی مبالغ ذخیره‌شده. همه‌چیز در یک تراکنش دیتابیس انجام می‌شود (یا کامل یا هیچ)،
+/// پس اجرای دوباره‌ی یک عملیات ناتمام امن است. نرخ به‌صورت کسر دقیق BigInt (rateNum/rateDen) نگه داشته می‌شود.
+/// status: PENDING | RUNNING | DONE | FAILED. kind: CONVERT | REVERSE.
+model BaseCurrencyConversion {
+  id               String    @id @default(uuid())
+  kind             String    @default("CONVERT")
+  status           String    @default("PENDING")
+  fromCode         String
+  toCode           String
+  fromLabel        String
+  toLabel          String
+  /// واحد جدید به‌ازای هر ۱ واحد قدیم = rateNum / rateDen (رشته‌ی عدد صحیح؛ BigInt)
+  rateNum          String
+  rateDen          String
+  roundingMode     String    @default("STRICT")
+  reverseOfId      String?
+  reversedById     String?
+  idempotencyKey   String    @unique
+  backupFile       String?
+  backupSha256     String?
+  backupSize       String?
+  backupAt         DateTime?
+  executedByUserId String?
+  executedByName   String?
+  startedAt        DateTime  @default(now())
+  heartbeatAt      DateTime?
+  finishedAt       DateTime?
+  errorMessage     String?
+  /// گزارش نهایی: تعداد ردیف و جمع قبل/بعد هر ستون، مجموع اختلاف گرد‌کردن، نتیجه‌ی تراز دفتر کل
+  report           Json?
+  createdAt        DateTime  @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("base_currency_conversions")
+}
+
+/// فقط خانه‌هایی که تبدیل‌شان دقیق نبوده (گرد شده یا برای تراز سند تعدیل شده) تا بازگشت عملیات بتواند مقدار اصلی را دقیق برگرداند.
+model BaseCurrencyRoundingLog {
+  id           String   @id @default(uuid())
+  conversionId String
+  tableName    String
+  rowId        String
+  columnName   String
+  oldValue     String
+  newValue     String
+  /// ROUND | LEDGER_ADJUST
+  kind         String   @default("ROUND")
+  createdAt    DateTime @default(now())
+
+  @@index([conversionId])
+  @@index([conversionId, tableName])
+  @@map("base_currency_rounding_log")
+}
+
+/// کد تأیید یک‌بارمصرف (پیامک به شماره‌ی خود مالک) برای عملیات تغییر ارز پایه.
+model BaseCurrencyConfirmation {
+  id         String    @id @default(uuid())
+  userId     String
+  codeHash   String
+  /// هش (از، به، ضریب، حالت، نوع) — کد فقط برای همان عملیات معتبر است
+  planHash   String?
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@map("base_currency_confirmations")
+}
+
+// ── ارجاع سند (ارجاع عمومی روی هر موجودیت) ───────────────────────────────────
+// یک سند (فاکتور، پیش‌فاکتور، سفارش خرید، گزارش دانش سازمانی، ...) را می‌شود به یک کارشناس ارجاع داد.
+// «مسئول پیگیری» فعلی = جدیدترین ارجاع فعال (PENDING/ACCEPTED). ارجاع فعال، به گیرنده فقط دسترسی «مشاهده»
+// همان یک سند (و پیوست‌ها/PDF) می‌دهد — حتی اگر در دامنه‌ی دید عادی‌اش نباشد؛ با پایان/لغو/بازگشت ارجاع لغو می‌شود.
+// entityType/entityId چندریختی‌اند (بدون FK) و entityType همان نام پیوست‌هاست (SalesInvoice، Report، ...).
+// ستون‌های کاربر عمداً بدون رابطه‌ی Prisma هستند (ثبت در ownership-registry).
+model DocumentReferral {
+  id               String    @id @default(uuid())
+  entityType       String
+  entityId         String
+  /// عنوان خوانا در زمان ارجاع (مثلاً «فاکتور 123») — برای صندوق ارجاع‌ها بدون join به ماژول‌های دیگر
+  entityLabel      String?
+  fromUserId       String?
+  toUserId         String
+  note             String?
+  dueAt            DateTime?
+  /// PENDING | ACCEPTED | DONE | RETURNED | CANCELLED | FORWARDED | REVOKED (لغو دسترسیِ ارجاع انجام‌شده توسط مدیر) (TEXT عمداً — بدون enum)
+  status           String    @default("PENDING")
+  acceptedAt       DateTime?
+  /// زمان پایان وضعیت (DONE/RETURNED/CANCELLED/FORWARDED)
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolvedNote     String?
+  /// کلید یکتای درخواست (کلاینت) برای تکرار امن
+  idempotencyKey   String?   @unique
+  /// آخرین یادآوری موعد ارسال‌شده
+  dueNotifiedAt    DateTime?
+  /// مسئول اصلی (برخلاف «همکار»)؛ ایندکس یکتای جزئی SQL (migration 20261107210000) فقط یک ارجاع فعالِ اصلی برای هر سند می‌پذیرد
+  isPrimary        Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  @@index([entityType, entityId, status])
+  @@index([toUserId, status])
+  @@index([fromUserId])
+  @@index([status, dueAt])
+  @@map("document_referrals")
 }

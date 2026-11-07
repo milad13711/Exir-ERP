@@ -1,4 +1,5 @@
 import type { McpTool } from './mcp-tool.types.js';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import type { InvoicesService } from '../sales/invoices.service.js';
@@ -117,7 +118,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
         properties: {
           contactId: { type: 'string' },
           title: { type: 'string' },
-          value: { type: 'number', description: 'ارزش تخمینی فرصت به تومان' },
+          value: { type: 'number', description: 'ارزش تخمینی فرصت به واحد ارز پایه‌ی سازمان (تومان یا ریال)' },
         },
         required: ['contactId', 'title'],
       },
@@ -171,7 +172,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
               properties: {
                 description: { type: 'string' },
                 quantity: { type: 'number' },
-                unitPrice: { type: 'number', description: 'قیمت واحد به تومان' },
+                unitPrice: { type: 'number', description: 'قیمت واحد به واحد ارز پایه‌ی سازمان (تومان یا ریال)' },
               },
               required: ['description', 'quantity', 'unitPrice'],
             },
@@ -230,7 +231,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
               properties: {
                 description: { type: 'string' },
                 quantity: { type: 'number' },
-                unitCost: { type: 'number', description: 'بهای واحد به تومان' },
+                unitCost: { type: 'number', description: 'بهای واحد به واحد ارز پایه‌ی سازمان (تومان یا ریال)' },
               },
               required: ['description', 'quantity', 'unitCost'],
             },
@@ -260,7 +261,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
       name: 'list_products',
       module: 'warehouse',
       kind: 'read',
-      description: 'فهرست کالاهای فعال انبار به‌همراه موجودی فعلی. می‌تواند بر اساس نام/کد جستجو کند.',
+      description: 'فهرست کالاهای فعال انبار به‌همراه موجودی فعلی. می‌تواند بر اساس نام/کد جستجو کند. قیمت‌ها به واحد ارز پایه‌ی سازمان‌اند (تومان یا ریال).',
       operation: 'READ',
       inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'جستجو در نام یا کد کالا (اختیاری)' } } },
       handler: async (args, ctx) => {
@@ -279,7 +280,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
       name: 'create_product',
       module: 'warehouse',
       kind: 'write',
-      description: 'ثبت یک کالای جدید در کاتالوگ انبار.',
+      description: 'ثبت یک کالای جدید در کاتالوگ انبار. salePrice/costPrice به واحد ارز پایه‌ی سازمان (تومان یا ریال).',
       operation: 'CREATE',
       inputSchema: {
         type: 'object',
@@ -312,7 +313,7 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
       name: 'get_accounting_summary',
       module: 'accounting',
       kind: 'read',
-      description: 'خلاصه‌ی وضعیت مالی: موجودی نقد و بانک، درآمد و هزینه‌ی ماه جاری، تعداد اسناد پیش‌نویس.',
+      description: 'خلاصه‌ی وضعیت مالی: موجودی نقد و بانک، درآمد و هزینه‌ی ماه جاری، تعداد اسناد پیش‌نویس. مبالغ به واحد ارز پایه‌اند و برچسب آن در فیلد currency می‌آید.',
       operation: 'READ',
       inputSchema: { type: 'object', properties: {} },
       handler: async (_args, ctx) => {
@@ -330,7 +331,8 @@ export function buildCoreMcpTools(invoices: InvoicesService, purchaseOrders: Pur
         const monthRevenue = monthLines.filter((l) => l.account.type === 'REVENUE').reduce((s, l) => s + (Number(l.credit) - Number(l.debit)), 0);
         const monthExpense = monthLines.filter((l) => l.account.type === 'EXPENSE').reduce((s, l) => s + (Number(l.debit) - Number(l.credit)), 0);
 
-        return { cashBalance, monthRevenue, monthExpense, draftJournalEntries: draftCount };
+        const base = await loadBaseCurrency(ctx.tenantDb);
+        return { currency: { code: base.code, label: base.label }, cashBalance, monthRevenue, monthExpense, draftJournalEntries: draftCount };
       },
     },
     {

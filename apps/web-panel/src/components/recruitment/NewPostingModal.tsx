@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { createJobPosting, updateJobPosting, fetchContractTemplates, ApiError, type ContractTemplate, type JobPosting, type JobEmploymentType } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const EMPLOYMENT_TYPES: { value: JobEmploymentType; label: string }[] = [
   { value: "FULL_TIME", label: "تمام‌وقت" },
@@ -113,7 +114,7 @@ export function NewPostingModal({ posting, onClose, onCreated }: { posting?: Job
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-semibold text-ink-soft">بودجه‌ی انتشار (تومان)</span>
+            <span className="text-[12px] font-semibold text-ink-soft">بودجه‌ی انتشار ({moneyUnit()})</span>
             <input
               type="number"
               min={0}

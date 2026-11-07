@@ -1,4 +1,5 @@
 import { Controller, Get, Header, NotFoundException, Param } from '@nestjs/common';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 
@@ -17,6 +18,18 @@ export class PublicManifestController {
     private readonly controlDb: ControlPrismaService,
     private readonly tenantPrisma: TenantPrismaService,
   ) {}
+
+  /** برچسب واحد پول تننت برای صفحه‌های عمومی (فروشگاه/رویداد/فاکتور/...)؛ بدون احراز هویت، فقط {code,label}. */
+  @Get('currency')
+  async currency(@Param('slug') slug: string) {
+    const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
+    if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
+      throw new NotFoundException('تننت یافت نشد');
+    }
+    const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+    const b = await loadBaseCurrency(tenantDb);
+    return { code: b.code, label: b.label };
+  }
 
   @Get('manifest.webmanifest')
   @Header('Content-Type', 'application/manifest+json')

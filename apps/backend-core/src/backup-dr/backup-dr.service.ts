@@ -157,6 +157,26 @@ export class BackupDrService implements OnModuleInit {
     return this.running;
   }
 
+  /**
+   * پشتیبان اختصاصی پیش از عملیات حساس (مثلاً تغییر ارز پایه) از یک تننت. در پوشه‌ی جداگانه‌ی
+   * `<slug>__preconv-<زمان>` نوشته می‌شود تا هرگز فایل پشتیبان شبانه یا پشتیبان عملیات قبلی را بازنویسی نکند
+   * و هرس نگه‌داری شبانه به آن دست نزند. sha256 و حجم از manifest همان پوشه خوانده می‌شود.
+   */
+  async backupTenantForOperation(slug: string, tag = 'preconv'): Promise<{ dir: string; file: string; size: number; sha256: string; encrypted: boolean }> {
+    const base = (await this.listTargets()).find((t) => t.kind === 'tenant' && t.name === slug);
+    if (!base) throw new Error('هدف پشتیبان‌گیری این محیط کاری پیدا نشد');
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+    const name = `${slug}__${tag}-${stamp}`;
+    if (!/^[a-z0-9][a-z0-9_-]{0,100}$/.test(name)) throw new Error('نام پوشه‌ی پشتیبان نامعتبر است');
+    await this.backupTarget({ ...base, name });
+    const dir = join(this.root, name);
+    const manifest = await readManifest(dir);
+    const file = Object.keys(manifest.entries).sort().pop();
+    if (!file) throw new Error('پشتیبان ثبت نشد');
+    const e = manifest.entries[file]!;
+    return { dir: name, file: `${name}/${file}`, size: e.size, sha256: e.sha256, encrypted: !!e.encrypted };
+  }
+
   // ── backup run ───────────────────────────────────────────────────────────
   async listTargets(): Promise<BackupTarget[]> {
     const targets: BackupTarget[] = [];

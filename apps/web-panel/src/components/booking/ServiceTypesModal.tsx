@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { PlusIcon } from "@/components/icons";
-import { formatToman } from "@/lib/persian";
+import { formatMoney, moneyUnit } from "@/lib/persian";
 import {
   fetchServiceTypes,
   createServiceType,
@@ -157,7 +157,7 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                 />
               </div>
               <div className="flex-1">
-                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">قیمت (تومان)</label>
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">قیمت ({moneyUnit()})</label>
                 <input
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
@@ -181,7 +181,7 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
             </label>
             {requiresDeposit && (
               <div>
-                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">مبلغ بیعانه (تومان)</label>
+                <label className="text-[11px] font-semibold text-ink-soft mb-1 block">مبلغ بیعانه ({moneyUnit()})</label>
                 <input
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
@@ -260,9 +260,9 @@ export function ServiceTypesModal({ onClose, onChanged }: { onClose: () => void;
                 <div className="min-w-0">
                   <div className="text-[13px] font-bold truncate">{s.name}</div>
                   <div className="text-[11.5px] text-muted mt-0.5">
-                    {s.durationMinutes} دقیقه · {formatToman(s.price)}
+                    {s.durationMinutes} دقیقه · {formatMoney(s.price)}
                     {s.requiresCoordination ? " · نیاز به هماهنگی" : ""}
-                    {s.requiresDeposit ? ` · بیعانه ${formatToman(s.depositAmount ?? 0)}` : ""}
+                    {s.requiresDeposit ? ` · بیعانه ${formatMoney(s.depositAmount ?? 0)}` : ""}
                     {s.requiresFullPayment ? " · پرداخت کامل" : ""}
                     {s.linkToMentoring ? " · متصل به مشاوره" : ""}
                   </div>

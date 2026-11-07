@@ -60,7 +60,7 @@ export class DealsController {
 
   @Get()
   async list(@Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'crm', 'ownerUserId', 'CrmDeal');
     return ctx.tenantDb.crmDeal.findMany({
       where: scope,
       include: { contact: { select: { id: true, name: true, company: true } } },
@@ -70,7 +70,7 @@ export class DealsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'crm', 'ownerUserId', 'CrmDeal');
     const deal = await ctx.tenantDb.crmDeal.findFirst({
       where: { id, ...scope },
       include: {
@@ -182,8 +182,10 @@ export class DealsController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateDealDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'crm');
-    await this.assertDealInScope(ctx, id);
+    if (!(await this.permissions.hasEditGrant(ctx, 'CrmDeal', id))) {
+      await this.permissions.assertEdit(ctx, 'crm');
+      await this.assertDealInScope(ctx, id);
+    }
     const existing = await ctx.tenantDb.crmDeal.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('فرصت فروش یافت نشد');
     if (dto.contactId) {

@@ -4,7 +4,7 @@ import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { createCheck, ApiError, type Check, type CheckDirection } from "@/lib/api";
 import { fetchAvailableLeaves, type AvailableBook } from "@/lib/accounting-api";
-import { toPersianDigits } from "@/lib/persian";
+import { toPersianDigits, moneyUnit } from "@/lib/persian";
 
 export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onCreated: (check: Check) => void }) {
   const [direction, setDirection] = useState<CheckDirection>("RECEIVED");
@@ -153,7 +153,7 @@ export function NewCheckModal({ onClose, onCreated }: { onClose: () => void; onC
             />
           </div>
           <div className="flex-1">
-            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مبلغ (تومان)</label>
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">مبلغ ({moneyUnit()})</label>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}

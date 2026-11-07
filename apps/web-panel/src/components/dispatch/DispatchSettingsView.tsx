@@ -16,6 +16,7 @@ import {
   saveDispatchSettings,
   updateDocRule,
   updateDocType,
+  deleteDocType,
   type DispatchDocType,
   type DispatchRule,
   type DispatchSettings,
@@ -206,6 +207,17 @@ export function DispatchSettingsView() {
               <button onClick={() => updateDocType(t.id, { isActive: !t.isActive }).then(() => fetchDocTypes().then(setTypes))} className="text-[11.5px] font-bold text-primary cursor-pointer">
                 {t.isActive ? "غیرفعال‌کردن" : "فعال‌کردن"}
               </button>
+              {!t.isSystem ? (
+                <button
+                  onClick={() => {
+                    if (!window.confirm("این نوع سند حذف شود؟ (اگر استفاده شده باشد فقط غیرفعال می‌شود)")) return;
+                    deleteDocType(t.id).then(() => fetchDocTypes().then(setTypes)).catch((e) => setErr(errText(e)));
+                  }}
+                  className="text-[11.5px] font-bold text-danger cursor-pointer"
+                >
+                  حذف
+                </button>
+              ) : null}
             </div>
           ))}
         </div>

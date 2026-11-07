@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ModuleHelp } from "@/components/ui/ModuleHelp";
+import { BaseCurrencyCard } from "@/components/settings/BaseCurrencyCard";
+import { moneyUnit } from "@/lib/persian";
 import {
   fetchCurrencies,
   createCurrency,
@@ -114,14 +117,19 @@ export default function CurrenciesSettingsPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[17px] font-extrabold text-ink">ارزها و نرخ تبدیل</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[17px] font-extrabold text-ink">ارزها و نرخ تبدیل</h1>
+          <ModuleHelp code="currencies" />
+        </div>
         <p className="text-[12.5px] text-muted mt-1">
-          تومان ارز پایه‌ی سیستم است. هر ارز دیگری که اینجا اضافه کنید قابل استفاده برای قیمت‌گذاری کالا خواهد بود.
+          {moneyUnit()} ارز پایه‌ی سیستم است. هر ارز دیگری که اینجا اضافه کنید قابل استفاده برای قیمت‌گذاری کالا خواهد بود.
           نرخ تبدیل به‌صورت پیش‌فرض دستی است؛ با «فعال‌سازی خودکار» می‌توانید نرخ ارزهای رایج (دلار، یورو، ...) را هر
           چند ساعت از نرخ آزاد بازار به‌روزرسانی خودکار کنید. با تغییر نرخ، قیمت نمایشی کالاهای ارزی در کاتالوگ فوراً
           به‌روز می‌شود؛ اما فاکتور‌های قبلاً صادرشده نرخ لحظه‌ی صدورشان را نگه می‌دارند.
         </p>
       </div>
+
+      {hasCurrencyModule ? <BaseCurrencyCard /> : null}
 
       <Card className="p-4">
         <div className="text-[13px] font-bold text-ink mb-3">افزودن ارز جدید</div>
@@ -139,7 +147,7 @@ export default function CurrenciesSettingsPage() {
             <input value={symbol} onChange={(e) => setSymbol(e.target.value)} dir="ltr" className={inputClass} placeholder="$" />
           </div>
           <div>
-            <label className={labelClass}>نرخ (تومان به ازای ۱ واحد)</label>
+            <label className={labelClass}>نرخ ({moneyUnit()} به ازای ۱ واحد)</label>
             <input
               value={rate}
               onChange={(e) => setRate(e.target.value.replace(/[^0-9.]/g, ""))}
@@ -166,7 +174,7 @@ export default function CurrenciesSettingsPage() {
         {loading ? (
           <div className="text-[12.5px] text-muted">در حال بارگذاری...</div>
         ) : currencies.length === 0 ? (
-          <div className="text-[12.5px] text-muted">هنوز ارزی اضافه نشده — تومان به‌صورت پیش‌فرض همه‌جا استفاده می‌شود.</div>
+          <div className="text-[12.5px] text-muted">هنوز ارزی اضافه نشده — {moneyUnit()} به‌صورت پیش‌فرض همه‌جا استفاده می‌شود.</div>
         ) : (
           <div className="flex flex-col gap-2">
             {currencies.map((c) => (
@@ -204,7 +212,7 @@ export default function CurrenciesSettingsPage() {
                   ) : (
                     <>
                       <span className="text-[12.5px] font-bold text-ink" dir="ltr">
-                        {Number(c.rate).toLocaleString("en-US")} تومان
+                        {Number(c.rate).toLocaleString("en-US")} {moneyUnit()}
                       </span>
                       <button
                         onClick={() => startEdit(c)}

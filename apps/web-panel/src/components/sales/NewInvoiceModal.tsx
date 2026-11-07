@@ -15,6 +15,7 @@ import {
   type SalesInvoiceDetail,
   type SalesInvoicePaymentMethod,
 } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const PAYMENT_METHOD_LABELS: Record<SalesInvoicePaymentMethod, string> = {
   BANK_TRANSFER: "کارت/حساب بانکی",
@@ -225,7 +226,7 @@ export function NewInvoiceModal({
                 <input
                   value={line.unitPrice}
                   onChange={(e) => updateLine(i, { unitPrice: e.target.value.replace(/[^0-9]/g, ""), currencyId: undefined })}
-                  placeholder="قیمت واحد (تومان)"
+                  placeholder={`قیمت واحد (${moneyUnit()})`}
                   dir="ltr"
                   className="w-28 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2 py-2 outline-none"
                 />
@@ -267,7 +268,7 @@ export function NewInvoiceModal({
 
         <div className="flex items-center gap-3">
           <div className="flex-1">
-            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">تخفیف (تومان)</label>
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">تخفیف ({moneyUnit()})</label>
             <input
               value={discount}
               onChange={(e) => setDiscount(e.target.value.replace(/[^0-9]/g, ""))}
@@ -294,7 +295,7 @@ export function NewInvoiceModal({
           ) : null}
           <div className="flex-1 text-left">
             <div className="text-[11.5px] text-muted">مبلغ نهایی</div>
-            <div className="text-[16px] font-extrabold mt-1">{total.toLocaleString("en-US")} تومان</div>
+            <div className="text-[16px] font-extrabold mt-1">{total.toLocaleString("en-US")} {moneyUnit()}</div>
           </div>
         </div>
 

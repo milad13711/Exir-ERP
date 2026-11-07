@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { recordManualAppointmentPayment, ApiError, type Appointment } from "@/lib/api";
-import { formatToman } from "@/lib/persian";
+import { formatMoney, moneyUnit } from "@/lib/persian";
 
 const METHODS = [
   { value: "CASH", label: "نقد" },
@@ -34,7 +34,7 @@ export function ManualPaymentModal({ appointment, onClose, onDone }: { appointme
     <Modal title={`ثبت پرداخت — ${appointment.customerName}`} onClose={onClose} width="max-w-[420px]">
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div className="text-[12px] text-muted">
-          خدمت: {appointment.serviceType.name} · مبلغ خدمت {formatToman(appointment.serviceType.price)}
+          خدمت: {appointment.serviceType.name} · مبلغ خدمت {formatMoney(appointment.serviceType.price)}
         </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold text-ink-soft">روش پرداخت</span>
@@ -47,7 +47,7 @@ export function ManualPaymentModal({ appointment, onClose, onDone }: { appointme
           </select>
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-semibold text-ink-soft">مبلغ دریافتی (تومان)</span>
+          <span className="text-[12px] font-semibold text-ink-soft">مبلغ دریافتی ({moneyUnit()})</span>
           <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min={1} dir="ltr" className="text-[13px] bg-slate-50 border border-border rounded-lg px-3 py-2.5 outline-none" />
         </label>
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}

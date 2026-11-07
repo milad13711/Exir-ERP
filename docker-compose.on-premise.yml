@@ -36,6 +36,9 @@ services:
         ALPINE_MIRROR: ${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
         # بیلد از سورس روی سرور خودمان بدون secret امضا (مانیفست یکپارچگی فقط در pipeline release امضا می‌شود)
         ALLOW_UNSIGNED_BUILD: ${ALLOW_UNSIGNED_BUILD:-true}
+        # Python + PyMuPDF برای مهرزنی نسخه‌ی الکترونیک کتاب (فقط سرور funnelking) — docs/ops/funnelking-ebook.md
+        WITH_EBOOK_STAMPER: ${WITH_EBOOK_STAMPER:-false}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -126,6 +129,16 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}
       # Where the post-payment success page's "ورود" link points.
       WEB_PANEL_PUBLIC_URL: ${WEB_PANEL_PUBLIC_URL:-}
+      # ── فروشگاه کتاب «سلطان قیف» (docs/ops/funnelking-ebook.md) ─────────────────
+      # سایت funnelking.ir — لینک «بازگشت به سایت» و «کتابخانه‌ی من» در صفحه‌ی پرداخت/پیامک
+      FUNNELKING_PUBLIC_URL: ${FUNNELKING_PUBLIC_URL:-}
+      # راز HMAC کد مجوز و امضای لینک دانلود — هرگز عوض نشود (کدهای چاپ‌شده روی نسخه‌های قبلی باطل می‌شوند). خالی = تحویل خودکار خاموش.
+      FK_LICENSE_SECRET: ${FK_LICENSE_SECRET:-}
+      # slug (یا کلید عمومی t…) تننتی که مجاز به تحویل کتاب است؛ خالی = خاموش
+      FK_EBOOK_TENANT_SLUG: ${FK_EBOOK_TENANT_SLUG:-}
+      # اعتبار لینک‌های دانلود (ساعت؛ پیش‌فرض ۷۲). بعد از آن خریدار از «کتابخانه‌ی من» لینک تازه می‌گیرد.
+      FK_EBOOK_LINK_TTL_HOURS: ${FK_EBOOK_LINK_TTL_HOURS:-72}
+      FK_EBOOK_DIR: /app/ebook
       # AES-256-GCM key for Moodian (tax module) private-key storage; empty => key upload refused.
       TAX_SECRETS_KEY: ${TAX_SECRETS_KEY:-}
       # ── امنیت (docs/security/audit-2026-10.md) ────────────────────────────────
@@ -159,6 +172,9 @@ services:
       - /etc/machine-id:/etc/host-machine-id:ro
       # کلید امضای لایسنس (فقط روی سرور لایسنس؛ پوشه‌ی میزبان ./secrets/license با دسترسی 0700). اگر وجود نداشته باشد با `mkdir -p` بسازید.
       - ./secrets/license:/run/license:ro
+      # نسخه‌ی الکترونیک کتاب: master/ (فایل‌های اصلی)، tool/ (license_stamp.py + fonts/)، issued/ (نسخه‌های خریداران، نوشتنی).
+      # خصوصی — هیچ سرویس دیگری (nginx/web) این پوشه را mount نمی‌کند. docs/ops/funnelking-ebook.md
+      - ./data/funnelking-ebook:/app/ebook
 
   web:
     build:

@@ -34,11 +34,12 @@ export class StockImportService {
     private readonly controlDb: ControlPrismaService,
   ) {}
 
-  async template(): Promise<Buffer> {
+  async template(unit = 'تومان'): Promise<Buffer> {
+    const costHeader = `بهای واحد (${unit})`;
     return buildExcelBuffer(
-      [...STOCK_IMPORT_HEADERS],
+      [...STOCK_IMPORT_HEADERS].map((h) => (h === 'بهای واحد (تومان)' ? costHeader : h)),
       [
-        { 'کد کالا': 'P-1001', 'نام کالا': 'کالای نمونه', انبار: 'انبار مرکزی', تعداد: 120, 'بهای واحد (تومان)': 250000, واحد: 'عدد', 'شماره لات/بچ': 'B-2026-01', 'محل قفسه': 'A-12' },
+        { 'کد کالا': 'P-1001', 'نام کالا': 'کالای نمونه', انبار: 'انبار مرکزی', تعداد: 120, [costHeader]: unit === 'ریال' ? 2500000 : 250000, واحد: 'عدد', 'شماره لات/بچ': 'B-2026-01', 'محل قفسه': 'A-12' },
       ],
       'موجودی اولیه',
     );

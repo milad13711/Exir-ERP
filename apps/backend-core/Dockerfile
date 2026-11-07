@@ -67,12 +67,22 @@ WORKDIR /app
 ARG ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine
 RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_MIRROR}#g" /etc/apk/repositories \
  && apk add --no-cache openssl chromium postgresql-client
+# ابزار مهرزنی نسخه‌ی الکترونیک «سلطان قیف» (license_stamp.py، src/book-store/ebook-delivery.service.ts) به Python + PyMuPDF
+# نیاز دارد — فقط روی سروری که فروشگاه کتاب را میزبانی می‌کند (WITH_EBOOK_STAMPER=true، ~۸۰MB). نسخه‌ی پین‌شده همان نسخه‌ی
+# ساخت محلی است و wheel musllinux دارد. PyPI از بعضی شبکه‌ها در دسترس نیست — PIP_INDEX_URL را به یک mirror بده. docs/ops/funnelking-ebook.md
+ARG WITH_EBOOK_STAMPER=false
+ARG PIP_INDEX_URL=https://pypi.org/simple
+RUN if [ "$WITH_EBOOK_STAMPER" = "true" ]; then \
+      apk add --no-cache python3 py3-pip \
+      && pip install --no-cache-dir --break-system-packages --index-url "$PIP_INDEX_URL" pymupdf==1.28.2 \
+      && python3 -c "import pymupdf"; \
+    fi
 ENV NODE_ENV=production
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # کاربر غیرروت «قبل از» کپی فایل‌ها ساخته می‌شود و فایل‌ها با COPY --chown مالکیت می‌گیرند. قبلاً `chown -R /app` بعد از COPY
 # کل node_modules (~۳GB) را در یک لایه‌ی تازه تکرار می‌کرد و دیسک ۲۴GB سرور را در حین build پر می‌کرد (۲۰ اکتبر ۲۰۲۶).
 RUN addgroup -S exir && adduser -S exir -G exir \
- && mkdir -p /app/data/license \
+ && mkdir -p /app/data/license /app/ebook/issued \
  && chown -R exir:exir /app
 COPY --chown=exir:exir --from=prod-deps /app/node_modules ./node_modules
 COPY --chown=exir:exir --from=build /app/dist ./dist

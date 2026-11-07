@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -8,6 +8,7 @@ import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateSampleDto } from './dto/create-sample.dto.js';
+import { UpdateSampleDto } from './dto/update-sample.dto.js';
 import { AddResultDto } from './dto/add-result.dto.js';
 
 const SAMPLE_INCLUDE = {
@@ -121,5 +122,47 @@ export class QualitySamplesController {
     }
 
     return ctx.tenantDb.qualitySample.findUnique({ where: { id }, include: SAMPLE_INCLUDE });
+  }
+
+  /** ویرایش یادداشت/منبع نمونه؛ برای دستور تولیدِ تکمیل‌شده، نمونه سند کیفی است و ثابت می‌ماند. */
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateSampleDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control');
+    await this.assertMutable(ctx, id);
+    return ctx.tenantDb.qualitySample.update({ where: { id }, data: dto, include: SAMPLE_INCLUDE });
+  }
+
+  /** حذف نمونه (با نتایجش)؛ فقط تا وقتی دستور تولید تکمیل نشده است. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control');
+    await this.assertMutable(ctx, id);
+    await ctx.tenantDb.qualitySample.delete({ where: { id } });
+    return { success: true };
+  }
+
+  /** حذف یک نتیجه‌ی آزمون اشتباه؛ حکم نمونه از نتایج باقی‌مانده دوباره محاسبه می‌شود. */
+  @Delete(':id/results/:resultId')
+  async removeResult(@Param('id') id: string, @Param('resultId') resultId: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'quality-control');
+    await this.permissions.assertViewAll(ctx, 'quality-control');
+    await this.assertMutable(ctx, id);
+    const result = await ctx.tenantDb.qualitySampleResult.findFirst({ where: { id: resultId, sampleId: id }, select: { id: true } });
+    if (!result) throw new NotFoundException('نتیجه‌ی آزمون یافت نشد');
+    await ctx.tenantDb.qualitySampleResult.delete({ where: { id: resultId } });
+    const rest = await ctx.tenantDb.qualitySampleResult.findMany({ where: { sampleId: id }, select: { verdict: true } });
+    const verdict = rest.length === 0 ? 'PENDING' : rest.some((r) => r.verdict === 'FAIL') ? 'FAIL' : 'PASS';
+    await ctx.tenantDb.qualitySample.update({ where: { id }, data: { verdict } });
+    return ctx.tenantDb.qualitySample.findUnique({ where: { id }, include: SAMPLE_INCLUDE });
+  }
+
+  private async assertMutable(ctx: TenantRequestContext, id: string): Promise<void> {
+    const sample = await ctx.tenantDb.qualitySample.findUnique({ where: { id }, select: { productionOrder: { select: { status: true } } } });
+    if (!sample) throw new NotFoundException('نمونه یافت نشد');
+    if (sample.productionOrder.status === 'COMPLETED') {
+      throw new ConflictException('دستور تولید این نمونه تکمیل شده و نتایج کیفی آن ثابت است');
+    }
   }
 }

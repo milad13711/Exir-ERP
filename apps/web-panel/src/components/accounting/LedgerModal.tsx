@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import { deleteAccount, ApiError, type Account } from "@/lib/api";
 import { fetchPeriodLedger, type PeriodSel, type PeriodLedger } from "@/lib/accounting-api";
 import { PeriodPicker } from "./PeriodPicker";
@@ -73,7 +73,7 @@ export function LedgerModal({
             </div>
             <div className="text-left">
               <div className="text-[11px] text-muted">{sel.mode === "all" ? "مانده فعلی" : "مانده پایان دوره"}</div>
-              <div className="text-lg font-extrabold text-primary">{formatToman(account.balance)}</div>
+              <div className="text-lg font-extrabold text-primary">{formatMoney(account.balance)}</div>
             </div>
           </div>
 
@@ -82,7 +82,7 @@ export function LedgerModal({
           {ledger && sel.mode !== "all" ? (
             <div className="text-[12.5px] bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex justify-between gap-3">
               <span className="text-ink-soft">مانده ابتدای دوره ({ledger.period.label})</span>
-              <b>{formatToman(ledger.openingBalance)}</b>
+              <b>{formatMoney(ledger.openingBalance)}</b>
             </div>
           ) : null}
 
@@ -130,9 +130,9 @@ export function LedgerModal({
                       <td className="py-2.5 px-1 text-muted">{toPersianDigits(r.entryNumber)}</td>
                       <td className="py-2.5 px-1 text-muted whitespace-nowrap">{formatJalaliDate(r.date)}</td>
                       <td className="py-2.5 px-1">{r.description}</td>
-                      <td className="py-2.5 px-1 text-left">{r.debit ? formatToman(r.debit) : "—"}</td>
-                      <td className="py-2.5 px-1 text-left">{r.credit ? formatToman(r.credit) : "—"}</td>
-                      <td className="py-2.5 px-1 text-left font-bold">{formatToman(r.runningBalance)}</td>
+                      <td className="py-2.5 px-1 text-left">{r.debit ? formatMoney(r.debit) : "—"}</td>
+                      <td className="py-2.5 px-1 text-left">{r.credit ? formatMoney(r.credit) : "—"}</td>
+                      <td className="py-2.5 px-1 text-left font-bold">{formatMoney(r.runningBalance)}</td>
                     </tr>
                   ))}
                 </tbody>

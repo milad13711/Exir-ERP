@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { assertRelationsAllowed } from '../referrals/grant-edit.js';
+import { NotFoundException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -28,7 +29,7 @@ export class PurchaseOrdersController {
 
   @Get()
   async list(@Query('q') q: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'purchasing', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'purchasing', 'createdByUserId', 'PurchaseOrder');
     return this.orders.list(ctx, scope, q);
   }
 
@@ -48,7 +49,7 @@ export class PurchaseOrdersController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'purchasing', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'purchasing', 'createdByUserId', 'PurchaseOrder');
     return this.orders.detail(ctx, id, scope);
   }
 
@@ -60,8 +61,14 @@ export class PurchaseOrdersController {
 
   @Put(':id')
   async updateDraft(@Param('id') id: string, @Body() dto: CreatePurchaseOrderDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'purchasing');
-    await this.assertOrderInScope(ctx, id);
+    if (await this.permissions.hasEditGrant(ctx, 'PurchaseOrder', id)) {
+      const existing = await ctx.tenantDb.purchaseOrder.findUnique({ where: { id }, select: { supplierId: true } });
+      if (!existing) throw new NotFoundException('سفارش خرید یافت نشد');
+      await assertRelationsAllowed(this.permissions, ctx, { contactId: dto.supplierId }, { contactId: existing.supplierId });
+    } else {
+      await this.permissions.assertEdit(ctx, 'purchasing');
+      await this.assertOrderInScope(ctx, id);
+    }
     return this.orders.updateDraft(ctx, id, dto);
   }
 

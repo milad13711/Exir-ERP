@@ -1,3 +1,4 @@
+import { SubscriptionSummaryService } from '../billing/subscription-summary.service.js';
 import { TenantInvoiceApprovalService } from '../platform-management/tenant-invoice-approval.service.js';
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
@@ -39,6 +40,7 @@ export class AdminTenantsController {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly notifications: NotificationsService,
     private readonly invoiceApproval: TenantInvoiceApprovalService,
+    private readonly subscriptionSummary: SubscriptionSummaryService,
   ) {}
 
   @Get()
@@ -60,6 +62,13 @@ export class AdminTenantsController {
     const tenant = tenants.find((t) => t.id === id);
     if (!tenant) throw new NotFoundException('تننت یافت نشد');
     return tenant;
+  }
+
+  /** همان خلاصه‌ی اشتراکی که خود تننت در هدر/تنظیمات می‌بیند (منبع واحد) — با جزئیات کامل برای کارشناس. */
+  @Get(':id/subscription-summary')
+  @AdminTeams('SUPER_ADMIN', 'SUPPORT', 'BILLING')
+  summary(@Param('id') id: string) {
+    return this.subscriptionSummary.forTenant(id, { viewer: 'ADMIN', useLocalLicense: false });
   }
 
   @Get(':id/stats')

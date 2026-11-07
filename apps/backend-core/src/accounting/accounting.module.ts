@@ -13,6 +13,7 @@ import { PartyLedgerController } from './party-ledger.controller.js';
 import { PeriodsController } from './periods.controller.js';
 import { BankingController } from './banking/banking.controller.js';
 import { BankingService } from './banking/banking.service.js';
+import { BankingLifecycleService } from './banking/banking-lifecycle.service.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, CrmModule],
@@ -28,6 +29,6 @@ import { BankingService } from './banking/banking.service.js';
     PeriodsController,
     BankingController,
   ],
-  providers: [BankingService],
+  providers: [BankingService, BankingLifecycleService],
 })
 export class AccountingModule {}

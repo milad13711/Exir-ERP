@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { ApiError, chainTaxInvoice, fetchTaxInvoice, taxInvoiceAction, updateTaxInvoice, type TaxInvoiceDetail } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { HEADER_LABELS, TAX_STATUS_LABELS, TAX_STATUS_TONES, TAX_SUBJECT_LABELS, inputClass, labelClass } from "./constants";
@@ -75,7 +75,7 @@ export function TaxInvoiceDetailModal({ id, onClose, onChanged }: { id: string; 
         <Badge tone={TAX_STATUS_TONES[d.status]}>{TAX_STATUS_LABELS[d.status]}</Badge>
         <Badge tone="neutral">{TAX_SUBJECT_LABELS[d.subject]}</Badge>
         <span className="text-[12.5px] text-ink-soft">{d.salesInvoice.contact.company || d.salesInvoice.contact.name}</span>
-        <span className="text-[12.5px] font-bold">{formatToman(d.salesInvoice.total)}</span>
+        <span className="text-[12.5px] font-bold">{formatMoney(d.salesInvoice.total)}</span>
       </div>
 
       {error ? <div className="text-[12.5px] text-danger bg-danger-soft rounded-xl px-3 py-2 mb-3 whitespace-pre-line">{error}</div> : null}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarIcon, TicketIcon, ShareIcon, WhatsAppIcon } from "@/components/icons";
-import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
   publicEventCoverImageUrl,
@@ -228,7 +228,7 @@ export function EventDetailClient({
                         <div className="min-w-0">
                           <div className="text-[13.5px] font-bold">{t.name}</div>
                           {t.remaining != null && <div className="text-[11.5px] text-muted mt-0.5">{toPersianDigits(t.remaining)} جای خالی</div>}
-                          <div className="text-[13px] font-extrabold text-primary mt-1">{t.price === 0 ? "رایگان" : formatToman(t.price)}</div>
+                          <div className="text-[13px] font-extrabold text-primary mt-1">{t.price === 0 ? "رایگان" : formatMoney(t.price)}</div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
@@ -340,7 +340,7 @@ export function EventDetailClient({
 
                 <div className="flex items-center justify-between border-t border-border pt-3.5">
                   <span className="text-[13px] text-muted">مبلغ قابل پرداخت</span>
-                  <span className="text-[16px] font-extrabold text-primary">{total === 0 ? "رایگان" : formatToman(total)}</span>
+                  <span className="text-[16px] font-extrabold text-primary">{total === 0 ? "رایگان" : formatMoney(total)}</span>
                 </div>
 
                 {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}

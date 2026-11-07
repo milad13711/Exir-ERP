@@ -187,6 +187,9 @@ export type CashBoxRow = {
 };
 export const fetchCashBoxes = () => apiFetch<CashBoxRow[]>(`${B}/cash-boxes`);
 export const createCashBox = (d: { name: string; custodianUserId?: string; openingBalance?: number; openingDate?: string; linkedAccountId?: string }) => apiFetch<CashBoxRow>(`${B}/cash-boxes`, { method: "POST", body: json(d) });
+export const deleteBank = (id: string) => apiFetch<{ success: true }>(`${B}/banks/${id}`, { method: "DELETE" });
+export const deleteCashBox = (id: string) => apiFetch<{ success: true }>(`${B}/cash-boxes/${id}`, { method: "DELETE" });
+export const deleteChequeBook = (id: string) => apiFetch<{ success: true }>(`${B}/cheque-books/${id}`, { method: "DELETE" });
 export const updateCashBox = (id: string, d: { name?: string; custodianUserId?: string; isActive?: boolean }) => apiFetch<CashBoxRow>(`${B}/cash-boxes/${id}`, { method: "PUT", body: json(d) });
 export const seedDefaultCashBox = () => apiFetch<{ created: boolean; id: string }>(`${B}/cash-boxes/default`, { method: "POST" });
 

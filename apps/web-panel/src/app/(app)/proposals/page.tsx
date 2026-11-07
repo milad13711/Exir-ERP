@@ -10,7 +10,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { PlusIcon } from "@/components/icons";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
-import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, toPersianDigits } from "@/lib/persian";
 import { fetchProposals, type ProposalListItem, type ProposalStatus } from "@/lib/api";
 import { PROPOSAL_STATUSES, PROPOSAL_STATUS_LABELS, PROPOSAL_STATUS_TONES } from "@/components/proposals/constants";
 import { ProposalFormModal } from "@/components/proposals/ProposalFormModal";
@@ -116,7 +116,7 @@ function ProposalsPageInner() {
                   </div>
                   <div className="text-[12.5px] text-ink-soft mt-1.5 truncate">{r.contact.company || r.contact.name}</div>
                   <div className="flex items-center justify-between text-[11.5px] text-muted mt-2.5">
-                    <span className="font-bold text-ink">{formatToman(r.amount)}</span>
+                    <span className="font-bold text-ink">{formatMoney(r.amount)}</span>
                     <span>{formatJalaliDate(r.issuedAt)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-muted mt-1.5 flex-wrap">

@@ -10,6 +10,7 @@ import {
   fetchTenant,
   fetchTenantStats,
   fetchTenantModules,
+  fetchTenantSubscriptionSummary,
   fetchTenantInvoices,
   markInvoicePaid,
   deleteTenantInvoice,
@@ -22,11 +23,13 @@ import {
   type TenantStats,
   type TenantModuleEntry,
   type TenantInvoice,
+  type TenantSubscriptionSummary,
 } from "@/lib/api";
 import { RenewTenantModal } from "@/components/tenants/RenewTenantModal";
 import { DeleteTenantModal } from "@/components/tenants/DeleteTenantModal";
 import { SuspendTenantModal } from "@/components/tenants/SuspendTenantModal";
 import { ModuleInvoiceModal } from "@/components/tenants/ModuleInvoiceModal";
+import { SubscriptionSummaryCard } from "@/components/tenants/SubscriptionSummaryCard";
 import { SubscriptionSmsCard } from "@/components/tenants/SubscriptionSmsCard";
 import { TenantTwoFactorCard } from "@/components/tenants/TenantTwoFactorCard";
 import { IssueInvoiceModal } from "@/components/tenants/IssueInvoiceModal";
@@ -88,7 +91,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [editInvoice, setEditInvoice] = useState<TenantInvoice | null>(null);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
-  const [daysLeft, setDaysLeft] = useState<number | null>(null);
+  const [subSummary, setSubSummary] = useState<TenantSubscriptionSummary | null>(null);
   const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -104,11 +107,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   }
 
   function reload() {
-    fetchTenant(id).then((t) => {
-      setTenant(t);
-      const periodEnd = t.subscriptions[0]?.currentPeriodEnd;
-      setDaysLeft(periodEnd ? Math.max(0, Math.ceil((new Date(periodEnd).getTime() - Date.now()) / 86400000)) : null);
-    }).catch(() => {});
+    fetchTenant(id).then(setTenant).catch(() => {});
+    fetchTenantSubscriptionSummary(id).then(setSubSummary).catch(() => setSubSummary(null));
     fetchTenantStats(id).then(setStats).catch(() => {});
     fetchTenantModules(id).then(setModules).catch(() => setModules([]));
     fetchTenantInvoices(id).then(setInvoices).catch(() => setInvoices([]));
@@ -225,19 +225,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {subscription ? (
-        <Card className="mt-5 p-4 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2.5">
-            <Badge tone="primary">{subscription.plan.name}</Badge>
-            <span className="text-[12px] text-muted">
-              انقضا: {formatJalaliDate(subscription.currentPeriodEnd)}
-            </span>
-          </div>
-          <span className="text-[12px] text-muted">
-            {daysLeft !== null ? `${toPersianDigits(daysLeft)} روز باقی‌مانده` : ""}
-          </span>
-        </Card>
-      ) : null}
+      <SubscriptionSummaryCard summary={subSummary} />
       {subscription ? (
         <SubscriptionSmsCard
           tenantId={id}

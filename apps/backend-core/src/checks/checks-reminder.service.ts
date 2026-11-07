@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -63,6 +65,7 @@ export class ChecksReminderService implements OnModuleInit {
 
   private async remindForTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
+    if (await isConversionActive(tenantId, tenantDb)) return;
 
     // پنجره‌ی یادآوری هر چک با خودش متفاوت است، پس با یک بازه‌ی سخاوتمندانه
     // (۳۰ روز) واکشی می‌کنیم و شرط دقیق را در حافظه اعمال می‌کنیم.
@@ -87,6 +90,7 @@ export class ChecksReminderService implements OnModuleInit {
     const smsCtx = { tenantId, tenantSlug: '', tenantDb, auth: { role: 'OWNER' } } as unknown as import('../common/request-context.js').TenantRequestContext;
     const smsSettings = await this.checks.getSmsSettings(smsCtx);
 
+    const unit = await loadUnitLabel(tenantDb);
     for (const check of dueNow) {
       const partyName = check.contact?.name;
       const partyPhone = check.contact?.phone;
@@ -98,6 +102,7 @@ export class ChecksReminderService implements OnModuleInit {
         const message = renderChecksTemplate(template, {
           sayadId: check.sayadId,
           amount: check.amount.toLocaleString('en-US'),
+          unit,
           dueDate: dueDateFa,
         });
         const result = await this.sms.sendSms({ tenantId, tenantDb }, partyPhone, message);
@@ -111,7 +116,7 @@ export class ChecksReminderService implements OnModuleInit {
           userId: check.createdByUserId,
           type: 'check.due_soon',
           title: `یادآوری چک ${directionFa} ${partyName ?? ''}`,
-          body: `چک به شماره صیادی ${check.sayadId} به مبلغ ${check.amount.toLocaleString('en-US')} تومان در تاریخ ${dueDateFa} سررسید می‌شود.`,
+          body: `چک به شماره صیادی ${check.sayadId} به مبلغ ${check.amount.toLocaleString('en-US')} ${unit} در تاریخ ${dueDateFa} سررسید می‌شود.`,
           link: '/checks',
         });
       }

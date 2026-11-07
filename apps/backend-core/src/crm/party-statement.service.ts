@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 
@@ -198,7 +199,8 @@ export class PartyStatementService {
 
     const { arBalance, apBalance } = await this.statement(ctx, partyId);
     const netBalance = arBalance - apBalance;
-    const formatAmount = (n: number) => `${Math.abs(Math.round(n)).toLocaleString('en-US')} تومان`;
+    const unit = await loadUnitLabel(ctx.tenantDb);
+    const formatAmount = (n: number) => `${Math.abs(Math.round(n)).toLocaleString('en-US')} ${unit}`;
 
     const lines = [`${party.name} عزیز،`, `طلب ما از شما: ${formatAmount(arBalance)}`, `بدهی ما به شما: ${formatAmount(apBalance)}`];
     lines.push(

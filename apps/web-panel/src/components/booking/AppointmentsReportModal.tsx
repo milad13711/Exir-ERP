@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import { fetchAppointmentsReport, type AppointmentReportRow } from "@/lib/api";
 
 function defaultFrom(): string {
@@ -75,7 +75,7 @@ export function AppointmentsReportModal({ onClose }: { onClose: () => void }) {
                     <td className="py-2 text-success">{toPersianDigits(r.completed)}</td>
                     <td className="py-2 text-danger">{toPersianDigits(r.cancelled)}</td>
                     <td className="py-2 text-warning">{toPersianDigits(r.noShow)}</td>
-                    <td className="py-2 font-extrabold">{formatToman(r.revenue)}</td>
+                    <td className="py-2 font-extrabold">{formatMoney(r.revenue)}</td>
                   </tr>
                 ))}
               </tbody>

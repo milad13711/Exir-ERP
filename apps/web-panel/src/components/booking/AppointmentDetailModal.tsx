@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { copyToClipboard } from "@/lib/clipboard";
-import { formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { deleteAppointment, sendAppointmentDetails, ApiError, type Appointment } from "@/lib/api";
 import { CreateOpportunityModal } from "./CreateOpportunityModal";
@@ -79,7 +79,7 @@ export function AppointmentDetailModal({
               </div>
             </div>
           )}
-          <Row label="خدمت" value={`${a.serviceType.name} · ${a.serviceType.durationMinutes} دقیقه · ${formatToman(a.serviceType.price)}`} />
+          <Row label="خدمت" value={`${a.serviceType.name} · ${a.serviceType.durationMinutes} دقیقه · ${formatMoney(a.serviceType.price)}`} />
           <Row label="زمان" value={`${formatJalaliDateTime(a.startAt)}`} />
           <Row label="کارشناس" value={a.provider ? `${a.provider.name}${a.provider.phone ? ` — ${a.provider.phone}` : ""}` : "بدون تخصیص"} />
           {a.location && <Row label="آدرس اختصاصی" value={a.location} />}
@@ -88,7 +88,7 @@ export function AppointmentDetailModal({
           {a.paymentStatus === "PAID" && (
             <Row
               label="پرداخت"
-              value={`${formatToman(a.depositAmount ?? 0)} · ${METHOD_LABEL[a.paymentMethod ?? ""] ?? a.paymentMethod ?? "—"}${a.paymentRefId ? ` · کد پیگیری ${a.paymentRefId}` : ""}${a.paidAt ? ` · ${formatJalaliDateTime(a.paidAt)}` : ""}`}
+              value={`${formatMoney(a.depositAmount ?? 0)} · ${METHOD_LABEL[a.paymentMethod ?? ""] ?? a.paymentMethod ?? "—"}${a.paymentRefId ? ` · کد پیگیری ${a.paymentRefId}` : ""}${a.paidAt ? ` · ${formatJalaliDateTime(a.paidAt)}` : ""}`}
             />
           )}
           {a.mentoringSession && (

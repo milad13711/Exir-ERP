@@ -92,3 +92,40 @@ describe('PaymentGatewayService dispatch', () => {
     expect(bitpay.verify).not.toHaveBeenCalled();
   });
 });
+
+describe('PaymentGatewayService — ارز پایه ریال', () => {
+  const rialCtx = {
+    tenantId: 't-rial',
+    tenantDb: { moduleSetting: { findUnique: vi.fn().mockResolvedValue({ value: { code: 'IRR', label: 'ریال', tomanPerUnitNum: '1', tomanPerUnitDen: '10' } }) } },
+  } as never;
+
+  it('مبلغ ریالی قبل از درگاه ÷۱۰ می‌شود (درگاه تومان می‌گیرد)، برای create و verify', async () => {
+    const zarinpal = {
+      create: vi.fn().mockResolvedValue({ authority: 'A', redirectUrl: 'u' }),
+      verify: vi.fn().mockResolvedValue({ success: true, refId: '1' }),
+    } as unknown as ZarinpalGatewayProvider;
+    const bitpay = { create: vi.fn(), verify: vi.fn() } as unknown as BitpayGatewayProvider;
+    const svc = new PaymentGatewayService(makeSettings({ activeProvider: 'ZARINPAL', zarinpal: { merchantId: 'm', sandbox: true } }), zarinpal, bitpay);
+    await svc.createPayment({ ctx: rialCtx, amount: 1_500_000, description: 'd', callbackUrl: 'https://cb' });
+    await svc.verifyPayment({ ctx: rialCtx, authority: 'A', amount: 1_500_000 });
+    expect((zarinpal.create as ReturnType<typeof vi.fn>).mock.calls[0]![0].amountToman).toBe(150_000);
+    expect((zarinpal.verify as ReturnType<typeof vi.fn>).mock.calls[0]![0].amountToman).toBe(150_000);
+  });
+
+  it('مبلغ ریالیِ نامضرب ۱۰ رد می‌شود و به درگاه نمی‌رسد', async () => {
+    const zarinpal = { create: vi.fn(), verify: vi.fn() } as unknown as ZarinpalGatewayProvider;
+    const svc = new PaymentGatewayService(makeSettings({ activeProvider: 'ZARINPAL', zarinpal: { merchantId: 'm', sandbox: true } }), zarinpal, { create: vi.fn(), verify: vi.fn() } as never);
+    await expect(svc.createPayment({ ctx: rialCtx, amount: 1_500_005, description: 'd', callbackUrl: 'https://cb' })).rejects.toThrow();
+    expect(zarinpal.create).not.toHaveBeenCalled();
+  });
+
+  it('وسط تبدیل ارز پایه، ساخت و تأیید پرداخت با ۴۲۳ رد می‌شود و به درگاه نمی‌رسد', async () => {
+    const zarinpal = { create: vi.fn(), verify: vi.fn() } as unknown as ZarinpalGatewayProvider;
+    const svc = new PaymentGatewayService(makeSettings({ activeProvider: 'ZARINPAL', zarinpal: { merchantId: 'm', sandbox: true } }), zarinpal, { create: vi.fn(), verify: vi.fn() } as never);
+    const busy = { tenantId: 't-busy', tenantDb: { baseCurrencyConversion: { count: vi.fn().mockResolvedValue(1) }, moduleSetting: { findUnique: vi.fn().mockResolvedValue(null) } } } as never;
+    await expect(svc.createPayment({ ctx: busy, amount: 1000, description: 'd', callbackUrl: 'https://cb' })).rejects.toMatchObject({ status: 423 });
+    await expect(svc.verifyPayment({ ctx: busy, authority: 'A', amount: 1000 })).rejects.toMatchObject({ status: 423 });
+    expect(zarinpal.create).not.toHaveBeenCalled();
+    expect(zarinpal.verify).not.toHaveBeenCalled();
+  });
+});

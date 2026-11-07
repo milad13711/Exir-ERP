@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PlusIcon, CloseIcon } from "@/components/icons";
-import { formatToman, formatNumber } from "@/lib/persian";
+import { formatMoney, formatNumber } from "@/lib/persian";
 import { createJournalEntry, updateJournalEntry, type Account, type JournalEntry } from "@/lib/api";
 
 const inputClass =
@@ -152,10 +152,10 @@ export function NewEntryModal({
 
           <div className="flex items-center justify-between px-1 text-[12.5px]">
             <span className="text-muted">
-              جمع بدهکار: <strong className="text-ink font-bold">{formatToman(totalDebit)}</strong>
+              جمع بدهکار: <strong className="text-ink font-bold">{formatMoney(totalDebit)}</strong>
             </span>
             <span className="text-muted">
-              جمع بستانکار: <strong className="text-ink font-bold">{formatToman(totalCredit)}</strong>
+              جمع بستانکار: <strong className="text-ink font-bold">{formatMoney(totalCredit)}</strong>
             </span>
             {!balanced ? (
               <span className="text-danger font-bold">

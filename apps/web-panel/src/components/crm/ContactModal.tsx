@@ -1,3 +1,4 @@
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { useEffect, useState } from "react";
 import { deleteCrmContact } from "@/lib/api";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
@@ -5,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PhoneIcon, MailIcon, BuildingIcon, PlusIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits, moneyUnit } from "@/lib/persian";
 import {
   fetchCrmContact,
   addCrmContactActivity,
@@ -147,6 +148,7 @@ export function ContactModal({
         <div className="py-10 text-center text-muted text-sm">در حال بارگذاری...</div>
       ) : (
         <div className="flex flex-col gap-5">
+          <ReferralPanel entityType="CrmContact" entityId={contact.id} />
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-[16px] font-extrabold">{contact.name}</h3>
@@ -232,7 +234,7 @@ export function ContactModal({
               <div className="flex items-center gap-3 mb-3">
                 <Badge tone={scoreTone(credit.score)}>امتیاز اعتباری: {credit.score}</Badge>
                 <span className="text-[12px] text-ink-soft">
-                  سقف اعتبار: <b>{formatToman(credit.creditLimit)}</b>
+                  سقف اعتبار: <b>{formatMoney(credit.creditLimit)}</b>
                 </span>
               </div>
             ) : null}
@@ -250,7 +252,7 @@ export function ContactModal({
                   <Badge tone={scoreTone(supplierRisk.score)}>سلامت رابطه‌ی خرید: {supplierRisk.score}</Badge>
                   {supplierRisk.totalOutstanding > 0 ? (
                     <span className="text-[12px] text-ink-soft">
-                      بدهی ما به این تأمین‌کننده: <b>{formatToman(supplierRisk.totalOutstanding)}</b>
+                      بدهی ما به این تأمین‌کننده: <b>{formatMoney(supplierRisk.totalOutstanding)}</b>
                     </span>
                   ) : null}
                 </div>
@@ -389,7 +391,7 @@ export function ContactModal({
 
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <label className="text-[11px] text-muted mb-1 block">میانگین گردش حساب ماهانه (تومان)</label>
+                    <label className="text-[11px] text-muted mb-1 block">میانگین گردش حساب ماهانه ({moneyUnit()})</label>
                     <input
                       value={form.bankAvgMonthlyTurnover}
                       onChange={(e) =>
@@ -401,7 +403,7 @@ export function ContactModal({
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[11px] text-muted mb-1 block">سقف اعتبار دستی (تومان)</label>
+                    <label className="text-[11px] text-muted mb-1 block">سقف اعتبار دستی ({moneyUnit()})</label>
                     <input
                       value={form.creditLimitOverride}
                       onChange={(e) =>
@@ -469,7 +471,7 @@ export function ContactModal({
                   >
                     <div>
                       <div className="text-[12.5px] font-bold">{d.title}</div>
-                      <div className="text-[11.5px] text-muted mt-0.5">{formatToman(d.value)}</div>
+                      <div className="text-[11.5px] text-muted mt-0.5">{formatMoney(d.value)}</div>
                     </div>
                     <Badge tone={STAGE_META[d.stage].tone}>{STAGE_META[d.stage].label}</Badge>
                   </div>

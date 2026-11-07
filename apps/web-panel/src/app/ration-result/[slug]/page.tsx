@@ -2,7 +2,7 @@
 
 import { use, useRef, useState } from "react";
 import { LogoMark } from "@/components/icons";
-import { toPersianDigits, formatJalaliDate, formatToman } from "@/lib/persian";
+import { toPersianDigits, formatJalaliDate, formatMoney } from "@/lib/persian";
 import {
   requestRationResultOtp,
   verifyRationResultOtp,
@@ -241,19 +241,19 @@ export default function PublicRationResultPage({ params }: { params: Promise<{ s
                 <div className="flex items-center justify-between text-[13px] mb-1.5">
                   <span className="text-muted">هزینه‌ی جیره‌ی فعلی</span>
                   <span className="font-bold" dir="ltr">
-                    {formatToman(detail.economics.currentTotalCost)}
+                    {formatMoney(detail.economics.currentTotalCost)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[13px] mb-1.5">
                   <span className="text-muted">هزینه‌ی جیره‌ی پیشنهادی</span>
                   <span className="font-bold" dir="ltr">
-                    {formatToman(detail.economics.proposedTotalCost)}
+                    {formatMoney(detail.economics.proposedTotalCost)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[13px] pt-2 border-t border-border mt-1">
                   <span className="font-bold">{detail.economics.delta <= 0 ? "صرفه‌جویی" : "افزایش هزینه"}</span>
                   <span className={`font-extrabold ${detail.economics.delta <= 0 ? "text-success" : "text-danger"}`} dir="ltr">
-                    {formatToman(Math.abs(detail.economics.delta))}
+                    {formatMoney(Math.abs(detail.economics.delta))}
                   </span>
                 </div>
               </div>

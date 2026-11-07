@@ -259,6 +259,32 @@ export function fetchTenantStats(id: string) {
   return apiFetch<TenantStats>(`/admin/tenants/${id}/stats`);
 }
 
+// ── خلاصه‌ی اشتراک (همان منبع واحدِ پنل مشتری؛ بک‌اند: billing/subscription-summary.ts) ──
+export type SubscriptionState = "ACTIVE" | "TRIAL" | "EXPIRING_SOON" | "GRACE" | "EXPIRED" | "SUSPENDED" | "NOT_SUBSCRIBED" | "NO_EXPIRY";
+type EntitlementBase = {
+  state: SubscriptionState;
+  usable: boolean;
+  billingOnly: boolean;
+  expiresAt: string | null;
+  daysLeft: number | null;
+  hoursLeft: number | null;
+  daysOverdue: number | null;
+  openInvoice: { id: string; amount: number; dueAt: string; purpose: string | null } | null;
+  awaitingApproval: boolean;
+  nextAction: "PAY_INVOICE" | "REQUEST_INVOICE" | "CONTACT_SUPPORT" | "NONE";
+  severity: "none" | "info" | "warning" | "danger";
+  reason: string;
+};
+export type TenantSubscriptionSummary = {
+  generatedAt: string;
+  tenant: EntitlementBase & { source: string; planName: string | null; planCode: string | null; lifetime: boolean; staleRecord: boolean };
+  modules: Array<EntitlementBase & { code: string; name: string; isCore: boolean; installStatus: string | null; billingMode: string | null }>;
+  banner: { scope: "tenant" | "module"; state: SubscriptionState; moduleName: string | null; moreModules: number } | null;
+};
+export function fetchTenantSubscriptionSummary(id: string) {
+  return apiFetch<TenantSubscriptionSummary>(`/admin/tenants/${id}/subscription-summary`);
+}
+
 export type TenantModuleEntry = {
   id: string;
   code: string;

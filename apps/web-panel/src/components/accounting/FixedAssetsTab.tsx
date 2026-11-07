@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PlusIcon, PencilIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, moneyUnit } from "@/lib/persian";
 import {
   fetchFixedAssets,
   createFixedAsset,
@@ -174,7 +174,7 @@ export function FixedAssetsTab() {
               <JalaliDateInput value={purchaseDate} onChange={setPurchaseDate} />
             </div>
             <div>
-              <label className="text-[11.5px] text-muted mb-1 block">بهای تمام‌شده (تومان)</label>
+              <label className="text-[11.5px] text-muted mb-1 block">بهای تمام‌شده ({moneyUnit()})</label>
               <input
                 value={purchaseCost}
                 onChange={(e) => setPurchaseCost(e.target.value.replace(/[^0-9]/g, ""))}
@@ -183,7 +183,7 @@ export function FixedAssetsTab() {
               />
             </div>
             <div>
-              <label className="text-[11.5px] text-muted mb-1 block">ارزش اسقاط (تومان)</label>
+              <label className="text-[11.5px] text-muted mb-1 block">ارزش اسقاط ({moneyUnit()})</label>
               <input
                 value={salvageValue}
                 onChange={(e) => setSalvageValue(e.target.value.replace(/[^0-9]/g, ""))}
@@ -237,7 +237,7 @@ export function FixedAssetsTab() {
               <JalaliDateInput value={purchaseDate} onChange={setPurchaseDate} />
             </div>
             <div>
-              <label className="text-[11.5px] text-muted mb-1 block">بهای تمام‌شده (تومان)</label>
+              <label className="text-[11.5px] text-muted mb-1 block">بهای تمام‌شده ({moneyUnit()})</label>
               <input
                 value={purchaseCost}
                 onChange={(e) => setPurchaseCost(e.target.value.replace(/[^0-9]/g, ""))}
@@ -246,7 +246,7 @@ export function FixedAssetsTab() {
               />
             </div>
             <div>
-              <label className="text-[11.5px] text-muted mb-1 block">ارزش اسقاط (تومان)</label>
+              <label className="text-[11.5px] text-muted mb-1 block">ارزش اسقاط ({moneyUnit()})</label>
               <input
                 value={salvageValue}
                 onChange={(e) => setSalvageValue(e.target.value.replace(/[^0-9]/g, ""))}
@@ -296,7 +296,7 @@ export function FixedAssetsTab() {
                       </Badge>
                     </div>
                     <div className="text-[11.5px] text-muted mt-1">
-                      خرید: {formatJalaliDate(a.purchaseDate)} · بهای تمام‌شده: {formatToman(a.purchaseCost)} · عمر مفید:{" "}
+                      خرید: {formatJalaliDate(a.purchaseDate)} · بهای تمام‌شده: {formatMoney(a.purchaseCost)} · عمر مفید:{" "}
                       {a.usefulLifeMonths} ماه
                     </div>
                   </div>
@@ -318,7 +318,7 @@ export function FixedAssetsTab() {
                           disabled={posting === a.id}
                           className="text-[11px] font-bold text-accent bg-accent-soft px-2.5 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
                         >
-                          ثبت سند استهلاک ({formatToman(unpostedDepreciation)})
+                          ثبت سند استهلاک ({formatMoney(unpostedDepreciation)})
                         </button>
                       ) : null}
                       <button
@@ -334,15 +334,15 @@ export function FixedAssetsTab() {
                 <div className="grid grid-cols-3 gap-3 bg-slate-50 border border-border rounded-lg p-3 mt-2.5">
                   <div>
                     <div className="text-[10.5px] text-muted">استهلاک انباشته</div>
-                    <div className="text-[12.5px] font-bold mt-0.5">{formatToman(a.depreciation.accumulatedDepreciation)}</div>
+                    <div className="text-[12.5px] font-bold mt-0.5">{formatMoney(a.depreciation.accumulatedDepreciation)}</div>
                   </div>
                   <div>
                     <div className="text-[10.5px] text-muted">ارزش دفتری فعلی</div>
-                    <div className="text-[12.5px] font-bold mt-0.5">{formatToman(a.depreciation.bookValue)}</div>
+                    <div className="text-[12.5px] font-bold mt-0.5">{formatMoney(a.depreciation.bookValue)}</div>
                   </div>
                   <div>
                     <div className="text-[10.5px] text-muted">استهلاک ماهانه</div>
-                    <div className="text-[12.5px] font-bold mt-0.5">{formatToman(a.depreciation.monthlyDepreciation)}</div>
+                    <div className="text-[12.5px] font-bold mt-0.5">{formatMoney(a.depreciation.monthlyDepreciation)}</div>
                   </div>
                 </div>
               </div>

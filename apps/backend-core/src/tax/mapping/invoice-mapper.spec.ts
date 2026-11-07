@@ -40,6 +40,21 @@ describe('unit conversion (Toman → Rial)', () => {
   });
 });
 
+describe('پایه‌ی ریال: همان فاکتور (۱۰ برابر) همان صورتحساب مودیان را می‌سازد', () => {
+  it('rialPerUnit=1 با مبالغ ×۱۰ ⇒ خروجی دقیقاً برابر پایه‌ی تومان', () => {
+    const toman = mapSalesInvoiceToMoodian(input());
+    const rial = mapSalesInvoiceToMoodian({
+      ...input({ invoice: { subtotal: 10_000, taxAmount: 900, total: 10_900, lines: [{ productId: 'p1', description: 'کالا', quantity: 1, unitPrice: 10_000, lineTotal: 10_000 }] } }),
+      rialPerUnit: 1,
+      unitLabel: 'ریال',
+    });
+    expect(rial.payload.header.tbill).toBe(toman.payload.header.tbill);
+    expect(rial.payload.header.tvam).toBe(toman.payload.header.tvam);
+    expect(rial.payload.body[0]!.fee).toBe(toman.payload.body[0]!.fee);
+    expect(rial.blocking).toBe(toman.blocking);
+  });
+});
+
 describe('mapSalesInvoiceToMoodian — totals and VAT', () => {
   it('computes line vat, totals and header consistency (tbill = tadis + tvam)', () => {
     const r = mapSalesInvoiceToMoodian(

@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { assertRelationsAllowed } from '../referrals/grant-edit.js';
+import { NotFoundException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { projectScope } from '../permissions/entity-scopes.js';
+import { scopeWithGrants } from '../referrals/referral-grants.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ProjectsService } from './projects.service.js';
@@ -56,6 +58,11 @@ export class ProjectsController {
   /** دسترسی به یک پروژه‌ی مشخص — برای کاربر «فقط خودم»، فقط پروژه‌های خودش؛ خارج از دامنه = ۴۰۴ (مثل «وجود ندارد»). */
   private async requireAccess(ctx: TenantRequestContext, id: string): Promise<void> {
     await assertInScope(ctx.tenantDb.project, await this.projectScope(ctx), { id }, { message: 'پروژه یافت نشد' });
+  }
+
+  /** دامنه‌ی فقط-خواندن: دید عادی + پروژه‌ی ارجاع‌شده/وظیفه‌ی پیوندخورده. */
+  private projectReadScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    return scopeWithGrants(ctx, 'Project', () => this.projectScope(ctx));
   }
 
   @Get('stage-templates')
@@ -118,7 +125,7 @@ export class ProjectsController {
     @Query('q') q: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.projects.list(ctx, { status, contactId, q }, await this.projectScope(ctx));
+    return this.projects.list(ctx, { status, contactId, q }, await this.projectReadScope(ctx));
   }
 
   @Post()
@@ -129,11 +136,22 @@ export class ProjectsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.projects.detail(ctx, id, await this.projectScope(ctx));
+    return this.projects.detail(ctx, id, await this.projectReadScope(ctx));
   }
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateProjectDto, @Ctx() ctx: TenantRequestContext) {
+    if (await this.permissions.hasEditGrant(ctx, 'Project', id)) {
+      // عضویت تیم = تغییر دسترسی؛ با ارجاع مجاز نیست
+      const existing = await ctx.tenantDb.project.findUnique({ where: { id }, select: { contactId: true } });
+      if (!existing) throw new NotFoundException('پروژه یافت نشد');
+      await assertRelationsAllowed(this.permissions, ctx, { contactId: dto.contactId }, existing);
+      // مدیر/اعضای تیم = مالکیت و دسترسی پروژه؛ با ارجاع تغییر نمی‌کند
+      const { memberUserIds: _members, managerUserId: _manager, ...safe } = dto;
+      void _members;
+      void _manager;
+      return this.projects.update(ctx, id, safe as typeof dto);
+    }
     await this.permissions.assertEdit(ctx, 'projects');
     await this.requireAccess(ctx, id);
     return this.projects.update(ctx, id, dto);

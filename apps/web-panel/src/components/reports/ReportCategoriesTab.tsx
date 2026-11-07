@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { fetchReportCategories, createReportCategory, deleteReportCategory, ApiError, type ReportCategory } from "@/lib/api";
+import { fetchReportCategories, createReportCategory, deleteReportCategory, renameReportCategory, ApiError, type ReportCategory } from "@/lib/api";
 
 export function ReportCategoriesTab({ onClose }: { onClose: () => void }) {
   const [categories, setCategories] = useState<ReportCategory[] | null>(null);
@@ -31,6 +31,18 @@ export function ReportCategoriesTab({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function handleRename(id: string, current: string) {
+    const next = window.prompt("نام جدید دسته‌بندی", current)?.trim();
+    if (!next || next === current) return;
+    setError(null);
+    try {
+      await renameReportCategory(id, next);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "تغییر نام ناموفق بود");
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!window.confirm("این دسته‌بندی حذف شود؟")) return;
     await deleteReportCategory(id);
@@ -51,6 +63,13 @@ export function ReportCategoriesTab({ onClose }: { onClose: () => void }) {
             {categories.map((c) => (
               <div key={c.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-border rounded-xl px-3.5 py-2.5">
                 <span className="text-[12.5px] font-semibold min-w-0 break-words">{c.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRename(c.id, c.name)}
+                  className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 min-h-10 rounded-lg cursor-pointer shrink-0"
+                >
+                  ویرایش
+                </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(c.id)}

@@ -14,6 +14,7 @@ import { SendRefusedError, hashNormalized } from './client/send-guard.js';
 import type { TaxInvoiceStatus } from './client/types.js';
 import { MOODIAN_MAPPING_VERSION, INVOICE_PATTERN, INQUIRY_STATUS } from './mapping/moodian-field-map.js';
 import { mapMoodianError, type MappedTaxError } from './mapping/moodian-errors.js';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { mapSalesInvoiceToMoodian, type MapResult, type ProductMapping, type TaxIssue, type TaxOverrides } from './mapping/invoice-mapper.js';
 import { assertTransition } from './state-machine.js';
 import { TaxAuditService } from './tax-audit.service.js';
@@ -120,7 +121,13 @@ export class TaxInvoicesService implements OnModuleInit {
     const codes = productIds.length ? await ctx.tenantDb.taxProductCode.findMany({ where: { productId: { in: productIds } } }) : [];
     const mappings = new Map<string, ProductMapping>(codes.map((c) => [c.productId, { sstid: c.sstid, unitCode: c.unitCode, vatRate: c.vatRate }]));
     const s = await this.settings.getRow(ctx);
-    return mapSalesInvoiceToMoodian({
+    // مودیان ریال می‌خواهد: ارز پایه‌ی تننت تعیین می‌کند هر واحد چند ریال است (تومان=۱۰، ریال=۱)
+    const base = await loadBaseCurrency(ctx.tenantDb);
+    const rialNum = base.tomanPerUnit.num * 10n;
+    const rialPerUnit = rialNum % base.tomanPerUnit.den === 0n ? Number(rialNum / base.tomanPerUnit.den) : null;
+    const result = mapSalesInvoiceToMoodian({
+      rialPerUnit: rialPerUnit ?? 10,
+      unitLabel: base.label,
       settings: { economicCode: s.economicCode, fiscalId: s.fiscalId, branchCode: s.branchCode, defaultVatRate: s.defaultVatRate, defaultSstid: s.defaultSstid, defaultUnitCode: s.defaultUnitCode },
       invoice: {
         invoiceNo: inv.invoiceNo, officialInvoiceNo: inv.officialInvoiceNo, isOfficial: inv.isOfficial, status: inv.status, issuedAt: inv.issuedAt, subtotal: inv.subtotal,
@@ -131,6 +138,11 @@ export class TaxInvoicesService implements OnModuleInit {
       taxInvoice: { subject: t.subject as never, pattern: t.pattern, taxid: t.taxid, irtaxid: t.irtaxid, createdAt: t.createdAt, overrides: (t.overrides ?? null) as TaxOverrides | null },
       mappings,
     });
+    if (rialPerUnit === null) {
+      result.issues.push({ code: 'BASE_CURRENCY_UNSUPPORTED', severity: 'BLOCKING', message: `ارز پایه‌ی «${base.label}» به ریال صحیح قابل تبدیل نیست؛ ارسال به مودیان ممکن نیست` });
+      result.blocking = true;
+    }
+    return result;
   }
 
   /** نواقص مربوط به آماده‌بودن ارسال (کلید/تنظیمات) — برای نمایش؛ مانع تأیید نیست ولی ارسال را متوقف می‌کند. */
@@ -247,7 +259,7 @@ export class TaxInvoicesService implements OnModuleInit {
       entityType: TAX_APPROVAL_ENTITY,
       entityId: id,
       title: `ارسال صورتحساب مالیاتی فاکتور ${t.salesInvoice.invoiceNo} به سامانه مودیان`,
-      summary: `مشتری: ${t.salesInvoice.contact.name} — مبلغ: ${t.salesInvoice.total.toLocaleString('en-US')} تومان`,
+      summary: `مشتری: ${t.salesInvoice.contact.name} — مبلغ: ${t.salesInvoice.total.toLocaleString('en-US')} ${(await loadBaseCurrency(ctx.tenantDb)).label}`,
       link: `/tax?open=${id}`,
       requestedByUserId: userId ?? undefined,
     });

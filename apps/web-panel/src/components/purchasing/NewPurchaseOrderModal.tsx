@@ -11,6 +11,7 @@ import {
   type Product,
   type PurchaseOrderDetail,
 } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 type DraftLine = {
   productId: string;
@@ -186,7 +187,7 @@ export function NewPurchaseOrderModal({
                 <input
                   value={line.unitCost}
                   onChange={(e) => updateLine(i, { unitCost: e.target.value.replace(/[^0-9]/g, ""), currencyId: undefined })}
-                  placeholder="بهای واحد (تومان)"
+                  placeholder={`بهای واحد (${moneyUnit()})`}
                   dir="ltr"
                   className="w-28 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2 py-2 outline-none"
                 />
@@ -218,7 +219,7 @@ export function NewPurchaseOrderModal({
 
         <div className="text-left">
           <div className="text-[11.5px] text-muted">مبلغ کل سفارش</div>
-          <div className="text-[16px] font-extrabold mt-1">{total.toLocaleString("en-US")} تومان</div>
+          <div className="text-[16px] font-extrabold mt-1">{total.toLocaleString("en-US")} {moneyUnit()}</div>
         </div>
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}

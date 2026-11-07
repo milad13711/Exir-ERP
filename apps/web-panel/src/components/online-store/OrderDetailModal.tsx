@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CloseIcon, PhoneIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import { updateStoreOrderStatus, ApiError, type StoreOrder, type StoreOrderStatus } from "@/lib/api";
 
 export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
@@ -94,12 +94,12 @@ export function OrderDetailModal({
                 <span>
                   {l.productName} <span className="text-muted">× {toPersianDigits(l.quantity)}</span>
                 </span>
-                <span className="font-bold">{formatToman(l.lineTotal)}</span>
+                <span className="font-bold">{formatMoney(l.lineTotal)}</span>
               </div>
             ))}
             <div className="flex items-center justify-between text-[14px] font-extrabold pt-1">
               <span>جمع کل</span>
-              <span>{formatToman(order.subtotal)}</span>
+              <span>{formatMoney(order.subtotal)}</span>
             </div>
           </div>
 

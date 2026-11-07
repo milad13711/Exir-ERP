@@ -168,6 +168,11 @@ export const TRANSFERABLE: TransferEntry[] = [
     scopeNote: 'فقط ارجاع‌های پاراف‌نشده؛ ارجاع‌های پاراف‌شده سابقه‌اند.',
   },
   {
+    key: 'DocumentReferral.toUserId', moduleCode: 'referrals', label: 'ارجاع سند (مسئول پیگیری)', model: 'DocumentReferral', field: 'toUserId', kind: 'single',
+    scope: () => ({ status: { in: ['PENDING', 'ACCEPTED'] } }),
+    scopeNote: 'فقط ارجاع‌های فعال (در انتظار/پذیرفته‌شده)؛ ارجاع‌های پایان‌یافته سابقه‌اند. دسترسی مشاهده‌ی سند همراه ارجاع به مقصد منتقل می‌شود.',
+  },
+  {
     key: 'ApprovalRequest.assigneeUserId', moduleCode: 'approvals', label: 'کارتابل تأیید (درخواست‌های در انتظار)', model: 'ApprovalRequest', field: 'assigneeUserId', kind: 'single',
     scope: () => ({ status: 'PENDING' }),
     scopeNote: 'فقط درخواست‌های در انتظار تأیید؛ اگر مقصد مدیر نباشد، درخواست به «هر مدیر» برمی‌گردد.',
@@ -207,6 +212,8 @@ export const PERSONAL: PersonalEntry[] = [
   { key: 'UserModulePermission.userId', moduleCode: 'users', label: 'دسترسی دستی ماژول‌ها', model: 'UserModulePermission', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'در غیرفعال‌سازی حفظ می‌شود، در حذف کامل پاک می‌شود.' },
   { key: 'Notification.userId', moduleCode: 'users', label: 'اعلان‌های درون‌برنامه', model: 'Notification', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'فقط در حذف کامل پاک می‌شود.' },
   { key: 'NotificationPreference.userId', moduleCode: 'users', label: 'ترجیح‌های اعلان', model: 'NotificationPreference', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'فقط در حذف کامل پاک می‌شود.' },
+  { key: 'ModuleReleaseRead.userId', moduleCode: 'users', label: 'وضعیت دیده‌شدن تازه‌های سیستم', model: 'ModuleReleaseRead', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'فقط در حذف کامل پاک می‌شود.' },
+  { key: 'BaseCurrencyConfirmation.userId', moduleCode: 'currency-exchange', label: 'کدهای تأیید تغییر ارز پایه', model: 'BaseCurrencyConfirmation', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'کد یک‌بارمصرف کوتاه‌عمر؛ فقط در حذف کامل پاک می‌شود.' },
   { key: 'PushSubscription.userId', moduleCode: 'users', label: 'اشتراک‌های پوش (دستگاه‌ها)', model: 'PushSubscription', field: 'userId', cleanup: [{ action: 'delete', when: 'always' }], note: 'همیشه پاک می‌شود تا اعلان‌ها دیگر به دستگاه‌های او نرسد.' },
   { key: 'PushAttempt.userId', moduleCode: 'users', label: 'تلاش‌های ارسال پوش (عیب‌یابی)', model: 'PushAttempt', field: 'userId', cleanup: [{ action: 'delete', when: 'delete-mode' }], note: 'گزارش فنی ارسال؛ فقط در حذف کامل پاک می‌شود.' },
   { key: 'VoipExtension.userId', moduleCode: 'voip', label: 'داخلی تلفن / SIP', model: 'VoipExtension', field: 'userId', cleanup: [{ action: 'delete', when: 'always' }], note: 'همیشه پاک می‌شود (حاوی اعتبارنامه‌ی SIP).' },
@@ -264,6 +271,7 @@ export const HISTORICAL: HistoricalGroups = {
   recruitment: ['JobPosting.createdByUserId', 'JobOffer.signedByUserId'],
   certificates: ['Certificate.issuedByUserId'],
   reports: ['Report.createdByUserId', 'ReportReferral.fromUserId'],
+  referrals: ['DocumentReferral.fromUserId', 'DocumentReferral.resolvedByUserId'],
   approvals: ['ApprovalRequest.requestedByUserId', 'ApprovalRequest.decidedByUserId'],
   'confidential-archive': ['ConfidentialDocument.createdByUserId', 'ConfidentialDocument.updatedByUserId', 'ConfidentialArchiveAccess.grantedByUserId'],
   dashboard: ['DashboardLayout.updatedByUserId'],
@@ -276,6 +284,7 @@ export const HISTORICAL: HistoricalGroups = {
  * به‌جای حذف ردیف کاربر، او ناشناس‌سازی می‌شود). دلیل هر مورد برای بازبینی آینده نوشته شده.
  */
 export const ACKNOWLEDGED_HISTORICAL: Record<string, string> = {
+  'BaseCurrencyConversion.executedByUserId': 'سابقه‌ی حسابرسی تغییر ارز پایه — تغییرناپذیر (نام اجراکننده هم در رکورد ثبت است)',
   'CorrEvent.actorUserId': 'خط‌زمان نامه — تغییرناپذیر',
   'CorrParticipant.userId': 'مشارکت‌کنندگان نامه (مبنای دید و سابقه) — برای حفظ سابقه و کنترل دسترسی دست‌نخورده می‌ماند',
   'ActivityLog.userId': 'لاگ فعالیت — تغییرناپذیر',
@@ -325,6 +334,7 @@ export function delegateName(model: string): string {
 
 /** نام فارسی ماژول‌ها برای UI/گزارش. */
 export const MODULE_LABELS: Record<string, string> = {
+  referrals: 'ارجاع سند',
   tasks: 'وظایف',
   'daily-checklist': 'چک‌لیست روزانه',
   crm: 'مدیریت ارتباط با مشتری',

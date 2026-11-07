@@ -5,6 +5,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator.js'
 import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { scopeWithGrants } from '../referrals/referral-grants.js';
 import { proposalScope } from '../permissions/entity-scopes.js';
 import { ProposalsService } from './proposals.service.js';
 import { ProposalTemplatesService } from './proposal-templates.service.js';
@@ -39,6 +40,11 @@ export class ProposalsController {
 
   private scope(ctx: TenantRequestContext) {
     return proposalScope(this.permissions, ctx);
+  }
+
+  /** دامنه‌ی فقط-خواندن: دید عادی + پیشنهاد ارجاع‌شده/وظیفه‌ی پیوندخورده. */
+  private readScope(ctx: TenantRequestContext) {
+    return scopeWithGrants(ctx, 'Proposal', () => this.scope(ctx));
   }
 
   private contactScope(ctx: TenantRequestContext) {
@@ -87,12 +93,12 @@ export class ProposalsController {
     @Query('assignedUserId') assignedUserId: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.proposals.list(ctx, await this.scope(ctx), { q, status, contactId, assignedUserId });
+    return this.proposals.list(ctx, await this.readScope(ctx), { q, status, contactId, assignedUserId });
   }
 
   @Get(':id')
   async detail(@Param('id', ParseUUIDPipe) id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.proposals.detail(ctx, id, await this.scope(ctx));
+    return this.proposals.detail(ctx, id, await this.readScope(ctx));
   }
 
   @Post()
@@ -103,6 +109,13 @@ export class ProposalsController {
 
   @Patch(':id')
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProposalDto, @Ctx() ctx: TenantRequestContext) {
+    if (await this.permissions.hasEditGrant(ctx, 'Proposal', id)) {
+      // ارجاع فعال: ویرایش همین یک پیشنهاد؛ مخاطب جدید همچنان با دامنه‌ی سخت‌گیر خودش سنجیده می‌شود
+      // مسئول پیگیری پیشنهاد (assignedUserId) تغییر دسترسی است؛ با ارجاع تغییر نمی‌کند
+      const { assignedUserId: _assigned, ...safe } = dto;
+      void _assigned;
+      return this.proposals.update(ctx, id, safe as typeof dto, {}, await this.contactScope(ctx).catch(() => ({ AND: [{ id: '__none__' }] })));
+    }
     await this.permissions.assertEdit(ctx, 'proposals');
     return this.proposals.update(ctx, id, dto, await this.scope(ctx), await this.contactScope(ctx));
   }

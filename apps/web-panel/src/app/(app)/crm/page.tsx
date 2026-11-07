@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { CrmIcon, PlusIcon, BuildingIcon, PhoneIcon } from "@/components/icons";
-import { formatToman, formatNumber } from "@/lib/persian";
+import { formatMoney, formatNumber, moneyUnit } from "@/lib/persian";
 import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact, type CrmContactGroup } from "@/lib/api";
 import { FunnelStageBadge, isConvertedContact } from "@/components/crm/FunnelStageControls";
 import { STAGE_ORDER, STAGE_META } from "@/components/crm/crm-shared";
@@ -154,7 +154,7 @@ export default function CrmPage() {
         <KpiCard
           label="ارزش قیف فروش باز"
           value={pipelineValue}
-          unitSuffix="تومان"
+          unitSuffix={moneyUnit()}
           tone="primary"
           icon={<CrmIcon />}
         />
@@ -165,7 +165,7 @@ export default function CrmPage() {
           tone="accent"
           icon={<CrmIcon />}
         />
-        <KpiCard label="فروش بسته‌شده (برد)" value={wonValue} unitSuffix="تومان" tone="success" icon={<CrmIcon />} />
+        <KpiCard label="فروش بسته‌شده (برد)" value={wonValue} unitSuffix={moneyUnit()} tone="success" icon={<CrmIcon />} />
       </div>
 
       <div className="flex items-center gap-2 mt-7 border-b border-border">
@@ -205,7 +205,7 @@ export default function CrmPage() {
                         <span className="text-[11.5px] text-muted">{formatNumber(stageDeals.length)}</span>
                       </div>
                     </div>
-                    <div className="text-[11px] text-muted px-1 mb-2">{formatToman(stageValue)}</div>
+                    <div className="text-[11px] text-muted px-1 mb-2">{formatMoney(stageValue)}</div>
                     <div className="flex flex-col gap-2.5">
                       {stageDeals.map((deal) => (
                         <button
@@ -219,7 +219,7 @@ export default function CrmPage() {
                             {deal.contact?.company ? ` · ${deal.contact.company}` : ""}
                           </div>
                           <div className="text-[13px] font-extrabold text-primary mt-2">
-                            {formatToman(deal.value)}
+                            {formatMoney(deal.value)}
                           </div>
                         </button>
                       ))}

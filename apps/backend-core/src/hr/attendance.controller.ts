@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -60,5 +60,16 @@ export class AttendanceController {
       },
     });
     return record;
+  }
+
+  /** حذف ثبت حضور/غیاب اشتباه — رکورد حذف می‌شود و کارمند دوباره «ثبت‌نشده» است. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'hr');
+    await this.permissions.assertViewAll(ctx, 'hr');
+    const rec = await ctx.tenantDb.attendanceRecord.findUnique({ where: { id }, select: { id: true } });
+    if (!rec) throw new NotFoundException('ثبت حضور یافت نشد');
+    await ctx.tenantDb.attendanceRecord.delete({ where: { id } });
+    return { success: true };
   }
 }

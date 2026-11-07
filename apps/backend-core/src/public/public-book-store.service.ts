@@ -1,13 +1,16 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { BookStoreService } from '../book-store/book-store.service.js';
+import { EbookDeliveryService } from '../book-store/ebook-delivery.service.js';
+import { maskPhone, normalizePhone, verifyLicenceCode } from '../book-store/ebook-license.js';
 import type { BookOrderTicketPayload } from '../auth/jwt-payload.type.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreatePublicBookOrderDto } from './dto/create-public-book-order.dto.js';
+import type { VerifyBookLicenseDto } from './dto/verify-book-license.dto.js';
 
 const BOOKING_TOKEN_TTL_SECONDS = 15 * 60;
 
@@ -24,9 +27,10 @@ export class PublicBookStoreService {
     private readonly auth: AuthService,
     private readonly bookStore: BookStoreService,
     private readonly jwt: JwtService,
+    private readonly ebook: EbookDeliveryService,
   ) {}
 
-  private async resolveTenantCtx(slug: string): Promise<TenantRequestContext> {
+  async resolveTenantCtx(slug: string): Promise<TenantRequestContext> {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
     if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
       throw new NotFoundException('این لینک دیگر معتبر نیست');
@@ -103,5 +107,60 @@ export class PublicBookStoreService {
     const order = await ctx.tenantDb.bookOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('این سفارش یافت نشد');
     return { status: order.status, paidAt: order.paidAt };
+  }
+
+  /**
+   * «کتابخانه‌ی من» — همه‌ی نسخه‌های الکترونیک پرداخت‌شده‌ی این شماره (با همان توکن OTP خرید)،
+   * هر کدام با لینک دانلود امضاشده‌ی تازه. نسخه‌ای که هنوز ساخته نشده در پس‌زمینه ساخته می‌شود.
+   */
+  async library(slug: string, bookingToken: string) {
+    const ctx = await this.resolveTenantCtx(slug);
+    const phone = await this.resolveOrderPhone(slug, bookingToken);
+    if (!this.ebook.isEnabledFor(ctx)) throw new ServiceUnavailableException('تحویل نسخه‌ی الکترونیک هنوز فعال نشده است؛ با پشتیبانی تماس بگیرید');
+
+    const orders = await ctx.tenantDb.bookOrder.findMany({
+      where: { buyerPhone: phone, format: 'EBOOK', paidAt: { not: null } },
+      orderBy: { paidAt: 'desc' },
+      take: 20,
+    });
+    return Promise.all(
+      orders.map(async (order) => {
+        const ready = await this.ebook.isIssued(ctx, order);
+        if (!ready) void this.ebook.ensureIssued(ctx, order);
+        const links = this.ebook.links(ctx, order.id)!;
+        return {
+          orderNo: order.orderNo,
+          paidAt: order.paidAt,
+          licenseCode: order.licenseCode ?? this.ebook.licenseCodeFor(ctx, order),
+          ready,
+          pageUrl: links.pageUrl,
+          pdfUrl: links.pdfUrl,
+          epubUrl: links.epubUrl,
+          expiresAt: links.expiresAt,
+        };
+      }),
+    );
+  }
+
+  /**
+   * استعلام عمومی اصالت یک نسخه (شماره سفارش + تلفن + کد مجوز). پاسخ منفی همیشه یکسان است تا
+   * نشود از آن برای فهمیدن «وجود سفارش» یا «شماره‌ی خریدار» استفاده کرد.
+   */
+  async verifyLicense(slug: string, dto: VerifyBookLicenseDto) {
+    const ctx = await this.resolveTenantCtx(slug);
+    const secret = this.ebook.secretFor(ctx);
+    if (!secret) throw new ServiceUnavailableException('استعلام مجوز هنوز فعال نشده است');
+
+    const invalid = { valid: false as const };
+    if (!verifyLicenceCode(secret, dto.orderNo, dto.phone, dto.code)) return invalid;
+    const order = await ctx.tenantDb.bookOrder.findUnique({ where: { orderNo: dto.orderNo } });
+    if (!order || order.format !== 'EBOOK' || !order.paidAt || normalizePhone(order.buyerPhone) !== normalizePhone(dto.phone)) return invalid;
+    return {
+      valid: true as const,
+      orderNo: order.orderNo,
+      holderName: order.buyerName,
+      holderPhone: maskPhone(order.buyerPhone),
+      issuedAt: order.paidAt,
+    };
   }
 }

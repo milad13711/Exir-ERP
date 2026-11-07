@@ -1,4 +1,4 @@
-import { ForbiddenException, Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { ForbiddenException, Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -94,6 +94,15 @@ export class UsersController {
   createRole(@Body() dto: CreateRoleDto, @Ctx() ctx: TenantRequestContext) {
     assertTwoFactorForSensitiveAction(ctx);
     return this.users.createRole(ctx, dto.name);
+  }
+
+  /** تغییر نام نقش سفارشی (نقش‌های پیش‌فرض سیستم تغییر نام نمی‌دهند). */
+  @Patch('roles/:id')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  renameRole(@Param('id') id: string, @Body() dto: CreateRoleDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
+    return this.users.renameRole(ctx, id, dto.name);
   }
 
   @Delete('roles/:id')

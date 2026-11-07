@@ -14,6 +14,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Request, Response } from 'express';
 import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
 import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
@@ -246,8 +247,10 @@ export class RationSamplesController {
       })),
     ];
 
+    const unitLabel = await loadUnitLabel(ctx.tenantDb);
     const pdf = await this.pdf.render(
       {
+        unitLabel,
         sampleNo: sample.sampleNo,
         collectedAt: sample.collectedAt,
         farmerName: sample.contact.name,

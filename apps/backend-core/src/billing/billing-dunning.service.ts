@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
+import { computeTenantEntitlement, isPlanLevelInvoice, tehranDayIndex } from './subscription-summary.js';
 
 // Reminder thresholds, in whole days relative to currentPeriodEnd: positive
 // = days remaining before expiry, negative = days already overdue (still
@@ -38,17 +39,35 @@ export class BillingDunningService {
     });
 
     for (const subscription of subscriptions) {
-      const daysLeft = Math.round(
-        (subscription.currentPeriodEnd.getTime() - Date.now()) / 86_400_000,
-      );
+      // مادام‌العمر هرگز یادآوری نمی‌گیرد؛ روزها به تقویم تهران (همان منطق هدر/تنظیمات) شمرده می‌شود، نه round میلی‌ثانیه‌ای
+      if (subscription.lifetime) continue;
+      const now = new Date();
+      const daysLeft = tehranDayIndex(subscription.currentPeriodEnd) - tehranDayIndex(now);
       if (!REMINDER_DAYS.includes(daysLeft as (typeof REMINDER_DAYS)[number])) continue;
+
+      // فقط وقتی واقعاً تمدیدی لازم است — نه برای پرداخت‌کننده‌ی رکورد-قدیمی یا مادام‌العمر (منبع واحد: subscription-summary)
+      const invoices = await this.controlDb.invoice.findMany({
+        where: { tenantId: subscription.tenantId, status: { in: ['PENDING', 'AWAITING_APPROVAL', 'PAID'] } },
+        orderBy: { issuedAt: 'desc' },
+        take: 50,
+        select: { id: true, amount: true, status: true, purpose: true, items: true, dueAt: true, paidAt: true },
+      });
+      const ent = computeTenantEntitlement(
+        {
+          tenantStatus: subscription.tenant.status,
+          subscription: { status: subscription.status, startedAt: subscription.startedAt, currentPeriodEnd: subscription.currentPeriodEnd, lifetime: subscription.lifetime, autoRenew: subscription.autoRenew, planName: subscription.plan.name, planCode: subscription.plan.code },
+          planInvoices: invoices.filter(isPlanLevelInvoice),
+        },
+        now,
+      );
+      if (ent.state !== 'EXPIRING_SOON' && ent.state !== 'GRACE' && ent.state !== 'TRIAL') continue;
 
       await this.remindOne(subscription.tenantId, subscription.tenant.name, daysLeft, subscription.plan.name);
     }
   }
 
   private async remindOne(tenantId: string, tenantName: string, daysLeft: number, planName: string): Promise<void> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tehran' });
     const dedupeKey = `renewal_reminder:${daysLeft}:${today}`;
 
     const alreadySent = await this.controlDb.auditLog.findFirst({
@@ -65,8 +84,8 @@ export class BillingDunningService {
 
     const message =
       daysLeft >= 0
-        ? `اکسیر ERP: اشتراک «${planName}» شرکت ${tenantName} تا ${daysLeft} روز دیگر منقضی می‌شود. برای تمدید با پشتیبانی تماس بگیرید.`
-        : `اکسیر ERP: اشتراک «${planName}» شرکت ${tenantName} ${Math.abs(daysLeft)} روز است که منقضی شده. برای جلوگیری از قطع دسترسی، لطفاً تمدید کنید.`;
+        ? `اکسیر ERP: اشتراک «${planName}» شرکت ${tenantName} تا ${daysLeft} روز دیگر منقضی می‌شود. برای تمدید، در پنل بخش «اشتراک و صورتحساب» روی «درخواست صدور فاکتور تمدید» بزنید.`
+        : `اکسیر ERP: اشتراک «${planName}» شرکت ${tenantName} ${Math.abs(daysLeft)} روز است که منقضی شده. برای جلوگیری از قطع دسترسی، از بخش «اشتراک و صورتحساب» پنل فاکتور تمدید بگیرید و پرداخت کنید.`;
 
     const result = await this.sms.sendSms(ownerPhone, message);
     if (!result.success) {

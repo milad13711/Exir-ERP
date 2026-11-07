@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CalendarIcon, TicketIcon } from "@/components/icons";
-import { formatJalaliDate, formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { publicEventCoverImageUrl, type PublicEventItem } from "@/lib/api";
 
 function priceRangeLabel(event: PublicEventItem): string {
@@ -10,7 +10,7 @@ function priceRangeLabel(event: PublicEventItem): string {
   if (prices.length === 0) return "";
   const min = Math.min(...prices);
   if (min === 0 && prices.every((p) => p === 0)) return "رایگان";
-  return min === 0 ? `از رایگان تا ${formatToman(Math.max(...prices))}` : `از ${formatToman(min)}`;
+  return min === 0 ? `از رایگان تا ${formatMoney(Math.max(...prices))}` : `از ${formatMoney(min)}`;
 }
 
 export function EventsLandingClient({ tenantSlug, events }: { tenantSlug: string; events: PublicEventItem[] }) {

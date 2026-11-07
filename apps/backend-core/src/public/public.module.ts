@@ -40,6 +40,7 @@ import { PublicEventsPaymentController } from './public-events-payment.controlle
 import { PublicBookStoreService } from './public-book-store.service.js';
 import { PublicBookStoreController } from './public-book-store.controller.js';
 import { PublicBookStorePaymentController } from './public-book-store-payment.controller.js';
+import { PublicBookEbookController } from './public-book-ebook.controller.js';
 import { PublicFormsService } from './public-forms.service.js';
 import { PublicFormsController } from './public-forms.controller.js';
 import { WarrantyModule } from '../warranty/warranty.module.js';
@@ -112,6 +113,7 @@ import { WebhooksModule } from '../webhooks/webhooks.module.js';
     PublicEventsPaymentController,
     PublicBookStoreController,
     PublicBookStorePaymentController,
+    PublicBookEbookController,
     PublicFormsController,
     PublicWarrantyController,
     PublicAfterSalesController,

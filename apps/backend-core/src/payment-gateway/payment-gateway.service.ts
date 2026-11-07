@@ -3,10 +3,15 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { PaymentGatewaySettingsService, type GatewayProvider } from './payment-gateway-settings.service.js';
 import { ZarinpalGatewayProvider } from './providers/zarinpal.provider.js';
 import { BitpayGatewayProvider } from './providers/bitpay.provider.js';
+import { HttpException } from '@nestjs/common';
+import { loadBaseCurrency, toGatewayToman } from '../base-currency/base-unit.js';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
+
+const CONVERTING_MSG = 'تغییر ارز پایه در حال انجام است؛ پرداخت/تأیید پرداخت موقتاً متوقف است. چند دقیقه دیگر دوباره تلاش کنید (پرداخت شما در درگاه از بین نمی‌رود).';
 
 export type CreatePaymentInput = {
   ctx: TenantRequestContext;
-  /** تومان */
+  /** به واحد ارز پایه‌ی تننت (تومان یا ریال...)؛ همین‌جا به تومان درگاه تبدیل می‌شود. */
   amount: number;
   description: string;
   callbackUrl: string;
@@ -19,7 +24,7 @@ export type CreatePaymentResult = { redirectUrl: string; authority: string; prov
 export type VerifyPaymentInput = {
   ctx: TenantRequestContext;
   authority: string;
-  /** تومان — باید با مبلغ زمان create برابر باشد. */
+  /** واحد ارز پایه — باید با مبلغ زمان create برابر باشد (تبدیل به تومان درگاه همین‌جا). */
   amount: number;
   /** فقط بیت‌پی: اگر callback بیت‌پی trans_id جداگانه داد، اینجا پاس داده شود؛ برای زرین‌پال بی‌اثر است. */
   transId?: string;
@@ -52,14 +57,17 @@ export class PaymentGatewayService {
   }
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult | null> {
+    if (await isConversionActive(input.ctx.tenantId, input.ctx.tenantDb)) throw new HttpException(CONVERTING_MSG, 423);
     const s = await this.settings.get(input.ctx);
     if (!s.activeProvider) return null;
+    // درگاه‌ها همیشه تومان می‌گیرند؛ اگر ارز پایه ریال است همین‌جا ÷۱۰ (فقط اگر دقیق باشد)
+    const amountToman = toGatewayToman(input.amount, await loadBaseCurrency(input.ctx.tenantDb, { fresh: true }));
 
     if (s.activeProvider === 'ZARINPAL') {
       const result = await this.zarinpal.create({
         merchantId: s.zarinpal.merchantId,
         sandbox: s.zarinpal.sandbox,
-        amountToman: input.amount,
+        amountToman,
         description: input.description,
         callbackUrl: input.callbackUrl,
         mobile: input.mobile,
@@ -72,7 +80,7 @@ export class PaymentGatewayService {
     if (s.activeProvider === 'BITPAY') {
       const result = await this.bitpay.create({
         apiKey: s.bitpay.apiKey,
-        amountToman: input.amount,
+        amountToman,
         description: input.description,
         callbackUrl: input.callbackUrl,
         mobile: input.mobile,
@@ -86,14 +94,16 @@ export class PaymentGatewayService {
   }
 
   async verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult | null> {
+    if (await isConversionActive(input.ctx.tenantId, input.ctx.tenantDb)) throw new HttpException(CONVERTING_MSG, 423);
     const s = await this.settings.get(input.ctx);
     if (!s.activeProvider) return null;
+    const amountToman = toGatewayToman(input.amount, await loadBaseCurrency(input.ctx.tenantDb, { fresh: true }));
 
     if (s.activeProvider === 'ZARINPAL') {
       const result = await this.zarinpal.verify({
         merchantId: s.zarinpal.merchantId,
         sandbox: s.zarinpal.sandbox,
-        amountToman: input.amount,
+        amountToman,
         authority: input.authority,
       });
       return { ...result, provider: 'ZARINPAL' };

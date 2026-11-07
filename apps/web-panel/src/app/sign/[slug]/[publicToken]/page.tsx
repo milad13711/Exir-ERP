@@ -3,7 +3,7 @@
 import { use, useRef, useState } from "react";
 import { LogoMark, DocsIcon, CheckIcon } from "@/components/icons";
 import { SignaturePad } from "@/components/ui/SignaturePad";
-import { toPersianDigits, formatToman, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
+import { toPersianDigits, formatMoney, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
 import {
   requestContractSignOtp,
   verifyContractSignOtp,
@@ -246,7 +246,7 @@ export default function PublicContractSignPage({ params }: { params: Promise<{ s
                 <div className="grid grid-cols-2 gap-2.5 mb-3">
                   <div className="bg-slate-50 rounded-xl p-3">
                     <div className="text-[11px] text-muted mb-1">ارزش قرارداد</div>
-                    <div className="text-[13px] font-extrabold">{formatToman(contract.value)}</div>
+                    <div className="text-[13px] font-extrabold">{formatMoney(contract.value)}</div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-3">
                     <div className="text-[11px] text-muted mb-1">تاریخ پایان</div>

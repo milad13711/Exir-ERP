@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { fetchCrmContacts, createRationSample, ApiError, type CrmContact } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 type CurrentLine = { ingredientName: string; quantityPerAnimalKg: string; unitCostSnapshot: string };
 
@@ -203,7 +204,7 @@ export default function NewRationSamplePage() {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="هزینه‌ی آنالیز (تومان)" value={analysisFeeAmount} onChange={setAnalysisFeeAmount} />
+          <Field label={`هزینه‌ی آنالیز (${moneyUnit()})`} value={analysisFeeAmount} onChange={setAnalysisFeeAmount} />
           <div>
             <label className="block text-[13px] font-semibold mb-2">کد تخفیف</label>
             <input

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { PermissionsService } from './permissions.service.js';
 import { contractScope, projectScope } from './entity-scopes.js';
-import { reportEditScope, reportScope } from '../reports/report-scope.js';
+import { reportEditScope, reportStrictScope } from '../reports/report-scope.js';
 import { getSubordinateUserIds } from '../hr/org-chain.util.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 
@@ -173,21 +173,21 @@ describe('reports hierarchy scope', () => {
 
   it('OWNER/ADMIN: unscoped', async () => {
     const ctx = ctxOf(makeDb({}), 'ADMIN');
-    await expect(reportScope(svc, ctx)).resolves.toEqual({});
+    await expect(reportStrictScope(svc, ctx)).resolves.toEqual({});
     await expect(reportEditScope(svc, ctx)).resolves.toEqual({});
   });
 
   it('no reports permission: forbidden', async () => {
-    await expect(reportScope(svc, ctxFor([], 'e-staff'))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(reportStrictScope(svc, ctxFor([], 'e-staff'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('non-admin API key (no tenant user): forbidden', async () => {
     const db = makeDb({ rows: [row('reports', { canViewAll: true })] });
-    await expect(reportScope(svc, ctxOf(db, 'MEMBER', 'api_key'))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(reportStrictScope(svc, ctxOf(db, 'MEMBER', 'api_key'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('view-own staff: only own authored + referred-to-me + knowledge; no ownerless, no subordinates', async () => {
-    const scope = (await reportScope(svc, ctxFor([row('reports', { canViewOwn: true })], 'e-mgr'))) as { OR: Array<Record<string, unknown>> };
+    const scope = (await reportStrictScope(svc, ctxFor([row('reports', { canViewOwn: true })], 'e-mgr'))) as { OR: Array<Record<string, unknown>> };
     expect(scope.OR).toEqual([
       { createdByUserId: { in: ['u-mgr'] } },
       { referrals: { some: { toUserId: 'u-mgr' } } },
@@ -196,7 +196,7 @@ describe('reports hierarchy scope', () => {
   });
 
   it('view-all manager: self + subtree (not boss/peer) + ownerless', async () => {
-    const scope = (await reportScope(svc, ctxFor([row('reports', { canViewAll: true })], 'e-mgr'))) as { OR: Array<Record<string, any>> };
+    const scope = (await reportStrictScope(svc, ctxFor([row('reports', { canViewAll: true })], 'e-mgr'))) as { OR: Array<Record<string, any>> };
     const authors = scope.OR[0].createdByUserId.in as string[];
     expect(authors.sort()).toEqual(['u-mgr', 'u-staff', 'u-staff2']);
     expect(authors).not.toContain('u-ceo');
@@ -205,12 +205,12 @@ describe('reports hierarchy scope', () => {
   });
 
   it('view-all STAFF (leaf): sees only their own reports, never the manager above', async () => {
-    const scope = (await reportScope(svc, ctxFor([row('reports', { canViewAll: true })], 'e-staff'))) as { OR: Array<Record<string, any>> };
+    const scope = (await reportStrictScope(svc, ctxFor([row('reports', { canViewAll: true })], 'e-staff'))) as { OR: Array<Record<string, any>> };
     expect(scope.OR[0].createdByUserId.in).toEqual(['u-staff']);
   });
 
   it('view-all user not linked to an Employee falls back to own reports only', async () => {
-    const scope = (await reportScope(svc, ctxFor([row('reports', { canViewAll: true })]))) as { OR: Array<Record<string, any>> };
+    const scope = (await reportStrictScope(svc, ctxFor([row('reports', { canViewAll: true })]))) as { OR: Array<Record<string, any>> };
     expect(scope.OR[0].createdByUserId.in).toEqual(['me']);
   });
 

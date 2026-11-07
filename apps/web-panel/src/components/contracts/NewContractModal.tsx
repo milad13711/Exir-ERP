@@ -16,6 +16,7 @@ import {
   type Employee,
   type TenantUser,
 } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -411,7 +412,7 @@ export function NewContractModal({ onClose, onCreated }: { onClose: () => void; 
         </div>
 
         <div>
-          <label className={labelClass}>ارزش قرارداد (تومان)</label>
+          <label className={labelClass}>ارزش قرارداد ({moneyUnit()})</label>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ""))}

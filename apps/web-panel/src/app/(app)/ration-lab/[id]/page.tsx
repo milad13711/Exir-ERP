@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, moneyUnit } from "@/lib/persian";
 import {
   fetchRationSample,
   fetchRationSampleTrend,
@@ -233,7 +233,7 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
             <EditField label="میانگین شیر هر راس (لیتر)" value={avgMilkYieldPerAnimalLiters} onChange={setAvgMilkYieldPerAnimalLiters} />
             <EditField label="درصد چربی شیر" value={milkFatPercent} onChange={setMilkFatPercent} />
             <EditField label="درصد پروتئین شیر" value={milkProteinPercent} onChange={setMilkProteinPercent} />
-            <EditField label="هزینه‌ی آنالیز (تومان)" value={analysisFeeAmount} onChange={setAnalysisFeeAmount} />
+            <EditField label={`هزینه‌ی آنالیز (${moneyUnit()})`} value={analysisFeeAmount} onChange={setAnalysisFeeAmount} />
           </div>
           <div>
             <label className="block text-[13px] font-semibold mb-2">توضیح جیره‌ی فعلی</label>
@@ -316,7 +316,7 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
             <Metric label="میانگین هر دام (لیتر)" value={sample.avgMilkYieldPerAnimalLiters} />
             <Metric label="چربی (٪)" value={sample.milkFatPercent} />
             <Metric label="پروتئین (٪)" value={sample.milkProteinPercent} />
-            <Metric label="هزینه‌ی آنالیز" value={formatToman(sample.finalFeeAmount)} raw />
+            <Metric label="هزینه‌ی آنالیز" value={formatMoney(sample.finalFeeAmount)} raw />
           </div>
           {sample.currentRationDescription ? (
             <p className="text-[13px] text-ink-soft leading-relaxed mt-4 bg-slate-50 border border-border rounded-xl p-4">
@@ -348,11 +348,11 @@ export default function RationSampleDetailPage({ params }: { params: Promise<{ i
               <RationLinesTable title="جیره‌ی پیشنهادی" lines={proposedLines} />
             </div>
             <div className="grid sm:grid-cols-3 gap-3 mt-3">
-              <Metric label="هزینه‌ی فعلی" value={formatToman(currentTotal)} raw />
-              <Metric label="هزینه‌ی پیشنهادی" value={formatToman(proposedTotal)} raw />
+              <Metric label="هزینه‌ی فعلی" value={formatMoney(currentTotal)} raw />
+              <Metric label="هزینه‌ی پیشنهادی" value={formatMoney(proposedTotal)} raw />
               <Metric
                 label={proposedTotal - currentTotal <= 0 ? "صرفه‌جویی" : "افزایش هزینه"}
-                value={formatToman(Math.abs(proposedTotal - currentTotal))}
+                value={formatMoney(Math.abs(proposedTotal - currentTotal))}
                 raw
               />
             </div>
@@ -492,7 +492,7 @@ function RationLinesTable({ title, lines }: { title: string; lines: RationSample
                   {l.quantityPerAnimalKg}
                 </td>
                 <td className="py-1.5" dir="ltr">
-                  {formatToman(l.lineCost)}
+                  {formatMoney(l.lineCost)}
                 </td>
               </tr>
             ))}

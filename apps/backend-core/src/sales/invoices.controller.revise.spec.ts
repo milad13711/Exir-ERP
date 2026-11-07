@@ -7,6 +7,7 @@ function setup(opts: { role: string; canEdit?: boolean; canDelete?: boolean; sco
     assertEdit: vi.fn(async () => { if (opts.canEdit === false) throw new ForbiddenException('edit'); }),
     assertDelete: vi.fn(async () => { if (opts.canDelete === false) throw new ForbiddenException('delete'); }),
     viewScope: vi.fn(async () => opts.scope ?? {}),
+    viewScopeGranted: vi.fn(async () => opts.scope ?? {}),
   } as any;
   const invoices = { editConfirmed: vi.fn(async () => 'edited'), revisions: vi.fn(async () => []) } as any;
   const ctx = { auth: { role: opts.role }, tenantDb: { salesInvoice: { findFirst: vi.fn(async () => (opts.found === false ? null : { id: 'i1' })) } } } as any;

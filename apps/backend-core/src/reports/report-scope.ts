@@ -3,6 +3,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { getSubordinateUserIds } from '../hr/org-chain.util.js';
 import type { PermissionsService } from '../permissions/permissions.service.js';
+import { scopeWithGrants } from '../referrals/referral-grants.js';
 
 /**
  * سلسله‌مراتب دید گزارش‌ها (ماژول «گزارش‌ها»):
@@ -30,8 +31,17 @@ export async function reportAuthorIds(
   return { manager: false, userId, viewAll: matrix.canViewAll, authorIds: [userId, ...subordinates] };
 }
 
-/** where برای خواندن (فهرست/جزئیات/پیوست‌ها). `{}` فقط برای مدیر. */
-export async function reportScope(permissions: PermissionsService, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+/**
+ * where برای خواندن (فهرست/جزئیات/پیوست‌ها). `{}` فقط برای مدیر.
+ * علاوه بر دید عادی، گزارش‌های ارجاع‌شده با «ارجاع سند» عمومی یا وظیفه‌ی پیوندخورده هم دیده می‌شود —
+ * حتی اگر کاربر دسترسی ماژول گزارش‌ها نداشته باشد (فقط همان گزارش).
+ */
+export function reportScope(permissions: PermissionsService, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+  return scopeWithGrants(ctx, 'Report', () => reportStrictScope(permissions, ctx));
+}
+
+/** دید عادی بدون دسترسی‌های صریح ارجاع/وظیفه (بنیان reportScope). */
+export async function reportStrictScope(permissions: PermissionsService, ctx: TenantRequestContext): Promise<Record<string, unknown>> {
   const a = await reportAuthorIds(permissions, ctx);
   if (a.manager) return {};
   return {

@@ -1,14 +1,16 @@
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { useEffect, useState } from "react";
 import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
 import { SignatureConsentNotice } from "@/components/ui/SignatureConsentNotice";
 import { Modal } from "@/components/ui/Modal";
+import { ContractEditPanel } from "./ContractEditPanel";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { TasksSection } from "@/components/shared/TasksSection";
 import { SendIcon, PlusIcon, TrashIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, formatJalaliDateTime } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import {
   signContract,
@@ -210,6 +212,7 @@ export function ContractDetailModal({
   return (
     <Modal title={`قرارداد شماره ${contract.contractNo}`} onClose={onClose} width="max-w-[600px]">
       <div className="flex flex-col gap-4">
+          <ReferralPanel entityType="Contract" entityId={contract.id} />
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[15px] font-bold">{contract.title}</div>
@@ -245,6 +248,8 @@ export function ContractDetailModal({
           دریافت PDF / چاپ
         </button>
 
+        <ContractEditPanel contract={contract} onChanged={onChanged} onClose={onClose} />
+
         {contract.isLocked && (
           <div className="text-[11.5px] text-success bg-success-soft rounded-xl px-3 py-2 flex items-center gap-1.5">
             🔒 این قرارداد با امضای دیجیتال هر دو طرف قفل شده و غیرقابل ویرایش است.
@@ -254,7 +259,7 @@ export function ContractDetailModal({
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-50 rounded-xl p-3">
             <div className="text-[11px] text-muted mb-1">ارزش قرارداد</div>
-            <div className="text-[13.5px] font-extrabold">{formatToman(contract.value)}</div>
+            <div className="text-[13.5px] font-extrabold">{formatMoney(contract.value)}</div>
           </div>
           <div className="bg-slate-50 rounded-xl p-3">
             <div className="text-[11px] text-muted mb-1">نوع</div>

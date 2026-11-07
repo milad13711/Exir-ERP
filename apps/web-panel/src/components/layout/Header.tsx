@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import clsx from "clsx";
 import { CalendarIcon, ChatIcon, MenuIcon, ChevronDownIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
-import { formatJalaliFull, toPersianDigits, getInitials } from "@/lib/persian";
-import { clearToken, fetchMyTenants, switchTenant, setToken, fetchModuleRenewals, type MyTenant, type ModuleRenewalNotice } from "@/lib/api";
+import { formatJalaliFull, getInitials } from "@/lib/persian";
+import { clearToken, fetchMyTenants, switchTenant, setToken, type MyTenant } from "@/lib/api";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { OfflineLogoutDialog } from "@/components/offline/OfflineLogoutDialog";
 import { getManager } from "@/lib/offline/client";
@@ -17,6 +16,7 @@ import { PhoneWidget } from "@/components/voip/PhoneWidget";
 import { SmsCreditChip } from "@/components/sms/SmsCreditChip";
 import { useInstall } from "@/hooks/useInstall";
 import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
+import { SubscriptionHeaderChip } from "@/components/billing/SubscriptionHeaderChip";
 import { promptInstall, unsubscribeForLogout } from "@/lib/push-client";
 
 export function Header({
@@ -32,8 +32,7 @@ export function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const [otherTenants, setOtherTenants] = useState<MyTenant[] | null>(null);
   const [switching, setSwitching] = useState(false);
-  const { me, subscription, license } = useWorkspace();
-  const [moduleRenewals, setModuleRenewals] = useState<ModuleRenewalNotice[]>([]);
+  const { me } = useWorkspace();
   const router = useRouter();
   const install = useInstall();
   const [iosSheet, setIosSheet] = useState(false);
@@ -44,10 +43,6 @@ export function Header({
       .then((tenants) => setOtherTenants(tenants.filter((t) => t.slug !== me?.tenant.slug)))
       .catch(() => setOtherTenants([]));
   }, [menuOpen, otherTenants, me?.tenant.slug]);
-
-  useEffect(() => {
-    fetchModuleRenewals().then(setModuleRenewals).catch(() => setModuleRenewals([]));
-  }, []);
 
   const [logoutAsk, setLogoutAsk] = useState<number | null>(null);
 
@@ -112,87 +107,7 @@ export function Header({
       <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 min-w-0">
         <OfflineIndicator />
 
-        {moduleRenewals.length > 0 ? (
-          <Link
-            href="/settings/billing"
-            className="hidden sm:flex items-center gap-2.5 py-1.5 ps-3.5 pe-1.5 rounded-xl bg-warning-soft"
-          >
-            <span className="text-[12.5px] font-bold text-warning">
-              {moduleRenewals[0].name}
-              {moduleRenewals.length > 1 ? ` و ${toPersianDigits(moduleRenewals.length - 1)} ماژول دیگر` : ""}
-            </span>
-            <span className="w-px h-3.5 bg-warning/20" />
-            <span className="text-[12.5px] text-warning">
-              {moduleRenewals[0].daysLeft !== null && moduleRenewals[0].daysLeft <= 0
-                ? "دوره‌ی استفاده به پایان رسیده"
-                : `${toPersianDigits(moduleRenewals[0].daysLeft ?? 0)} روز تا پایان دوره`}
-            </span>
-            <span className="border-0 bg-warning text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
-              پرداخت فاکتور تمدید
-            </span>
-          </Link>
-        ) : null}
-
-        {license?.mode === "on_premise" && (license.state === "valid" || license.state === "grace") && (license.state === "grace" || (license.warningLevel ?? 0) > 0 || license.daysLeft !== null) ? (
-          <div
-            className={clsx(
-              "hidden sm:flex items-center gap-2.5 py-1.5 px-3.5 rounded-xl",
-              license.state === "grace" || (license.warningLevel ?? 0) >= 2 ? "bg-warning-soft" : "bg-accent-soft",
-            )}
-          >
-            <span className={clsx("text-[12.5px] font-bold", license.state === "grace" ? "text-warning" : "text-accent")}>
-              استقرار اختصاصی
-            </span>
-            <span className="w-px h-3.5 bg-black/10" />
-            <span className={clsx("text-[12.5px]", license.state === "grace" ? "text-warning" : "text-accent")}>
-              {license.state === "grace"
-                ? license.reasonCode === "offline_grace"
-                  ? `اتصال به سرور لایسنس برقرار نیست — ${toPersianDigits(license.daysLeft ?? 0)} روز مهلت`
-                  : `لایسنس منقضی شده — ${toPersianDigits(license.daysLeft ?? 0)} روز مهلت اضافه`
-                : license.daysLeft === null
-                  ? "لایسنس دائمی"
-                  : license.reasonCode === "token_renewal_due"
-                    ? `تمدید خودکار لایسنس تا ${toPersianDigits(license.daysLeft)} روز دیگر لازم است — اتصال اینترنت را بررسی کنید`
-                    : `${toPersianDigits(license.daysLeft)} روز تا انقضای لایسنس`}
-            </span>
-          </div>
-        ) : subscription?.status === "TRIAL" ? (
-          <Link
-            href="/settings/billing"
-            className="hidden sm:flex items-center gap-2.5 py-1.5 ps-3.5 pe-1.5 rounded-xl bg-warning-soft"
-          >
-            <span className="text-[12.5px] font-bold text-warning">استفاده رایگان</span>
-            <span className="w-px h-3.5 bg-warning/20" />
-            <span className="text-[12.5px] text-warning">
-              {subscription.hoursLeft <= 48
-                ? `${toPersianDigits(Math.max(0, subscription.hoursLeft))} ساعت تا پایان دوره‌ی رایگان`
-                : `${toPersianDigits(subscription.daysLeft)} روز تا پایان دوره‌ی رایگان`}
-            </span>
-            <span className="border-0 bg-warning text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
-              ارتقا و فعال‌سازی
-            </span>
-          </Link>
-        ) : subscription ? (
-          <Link
-            href="/settings/billing"
-            className="hidden sm:flex items-center gap-2.5 py-1.5 ps-3.5 pe-1.5 rounded-xl bg-primary-soft"
-          >
-            <span className="text-[12.5px] font-bold text-primary">{subscription.planName}</span>
-            <span className="w-px h-3.5 bg-indigo-200" />
-            <span className="text-[12.5px] text-primary">
-              {subscription.lifetime
-                ? "لایسنس مادام‌العمر"
-                : subscription.daysLeft <= 0
-                  ? "اشتراک منقضی شده"
-                  : `${toPersianDigits(subscription.daysLeft)} روز باقی‌مانده`}
-            </span>
-            {subscription.lifetime ? null : (
-              <span className="border-0 bg-primary text-white text-xs font-bold py-1.5 px-3.5 rounded-[9px]">
-                تمدید / ارتقا
-              </span>
-            )}
-          </Link>
-        ) : null}
+        <SubscriptionHeaderChip onOpenSupport={onOpenSupport} />
 
         <button
           type="button"

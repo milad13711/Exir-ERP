@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import type { CreateReportDto } from './dto/create-report.dto.js';
 import type { UpdateReportDto } from './dto/update-report.dto.js';
 import type { ReferReportDto } from './dto/refer-report.dto.js';
@@ -21,7 +22,10 @@ const REPORT_INCLUDE = {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly referrals: ReferralsService,
+  ) {}
 
   // ── دسته‌بندی‌ها ───────────────────────────────────────────────────────
 
@@ -31,6 +35,15 @@ export class ReportsService {
 
   async createCategory(ctx: TenantRequestContext, dto: CreateReportCategoryDto) {
     return ctx.tenantDb.reportCategory.create({ data: { name: dto.name.trim() } });
+  }
+
+  async renameCategory(ctx: TenantRequestContext, id: string, dto: CreateReportCategoryDto) {
+    const category = await ctx.tenantDb.reportCategory.findUnique({ where: { id } });
+    if (!category) throw new NotFoundException('این دسته‌بندی یافت نشد');
+    const name = dto.name.trim();
+    const clash = await ctx.tenantDb.reportCategory.findUnique({ where: { name } });
+    if (clash && clash.id !== id) throw new ConflictException('دسته‌بندی دیگری با این نام وجود دارد');
+    return ctx.tenantDb.reportCategory.update({ where: { id }, data: { name } });
   }
 
   async deleteCategory(ctx: TenantRequestContext, id: string) {
@@ -135,15 +148,15 @@ export class ReportsService {
       })),
     });
 
-    for (const toUserId of dto.toUserIds) {
-      await this.notifications.notify(ctx.tenantDb, {
-        userId: toUserId,
-        type: 'report.referred',
-        title: `گزارش شماره ${report.reportNo} برای شما ارجاع شد`,
-        body: report.title,
-        link: `/reports?id=${id}`,
-        emailCc: dto.emailCc,
-      });
+    // ارجاع عمومی (صندوق «ارجاع‌های من»، دسترسی مشاهده‌ی همین گزارش حتی بدون دسترسی ماژول، اعلان با لینک مستقیم).
+    // اعلان همین‌جا از مسیر عمومی می‌رود (دسته‌ی «تأییدها/ارجاع»، عنوان روشن، لینک به خودِ گزارش).
+    for (const toUserId of new Set(dto.toUserIds)) {
+      if (toUserId === fromUserId) continue;
+      await this.referrals.refer(
+        ctx,
+        { entityType: 'Report', entityId: id, toUserId, note: dto.note, additional: true },
+        { emailCc: dto.emailCc, trusted: true, renotify: true },
+      );
     }
 
     return this.detail(ctx, id, scope);
@@ -162,6 +175,8 @@ export class ReportsService {
       where: { id: referralId },
       data: { paraphed: true, paraphedAt: new Date() },
     });
+    // پاراف = پایان کارِ ارجاع؛ ارجاع عمومی متناظر هم «انجام‌شده» می‌شود (دسترسی صریح لغو و از صندوق خارج می‌شود).
+    await this.referrals.completeActiveFor(ctx, 'Report', reportId, referral.toUserId, 'پاراف شد');
     return this.detail(ctx, reportId, scope);
   }
 }

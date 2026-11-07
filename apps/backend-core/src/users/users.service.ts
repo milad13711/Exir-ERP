@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { LicenseRuntimeService } from '../licensing/license-runtime.service.js';
@@ -93,6 +93,19 @@ export class UsersService implements OnModuleInit {
     if (existing) throw new ConflictException('نقشی با این نام از قبل وجود دارد');
     return ctx.tenantDb.role.create({
       data: { name, isSystem: false },
+      include: { permissions: { include: { permission: true } }, modulePermissions: true },
+    });
+  }
+
+  async renameRole(ctx: TenantRequestContext, roleId: string, name: string) {
+    const role = await ctx.tenantDb.role.findUnique({ where: { id: roleId } });
+    if (!role) throw new NotFoundException('نقش یافت نشد');
+    if (role.isSystem) throw new ForbiddenException('نقش‌های پیش‌فرض سیستم تغییر نام نمی‌دهند');
+    const clash = await ctx.tenantDb.role.findUnique({ where: { name } });
+    if (clash && clash.id !== roleId) throw new ConflictException('نقشی با این نام از قبل وجود دارد');
+    return ctx.tenantDb.role.update({
+      where: { id: roleId },
+      data: { name },
       include: { permissions: { include: { permission: true } }, modulePermissions: true },
     });
   }

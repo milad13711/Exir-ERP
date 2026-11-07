@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { hasEntityGrant, scopeWithGrants } from '../referrals/referral-grants.js';
 
 export type ModuleMatrix = {
   canViewAll: boolean;
@@ -157,5 +158,33 @@ export class PermissionsService {
       return { [ownerField]: userId };
     }
     throw new ForbiddenException('اجازه‌ی مشاهده‌ی این بخش را ندارید');
+  }
+
+  /**
+   * مثل viewScope ولی فقط برای مسیرهای «خواندن»: سندهایی که با ارجاع فعال یا وظیفه‌ی پیوندخورده به کاربر
+   * داده شده‌اند هم در دامنه‌ی دید او می‌آیند (حتی بدون دسترسی ماژول یا خارج از «فقط خودم»).
+   * هرگز برای نوشتن/حذف استفاده نشود. خروجی از `AND` استفاده می‌کند — کلید AND را در where خودتان بازنویسی نکنید.
+   */
+  async viewScopeGranted(
+    ctx: TenantRequestContext,
+    moduleCode: string,
+    ownerField: string,
+    entityType: string,
+  ): Promise<Record<string, unknown>> {
+    return scopeWithGrants(ctx, entityType, () => this.viewScope(ctx, moduleCode, ownerField));
+  }
+
+  /**
+   * دامنه‌ی «ویرایش» با دسترسی صریح (ارجاع فعال/وظیفه‌ی باز) — فقط برای مسیرهای ویرایش محتوای سند.
+   * ارجاع DONE اینجا نمی‌آید. حذف/ابطال/تأیید/پرداخت/دسترسی هرگز از این مسیر مجاز نمی‌شود.
+   */
+  async editScopeGranted(ctx: TenantRequestContext, moduleCode: string, ownerField: string, entityType: string): Promise<Record<string, unknown>> {
+    return scopeWithGrants(ctx, entityType, () => this.viewScope(ctx, moduleCode, ownerField), 'edit');
+  }
+
+  /** آیا کاربر برای همین یک سند اجازه‌ی ویرایشِ صریح (ارجاع فعال/وظیفه‌ی باز) دارد؟ */
+  async hasEditGrant(ctx: TenantRequestContext, entityType: string, entityId: string): Promise<boolean> {
+    const me = await resolveTenantUserId(ctx).catch(() => null);
+    return me ? hasEntityGrant(ctx.tenantDb, me, entityType, entityId, 'edit') : false;
   }
 }

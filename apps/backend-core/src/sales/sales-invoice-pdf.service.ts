@@ -20,6 +20,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 };
 
 type InvoiceForPdf = {
+  /** برچسب واحد ارز پایه‌ی تننت («تومان» پیش‌فرض) */
+  unitLabel?: string;
   invoiceNo: number;
   officialInvoiceNo: number | null;
   status: string;
@@ -114,6 +116,7 @@ export class SalesInvoicePdfService implements OnModuleDestroy {
 }
 
 export function buildInvoiceHtml(invoice: InvoiceForPdf, seller: SellerInfo): string {
+  const u = invoice.unitLabel ?? 'تومان';
   const remaining = invoice.total - invoice.paidAmount;
   return /* html */ `
 <!doctype html>
@@ -207,8 +210,8 @@ export function buildInvoiceHtml(invoice: InvoiceForPdf, seller: SellerInfo): st
           (l) => `<tr>
             <td>${escapeHtml(l.description)}</td>
             <td>${l.quantity}</td>
-            <td>${formatToman(l.unitPrice)}</td>
-            <td>${formatToman(l.lineTotal)}</td>
+            <td>${formatToman(l.unitPrice, u)}</td>
+            <td>${formatToman(l.lineTotal, u)}</td>
           </tr>`,
         )
         .join('')}
@@ -216,12 +219,12 @@ export function buildInvoiceHtml(invoice: InvoiceForPdf, seller: SellerInfo): st
   </table>
 
   <table class="totals">
-    <tr><td colspan="3" style="text-align: left;">جمع اقلام</td><td>${formatToman(invoice.subtotal)}</td></tr>
-    ${invoice.discount > 0 ? `<tr><td colspan="3" style="text-align: left;">تخفیف</td><td>-${formatToman(invoice.discount)}</td></tr>` : ''}
-    ${invoice.taxAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">مالیات بر ارزش افزوده${invoice.taxRate ? ` (${invoice.taxRate}٪)` : ''}</td><td>${formatToman(invoice.taxAmount)}</td></tr>` : ''}
-    <tr class="final"><td colspan="3" style="text-align: left;">مبلغ نهایی</td><td>${formatToman(invoice.total)}</td></tr>
-    ${invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">پرداخت‌شده</td><td>${formatToman(invoice.paidAmount)}</td></tr>` : ''}
-    ${remaining > 0 && invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">باقی‌مانده</td><td>${formatToman(remaining)}</td></tr>` : ''}
+    <tr><td colspan="3" style="text-align: left;">جمع اقلام</td><td>${formatToman(invoice.subtotal, u)}</td></tr>
+    ${invoice.discount > 0 ? `<tr><td colspan="3" style="text-align: left;">تخفیف</td><td>-${formatToman(invoice.discount, u)}</td></tr>` : ''}
+    ${invoice.taxAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">مالیات بر ارزش افزوده${invoice.taxRate ? ` (${invoice.taxRate}٪)` : ''}</td><td>${formatToman(invoice.taxAmount, u)}</td></tr>` : ''}
+    <tr class="final"><td colspan="3" style="text-align: left;">مبلغ نهایی</td><td>${formatToman(invoice.total, u)}</td></tr>
+    ${invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">پرداخت‌شده</td><td>${formatToman(invoice.paidAmount, u)}</td></tr>` : ''}
+    ${remaining > 0 && invoice.paidAmount > 0 ? `<tr><td colspan="3" style="text-align: left;">باقی‌مانده</td><td>${formatToman(remaining, u)}</td></tr>` : ''}
   </table>
 
   <div class="section-title">روش پرداخت</div>
@@ -238,7 +241,7 @@ export function buildInvoiceHtml(invoice: InvoiceForPdf, seller: SellerInfo): st
           ? invoice.checks
               .map(
                 (c) =>
-                  `<div style="color: #64748b; margin-top: 4px;">شماره صیادی: <span dir="ltr">${escapeHtml(c.sayadId)}</span> — سررسید: ${formatJalaliDate(c.dueDate)} — مبلغ: ${formatToman(c.amount)}${c.bankName ? ` — بانک: ${escapeHtml(c.bankName)}` : ''}</div>`,
+                  `<div style="color: #64748b; margin-top: 4px;">شماره صیادی: <span dir="ltr">${escapeHtml(c.sayadId)}</span> — سررسید: ${formatJalaliDate(c.dueDate)} — مبلغ: ${formatToman(c.amount, u)}${c.bankName ? ` — بانک: ${escapeHtml(c.bankName)}` : ''}</div>`,
               )
               .join('')
           : `<div style="color: #64748b; margin-top: 4px;">چک هنوز نزد فروشنده ثبت نشده است.</div>`

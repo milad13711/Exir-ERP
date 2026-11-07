@@ -1,3 +1,4 @@
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { NewPurchaseOrderModal } from "./NewPurchaseOrderModal";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { cancelPurchaseOrder, deletePurchaseOrder, deletePurchaseReturn } from "@/lib/api";
@@ -5,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchPurchaseOrder,
   fetchPurchaseReturns,
@@ -167,6 +168,7 @@ export function PurchaseOrderDetailModal({
         <div className="py-10 text-center text-muted text-sm">در حال بارگذاری...</div>
       ) : (
         <div className="flex flex-col gap-4">
+          <ReferralPanel entityType="PurchaseOrder" entityId={order.id} />
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <div className="text-[14px] font-extrabold">{order.supplier.company || order.supplier.name}</div>
@@ -204,7 +206,7 @@ export function PurchaseOrderDetailModal({
                   <tr key={l.id} className="border-b border-border last:border-b-0">
                     <td className="py-2 px-3 text-[12.5px]">{l.description}</td>
                     <td className="py-2 px-2 text-[12.5px] text-center">{l.quantity}</td>
-                    <td className="py-2 px-3 text-[12.5px] font-bold">{formatToman(l.lineTotal)}</td>
+                    <td className="py-2 px-3 text-[12.5px] font-bold">{formatMoney(l.lineTotal)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -213,12 +215,12 @@ export function PurchaseOrderDetailModal({
             <div className="px-3 py-2.5 border-t border-border flex flex-col gap-1 text-[12.5px]">
               <div className="flex justify-between font-extrabold text-[13.5px]">
                 <span>مبلغ کل سفارش</span>
-                <span>{formatToman(order.total)}</span>
+                <span>{formatMoney(order.total)}</span>
               </div>
               {order.paidAmount > 0 ? (
                 <div className="flex justify-between text-success">
                   <span>پرداخت‌شده</span>
-                  <span>{formatToman(order.paidAmount)}</span>
+                  <span>{formatMoney(order.paidAmount)}</span>
                 </div>
               ) : null}
             </div>
@@ -233,7 +235,7 @@ export function PurchaseOrderDetailModal({
                     <span className="text-ink-soft">
                       {METHOD_LABELS[p.method]} · {formatJalaliDate(p.paidAt)}
                     </span>
-                    <span className="font-bold">{formatToman(p.amount)}</span>
+                    <span className="font-bold">{formatMoney(p.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -248,7 +250,7 @@ export function PurchaseOrderDetailModal({
                   <div key={r.id} className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
                     <div className="text-[12px]">
                       <div className="font-bold">
-                        مرجوعی #{r.returnNo} — {formatToman(r.total)}
+                        مرجوعی #{r.returnNo} — {formatMoney(r.total)}
                       </div>
                       <div className="text-muted mt-0.5">
                         {formatJalaliDate(r.createdAt)}

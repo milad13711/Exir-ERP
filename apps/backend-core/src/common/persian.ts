@@ -15,10 +15,16 @@ export function formatNumber(value: number): string {
   return toPersianDigits(grouped);
 }
 
-/** Formats a Toman amount with thousand separators and a trailing unit label. */
-export function formatToman(value: number): string {
-  return `${formatNumber(value)} تومان`;
+/**
+ * Formats an amount with thousand separators and a trailing unit label. The label defaults to «تومان» but
+ * tenants can switch their base currency (e.g. to «ریال») — callers that print tenant money pass
+ * `loadUnitLabel(tenantDb)` (see base-currency/base-unit.ts). Platform (Exir billing) amounts stay Toman.
+ */
+export function formatToman(value: number, unit: string = 'تومان'): string {
+  return `${formatNumber(value)} ${unit}`;
 }
+
+export const formatMoney = formatToman;
 
 /** Gregorian -> Jalali (Shamsi) conversion, algorithm per the jalaali calendar spec. */
 export function toJalali(date: Date): { year: number; month: number; day: number } {

@@ -158,7 +158,7 @@ describe('BankingController permissions', () => {
   it('create/edit/void map to create/edit/delete; reads need view-all', async () => {
     const perms: any = { assertViewAll: vi.fn(), assertCreate: vi.fn(), assertEdit: vi.fn(), assertDelete: vi.fn(), assertView: vi.fn() };
     const banking: any = { listBanks: vi.fn(), createBank: vi.fn(), updateBank: vi.fn(), voidTransaction: vi.fn(), createTransaction: vi.fn(), setLeafStatus: vi.fn() };
-    const c = new BankingController(perms, banking);
+    const c = new BankingController(perms, banking, {} as never);
     const ctx = {} as any;
     await c.banks(ctx);
     expect(perms.assertViewAll).toHaveBeenCalledWith(ctx, 'accounting');

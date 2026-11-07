@@ -6,16 +6,17 @@ import {
   API_URL,
   getToken,
   fetchMe,
-  fetchSubscription,
+  fetchSubscriptionSummary,
   fetchLicenseStatus,
   fetchModules,
   fetchPlatformMe,
   setOfflineModuleInstalled,
   ApiError,
   type Me,
-  type Subscription,
+  type SubscriptionSummary,
   type LicenseStatus,
 } from "./api";
+import { setMoneyUnit } from "./persian";
 
 /**
  * Points the installed-web-app manifest and theme-color at this tenant's own
@@ -36,7 +37,8 @@ function applyTenantBranding(tenant: Me["tenant"]) {
 
 type WorkspaceState = {
   me: Me | null;
-  subscription: Subscription;
+  /** خلاصه‌ی واحد اشتراک/لایسنس (هدر + تنظیمات + بنر) — null تا بارگذاری یا اگر در دسترس نباشد. */
+  subscription: SubscriptionSummary | null;
   license: LicenseStatus | null;
   loading: boolean;
   refreshSubscription: () => void;
@@ -55,19 +57,20 @@ const WorkspaceContext = createContext<WorkspaceState | null>(null);
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
-  const [subscription, setSubscription] = useState<Subscription>(null);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPlatformOwner, setIsPlatformOwner] = useState(false);
   const [installedModules, setInstalledModules] = useState<Set<string>>(new Set());
 
   const refreshSubscription = useCallback(() => {
-    fetchSubscription().then(setSubscription).catch(() => {});
+    fetchSubscriptionSummary().then(setSubscription).catch(() => {});
   }, []);
 
   const refreshMe = useCallback(() => {
     fetchMe()
       .then((meData) => {
+        setMoneyUnit(meData.baseCurrency?.label);
         setMe(meData);
         applyTenantBranding(meData.tenant);
       })
@@ -94,13 +97,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return;
     }
     fetchPlatformMe().then((r) => setIsPlatformOwner(r.isPlatformOwner)).catch(() => setIsPlatformOwner(false));
-    Promise.all([fetchMe(), fetchSubscription(), fetchLicenseStatus(), fetchModules().catch(() => [])])
+    Promise.all([fetchMe(), fetchSubscriptionSummary().catch(() => null), fetchLicenseStatus(), fetchModules().catch(() => [])])
       .then(([meData, subData, licenseData, modules]) => {
         if (meData.twoFactor?.restricted) {
           // الزام 2FA مالک/مدیر: تا ثبت کامل، فقط صفحه‌ی ثبت کار می‌کند.
           router.replace("/two-factor-setup");
           return;
         }
+        setMoneyUnit(meData.baseCurrency?.label); // پیش از اولین رندر (loading هنوز true است)
         setMe(meData);
         setSubscription(subData);
         setLicense(licenseData);
@@ -121,10 +125,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!(err instanceof ApiError) && typeof navigator !== "undefined" && !navigator.onLine) {
           // شروع سرد آفلاین: از نمای ذخیره‌شده استفاده کن (فقط اگر ماژول قبلاً فعال بوده)
           const { loadWorkspaceSnapshot } = await import("./offline/client");
-          const snap = await loadWorkspaceSnapshot<{ me: Me; subscription: Subscription; license: LicenseStatus; modules: string[] }>();
+          const snap = await loadWorkspaceSnapshot<{ me: Me; subscription: SubscriptionSummary | null; license: LicenseStatus; modules: string[] }>();
           if (snap) {
+            setMoneyUnit(snap.me.baseCurrency?.label);
             setMe(snap.me);
-            setSubscription(snap.subscription);
+            setSubscription(snap.subscription && "tenant" in snap.subscription ? snap.subscription : null);
             setLicense(snap.license);
             setInstalledModules(new Set(snap.modules));
             setOfflineModuleInstalled(snap.modules.includes("offline-sync"));

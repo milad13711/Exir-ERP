@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ReceiptIcon, PlusIcon, SettingsIcon, DocsIcon, CalendarIcon, WarningIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchSalesInvoices,
   fetchDeliverySmsTemplate,
@@ -24,6 +24,7 @@ import {
   type SalesReturn,
 } from "@/lib/api";
 import { NewInvoiceModal, type InvoicePrefill } from "@/components/sales/NewInvoiceModal";
+import { useReferralAssignees } from "@/components/referrals/useReferralAssignees";
 import { InvoiceDetailModal } from "@/components/sales/InvoiceDetailModal";
 import { DeliverySmsTemplateModal } from "@/components/sales/DeliverySmsTemplateModal";
 import { NewQuotationModal } from "@/components/sales/NewQuotationModal";
@@ -151,7 +152,10 @@ export default function SalesPage() {
 
   const showNewModal = newOpen || Boolean(dealPrefill);
 
-  const filtered = invoices ?? [];
+  const [mineOnly, setMineOnly] = useState(false);
+  const invoiceIds = useMemo(() => (invoices ?? []).map((i) => i.id), [invoices]);
+  const { assignees: invoiceAssignees, mine: myReferredInvoices } = useReferralAssignees("SalesInvoice", invoiceIds);
+  const filtered = (invoices ?? []).filter((i) => !mineOnly || myReferredInvoices.has(i.id));
 
   const filteredQuotations = (quotations ?? []).filter((q) => {
     if (!search.trim()) return true;
@@ -251,6 +255,17 @@ export default function SalesPage() {
         </button>
       </div>
 
+      {tab === "invoices" ? (
+        <div className="flex items-center gap-2 mt-4 -mb-2">
+          <button
+            type="button"
+            onClick={() => setMineOnly((v) => !v)}
+            className={`text-[12px] font-bold px-3 py-1.5 rounded-lg cursor-pointer ${mineOnly ? "bg-primary text-white" : "bg-slate-100 text-ink-soft"}`}
+          >
+            ارجاع‌های من
+          </button>
+        </div>
+      ) : null}
       <SearchInput className="max-w-[320px] mt-4 mb-4" value={search} onChange={setSearch} placeholder={tab === "quotations" ? "جستجوی مشتری یا شماره پیش‌فاکتور..." : "جستجوی مشتری یا شماره فاکتور..."} loading={searching} />
 
       {tab === "returns" ? (
@@ -281,7 +296,7 @@ export default function SalesPage() {
                     {r.reason ? ` · ${r.reason}` : ""}
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0 text-danger">-{formatToman(r.total)}</div>
+                <div className="text-[13px] font-extrabold shrink-0 text-danger">-{formatMoney(r.total)}</div>
               </button>
             ))
           )}
@@ -344,7 +359,7 @@ export default function SalesPage() {
                     {q.contact.company || q.contact.name} · {formatJalaliDate(q.issuedAt)}
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0">{formatToman(q.total)}</div>
+                <div className="text-[13px] font-extrabold shrink-0">{formatMoney(q.total)}</div>
               </button>
             ))
           )}
@@ -379,9 +394,12 @@ export default function SalesPage() {
                 <div className="text-[11.5px] text-muted mt-1">
                   {inv.contact.company || inv.contact.name} · {formatJalaliDate(inv.issuedAt)}
                   {inv.dueAt ? ` · سررسید: ${formatJalaliDate(inv.dueAt)}` : ""}
+                  {invoiceAssignees[inv.id] ? (
+                    <span className={invoiceAssignees[inv.id].overdue ? "text-danger font-bold" : "text-primary font-bold"}> · مسئول: {invoiceAssignees[inv.id].name ?? "—"}</span>
+                  ) : null}
                 </div>
               </div>
-              <div className="text-[13px] font-extrabold shrink-0">{formatToman(inv.total)}</div>
+              <div className="text-[13px] font-extrabold shrink-0">{formatMoney(inv.total)}</div>
             </button>
           ))
         )}

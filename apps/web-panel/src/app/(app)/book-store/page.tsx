@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { ModuleHelp } from "@/components/ui/ModuleHelp";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { DocsIcon } from "@/components/icons";
-import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import {
   fetchBookOrders,
@@ -133,7 +133,7 @@ export default function BookStorePage() {
                     </td>
                     <td className="px-4 py-2.5">{FORMAT_LABELS[o.format]}</td>
                     <td className="px-4 py-2.5" dir="ltr">
-                      {formatToman(o.unitPrice)}
+                      {formatMoney(o.unitPrice)}
                     </td>
                     <td className="px-4 py-2.5">
                       <Badge tone={STATUS_TONES[o.status]}>{STATUS_LABELS[o.status]}</Badge>

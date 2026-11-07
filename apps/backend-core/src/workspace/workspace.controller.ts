@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -51,6 +52,8 @@ export class WorkspaceController {
       },
       tenant: { name: tenant.name, slug: tenant.slug, publicKey: tenant.publicKey, themeColor: tenant.themeColor },
       navOrder: tenantUser?.navOrder ?? [],
+      // واحد پول پایه‌ی تننت — پنل با همین برچسب مبالغ را نمایش می‌دهد (تومان پیش‌فرض)
+      baseCurrency: await loadBaseCurrency(ctx.tenantDb).then((b) => ({ code: b.code, label: b.label })),
       twoFactor: await this.twoFactorFor(ctx, globalUser, tenant),
       permissions: await this.permissions.effectiveMatrix(ctx),
     };
@@ -122,27 +125,6 @@ export class WorkspaceController {
   @Post('switch-tenant')
   async switchTenant(@Body() dto: SwitchTenantDto, @Ctx() ctx: TenantRequestContext) {
     return this.auth.switchTenant(ctx.auth.sub, dto.tenantSlug);
-  }
-
-  /** ماژول‌های این تننت که تا ۱۰ روز دیگر منقضی می‌شوند — برای هشدار داخل هدر. */
-  @Get('module-renewals')
-  async moduleRenewals(@Ctx() ctx: TenantRequestContext) {
-    const noticeThreshold = new Date(Date.now() + 10 * 86_400_000);
-    const dueModules = await this.controlDb.tenantModule.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        billingMode: { in: ['MONTHLY', 'YEARLY'] },
-        currentPeriodEnd: { lte: noticeThreshold },
-      },
-      include: { module: true },
-    });
-    return dueModules.map((tm) => ({
-      code: tm.module.code,
-      name: tm.module.name,
-      currentPeriodEnd: tm.currentPeriodEnd,
-      daysLeft: tm.currentPeriodEnd ? Math.ceil((tm.currentPeriodEnd.getTime() - Date.now()) / 86_400_000) : null,
-      invoiceId: tm.pendingRenewalInvoiceId,
-    }));
   }
 
   @Patch('branding')

@@ -6,9 +6,11 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
-import { formatToman, formatNumber, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatNumber, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import { formatCard } from "@/lib/iran-bank";
 import { downloadCsv } from "@/lib/csv";
 import {
@@ -22,6 +24,7 @@ import {
   seedDefaultCashBox,
   setLeafStatus,
   updateChequeBook,
+  deleteChequeBook,
   type BankAccountRow,
   type CashBoxRow,
   type ChequeBookRow,
@@ -85,9 +88,9 @@ export function BankingTab({ onOpenReconciliation }: { onOpenReconciliation: (ac
   return (
     <div className="mt-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع موجودی بانک‌ها</div><div className="text-lg font-extrabold mt-1">{formatToman(totalBank)}</div></div>
-        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع موجودی صندوق‌ها</div><div className="text-lg font-extrabold mt-1">{formatToman(totalCash)}</div></div>
-        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع نقد و بانک</div><div className="text-lg font-extrabold mt-1 text-primary">{formatToman(totalBank + totalCash)}</div></div>
+        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع موجودی بانک‌ها</div><div className="text-lg font-extrabold mt-1">{formatMoney(totalBank)}</div></div>
+        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع موجودی صندوق‌ها</div><div className="text-lg font-extrabold mt-1">{formatMoney(totalCash)}</div></div>
+        <div className="bg-surface border border-border rounded-2xl p-4"><div className="text-[12px] text-muted">جمع نقد و بانک</div><div className="text-lg font-extrabold mt-1 text-primary">{formatMoney(totalBank + totalCash)}</div></div>
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -116,7 +119,7 @@ export function BankingTab({ onOpenReconciliation }: { onOpenReconciliation: (ac
                 <div className="text-[11.5px] text-muted mt-0.5">{[b.bankName, b.branch].filter(Boolean).join(" — ") || "—"}</div>
                 <div className="text-[11.5px] text-muted mt-0.5" dir="ltr" style={{ textAlign: "start" }}>{b.sheba ?? ""}{b.cardNumber ? `  ${formatCard(b.cardNumber)}` : ""}</div>
               </div>
-              <div className="text-[14px] font-extrabold" title="مانده از دفتر کل">{formatToman(b.balance)}</div>
+              <div className="text-[14px] font-extrabold" title="مانده از دفتر کل">{formatMoney(b.balance)}</div>
               <div className="flex gap-1.5 flex-wrap">
                 <button className={clsx(btn, "bg-primary-soft text-primary")} onClick={() => setStatement({ kind: "BANK", id: b.id, linkedAccountId: b.linkedAccountId })}>صورت‌حساب</button>
                 <button className={clsx(btn, "bg-slate-100 text-ink-soft")} onClick={() => setTxForm({ kind: "BANK", id: b.id })}>تراکنش</button>
@@ -140,7 +143,7 @@ export function BankingTab({ onOpenReconciliation }: { onOpenReconciliation: (ac
                 <div className="text-[13.5px] font-bold flex items-center gap-2">{b.name}{!b.isActive ? <Badge tone="neutral">غیرفعال</Badge> : null}</div>
                 <div className="text-[11.5px] text-muted mt-0.5">مسئول: {b.custodianName ?? "—"} — حساب {toPersianDigits(b.linkedAccount.code)}</div>
               </div>
-              <div className="text-[14px] font-extrabold">{formatToman(b.balance)}</div>
+              <div className="text-[14px] font-extrabold">{formatMoney(b.balance)}</div>
               <div className="flex gap-1.5 flex-wrap">
                 <button className={clsx(btn, "bg-primary-soft text-primary")} onClick={() => setStatement({ kind: "CASH", id: b.id, linkedAccountId: b.linkedAccountId })}>صورت‌حساب</button>
                 <button className={clsx(btn, "bg-slate-100 text-ink-soft")} onClick={() => setTxForm({ kind: "CASH", id: b.id })}>تراکنش</button>
@@ -203,7 +206,7 @@ function StatementModal({ target, onClose, onReconcile }: { target: { kind: "BAN
         {loading ? <Loading /> : error ? <div className="text-danger text-sm" role="alert">{error}</div> : data ? (
           <>
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="text-[12.5px] text-muted">{data.period.label} — مانده پایان: <b className="text-ink">{formatToman(data.closingBalance)}</b></div>
+              <div className="text-[12.5px] text-muted">{data.period.label} — مانده پایان: <b className="text-ink">{formatMoney(data.closingBalance)}</b></div>
               <div className="flex gap-2">
                 <button className={clsx(btn, "bg-primary-soft text-primary")} onClick={() => onReconcile(target.linkedAccountId)}>مغایرت‌گیری با صورت‌حساب بانک</button>
                 <button className={clsx(btn, "bg-slate-100 text-ink-soft")} onClick={csv}>CSV</button>
@@ -276,7 +279,7 @@ function TransactionsView({ banks, boxes, reloadKey }: { banks: BankAccountRow[]
               <div className="text-[11.5px] text-muted mt-0.5">{formatJalaliDate(t.date)} — شماره {toPersianDigits(t.number)}{t.referenceNo ? ` — مرجع ${toPersianDigits(t.referenceNo)}` : ""}{t.description ? ` — ${t.description}` : ""}</div>
               {t.status === "VOIDED" ? <div className="text-[11.5px] text-danger mt-0.5">باطل شد: {t.voidReason}</div> : null}
             </div>
-            <div className="text-[13.5px] font-extrabold">{formatToman(t.amount)}</div>
+            <div className="text-[13.5px] font-extrabold">{formatMoney(t.amount)}</div>
             <div className="flex gap-1.5">
               <button className={clsx(btn, "bg-slate-100 text-ink-soft")} onClick={() => setAttach(t)}>پیوست</button>
               {t.status === "POSTED" ? <button className={clsx(btn, "bg-danger-soft text-danger")} onClick={() => setVoiding(t)}>ابطال</button> : null}
@@ -341,6 +344,7 @@ function ChequeBooksView({ banks }: { banks: BankAccountRow[] }) {
 }
 
 function ChequeBookModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const can = useModuleCan("accounting");
   const [book, setBook] = useState<ChequeBookDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -391,7 +395,7 @@ function ChequeBookModal({ id, onClose, onChanged }: { id: string; onClose: () =
             <div className="bg-slate-50 border border-border rounded-xl p-3.5 text-[12.5px] flex flex-col gap-2">
               <div className="font-bold">برگ {toPersianDigits(leaf.serial)} — {LEAF_LABEL[leaf.status]}</div>
               {leaf.linkedCheck ? (
-                <div className="text-ink-soft">چک صیادی {toPersianDigits(leaf.linkedCheck.sayadId)} — {formatToman(leaf.linkedCheck.amount)} — سررسید {formatJalaliDate(leaf.linkedCheck.dueDate)}{leaf.linkedCheck.contact ? ` — ${leaf.linkedCheck.contact.name}` : ""}</div>
+                <div className="text-ink-soft">چک صیادی {toPersianDigits(leaf.linkedCheck.sayadId)} — {formatMoney(leaf.linkedCheck.amount)} — سررسید {formatJalaliDate(leaf.linkedCheck.dueDate)}{leaf.linkedCheck.contact ? ` — ${leaf.linkedCheck.contact.name}` : ""}</div>
               ) : null}
               {leaf.statusNote ? <div className="text-muted">{leaf.statusNote}</div> : null}
               {!leaf.linkedCheck && (leaf.status === "UNUSED" || leaf.status === "VOID" || leaf.status === "LOST") ? (
@@ -410,6 +414,17 @@ function ChequeBookModal({ id, onClose, onChanged }: { id: string; onClose: () =
               <button className={clsx(btn, "bg-primary-soft text-primary")} onClick={() => void updateChequeBook(book.id, { status: "ACTIVE" }).then(() => { load(); onChanged(); })}>فعال‌سازی دوباره</button>
             )}
           </div>
+          {can.canDelete ? (
+            <DeleteRecordButton
+              label="حذف دسته‌چک"
+              confirmText="این دسته‌چک حذف شود؟ (فقط وقتی هیچ برگی استفاده نشده؛ در غیر این صورت ببندید)"
+              onDelete={() => deleteChequeBook(book.id)}
+              onDeleted={() => {
+                onChanged();
+                onClose();
+              }}
+            />
+          ) : null}
         </div>
       )}
     </Modal>

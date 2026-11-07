@@ -12,6 +12,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 type ContractForPdf = {
+  /** برچسب واحد ارز پایه‌ی تننت */
+  unitLabel?: string;
   contractNo: number;
   title: string;
   status: string;
@@ -192,7 +194,7 @@ function buildContractHtml(contract: ContractForPdf, orgName: string, companySig
   </div>
 
   <div class="info-grid">
-    <div class="item"><div class="label">ارزش قرارداد</div><div class="value">${formatToman(contract.value)}</div></div>
+    <div class="item"><div class="label">ارزش قرارداد</div><div class="value">${formatToman(contract.value, contract.unitLabel ?? 'تومان')}</div></div>
     <div class="item"><div class="label">وضعیت امضا</div><div class="value">${contract.isLocked ? 'امضا و قفل‌شده' : 'در انتظار امضا'}</div></div>
   </div>
 

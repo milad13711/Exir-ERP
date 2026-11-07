@@ -7,7 +7,7 @@ import { NewPostingModal } from "@/components/recruitment/NewPostingModal";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { toPersianDigits, formatToman } from "@/lib/persian";
+import { toPersianDigits, formatMoney } from "@/lib/persian";
 import {
   fetchJobPosting,
   fetchPostingReport,
@@ -164,7 +164,7 @@ export function PostingDetailModal({
         {(posting.publishChannel || posting.publishBudget) && (
           <div className="text-[12px] text-muted">
             {posting.publishChannel ? `کانال: ${posting.publishChannel}` : ""}
-            {posting.publishBudget ? ` · بودجه: ${formatToman(posting.publishBudget)}` : ""}
+            {posting.publishBudget ? ` · بودجه: ${formatMoney(posting.publishBudget)}` : ""}
           </div>
         )}
 

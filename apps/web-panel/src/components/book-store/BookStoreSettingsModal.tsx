@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { fetchProducts, updateBookStoreSettings, type BookStoreSettings, type Product } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 export function BookStoreSettingsModal({
   initialSettings,
@@ -55,7 +56,7 @@ export function BookStoreSettingsModal({
     <Modal title="تنظیمات فروش تک‌محصولی" onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div>
-          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی چاپی (تومان)</label>
+          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی چاپی ({moneyUnit()})</label>
           <input
             type="number"
             min={1}
@@ -65,7 +66,7 @@ export function BookStoreSettingsModal({
           />
         </div>
         <div>
-          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی الکترونیکی (تومان)</label>
+          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی الکترونیکی ({moneyUnit()})</label>
           <input
             type="number"
             min={1}
@@ -75,7 +76,7 @@ export function BookStoreSettingsModal({
           />
         </div>
         <div>
-          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی صوتی (تومان)</label>
+          <label className="text-[12.5px] font-bold text-ink-soft mb-1.5 block">قیمت نسخه‌ی صوتی ({moneyUnit()})</label>
           <input
             type="number"
             min={1}

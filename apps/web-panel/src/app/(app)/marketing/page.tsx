@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, MegaphoneIcon } from "@/components/icons";
-import { toPersianDigits, formatToman, formatJalaliDateTime } from "@/lib/persian";
+import { toPersianDigits, formatMoney, formatJalaliDateTime } from "@/lib/persian";
 import { fetchCampaigns, type MarketingCampaign } from "@/lib/api";
 import { CreateCampaignModal } from "@/components/marketing/CreateCampaignModal";
 import { CampaignDetailModal } from "@/components/marketing/CampaignDetailModal";
@@ -81,7 +81,7 @@ export default function MarketingPage() {
                 </div>
                 {c.status === "SENT" && c.channel !== "INSTAGRAM_TEMPLATE" ? (
                   <div className="text-left shrink-0">
-                    <div className="text-[13px] font-extrabold text-success">{formatToman(c.attributedRevenue)}</div>
+                    <div className="text-[13px] font-extrabold text-success">{formatMoney(c.attributedRevenue)}</div>
                     <div className="text-[10.5px] text-muted">{toPersianDigits(c.attributedOrderCount)} سفارش نسبت‌داده‌شده</div>
                   </div>
                 ) : null}

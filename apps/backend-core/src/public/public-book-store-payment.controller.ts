@@ -6,21 +6,8 @@ import { PaymentGatewayService } from '../payment-gateway/payment-gateway.servic
 import { BookStoreService } from '../book-store/book-store.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { publicRef } from '../common/tenant-public-key.js';
-
-const BRAND_PAGE_HEAD = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body { font-family: Tahoma, sans-serif; background: #f6f2e9; color: #1a362e; display: flex;
-    align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; }
-  .card { background: #fff; border: 1px solid #e4e9e6; border-radius: 20px; padding: 40px 32px;
-    max-width: 420px; text-align: center; box-shadow: 0 8px 30px -12px rgba(26,54,46,.15); }
-  h1 { font-size: 18px; margin: 16px 0 8px; }
-  p { font-size: 13.5px; color: #62766f; line-height: 1.9; margin: 0 0 20px; }
-  a.btn { display: inline-block; background: #254c41; color: #fff; text-decoration: none;
-    font-weight: bold; font-size: 13.5px; padding: 12px 28px; border-radius: 12px; }
-  .icon { font-size: 40px; }
-</style></head><body><div class="card">`;
-const BRAND_PAGE_TAIL = `</div></body></html>`;
+import { EbookDeliveryService } from '../book-store/ebook-delivery.service.js';
+import { brandPage, ebookDeliveryBlock, esc, siteUrl } from './book-store-pages.js';
 
 /** Unauthenticated payment flow for a book-store order — mirrors PublicEventsPaymentController exactly, scoped to a single order instead of an order group. */
 @Controller('public/book/:slug/orders/:orderId')
@@ -30,7 +17,32 @@ export class PublicBookStorePaymentController {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly gateway: PaymentGatewayService,
     private readonly bookStore: BookStoreService,
+    private readonly ebook: EbookDeliveryService,
   ) {}
+
+  /** صفحه‌ی موفقیت؛ برای نسخه‌ی الکترونیک لینک‌های دانلود امضاشده و کد مجوز را هم نشان می‌دهد. */
+  private async successPage(ctx: TenantRequestContext, orderId: string): Promise<string> {
+    const webUrl = siteUrl();
+    const back = webUrl ? `<a class="btn alt" href="${esc(webUrl)}">بازگشت به سایت</a>` : '';
+    const order = await ctx.tenantDb.bookOrder.findUnique({ where: { id: orderId } });
+    const links = order?.format === 'EBOOK' ? this.ebook.links(ctx, orderId) : null;
+    if (!order || !links) {
+      const note = order?.format === 'PRINT' ? 'سفارش شما ثبت شد و به‌زودی برای شما ارسال می‌شود.' : 'سفارش شما ثبت شد.';
+      return brandPage(`<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>${note}</p>${back}`);
+    }
+    const ready = await this.ebook.isIssued(ctx, order);
+    const failed = !ready && !!order.ebookError && !this.ebook.isIssuing(ctx, order.id);
+    return brandPage(
+      `<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>نسخه‌ی الکترونیک «سلطان قیف» آماده‌ی دریافت است.</p>${ebookDeliveryBlock({
+        licenseCode: order.licenseCode,
+        pdfUrl: links.pdfUrl,
+        epubUrl: links.epubUrl,
+        ready,
+        failed,
+      })}`,
+      { refreshSeconds: ready || failed ? undefined : 10 },
+    );
+  }
 
   private async resolveCtx(slug: string): Promise<TenantRequestContext> {
     const tenant = await this.controlDb.tenant.findUnique({ where: { slug } });
@@ -75,22 +87,15 @@ export class PublicBookStorePaymentController {
     @Res() res: Response,
   ) {
     const ctx = await this.resolveCtx(slug);
-    const webUrl = (process.env.FUNNELKING_PUBLIC_URL ?? '').replace(/\/$/, '');
 
     const fail = async (message: string) => {
       await this.bookStore.cancelOrder(ctx, orderId);
-      return res.send(`${BRAND_PAGE_HEAD}<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>${message}</p>${BRAND_PAGE_TAIL}`);
+      return res.send(brandPage(`<div class="icon">❌</div><h1>پرداخت ناموفق بود</h1><p>${message}</p>`));
     };
 
     const order = await ctx.tenantDb.bookOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('این سفارش یافت نشد');
-    if (order.status === 'PAID') {
-      return res.send(
-        `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>سفارش شما ثبت شد.</p>${
-          webUrl ? `<a class="btn" href="${webUrl}">بازگشت به سایت</a>` : ''
-        }${BRAND_PAGE_TAIL}`,
-      );
-    }
+    if (order.paidAt) return res.send(await this.successPage(ctx, orderId));
 
     // زرین‌پال با Authority+Status برمی‌گردد، بیت‌پی با id_get+trans_id (و بدون Status).
     const authority = zarinpalAuthority ?? bitpayIdGet;
@@ -104,10 +109,6 @@ export class PublicBookStorePaymentController {
     if (refNumber !== null) await ctx.tenantDb.bookOrder.update({ where: { id: orderId }, data: { paymentRefId: refNumber } });
     await this.bookStore.finalizeOrderPayment(ctx, orderId);
 
-    return res.send(
-      `${BRAND_PAGE_HEAD}<div class="icon">✅</div><h1>پرداخت با موفقیت انجام شد</h1><p>سفارش شما ثبت شد و به‌زودی برای شما ارسال می‌شود.</p>${
-        webUrl ? `<a class="btn" href="${webUrl}">بازگشت به سایت</a>` : ''
-      }${BRAND_PAGE_TAIL}`,
-    );
+    return res.send(await this.successPage(ctx, orderId));
   }
 }

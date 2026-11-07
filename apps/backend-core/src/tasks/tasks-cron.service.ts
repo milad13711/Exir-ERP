@@ -1,3 +1,4 @@
+import { isGrantLinkedModule } from '../referrals/referral-grants.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
@@ -175,8 +176,10 @@ export class TasksCronService {
           title: t.title,
           description: t.description,
           priority: t.priority,
-          relatedModule: t.relatedModule,
-          relatedEntityId: t.relatedEntityId,
+          // پیوند به سندِ قابل‌ارجاع کپی نمی‌شود: پیوند وظیفه دسترسی مشاهده می‌دهد و در کرون کاربری برای
+          // بازبینی assertTaskLinkAllowed نیست (جلوگیری از تاباندن دید روی سندِ نادیدنی).
+          relatedModule: isGrantLinkedModule(t.relatedModule) ? null : t.relatedModule,
+          relatedEntityId: isGrantLinkedModule(t.relatedModule) ? null : t.relatedEntityId,
           createdByUserId: t.createdByUserId,
           assignedUserId: ids[0] ?? null,
           startAt: dates.startAt,

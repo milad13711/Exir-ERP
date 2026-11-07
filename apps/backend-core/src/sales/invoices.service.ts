@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { assertNotTaxLocked } from './tax-lock.util.js';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
@@ -135,12 +136,13 @@ export class InvoicesService {
       },
       reject: async () => undefined,
       describe: async (ctx, id) => {
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: { contact: true } });
         return {
           fields: [
             { label: 'فاکتور', value: String(inv.invoiceNo) },
             { label: 'مشتری', value: inv.contact.name },
-            { label: 'مبلغ', value: `${inv.total.toLocaleString('en-US')} تومان` },
+            { label: 'مبلغ', value: `${inv.total.toLocaleString('en-US')} ${unit}` },
             { label: 'دلیل ابطال', value: 'در توضیح درخواست' },
           ],
         };
@@ -151,15 +153,16 @@ export class InvoicesService {
       approve: (ctx, id, opts) => this.signByApproval(ctx, id, opts.stampApplied),
       reject: async () => undefined, // رد = بدون امضا می‌ماند؛ درخواست با دلیل بسته می‌شود
       describe: async (ctx, id) => {
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id }, include: { contact: true, lines: true } });
         return {
           fields: [
             { label: 'شماره فاکتور', value: String(inv.invoiceNo) },
             { label: 'مشتری', value: `${inv.contact.name}${inv.contact.phone ? ` — ${inv.contact.phone}` : ''}` },
             { label: 'اقلام', value: inv.lines.map((l) => `${l.description} × ${l.quantity} @ ${l.unitPrice.toLocaleString('en-US')}`).join('\n') },
-            { label: 'تخفیف', value: `${inv.discount.toLocaleString('en-US')} تومان` },
-            { label: 'مالیات', value: `${inv.taxAmount.toLocaleString('en-US')} تومان` },
-            { label: 'مبلغ نهایی', value: `${inv.total.toLocaleString('en-US')} تومان` },
+            { label: 'تخفیف', value: `${inv.discount.toLocaleString('en-US')} ${unit}` },
+            { label: 'مالیات', value: `${inv.taxAmount.toLocaleString('en-US')} ${unit}` },
+            { label: 'مبلغ نهایی', value: `${inv.total.toLocaleString('en-US')} ${unit}` },
             { label: 'سررسید', value: inv.dueAt ? inv.dueAt.toLocaleDateString('fa-IR') : '—' },
             { label: 'یادداشت', value: inv.notes ?? '—' },
           ],
@@ -338,12 +341,13 @@ export class InvoicesService {
     // still-DRAFT invoice (the common case: warning shown before it's even
     // confirmed) needs its total added in by hand to reflect what the
     // customer's balance WOULD be if this invoice goes through.
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const assessment = await this.creditScore.assess(ctx, contactId);
     const projectedOutstanding =
       invoice.status === 'DRAFT' ? assessment.totalOutstanding + invoice.total : assessment.totalOutstanding;
 
     if (projectedOutstanding > assessment.creditLimit) {
-      return `مانده‌ی بدهی مشتری با احتساب این فاکتور (${projectedOutstanding.toLocaleString('en-US')} تومان) از سقف اعتبار محاسبه‌شده (${assessment.creditLimit.toLocaleString('en-US')} تومان) بیشتر است — امتیاز اعتباری: ${assessment.score}`;
+      return `مانده‌ی بدهی مشتری با احتساب این فاکتور (${projectedOutstanding.toLocaleString('en-US')} ${unit}) از سقف اعتبار محاسبه‌شده (${assessment.creditLimit.toLocaleString('en-US')} ${unit}) بیشتر است — امتیاز اعتباری: ${assessment.score}`;
     }
     return null;
   }
@@ -649,6 +653,7 @@ export class InvoicesService {
       include: INVOICE_INCLUDE,
     });
     if (signatureStale) await this.approvals.closeForEntity(ctx, SIGN_ENTITY_TYPE, id, 'REJECTED');
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const pendingSignRequest = confirmed.isOfficial && !confirmed.signedAt
       ? await ctx.tenantDb.approvalRequest.findFirst({ where: { entityType: SIGN_ENTITY_TYPE, entityId: id, status: 'PENDING' }, select: { id: true } })
       : null;
@@ -658,7 +663,7 @@ export class InvoicesService {
         entityType: 'SALES_INVOICE',
         entityId: id,
         title: `امضای فاکتور رسمی ${confirmed.invoiceNo}`,
-        summary: `${confirmed.contact?.name ?? ''} — ${confirmed.total.toLocaleString('en-US')} تومان`,
+        summary: `${confirmed.contact?.name ?? ''} — ${confirmed.total.toLocaleString('en-US')} ${unit}`,
         link: '/sales',
         isOfficial: true,
         requestedByUserId: userId ?? undefined,
@@ -790,12 +795,13 @@ export class InvoicesService {
     if (!invoice) throw new NotFoundException('فاکتور فروش یافت نشد');
     if (!invoice.contact.phone) throw new BadRequestException('این مشتری شماره موبایل ثبت‌شده ندارد');
 
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const url = `${publicWebUrl}/invoice/${publicRef(ctx.tenantSlug)}/${invoice.publicToken}`;
     const remaining = invoice.total - invoice.paidAmount;
     const instruction = remaining > 0 ? buildPaymentInstructionLine(invoice, url) : '';
     const message =
       remaining > 0
-        ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} تومان صادر شد.\nمشاهده: ${url}${instruction ? `\n${instruction}` : ''}`
+        ? `فاکتور شماره ${invoice.invoiceNo} به مبلغ ${remaining.toLocaleString('fa-IR')} ${unit} صادر شد.\nمشاهده: ${url}${instruction ? `\n${instruction}` : ''}`
         : `فاکتور شماره ${invoice.invoiceNo} برای شما صادر شد.\nمشاهده: ${url}`;
     const result = await this.sms.sendSms(ctx, invoice.contact.phone, message);
     if (!result.success) throw new BadRequestException(result.error ?? 'ارسال پیامک ناموفق بود');

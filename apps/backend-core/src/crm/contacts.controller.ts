@@ -58,7 +58,7 @@ export class ContactsController {
     @Ctx() ctx: TenantRequestContext,
   ) {
     q = normalizeSearchTerm(q);
-    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'crm', 'ownerUserId', 'CrmContact');
     // بدون group/stage همیشه «همه‌ی مخاطبین» برمی‌گردد (هیچ مرحله‌ای پنهان نمی‌شود)؛
     // group = leads | customers | repeat | lost، و stage = یک یا چند مرحله‌ی جداشده با ویرگول.
     const stages = (stage ?? '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -227,7 +227,7 @@ export class ContactsController {
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'crm', 'ownerUserId', 'CrmContact');
     const contact = await ctx.tenantDb.crmContact.findFirst({
       where: { id, ...scope },
       include: {
@@ -268,8 +268,10 @@ export class ContactsController {
 
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'crm');
-    await this.assertContactInScope(ctx, id);
+    if (!(await this.permissions.hasEditGrant(ctx, 'CrmContact', id))) {
+      await this.permissions.assertEdit(ctx, 'crm');
+      await this.assertContactInScope(ctx, id);
+    }
     await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id } });
     if (dto.referredById) {
       if (dto.referredById === id) throw new NotFoundException('مخاطب نمی‌تواند معرف خودش باشد');

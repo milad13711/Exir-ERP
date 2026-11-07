@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { fetchMyResellerProfile, updateMyResellerProfile, requestMyResellerEnd, fetchMyResellerSettlements, ApiError, type Reseller, type ResellerSettlement } from "@/lib/api";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 
 const FIELD = "w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary";
 
@@ -124,7 +124,7 @@ export function MyProfileCard() {
         )}
         {settlements.map((s) => (
           <div key={s.id} className="mt-2 bg-slate-50 rounded-lg p-3 text-[12px]">
-            صورتحساب {s.number} ({formatJalaliDate(s.issuedAt)}): مانده‌ی قابل پرداخت به شما <b>{formatToman(s.amountDue)}</b> — {s.status === "SETTLED" ? "تسویه شد" : "در انتظار تسویه"}
+            صورتحساب {s.number} ({formatJalaliDate(s.issuedAt)}): مانده‌ی قابل پرداخت به شما <b>{formatMoney(s.amountDue)}</b> — {s.status === "SETTLED" ? "تسویه شد" : "در انتظار تسویه"}
           </div>
         ))}
       </div>

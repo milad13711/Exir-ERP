@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { UsersService } from '../users/users.service.js';
@@ -37,13 +38,14 @@ export class ResellersService implements OnModuleInit {
       },
       describe: async (ctx, id) => {
         const r = await ctx.tenantDb.resellerProfile.findUniqueOrThrow({ where: { id }, include: { contact: true } });
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const b = await this.balance(ctx, id);
         return {
           fields: [
             { label: 'نماینده', value: `${r.contact.company || r.contact.name} — ${r.contact.phone ?? ''}` },
-            { label: 'کل کمیسیون', value: `${b.totalCommission.toLocaleString('en-US')} تومان` },
-            { label: 'پرداخت‌شده', value: `${b.paidCommission.toLocaleString('en-US')} تومان` },
-            { label: 'مانده‌ی تسویه', value: `${b.amountDue.toLocaleString('en-US')} تومان` },
+            { label: 'کل کمیسیون', value: `${b.totalCommission.toLocaleString('en-US')} ${unit}` },
+            { label: 'پرداخت‌شده', value: `${b.paidCommission.toLocaleString('en-US')} ${unit}` },
+            { label: 'مانده‌ی تسویه', value: `${b.amountDue.toLocaleString('en-US')} ${unit}` },
           ],
         };
       },

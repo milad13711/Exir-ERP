@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { assertRelationsAllowed } from '../referrals/grant-edit.js';
+import { NotFoundException, BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -20,13 +21,13 @@ export class QuotationsController {
 
   @Get()
   async list(@Query('contactId') contactId: string | undefined, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesQuotation');
     return this.quotations.list(ctx, contactId ? { ...scope, contactId } : scope);
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesQuotation');
     return this.quotations.detail(ctx, id, scope);
   }
 
@@ -38,8 +39,15 @@ export class QuotationsController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateQuotationDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'sales');
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const granted = await this.permissions.hasEditGrant(ctx, 'SalesQuotation', id);
+    if (granted) {
+      const existing = await ctx.tenantDb.salesQuotation.findUnique({ where: { id }, select: { contactId: true, dealId: true } });
+      if (!existing) throw new NotFoundException('پیش‌فاکتور یافت نشد');
+      await assertRelationsAllowed(this.permissions, ctx, dto, existing);
+    } else {
+      await this.permissions.assertEdit(ctx, 'sales');
+    }
+    const scope = granted ? {} : await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
     return this.quotations.update(ctx, id, dto, scope);
   }
 
@@ -82,7 +90,7 @@ export class QuotationsController {
 
   @Get(':id/revisions')
   async revisions(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    const scope = await this.permissions.viewScope(ctx, 'sales', 'createdByUserId');
+    const scope = await this.permissions.viewScopeGranted(ctx, 'sales', 'createdByUserId', 'SalesQuotation');
     return this.quotations.revisions(ctx, id, scope);
   }
 

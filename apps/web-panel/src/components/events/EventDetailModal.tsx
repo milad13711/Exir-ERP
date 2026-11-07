@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { PlusIcon, ShareIcon, WhatsAppIcon } from "@/components/icons";
-import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { EventPosterModal } from "./EventPosterModal";
+import { EventEditPanel } from "./EventEditPanel";
 import {
   fetchEvent,
   publishEvent,
@@ -17,6 +19,7 @@ import {
   fetchEventTickets,
   createEventTicketType,
   deleteEventTicketType,
+  updateEventTicketType,
   createManualEventBooking,
   type EventItem,
   type EventBooking,
@@ -30,6 +33,69 @@ const inputClass =
 const STATUS_LABELS: Record<EventStatus, string> = { DRAFT: "پیش‌نویس", PUBLISHED: "منتشرشده", CANCELLED: "لغوشده", COMPLETED: "برگزارشده" };
 const STATUS_TONES: Record<EventStatus, "neutral" | "success" | "danger" | "primary"> = { DRAFT: "neutral", PUBLISHED: "success", CANCELLED: "danger", COMPLETED: "primary" };
 const TICKET_STATUS_LABELS: Record<string, string> = { VALID: "معتبر", CHECKED_IN: "حاضر شده", CANCELLED: "باطل" };
+
+function TicketTypeRow({ t, onChanged }: { t: EventItem["ticketTypes"][number]; onChanged: () => void }) {
+  const can = useModuleCan("events");
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(t.name);
+  const [price, setPrice] = useState(String(t.price));
+  const [capacity, setCapacity] = useState(t.capacity != null ? String(t.capacity) : "");
+  const [error, setError] = useState<string | null>(null);
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-2 border border-border rounded-xl p-3">
+        <div className="flex gap-2 flex-wrap">
+          <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} flex-1 min-w-[120px]`} />
+          <input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" dir="ltr" className={`${inputClass} w-28`} />
+          <input value={capacity} onChange={(e) => setCapacity(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" dir="ltr" placeholder="ظرفیت" className={`${inputClass} w-24`} />
+        </div>
+        {error ? <div className="text-[11.5px] text-danger">{error}</div> : null}
+        <div className="flex gap-2">
+          <button
+            className="min-h-10 px-4 rounded-lg bg-primary text-white text-[12px] font-bold cursor-pointer"
+            onClick={async () => {
+              try {
+                await updateEventTicketType(t.id, { name: name.trim(), price: Number(price) || 0, capacity: capacity ? Number(capacity) : undefined });
+                setEditing(false);
+                onChanged();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "ذخیره ناموفق بود");
+              }
+            }}
+          >
+            ذخیره
+          </button>
+          <button className="min-h-10 px-4 rounded-lg bg-slate-100 text-ink-soft text-[12px] font-bold cursor-pointer" onClick={() => setEditing(false)}>
+            انصراف
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between border border-border rounded-xl p-3">
+      <div>
+        <div className="text-[13px] font-bold">{t.name}</div>
+        <div className="text-[11.5px] text-muted mt-0.5">
+          {formatMoney(t.price)} · {toPersianDigits(t.sold ?? 0)} فروخته‌شده{t.capacity != null ? ` از ${toPersianDigits(t.capacity)}` : ""}
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {can.canEdit ? (
+          <button onClick={() => setEditing(true)} className="text-[11px] font-bold text-primary min-h-10 px-2 cursor-pointer">
+            ویرایش
+          </button>
+        ) : null}
+        {(t.sold ?? 0) === 0 && can.canDelete ? (
+          <button onClick={() => deleteEventTicketType(t.id).then(onChanged)} className="text-[11px] font-bold text-danger min-h-10 px-2 cursor-pointer">
+            حذف
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function NewTicketTypeForm({ eventId, onCreated }: { eventId: string; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
@@ -115,7 +181,7 @@ function ManualBookingForm({ event, onCreated }: { event: EventItem; onCreated: 
       <select value={ticketTypeId} onChange={(e) => setTicketTypeId(e.target.value)} className={inputClass}>
         {event.ticketTypes.map((t) => (
           <option key={t.id} value={t.id}>
-            {t.name} — {formatToman(t.price)}
+            {t.name} — {formatMoney(t.price)}
           </option>
         ))}
       </select>
@@ -210,6 +276,15 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
           </div>
         </div>
 
+        <EventEditPanel
+          event={event}
+          onChanged={reload}
+          onDeleted={() => {
+            onChanged();
+            onClose();
+          }}
+        />
+
         {event.status === "PUBLISHED" && publicUrl && (
           <div className="flex items-center gap-2 bg-primary-soft rounded-xl p-2.5">
             <input readOnly value={publicUrl} dir="ltr" className="flex-1 bg-transparent text-[11.5px] text-primary outline-none" />
@@ -249,19 +324,7 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
         {tab === "info" && (
           <div className="flex flex-col gap-2.5">
             {event.ticketTypes.map((t) => (
-              <div key={t.id} className="flex items-center justify-between border border-border rounded-xl p-3">
-                <div>
-                  <div className="text-[13px] font-bold">{t.name}</div>
-                  <div className="text-[11.5px] text-muted mt-0.5">
-                    {formatToman(t.price)} · {toPersianDigits(t.sold ?? 0)} فروخته‌شده{t.capacity != null ? ` از ${toPersianDigits(t.capacity)}` : ""}
-                  </div>
-                </div>
-                {(t.sold ?? 0) === 0 && (
-                  <button onClick={() => deleteEventTicketType(t.id).then(reload)} className="text-[11px] font-bold text-danger cursor-pointer">
-                    حذف
-                  </button>
-                )}
-              </div>
+              <TicketTypeRow key={t.id} t={t} onChanged={reload} />
             ))}
             <NewTicketTypeForm eventId={event.id} onCreated={reload} />
           </div>
@@ -281,7 +344,7 @@ export function EventDetailModal({ eventId, onClose, onChanged }: { eventId: str
                     </Badge>
                   </div>
                   <div className="text-[11.5px] text-muted mt-1">
-                    {b.buyerPhone} · {b.ticketType.name} · {toPersianDigits(b.quantity)} بلیط · {formatToman(b.totalAmount)}
+                    {b.buyerPhone} · {b.ticketType.name} · {toPersianDigits(b.quantity)} بلیط · {formatMoney(b.totalAmount)}
                   </div>
                   <div className="text-[11px] text-muted mt-1">{formatJalaliDateTime(b.createdAt)}</div>
                 </div>

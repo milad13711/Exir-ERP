@@ -44,6 +44,7 @@ type PayrollSlipForPdf = {
 };
 
 type EmployerInfo = {
+  unitLabel?: string;
   orgName: string;
   economicCode: string | null;
   nationalId: string | null;
@@ -95,6 +96,7 @@ export class PayrollPdfService implements OnModuleDestroy {
 }
 
 function buildHtml(slip: PayrollSlipForPdf, employer: EmployerInfo): string {
+  const u = employer.unitLabel ?? 'تومان';
   const gross = slip.baseSalary + slip.allowances;
   const totalDeductions = slip.deductions + slip.insuranceAmount + slip.taxAmount;
   const net = gross - totalDeductions;
@@ -161,18 +163,18 @@ function buildHtml(slip: PayrollSlipForPdf, employer: EmployerInfo): string {
       <tr><th>شرح</th><th>مبلغ (تومان)</th></tr>
     </thead>
     <tbody>
-      <tr><td>حقوق پایه</td><td>${formatToman(slip.baseSalary)}</td></tr>
-      ${slip.allowances > 0 ? `<tr><td>مزایا</td><td>${formatToman(slip.allowances)}</td></tr>` : ''}
-      <tr><td>بیمه سهم کارمند</td><td>-${formatToman(slip.insuranceAmount)}</td></tr>
-      <tr><td>مالیات حقوق</td><td>-${formatToman(slip.taxAmount)}</td></tr>
-      ${slip.deductions > 0 ? `<tr><td>سایر کسورات</td><td>-${formatToman(slip.deductions)}</td></tr>` : ''}
+      <tr><td>حقوق پایه</td><td>${formatToman(slip.baseSalary, u)}</td></tr>
+      ${slip.allowances > 0 ? `<tr><td>مزایا</td><td>${formatToman(slip.allowances, u)}</td></tr>` : ''}
+      <tr><td>بیمه سهم کارمند</td><td>-${formatToman(slip.insuranceAmount, u)}</td></tr>
+      <tr><td>مالیات حقوق</td><td>-${formatToman(slip.taxAmount, u)}</td></tr>
+      ${slip.deductions > 0 ? `<tr><td>سایر کسورات</td><td>-${formatToman(slip.deductions, u)}</td></tr>` : ''}
     </tbody>
   </table>
 
   <table class="totals">
-    <tr><td style="text-align: left;">ناخالص</td><td>${formatToman(gross)}</td></tr>
-    <tr><td style="text-align: left;">جمع کسورات</td><td>-${formatToman(totalDeductions)}</td></tr>
-    <tr class="final"><td style="text-align: left;">خالص پرداختی</td><td>${formatToman(net)}</td></tr>
+    <tr><td style="text-align: left;">ناخالص</td><td>${formatToman(gross, u)}</td></tr>
+    <tr><td style="text-align: left;">جمع کسورات</td><td>-${formatToman(totalDeductions, u)}</td></tr>
+    <tr class="final"><td style="text-align: left;">خالص پرداختی</td><td>${formatToman(net, u)}</td></tr>
   </table>
 
   <div class="footer">این سند به‌صورت خودکار توسط ${escapeHtml(employer.orgName)} صادر شده است.</div>

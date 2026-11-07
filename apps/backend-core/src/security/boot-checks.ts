@@ -2,7 +2,7 @@
  * بررسی‌های امنیتی پیکربندی هنگام بوت — fail-closed برای رازهای حیاتی.
  *  - JWT_SECRET: نبودن ← همیشه بوت متوقف. placeholder شناخته‌شده یا کمتر از ۱۶ نویسه ← توقف در production (در توسعه فقط هشدار).
  *    بین ۱۶ تا ۳۱ نویسه ← هشدار بلند (قفل نمی‌کنیم تا استقرار موجود با راز کوتاه‌تر ناگهان از کار نیفتد؛ در runbook چرخش توصیه شده).
- *  - سایر موارد فقط هشدار می‌دهند (production): OTP_DEV_ECHO، APP_SECRETS_KEY، CORS localhost، sandbox زرین‌پال، رمز DB تننت.
+ *  - OTP_DEV_ECHO=true در production ← توقف بوت. سایر موارد فقط هشدار می‌دهند (production): APP_SECRETS_KEY، CORS localhost، sandbox زرین‌پال، رمز DB تننت.
  * خروجی: فهرست هشدارها (برای لاگ و SecurityEvent). مقادیر راز هرگز چاپ نمی‌شوند.
  */
 const PLACEHOLDERS = new Set([
@@ -39,7 +39,11 @@ export function assertSecureConfig(env: NodeJS.ProcessEnv = process.env): string
   }
 
   if (prod) {
-    if (env.OTP_DEV_ECHO === 'true') warnings.push('OTP_DEV_ECHO=true در production: اگر پنل پیامک پیکربندی نشود، کد ورود در پاسخ API برمی‌گردد.');
+    // fail-closed: کد ورود در پاسخ API یعنی دور زدن کامل احراز هویت. دریچه‌ی اضطراری: ALLOW_OTP_DEV_ECHO_IN_PRODUCTION=true
+    if (env.OTP_DEV_ECHO === 'true') {
+      if (env.ALLOW_OTP_DEV_ECHO_IN_PRODUCTION !== 'true') throw new InsecureConfigError('OTP_DEV_ECHO=true در production مجاز نیست (کد ورود در پاسخ API برمی‌گردد)؛ راه‌اندازی متوقف شد.');
+      warnings.push('OTP_DEV_ECHO=true در production با دریچه‌ی ALLOW_OTP_DEV_ECHO_IN_PRODUCTION: FATAL — فوراً خاموش کنید.');
+    }
     if (!env.APP_SECRETS_KEY) warnings.push('APP_SECRETS_KEY تنظیم نشده: کلید درگاه پرداخت/پنل پیامک و رازهای 2FA نمی‌توانند رمزشده ذخیره شوند.');
     const cors = (env.CORS_ORIGINS ?? '').split(',').map((x) => x.trim()).filter(Boolean);
     if (cors.length === 0 || cors.some((o) => o === '*' || /localhost|127\.0\.0\.1/.test(o))) warnings.push('CORS_ORIGINS خالی/localhost/* است؛ فقط دامنه‌های واقعی پنل‌ها را بگذارید.');

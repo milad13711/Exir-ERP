@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { faDate, faTime } from '../common/persian.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
@@ -112,12 +113,13 @@ export class RecruitmentService implements OnModuleInit {
           { label: 'رشته/مهارت‌ها', value: [a.educationField, a.skillTags.join('، ')].filter(Boolean).join(' — ') || '—' },
           { label: 'تأیید کارشناس', value: a.specialistDecisionReason ?? 'تأیید شده' },
         ];
+        const unit = await loadUnitLabel(ctx.tenantDb);
         if (o) {
           fields.push(
             { label: 'شرح وظایف', value: o.jobDescription },
             { label: 'نحوه‌ی همکاری', value: o.collaborationType },
             { label: 'ساعت حضور روزانه', value: o.workingHours ?? '—' },
-            { label: 'حقوق ماهانه', value: `${o.salary.toLocaleString('en-US')} تومان` },
+            { label: 'حقوق ماهانه', value: `${o.salary.toLocaleString('en-US')} ${unit}` },
             { label: 'مدت همکاری', value: o.durationMonths ? `${o.durationMonths} ماه` : 'نامحدود' },
             { label: 'امضای متقاضی', value: o.candidateSignature ? 'ثبت شده ✓' : 'ثبت نشده' },
           );

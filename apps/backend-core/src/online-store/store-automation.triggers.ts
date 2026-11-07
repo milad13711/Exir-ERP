@@ -14,7 +14,7 @@ export class StoreAutomationTriggers implements OnModuleInit {
       payloadFields: [
         { key: 'orderNo', label: 'شماره سفارش', type: 'NUMBER' },
         { key: 'customerName', label: 'نام مشتری', type: 'STRING' },
-        { key: 'subtotal', label: 'مبلغ سفارش (تومان)', type: 'NUMBER' },
+        { key: 'subtotal', label: 'مبلغ سفارش (به ارز پایه)', type: 'NUMBER' },
       ],
     });
 
@@ -26,7 +26,7 @@ export class StoreAutomationTriggers implements OnModuleInit {
       payloadFields: [
         { key: 'orderNo', label: 'شماره سفارش', type: 'NUMBER' },
         { key: 'customerName', label: 'نام مشتری', type: 'STRING' },
-        { key: 'subtotal', label: 'مبلغ سفارش (تومان)', type: 'NUMBER' },
+        { key: 'subtotal', label: 'مبلغ سفارش (به ارز پایه)', type: 'NUMBER' },
       ],
     });
   }

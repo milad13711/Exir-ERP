@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchRecurringInvoice,
   updateRecurringInvoice,
@@ -98,7 +98,7 @@ export function RecurringInvoiceDetailModal({
                 <div key={l.id} className="flex items-center justify-between text-[12.5px] bg-slate-50 rounded-lg px-3 py-2">
                   <span>{l.description}</span>
                   <span className="text-muted">
-                    {l.quantity} × {formatToman(l.unitPrice)}
+                    {l.quantity} × {formatMoney(l.unitPrice)}
                   </span>
                 </div>
               ))}

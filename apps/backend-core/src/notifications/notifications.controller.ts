@@ -7,11 +7,18 @@ import { MarkDeliveredDto, PushTestDto, RenameDeviceDto, SubscribePushDto } from
 import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto.js';
 import { PushNotificationsService, vapidKeyHash } from './push-notifications.service.js';
 import { NotificationDeliveryService } from './notification-delivery.service.js';
-import { FAILURE_REASON_FA, SlidingRateLimiter, deviceLabelFromUserAgent, isAllowedPushEndpoint, parseHHmm, sanitizeCategoryPrefs } from './push-logic.js';
+import { FAILURE_REASON_FA, REMINDER_DEFAULT_HOURS, clampReminderHours, SlidingRateLimiter, deviceLabelFromUserAgent, isAllowedPushEndpoint, parseHHmm, sanitizeCategoryPrefs } from './push-logic.js';
 
 // سقف نرخ به‌ازای کاربر: آزمایش پوش ۵/دقیقه، ثبت اشتراک ۲۰/دقیقه (جلوگیری از اسکن/سوءاستفاده)
 const testLimiter = new SlidingRateLimiter(5, 60_000);
 const subscribeLimiter = new SlidingRateLimiter(20, 60_000);
+/** «/tasks?id=1» → «/tasks» (فقط مسیر درون‌برنامه). */
+function firstPathSegment(link: string | null): string | null {
+  if (!link || !link.startsWith('/') || link.startsWith('//')) return null;
+  const m = /^\/[^/?#]+/.exec(link);
+  return m ? m[0] : null;
+}
+
 function limit(l: SlidingRateLimiter, key: string) {
   if (!l.allow(key)) throw new HttpException('تعداد درخواست بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید', 429);
 }
@@ -25,6 +32,9 @@ const PREF_DEFAULTS = {
   quietStart: '22:00',
   quietEnd: '07:00',
   smsFallbackEnabled: false,
+  toastEnabled: true,
+  reminderEnabled: true,
+  reminderAfterHours: REMINDER_DEFAULT_HOURS,
 };
 
 @Controller('notifications')
@@ -35,19 +45,52 @@ export class NotificationsController {
     private readonly delivery: NotificationDeliveryService,
   ) {}
 
+  /**
+   * فهرست اعلان‌ها. پیش‌فرض ۳۰ مورد آخر (سازگار با زنگوله‌ی قبلی)؛ برای صفحه‌ی اعلان‌ها:
+   * ?limit=(حداکثر ۱۰۰) &unread=1 &important=1 &before=<ISO> (صفحه‌بندی با createdAt).
+   * unreadCount/importantUnread همیشه کل واقعی کاربرند، نه تعداد صفحه.
+   */
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Ctx() ctx: TenantRequestContext, @Query('limit') limitQ?: string, @Query('unread') unreadQ?: string, @Query('important') importantQ?: string, @Query('before') beforeQ?: string) {
     const userId = await resolveTenantUserId(ctx);
-    if (!userId) return { unreadCount: 0, items: [] };
-    const [items, unreadCount] = await Promise.all([
-      ctx.tenantDb.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
+    if (!userId) return { unreadCount: 0, importantUnread: 0, items: [], hasMore: false };
+    const limit = Math.min(100, Math.max(1, Number.parseInt(limitQ ?? '30', 10) || 30));
+    const before = beforeQ ? new Date(beforeQ) : null;
+    const where = {
+      userId,
+      ...(unreadQ === '1' ? { readAt: null } : {}),
+      ...(importantQ === '1' ? { important: true } : {}),
+      ...(before && !Number.isNaN(before.getTime()) ? { createdAt: { lt: before } } : {}),
+    };
+    const [rows, unreadCount, importantUnread] = await Promise.all([
+      ctx.tenantDb.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit + 1 }),
       ctx.tenantDb.notification.count({ where: { userId, readAt: null } }),
+      ctx.tenantDb.notification.count({ where: { userId, readAt: null, important: true } }),
     ]);
-    return { unreadCount, items };
+    return { unreadCount, importantUnread, items: rows.slice(0, limit), hasMore: rows.length > limit };
+  }
+
+  /**
+   * «نیاز به توجه شما»: اعلان‌های مهمِ نخوانده (حداکثر ۲۰) + شمارش نخوانده‌ها به تفکیک دسته و به تفکیک اولین بخش لینک
+   * (برای نشان تعداد روی آیتم‌های منو، مثل /tasks یا /approvals).
+   */
+  @Get('attention')
+  async attention(@Ctx() ctx: TenantRequestContext) {
+    const userId = await resolveTenantUserId(ctx);
+    if (!userId) return { items: [], total: 0, importantTotal: 0, byCategory: {}, byLink: {} };
+    const [items, importantTotal, unread] = await Promise.all([
+      ctx.tenantDb.notification.findMany({ where: { userId, readAt: null, important: true }, orderBy: { createdAt: 'desc' }, take: 20 }),
+      ctx.tenantDb.notification.count({ where: { userId, readAt: null, important: true } }),
+      ctx.tenantDb.notification.findMany({ where: { userId, readAt: null }, select: { category: true, link: true }, orderBy: { createdAt: 'desc' }, take: 500 }),
+    ]);
+    const byCategory: Record<string, number> = {};
+    const byLink: Record<string, number> = {};
+    for (const n of unread) {
+      byCategory[n.category ?? 'system'] = (byCategory[n.category ?? 'system'] ?? 0) + 1;
+      const seg = firstPathSegment(n.link);
+      if (seg) byLink[seg] = (byLink[seg] ?? 0) + 1;
+    }
+    return { items, total: unread.length, importantTotal, byCategory, byLink };
   }
 
   /** زنگوله/صندوق اعلان وقتی اعلان‌ها را نشان می‌دهد صدا می‌زند (دسته‌ای) — «تحویل درون‌برنامه». */
@@ -104,6 +147,9 @@ export class NotificationsController {
       quietStart,
       quietEnd,
       smsFallbackEnabled: dto.smsFallbackEnabled,
+      toastEnabled: dto.toastEnabled,
+      reminderEnabled: dto.reminderEnabled,
+      reminderAfterHours: dto.reminderAfterHours === undefined ? undefined : clampReminderHours(dto.reminderAfterHours),
     };
     const saved = await ctx.tenantDb.notificationPreference.upsert({
       where: { userId },
@@ -117,6 +163,9 @@ export class NotificationsController {
         quietStart: quietStart ?? '22:00',
         quietEnd: quietEnd ?? '07:00',
         smsFallbackEnabled: dto.smsFallbackEnabled ?? false,
+        toastEnabled: dto.toastEnabled ?? true,
+        reminderEnabled: dto.reminderEnabled ?? true,
+        reminderAfterHours: clampReminderHours(dto.reminderAfterHours ?? REMINDER_DEFAULT_HOURS),
       },
       update: patch,
     });
@@ -133,6 +182,9 @@ export class NotificationsController {
       quietStart: pref?.quietStart ?? '22:00',
       quietEnd: pref?.quietEnd ?? '07:00',
       smsFallbackEnabled: pref?.smsFallbackEnabled ?? false,
+      toastEnabled: pref?.toastEnabled ?? true,
+      reminderEnabled: pref?.reminderEnabled ?? true,
+      reminderAfterHours: clampReminderHours(pref?.reminderAfterHours ?? REMINDER_DEFAULT_HOURS),
     };
   }
 

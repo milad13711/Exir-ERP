@@ -3,7 +3,7 @@ import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-
 import { EmailService } from '../email/email.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
 import { PushNotificationsService, type PushSendSummary } from './push-notifications.service.js';
-import { SMS_FALLBACK_COOLDOWN_MS, SMS_FALLBACK_DAILY_CAP, claimKey, smsDailyCap, smsText, tehranDateKey, categoryForType, isCriticalType, normalizeCategory, planDelivery, shouldSmsFallback, type NotificationCategory } from './push-logic.js';
+import { SMS_FALLBACK_COOLDOWN_MS, SMS_FALLBACK_DAILY_CAP, claimKey, smsDailyCap, smsText, tehranDateKey, categoryForType, isCriticalType, isImportantType, normalizeCategory, planDelivery, shouldSmsFallback, type NotificationCategory } from './push-logic.js';
 
 export type NotifyInput = {
   userId: string;
@@ -57,6 +57,7 @@ export class NotificationsService {
     try {
       const category = normalizeCategory(input.category) ?? categoryForType(input.type);
       const critical = isCriticalType(input.type, input.critical);
+      const important = critical || isImportantType(input.type, category, input.important);
       const preference = await tenantDb.notificationPreference.findUnique({ where: { userId: input.userId } }).catch(() => null);
       const plan = planDelivery(preference, { category, critical, channels: input.channels });
 
@@ -70,6 +71,7 @@ export class NotificationsService {
           entityType: input.entityType,
           entityId: input.entityId,
           category,
+          important,
           // درون‌برنامه برای این دسته خاموش است: ردیف برای تاریخچه/ack می‌ماند ولی «نخوانده» نیست
           readAt: plan.inApp ? null : new Date(),
         },
@@ -77,7 +79,7 @@ export class NotificationsService {
 
       // اعلان درون‌برنامه ثبت شد؛ کانال‌های بیرونی (پوش/ایمیل/پیامک) در پس‌زمینه و موازی می‌روند تا
       // کندی SMTP یا درگاه پیامک نه پاسخ درخواست را عقب بیندازد و نه پوش را دیر برساند.
-      void this.deliverExternal(tenantDb, input, { notificationId: row.id, category, critical, plan, preference }).catch((err) =>
+      void this.deliverExternal(tenantDb, input, { notificationId: row.id, category, critical, important, plan, preference }).catch((err) =>
         this.logger.warn(`External notification delivery failed for ${input.userId}: ${err instanceof Error ? err.message : err}`),
       );
     } catch (err) {
@@ -89,7 +91,7 @@ export class NotificationsService {
   private async deliverExternal(
     tenantDb: TenantPrismaClient,
     input: NotifyInput,
-    ctx: { notificationId: string; category: NotificationCategory; critical: boolean; plan: ReturnType<typeof planDelivery>; preference: Awaited<ReturnType<TenantPrismaClient['notificationPreference']['findUnique']>> },
+    ctx: { notificationId: string; category: NotificationCategory; critical: boolean; important: boolean; plan: ReturnType<typeof planDelivery>; preference: Awaited<ReturnType<TenantPrismaClient['notificationPreference']['findUnique']>> },
   ): Promise<void> {
     const { plan, preference } = ctx;
     const title = input.confidential ? CONFIDENTIAL_TITLE : input.title;
@@ -104,7 +106,8 @@ export class NotificationsService {
           {
             title,
             body,
-            url: input.link,
+            // بدون لینک صریح، کلیک روی پوش به صندوق اعلان می‌رود (نه داشبورد) تا اعلان مهم گم نشود
+            url: input.link ?? (ctx.important ? '/notifications' : undefined),
             tag: input.tag,
             actions: input.actions,
             requireInteraction: ctx.critical ? true : undefined,
@@ -155,6 +158,7 @@ export class NotificationsService {
     const [pushResult] = await Promise.allSettled([pushPromise, emailPromise, smsPromise]);
 
     // پیامک جایگزین: فقط اعلان «مهم»، فقط اگر پوش به هیچ دستگاهی نرسید، فقط اگر کاربر روشن کرده (پیش‌فرض خاموش)
+    // پیامک جایگزین فقط برای «مهم» صریحِ فراخواننده/حیاتی (هزینه‌ی پیامک)؛ پرچم ذخیره‌شده‌ی ctx.important فقط برای UI و یادآوری است
     const important = ctx.critical || Boolean(input.important);
     if (plan.sms || !important || !preference?.smsFallbackEnabled || !user.phone) return;
     if (plan.quiet && !ctx.critical) return;

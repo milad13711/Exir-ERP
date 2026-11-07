@@ -115,6 +115,22 @@ export class DispatchRulesService {
     return ctx.tenantDb.dispatchDocType.update({ where: { id }, data: { name: input.name?.trim(), isActive: input.isActive } });
   }
 
+  /** حذف قطعی نوع سند سفارشی فقط اگر در هیچ سند بارگیری یا قانونی استفاده نشده؛ وگرنه غیرفعال‌سازی. */
+  async deleteDocType(ctx: TenantRequestContext, id: string) {
+    const t = await ctx.tenantDb.dispatchDocType.findUnique({ where: { id } });
+    if (!t) throw new NotFoundException('نوع سند یافت نشد');
+    if (t.isSystem) throw new ConflictException('نوع سند سیستمی حذف نمی‌شود؛ می‌توانید آن را غیرفعال کنید');
+    const [docs, rules] = await Promise.all([
+      ctx.tenantDb.shipmentDocument.count({ where: { docTypeCode: t.code } }),
+      ctx.tenantDb.dispatchDocRule.count({ where: { docTypeCodes: { has: t.code } } }),
+    ]);
+    if (docs > 0 || rules > 0) {
+      throw new ConflictException(`این نوع سند در ${docs} سند بارگیری و ${rules} قانون استفاده شده و حذف نمی‌شود. به‌جای حذف آن را غیرفعال کنید.`);
+    }
+    await ctx.tenantDb.dispatchDocType.delete({ where: { id } });
+    return { success: true };
+  }
+
   // ── قوانین ──────────────────────────────────────────────────────────
   async listRules(ctx: TenantRequestContext) {
     await this.ensureDefaults(ctx);

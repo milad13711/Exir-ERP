@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
 import { RevisionHistory } from "@/components/shared/RevisionHistory";
 import { useModuleCan } from "@/hooks/useModuleCan";
-import { formatJalaliDateTime, formatNumber, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatNumber, formatMoney, moneyUnit } from "@/lib/persian";
 import { ApiError, editStockMovement, fetchStockMovement, voidStockMovement, type StockMovementDetail } from "@/lib/api";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -100,7 +100,7 @@ export function MovementDetailModal({ movementId, onClose, onChanged }: { moveme
             </div>
             <div className="bg-slate-50 border border-border rounded-xl p-3">
               <div className="text-muted text-[11px]">بهای واحد</div>
-              <div className="font-extrabold mt-0.5">{m.unitCost != null ? formatToman(m.unitCost) : "—"}</div>
+              <div className="font-extrabold mt-0.5">{m.unitCost != null ? formatMoney(m.unitCost) : "—"}</div>
             </div>
           </div>
           {m.reference ? <div className="text-[12.5px] text-ink-soft">مرجع: {m.reference}</div> : null}
@@ -121,7 +121,7 @@ export function MovementDetailModal({ movementId, onClose, onChanged }: { moveme
                 </label>
                 {m.type === "RECEIPT" ? (
                   <label className="flex flex-col gap-1">
-                    <span className="text-[12px] font-semibold text-ink-soft">بهای واحد (تومان)</span>
+                    <span className="text-[12px] font-semibold text-ink-soft">بهای واحد ({moneyUnit()})</span>
                     <input value={unitCost} onChange={(e) => setUnitCost(e.target.value.replace(/[^0-9]/g, ""))} dir="ltr" className={inputCls} />
                   </label>
                 ) : null}

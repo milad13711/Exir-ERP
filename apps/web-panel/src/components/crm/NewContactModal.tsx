@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { createCrmContact, fetchCrmContacts, type CrmContact } from "@/lib/api";
 import { ShippingProfileFields, type ShippingProfileValue } from "./ShippingProfileFields";
+import { moneyUnit } from "@/lib/persian";
 
 const SOURCE_OPTIONS = ["اینستاگرام", "معرفی", "وب‌سایت", "تلفنی", "حضوری", "سایر"];
 
@@ -157,7 +158,7 @@ export function NewContactModal({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>هزینه‌ی جذب (تومان، اختیاری)</label>
+                <label className={labelClass}>هزینه‌ی جذب ({moneyUnit()}، اختیاری)</label>
                 <input
                   value={acquisitionCost}
                   onChange={(e) => setAcquisitionCost(e.target.value.replace(/[^\d]/g, ""))}

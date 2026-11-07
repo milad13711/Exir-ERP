@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -167,7 +169,18 @@ export class ExchangeRatesService {
     rates: Record<string, number>,
   ): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant(tenant);
+    // وسط تبدیل ارز پایه هیچ نرخی نوشته نشود (نرخ تومانی روی جدولِ در حال تبدیل به ریال می‌نشست)
+    if (await isConversionActive(tenant.id, tenantDb)) return;
     const currencies = await tenantDb.currency.findMany({ where: { autoUpdate: true } });
+    if (currencies.length === 0) return;
+
+    // منبع نرخ‌ها همیشه «تومان به‌ازای هر واحد ارز خارجی» است؛ به واحد پایه‌ی تننت (مثلاً ریال ×۱۰) تبدیل می‌شود.
+    const base = await loadBaseCurrency(tenantDb, { fresh: true });
+    if (base.code !== 'IRT' && base.code !== 'IRR') {
+      this.logger.warn(`Skipping auto rate update for tenant ${tenant.id}: base currency ${base.code} has no toman reference`);
+      return;
+    }
+    const perToman = Number(base.tomanPerUnit.den) / Number(base.tomanPerUnit.num); // تومان=۱، ریال=۱۰
 
     for (const currency of currencies) {
       const newRate = rates[currency.code];
@@ -175,7 +188,7 @@ export class ExchangeRatesService {
 
       await tenantDb.currency.update({
         where: { id: currency.id },
-        data: { rate: newRate, lastAutoRateAt: new Date() },
+        data: { rate: Math.round(newRate * perToman * 10_000) / 10_000, lastAutoRateAt: new Date() },
       });
     }
   }

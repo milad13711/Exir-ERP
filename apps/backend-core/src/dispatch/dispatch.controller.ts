@@ -175,6 +175,12 @@ export class DispatchController {
     return this.rules.updateDocType(ctx, id, dto);
   }
 
+  @Delete('doc-types/:id')
+  async deleteDocType(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    this.assertManager(ctx);
+    return this.rules.deleteDocType(ctx, id);
+  }
+
   @Get('rules')
   async listRules(@Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'dispatch');

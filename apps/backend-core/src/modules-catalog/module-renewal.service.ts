@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { ExirSmsService } from '../sms/exir-sms.service.js';
 import { modulePriceForMode } from './module-pricing.js';
 import { TenantInvoiceApprovalService } from '../platform-management/tenant-invoice-approval.service.js';
 
-const RENEWAL_NOTICE_DAYS = 10;
+import { RENEWAL_NOTICE_DAYS } from '../billing/subscription-summary.js';
 
 /**
  * Runs once a day:
@@ -42,32 +42,16 @@ export class ModuleRenewalService {
         billingMode: { in: ['MONTHLY', 'YEARLY'] },
         currentPeriodEnd: { lte: noticeThreshold, gt: new Date() },
         pendingRenewalInvoiceId: null,
+        // ماژولی که مشتری/ادمین دستی غیرفعال کرده دیگر فاکتور تمدید نمی‌خواهد (قبلاً برایش فاکتور و هشدار هدر ساخته می‌شد)
+        status: 'INSTALLED',
       },
       include: { module: true, tenant: true },
     });
 
     for (const tm of dueModules) {
       if (!tm.currentPeriodEnd || !tm.billingMode) continue;
-      const amount = modulePriceForMode(tm.module, tm.billingMode);
-
-      // فاکتور خودکار ابتدا در کارتابل تأیید مدیر تننت مادر می‌نشیند (تنظیم «نیاز به تأیید مدیر»، پیش‌فرض روشن)
       const initial = await this.invoiceApproval.initialState('AUTO');
-      const invoice = await this.controlDb.invoice.create({
-        data: {
-          tenantId: tm.tenantId,
-          amount,
-          purpose: 'MODULE_RENEWAL',
-          items: [{ moduleCode: tm.module.code, moduleName: tm.module.name, billingMode: tm.billingMode, amount }],
-          status: initial.status,
-          issueSource: initial.issueSource,
-          dueAt: tm.currentPeriodEnd,
-        },
-      });
-
-      await this.controlDb.tenantModule.update({
-        where: { id: tm.id },
-        data: { pendingRenewalInvoiceId: invoice.id },
-      });
+      const invoice = await this.createRenewalInvoice(tm, initial);
 
       if (initial.status === 'AWAITING_APPROVAL') {
         // یادآوری به مالک تننت فقط بعد از تأیید مدیر (TenantInvoiceApprovalService.approve) ارسال می‌شود
@@ -76,6 +60,61 @@ export class ModuleRenewalService {
         await this.notifyOwner(tm.tenantId, tm.tenant.name, tm.module.name);
       }
     }
+  }
+
+  private async createRenewalInvoice(
+    tm: { id: string; tenantId: string; billingMode: 'MONTHLY' | 'YEARLY' | 'LICENSE' | null; currentPeriodEnd: Date | null; module: { code: string; name: string; priceMonthly: number; priceYearly: number | null; licenseUsd: number } },
+    initial: { status: 'PENDING' | 'AWAITING_APPROVAL'; issueSource: 'AUTO' | 'STAFF' | 'MANUAL' | 'CHECKOUT' },
+  ) {
+    const amount = modulePriceForMode(tm.module as never, tm.billingMode as 'MONTHLY' | 'YEARLY' | 'LICENSE');
+    // فاکتور خودکار ابتدا در کارتابل تأیید مدیر تننت مادر می‌نشیند (تنظیم «نیاز به تأیید مدیر»، پیش‌فرض روشن)
+    const invoice = await this.controlDb.invoice.create({
+      data: {
+        tenantId: tm.tenantId,
+        amount,
+        purpose: 'MODULE_RENEWAL',
+        items: [{ moduleCode: tm.module.code, moduleName: tm.module.name, billingMode: tm.billingMode as string, amount }],
+        status: initial.status,
+        issueSource: initial.issueSource,
+        dueAt: tm.currentPeriodEnd && tm.currentPeriodEnd.getTime() > Date.now() ? tm.currentPeriodEnd : new Date(),
+      },
+    });
+    await this.controlDb.tenantModule.update({ where: { id: tm.id }, data: { pendingRenewalInvoiceId: invoice.id } });
+    return invoice;
+  }
+
+  /**
+   * «درخواست صدور فاکتور تمدید» از طرف مالک/ادمین تننت (دکمه‌ی صفحه‌ی اشتراک‌ها و بنر هدر).
+   * idempotent است: اگر فاکتور تمدید باز (قابل‌پرداخت یا در انتظار تأیید) هست همان را برمی‌گرداند؛
+   * قفل مانده روی فاکتورِ ردشده/حذف‌شده (که کرون را برای همیشه بی‌اثر می‌کرد) آزاد می‌شود.
+   * این فاکتور درخواست صریح مشتری است (CHECKOUT) و در کارتابل تأیید نمی‌ماند.
+   */
+  async requestRenewal(tenantId: string, moduleCode: string): Promise<{ invoiceId: string; status: 'PENDING' | 'AWAITING_APPROVAL'; created: boolean }> {
+    const tm = await this.controlDb.tenantModule.findFirst({ where: { tenantId, module: { code: moduleCode } }, include: { module: true } });
+    if (!tm) throw new NotFoundException('این ماژول برای شما ثبت نشده است');
+    if (tm.status === 'TRIAL' || (tm.billingMode !== 'MONTHLY' && tm.billingMode !== 'YEARLY') || !tm.currentPeriodEnd) {
+      throw new BadRequestException('این ماژول اشتراک دوره‌ای ندارد و نیازی به تمدید نیست');
+    }
+    const expired = tm.currentPeriodEnd.getTime() <= Date.now();
+    if (tm.status === 'DISABLED' && !expired) {
+      throw new BadRequestException('این ماژول غیرفعال شده است؛ برای استفاده دوباره، آن را فعال کنید (دوره‌ی پرداخت‌شده هنوز باقی است)');
+    }
+    if (!expired && tm.currentPeriodEnd.getTime() > Date.now() + RENEWAL_NOTICE_DAYS * 86_400_000) {
+      throw new BadRequestException('هنوز زمان تمدید این ماژول نرسیده است');
+    }
+
+    if (tm.pendingRenewalInvoiceId) {
+      const existing = await this.controlDb.invoice.findUnique({ where: { id: tm.pendingRenewalInvoiceId }, select: { id: true, status: true } });
+      if (existing && (existing.status === 'PENDING' || existing.status === 'AWAITING_APPROVAL')) {
+        return { invoiceId: existing.id, status: existing.status, created: false };
+      }
+      await this.controlDb.tenantModule.update({ where: { id: tm.id }, data: { pendingRenewalInvoiceId: null } });
+    }
+    const invoice = await this.createRenewalInvoice(tm, { status: 'PENDING', issueSource: 'CHECKOUT' });
+    await this.controlDb.auditLog.create({
+      data: { actorType: 'tenant_user', tenantId, action: 'module.renewal_requested', entityType: 'Invoice', entityId: invoice.id, metadata: { code: moduleCode } },
+    });
+    return { invoiceId: invoice.id, status: 'PENDING', created: true };
   }
 
   private async notifyOwner(tenantId: string, tenantName: string, moduleName: string): Promise<void> {

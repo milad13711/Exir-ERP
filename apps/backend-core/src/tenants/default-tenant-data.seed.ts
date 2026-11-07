@@ -36,7 +36,7 @@ const OWN_CREATE: ModuleMatrix = { canViewAll: false, canViewOwn: true, canCreat
 // Default access matrix per system role, per module — an admin can
 // reconfigure this later from Settings → Roles; these are just the
 // sensible starting point a fresh tenant gets.
-const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> = {
+export const DEFAULT_MODULE_PERMISSIONS: Record<string, Record<string, ModuleMatrix>> = {
   'مدیر سیستم': {
     crm: FULL_ACCESS,
     accounting: FULL_ACCESS,

@@ -337,6 +337,7 @@ export type DispatchDriver = { id: string; name: string; phone: string; plateNum
 export const fetchDispatchDrivers = () => apiFetch<DispatchDriver[]>("/dispatch/drivers");
 export const fetchDocTypes = () => apiFetch<DispatchDocType[]>("/dispatch/doc-types");
 export const createDocType = (name: string) => post<DispatchDocType>("/dispatch/doc-types", { name });
+export const deleteDocType = (id: string) => apiFetch<{ success: true }>(`/dispatch/doc-types/${id}`, { method: "DELETE" });
 export const updateDocType = (id: string, body: { name?: string; isActive?: boolean }) => apiFetch<DispatchDocType>(`/dispatch/doc-types/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 export const fetchDocRules = () => apiFetch<DispatchRule[]>("/dispatch/rules");
 export type DocRuleBody = Omit<DispatchRule, "id">;

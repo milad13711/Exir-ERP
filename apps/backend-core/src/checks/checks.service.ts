@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -46,9 +47,14 @@ const DEFAULT_CHECKS_SMS: ChecksSmsSettings = {
   bounceAlertTemplate: 'اکسیر ERP — هشدار فوری: چک {direction} {partyName} به شماره صیادی {sayadId} و مبلغ {amount} تومان برگشت خورد.',
 };
 
+/**
+ * `vars.unit` (اختیاری): برچسب واحد ارز پایه‌ی تننت. قالب‌های پیش‌فرض و ذخیره‌شده‌ی قدیمی عبارت «تومان» را ثابت
+ * دارند؛ اگر ارز پایه عوض شده باشد همان عبارت با برچسب جدید جایگزین می‌شود (و {unit} هم پشتیبانی می‌شود).
+ */
 export function renderChecksTemplate(template: string, vars: Record<string, string>): string {
   let out = template;
   for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{${key}}`, val);
+  if (vars.unit && vars.unit !== 'تومان') out = out.replaceAll('تومان', vars.unit);
   return out;
 }
 
@@ -199,15 +205,17 @@ export class ChecksService {
     const managers = await getManagerUsers(this.controlDb, ctx.tenantDb, ctx.tenantId);
     if (managers.length === 0) return;
 
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const partyName = check.contact?.name;
     const title = `⚠ چک برگشتی — ${partyName ?? ''}`;
-    const body = `چک ${check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای'} ${partyName ?? ''} به شماره صیادی ${check.sayadId} و مبلغ ${check.amount.toLocaleString('en-US')} تومان برگشت خورد.`;
+    const body = `چک ${check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای'} ${partyName ?? ''} به شماره صیادی ${check.sayadId} و مبلغ ${check.amount.toLocaleString('en-US')} ${unit} برگشت خورد.`;
     const smsSettings = await this.getSmsSettings(ctx);
     const smsMessage = renderChecksTemplate(smsSettings.bounceAlertTemplate, {
       direction: check.direction === 'RECEIVED' ? 'دریافتی از' : 'صادرشده برای',
       partyName: partyName ?? '',
       sayadId: check.sayadId,
       amount: check.amount.toLocaleString('en-US'),
+      unit,
     });
 
     for (const manager of managers) {

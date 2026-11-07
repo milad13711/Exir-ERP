@@ -6,6 +6,7 @@ import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
 import { TrashIcon, PlusIcon } from "@/components/icons";
 import { createEvent, ApiError } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -214,7 +215,7 @@ export function NewEventModal({ onClose, onCreated }: { onClose: () => void; onC
             {ticketTypes.map((t, i) => (
               <div key={i} className="flex flex-wrap gap-2 items-center">
                 <input value={t.name} onChange={(e) => updateTicketType(i, { name: e.target.value })} placeholder="نام (مثلاً عادی)" className={`${inputClass} flex-1 min-w-[120px]`} />
-                <input value={t.price} onChange={(e) => updateTicketType(i, { price: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="قیمت (تومان)" className={`${inputClass} flex-1 min-w-[100px]`} />
+                <input value={t.price} onChange={(e) => updateTicketType(i, { price: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder={`قیمت (${moneyUnit()})`} className={`${inputClass} flex-1 min-w-[100px]`} />
                 <input value={t.capacity} onChange={(e) => updateTicketType(i, { capacity: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="ظرفیت" className={`${inputClass} min-w-[80px] max-w-[90px]`} />
                 {ticketTypes.length > 1 && (
                   <button type="button" onClick={() => removeTicketType(i)} className="text-danger cursor-pointer shrink-0">

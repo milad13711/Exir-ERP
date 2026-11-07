@@ -1,3 +1,4 @@
+import { assertTaskLinkAllowed, resolveTaskLinkedEntity } from '../referrals/task-link.js';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -326,8 +327,10 @@ export class TasksService {
     const users = userIds.length ? await ctx.tenantDb.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : [];
     const nm = new Map(users.map((u) => [u.id, u.name]));
     const name = (id: string | null) => (id ? (nm.get(id) ?? 'کاربر حذف‌شده') : null);
+    const relatedEntity = await resolveTaskLinkedEntity(this.permissions, ctx, task.relatedModule, task.relatedEntityId).catch(() => null);
     return {
       ...task,
+      relatedEntity,
       events: events.map((e) => ({ ...e, actorName: e.actorUserId ? name(e.actorUserId) : 'سیستم' })),
       comments: comments.map((c) => ({ ...c, authorName: name(c.authorUserId) })),
       results: results.map((r) => ({ ...r, authorName: name(r.authorUserId), reviewedByName: name(r.reviewedByUserId) })),
@@ -408,6 +411,8 @@ export class TasksService {
     let assigneeIds = dedupe(dto.assigneeIds ?? (dto.assignedUserId ? [dto.assignedUserId] : []));
     if (assigneeIds.length === 0 && me) assigneeIds = [me];
     await this.assertUsersExist(ctx, assigneeIds);
+    // وظیفه‌ی پیوندخورده به سند به ارجاع‌گیرنده دسترسی مشاهده‌ی همان سند می‌دهد → سازنده باید خودش سند را ببیند
+    await assertTaskLinkAllowed(this.permissions, ctx, dto.relatedModule, dto.relatedEntityId);
 
     const dueAt = dto.dueAt ? new Date(dto.dueAt) : null;
     const startAt = dto.startAt ? new Date(dto.startAt) : null;

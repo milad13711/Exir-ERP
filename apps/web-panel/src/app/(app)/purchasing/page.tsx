@@ -7,7 +7,7 @@ import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { OrdersIcon, PlusIcon, ShieldIcon, BuildingIcon, WarningIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchPurchaseOrders,
   fetchPurchaseApprovalThreshold,
@@ -111,7 +111,7 @@ export default function PurchasingPage() {
             className="flex items-center gap-1.5 bg-surface border border-border text-ink-soft text-[12.5px] font-bold px-3.5 py-2.5 rounded-xl cursor-pointer"
           >
             <ShieldIcon className="w-4 h-4" />
-            {threshold ? `تأیید بالای ${formatToman(threshold)}` : "تنظیمات تأیید"}
+            {threshold ? `تأیید بالای ${formatMoney(threshold)}` : "تنظیمات تأیید"}
           </button>
           <button
             onClick={() => setNewOpen(true)}
@@ -176,7 +176,7 @@ export default function PurchasingPage() {
                     {r.reason ? ` · ${r.reason}` : ""}
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0 text-danger">-{formatToman(r.total)}</div>
+                <div className="text-[13px] font-extrabold shrink-0 text-danger">-{formatMoney(r.total)}</div>
               </button>
             ))
           )}
@@ -214,7 +214,7 @@ export default function PurchasingPage() {
                     {o.supplier.company || o.supplier.name} · {formatJalaliDate(o.issuedAt)}
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0">{formatToman(o.total)}</div>
+                <div className="text-[13px] font-extrabold shrink-0">{formatMoney(o.total)}</div>
               </button>
             ))
           )}

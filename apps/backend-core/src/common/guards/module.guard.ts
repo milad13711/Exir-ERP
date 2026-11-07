@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ControlPrismaService } from '../../prisma/control-prisma.service.js';
 import { LicenseRuntimeService } from '../../licensing/license-runtime.service.js';
+import { isModuleRowUsable } from '../../billing/subscription-summary.js';
 import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
 
 /**
@@ -98,7 +99,7 @@ export class ModuleGuard implements CanActivate {
       const module = byCode.get(code);
       if (!module) continue; // کد ناشناخته را مسدود نمی‌کنیم — به‌جای شکستن دسترسی، فقط گیت نمی‌زنیم
       const install = installByModuleId.get(module.id);
-      const allowed = install ? install.status === 'INSTALLED' || install.status === 'TRIAL' : module.isCore;
+      const allowed = isModuleRowUsable(install, module.isCore); // قانون مشترک با خلاصه‌ی اشتراک (billing/subscription-summary.ts)
       if (!allowed) {
         return {
           reason: `ماژول «${module.name}» برای این محیط کاری فعال نیست — از فروشگاه ماژول‌ها فعالش کنید یا با پشتیبانی تماس بگیرید.`,

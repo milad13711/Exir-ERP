@@ -5,7 +5,7 @@ import Link from "next/link";
 import { safeHref } from "@/lib/safe-url";
 import { LogoMark, DocsIcon, CheckIcon } from "@/components/icons";
 import { ProjectProgressBar } from "@/components/projects/ProjectProgressBar";
-import { formatJalaliDate, formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import { PROPOSAL_STATUS_LABELS } from "@/components/proposals/constants";
 import { ApiError, commentPublicProject, fetchPublicProject, publicProjectFileUrl, type PublicProjectView } from "@/lib/api";
 
@@ -208,7 +208,7 @@ export function PublicProjectClient({ slug, token }: { slug: string; token: stri
                       <div className="text-[13px] font-bold break-words">{d.title}</div>
                       <div className="text-[11.5px] text-muted mt-0.5">
                         {d.kind === "PROPOSAL" ? (PROPOSAL_STATUS_LABELS[d.status as keyof typeof PROPOSAL_STATUS_LABELS] ?? d.status) : (INVOICE_STATUS_LABELS[d.status] ?? d.status)} · {formatJalaliDate(d.date)}
-                        {d.amount > 0 ? ` · ${formatToman(d.amount)}` : ""}
+                        {d.amount > 0 ? ` · ${formatMoney(d.amount)}` : ""}
                       </div>
                     </div>
                     <a href={d.path} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-bold text-white bg-primary rounded-xl px-4 py-2.5 shrink-0">

@@ -6,15 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CalendarIcon, PlusIcon, ChevronDownIcon, SettingsIcon, PhoneIcon, SendIcon } from "@/components/icons";
 import { useWorkspace } from "@/lib/workspace-context";
-import {
-  toPersianDigits,
-  formatToman,
-  formatJalaliDateTime,
-  toJalali,
-  toGregorian,
-  JALALI_MONTHS,
-  WEEKDAYS_SHORT_FA,
-} from "@/lib/persian";
+import { toPersianDigits, formatMoney, formatJalaliDateTime, toJalali, toGregorian, JALALI_MONTHS, WEEKDAYS_SHORT_FA } from "@/lib/persian";
 import {
   fetchAppointments,
   fetchServiceTypes,
@@ -465,7 +457,7 @@ export default function BookingPage() {
                     ) : null}
                   </div>
                 </div>
-                <div className="text-[11.5px] text-muted hidden sm:block">{formatToman(a.serviceType.price)}</div>
+                <div className="text-[11.5px] text-muted hidden sm:block">{formatMoney(a.serviceType.price)}</div>
                 <Badge tone={STATUS_TONES[a.status]}>{STATUS_LABELS[a.status]}</Badge>
                 <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
                   {(a.status === "SCHEDULED" || a.status === "CONFIRMED" || a.status === "PENDING_COORDINATION") ? (

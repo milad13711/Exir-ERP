@@ -377,7 +377,7 @@ export class BankingService {
       if (dto.contactId) {
         const contact = await db.crmContact.findUnique({ where: { id: dto.contactId }, select: { id: true, name: true } });
         if (!contact) throw new NotFoundException('طرف‌حساب یافت نشد');
-        if (dto.amount > 2_147_483_647) throw new BadRequestException('مبلغ تراکنش با طرف‌حساب از ۲٬۱۴۷٬۴۸۳٬۶۴۷ تومان بیشتر نمی‌تواند باشد');
+        if (dto.amount > 2_147_483_647) throw new BadRequestException('مبلغ تراکنش با طرف‌حساب از ۲٬۱۴۷٬۴۸۳٬۶۴۷ (سقف عددی ثبت‌شده) بیشتر نمی‌تواند باشد');
         contactName = contact.name;
         const code = dto.type === 'RECEIPT' ? AR_CODE : AP_CODE;
         const acc = await db.account.findUnique({ where: { code } });

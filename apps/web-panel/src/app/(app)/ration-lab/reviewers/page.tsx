@@ -1,5 +1,6 @@
 "use client";
 
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -11,6 +12,9 @@ import {
   fetchRationDiscountCodes,
   createRationDiscountCode,
   deactivateRationDiscountCode,
+  activateRationDiscountCode,
+  deleteRationDiscountCode,
+  updateRationDiscountCode,
   ApiError,
   type RationLabReviewer,
   type RationDiscountCode,
@@ -28,6 +32,7 @@ export default function RationLabReviewersPage() {
   const [newCode, setNewCode] = useState("");
   const [newPercent, setNewPercent] = useState("100");
   const [codeError, setCodeError] = useState<string | null>(null);
+  const can = useModuleCan("ration-lab");
 
   function reload() {
     fetchRationLabReviewers().then(setReviewers).catch(() => setReviewers([]));
@@ -209,15 +214,59 @@ export default function RationLabReviewersPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Badge tone={c.isActive ? "success" : "neutral"}>{c.isActive ? "فعال" : "غیرفعال"}</Badge>
-                {c.isActive ? (
+                {can.canEdit ? (
+                  <button
+                    onClick={async () => {
+                      const v = window.prompt("درصد تخفیف جدید (۱ تا ۱۰۰)", String(c.percentOff));
+                      if (!v) return;
+                      try {
+                        await updateRationDiscountCode(c.id, { percentOff: Number(v) });
+                        reload();
+                      } catch (err) {
+                        setCodeError(err instanceof ApiError ? err.message : "ویرایش ناموفق بود");
+                      }
+                    }}
+                    className="text-[12px] font-bold text-primary min-h-10 px-2"
+                  >
+                    ویرایش درصد
+                  </button>
+                ) : null}
+                {c.isActive && can.canEdit ? (
                   <button
                     onClick={async () => {
                       await deactivateRationDiscountCode(c.id);
                       reload();
                     }}
-                    className="text-[12px] font-bold text-danger"
+                    className="text-[12px] font-bold text-danger min-h-10 px-2"
                   >
                     غیرفعال کن
+                  </button>
+                ) : null}
+                {!c.isActive && can.canEdit ? (
+                  <button
+                    onClick={async () => {
+                      await activateRationDiscountCode(c.id);
+                      reload();
+                    }}
+                    className="text-[12px] font-bold text-success min-h-10 px-2"
+                  >
+                    فعال کن
+                  </button>
+                ) : null}
+                {can.canDelete ? (
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm("این کد تخفیف حذف شود؟ (کد استفاده‌شده حذف نمی‌شود، فقط غیرفعال می‌شود)")) return;
+                      try {
+                        await deleteRationDiscountCode(c.id);
+                        reload();
+                      } catch (err) {
+                        setCodeError(err instanceof ApiError ? err.message : "حذف ناموفق بود");
+                      }
+                    }}
+                    className="text-[12px] font-bold text-danger min-h-10 px-2"
+                  >
+                    حذف
                   </button>
                 ) : null}
               </div>

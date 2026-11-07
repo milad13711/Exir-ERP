@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PartyStatementService } from './party-statement.service.js';
 
@@ -32,6 +33,10 @@ export class CreditScoreService {
 
   async assess(ctx: TenantRequestContext, contactId: string): Promise<CreditAssessment> {
     const contact = await ctx.tenantDb.crmContact.findUniqueOrThrow({ where: { id: contactId } });
+    const base = await loadBaseCurrency(ctx.tenantDb);
+    const unit = base.label;
+    // آستانه‌های امتیازدهی بر پایه‌ی تومان نوشته شده‌اند؛ مبلغ پایه‌ی هر تننت به معادل تومانی برگردانده می‌شود
+    const toToman = (n: number) => (n * Number(base.tomanPerUnit.num)) / Number(base.tomanPerUnit.den);
     const invoices = await ctx.tenantDb.salesInvoice.findMany({
       where: { contactId, status: { not: 'DRAFT' } },
       include: { payments: { select: { paidAt: true } } },
@@ -44,14 +49,16 @@ export class CreditScoreService {
     const totalOutstanding = Math.max(0, arBalance);
 
     if (invoices.length === 0) {
-      return this.assessNewCustomer(contact, totalOutstanding);
+      return this.assessNewCustomer(contact, totalOutstanding, unit, toToman);
     }
-    return this.assessWithHistory(contact, invoices, totalOutstanding);
+    return this.assessWithHistory(contact, invoices, totalOutstanding, unit, toToman);
   }
 
   private assessNewCustomer(
     contact: { hasBouncedChecks: boolean; bankAvgMonthlyTurnover: number | null; creditLimitOverride: number | null },
     totalOutstanding: number,
+    unit: string,
+    toToman: (n: number) => number = (n) => n,
   ): CreditAssessment {
     let score = 50;
     const reasons: string[] = ['مشتری بدون سابقه‌ی خرید — بر اساس اطلاعات اعلامی محاسبه شده است'];
@@ -63,9 +70,9 @@ export class CreditScoreService {
 
     const turnover = contact.bankAvgMonthlyTurnover ?? 0;
     if (turnover > 0) {
-      const bonus = Math.min(30, (turnover / 500_000_000) * 30);
+      const bonus = Math.min(30, (toToman(turnover) / 500_000_000) * 30);
       score += bonus;
-      reasons.push(`میانگین گردش حساب ماهانه (طبق پرینت بانکی): ${turnover.toLocaleString('en-US')} تومان`);
+      reasons.push(`میانگین گردش حساب ماهانه (طبق پرینت بانکی): ${turnover.toLocaleString('en-US')} ${unit}`);
     } else {
       reasons.push('میانگین گردش حساب ثبت نشده — سقف اعتبار محتاطانه در نظر گرفته شد');
     }
@@ -86,6 +93,8 @@ export class CreditScoreService {
       payments: Array<{ paidAt: Date }>;
     }>,
     totalOutstanding: number,
+    unit: string,
+    toToman: (n: number) => number = (n) => n,
   ): CreditAssessment {
     const now = new Date();
     let onTimeCount = 0;
@@ -119,7 +128,7 @@ export class CreditScoreService {
     const earlyRate = completedCount > 0 ? earlyCount / completedCount : 0;
 
     const reliabilityScore = reliabilityRate * 40; // خوش‌حسابی — پرداخت در سررسید یا زودتر
-    const volumeScore = Math.min(30, (totalVolume / 1_000_000_000) * 30); // حجم خرید
+    const volumeScore = Math.min(30, (toToman(totalVolume) / 1_000_000_000) * 30); // حجم خرید
     const frequencyScore = Math.min(15, invoices.length * 1.5); // تعداد تکرار خرید
     const earlyBonus = earlyRate * 10; // تسویه پیش از موعد
     const overduePenalty = overdueCount * 15;
@@ -135,7 +144,7 @@ export class CreditScoreService {
 
     const reasons = [
       `نرخ پرداخت به‌موقع یا زودتر: ${Math.round(reliabilityRate * 100)}٪ از ${completedCount} فاکتور تسویه‌شده`,
-      `حجم کل خرید: ${totalVolume.toLocaleString('en-US')} تومان در ${invoices.length} فاکتور`,
+      `حجم کل خرید: ${totalVolume.toLocaleString('en-US')} ${unit} در ${invoices.length} فاکتور`,
       overdueCount > 0 ? `${overdueCount} فاکتور معوق فعلی — ریسک را افزایش می‌دهد` : 'بدون فاکتور معوق فعلی',
       earlyRate > 0 ? `${Math.round(earlyRate * 100)}٪ فاکتورها پیش از موعد تسویه شده‌اند` : undefined,
       contact.hasBouncedChecks ? 'سابقه‌ی چک برگشتی ثبت شده' : undefined,

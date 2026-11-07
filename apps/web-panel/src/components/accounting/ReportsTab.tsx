@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
-import { formatToman, formatNumber, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatNumber, formatJalaliDate, toPersianDigits, moneyUnit } from "@/lib/persian";
 import { useWorkspace } from "@/lib/workspace-context";
 import { isManager } from "@/lib/access";
 import { downloadCsv, type CsvCell } from "@/lib/csv";
@@ -191,12 +191,12 @@ function Section({ title, tone, rows, total, totalLabel }: { title: string; tone
         {rows.map((r) => (
           <div key={r.accountId} className="flex justify-between text-[12.5px] gap-3">
             <span className="text-ink-soft">{r.name}</span>
-            <span className="font-bold">{formatToman(r.amount)}</span>
+            <span className="font-bold">{formatMoney(r.amount)}</span>
           </div>
         ))}
         <div className="flex justify-between text-[13px] font-extrabold border-t border-border pt-1.5 mt-1 gap-3">
           <span>{totalLabel}</span>
-          <span>{formatToman(total)}</span>
+          <span>{formatMoney(total)}</span>
         </div>
       </div>
     </div>
@@ -207,7 +207,7 @@ function Highlight({ label, value }: { label: string; value: number }) {
   return (
     <div className={clsx("flex justify-between text-[14px] font-extrabold rounded-xl px-4 py-3 mb-3 gap-3", value >= 0 ? "bg-success-soft text-success" : "bg-danger-soft text-danger")}>
       <span>{label}</span>
-      <span>{formatToman(value)}</span>
+      <span>{formatMoney(value)}</span>
     </div>
   );
 }
@@ -217,7 +217,7 @@ function IncomeStatementView({ sel }: { sel: PeriodSel }) {
   const empty = !!data && data.revenueRows.every((r) => !r.amount) && data.cogsRows.every((r) => !r.amount) && data.opexRows.every((r) => !r.amount);
   const csv = () => {
     if (!data) return;
-    const rows: CsvCell[][] = [["گروه", "کد", "حساب", "مبلغ (تومان)"]];
+    const rows: CsvCell[][] = [["گروه", "کد", "حساب", `مبلغ (${moneyUnit()})`]];
     for (const r of data.revenueRows) rows.push(["درآمد", r.code, r.name, r.amount]);
     rows.push(["", "", "جمع درآمد", data.totalRevenue]);
     for (const r of data.cogsRows) rows.push(["بهای تمام‌شده", r.code, r.name, r.amount]);
@@ -249,7 +249,7 @@ function BalanceSheetView({ sel }: { sel: PeriodSel }) {
   const { data, error, loading } = useReport(() => fetchBalanceSheetReport(sel), [JSON.stringify(sel)]);
   const csv = () => {
     if (!data) return;
-    const rows: CsvCell[][] = [["بخش", "کد", "حساب", "مبلغ (تومان)"]];
+    const rows: CsvCell[][] = [["بخش", "کد", "حساب", `مبلغ (${moneyUnit()})`]];
     for (const r of data.assetRows) rows.push(["دارایی", r.code, r.name, r.amount]);
     rows.push(["", "", "جمع دارایی‌ها", data.totalAssets]);
     for (const r of data.liabilityRows) rows.push(["بدهی", r.code, r.name, r.amount]);

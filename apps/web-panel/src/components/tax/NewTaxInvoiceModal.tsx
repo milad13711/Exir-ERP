@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
-import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, toPersianDigits } from "@/lib/persian";
 import { ApiError, createTaxInvoice, fetchSalesInvoices, type SalesInvoice } from "@/lib/api";
 
 /** انتخاب یک فاکتور رسمی تأییدشده با جستجوی سمت سرور؛ ساخت پیش‌نویس صورتحساب مالیاتی. */
@@ -62,7 +62,7 @@ export function NewTaxInvoiceModal({ onClose, onCreated }: { onClose: () => void
                 <span className="block text-[12px] text-ink-soft truncate">{i.contact.company || i.contact.name}</span>
               </span>
               <span className="text-left shrink-0">
-                <span className="block text-[12.5px] font-bold">{formatToman(i.total)}</span>
+                <span className="block text-[12.5px] font-bold">{formatMoney(i.total)}</span>
                 <span className="block text-[11px] text-muted">{formatJalaliDate(i.issuedAt)}</span>
               </span>
             </button>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { toPersianDigits, formatToman, formatJalaliDateTime } from "@/lib/persian";
+import { toPersianDigits, formatMoney, formatJalaliDateTime } from "@/lib/persian";
 import { ApiError, fetchCampaignImageObjectUrl, sendCampaign, deleteCampaign, type MarketingCampaign } from "@/lib/api";
 import { EditCampaignModal } from "./EditCampaignModal";
 
@@ -131,7 +131,7 @@ export function CampaignDetailModal({
               <div className="bg-primary-soft rounded-xl p-3.5">
                 <div className="text-[12.5px] font-bold text-primary mb-1">عملکرد کمپین (۷ روز پس از ارسال)</div>
                 <div className="text-[12px] text-ink-soft">
-                  {toPersianDigits(campaign.attributedOrderCount)} سفارش — {formatToman(campaign.attributedRevenue)}
+                  {toPersianDigits(campaign.attributedOrderCount)} سفارش — {formatMoney(campaign.attributedRevenue)}
                 </div>
               </div>
             ) : null}

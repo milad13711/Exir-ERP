@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { PlusIcon, TrashIcon } from "@/components/icons";
-import { toPersianDigits } from "@/lib/persian";
+import { toPersianDigits, moneyUnit } from "@/lib/persian";
 import {
   ApiError,
   createProposal,
@@ -304,7 +304,7 @@ export function ProposalFormModal({
                   <input value={form.durationText} onChange={(e) => set("durationText", e.target.value)} className={inputClass} placeholder="مثلاً ۳ ماه" />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className={labelClass}>مبلغ پروژه (تومان)</span>
+                  <span className={labelClass}>مبلغ پروژه ({moneyUnit()})</span>
                   <input
                     value={form.amount ? toPersianDigits(Number(form.amount.replace(/[^\d]/g, "") || 0).toLocaleString("en-US")) : ""}
                     onChange={(e) => set("amount", e.target.value.replace(/[^\d۰-۹]/g, "").replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))))}

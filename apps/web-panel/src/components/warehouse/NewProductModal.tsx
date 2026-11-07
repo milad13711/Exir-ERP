@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { createProduct, fetchCurrencies, type Currency, type Product } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -116,7 +117,7 @@ export function NewProductModal({
           <div>
             <label className={labelClass}>ارز قیمت‌گذاری</label>
             <select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className={inputClass}>
-              <option value="">تومان</option>
+              <option value="">{moneyUnit()}</option>
               {currencies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
@@ -182,7 +183,7 @@ export function NewProductModal({
         </div>
         {currencyId && selectedCurrency && Number(salePrice) > 0 ? (
           <div className="text-[11.5px] text-muted">
-            معادل تومانی فعلی: {Math.round(Number(salePrice) * Number(selectedCurrency.rate)).toLocaleString("en-US")} تومان
+            معادل فعلی به {moneyUnit()}: {Math.round(Number(salePrice) * Number(selectedCurrency.rate)).toLocaleString("en-US")} {moneyUnit()}
             (با نرخ {Number(selectedCurrency.rate).toLocaleString("en-US")})
           </div>
         ) : null}

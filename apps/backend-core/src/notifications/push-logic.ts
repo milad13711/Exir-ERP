@@ -6,7 +6,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * طبقه‌بندی خطای سرویس پوش، برچسب دستگاه، سقف پیامک جایگزین و محدودکننده‌ی نرخ.
  */
 
-export const NOTIFICATION_CATEGORIES = ['messenger', 'tasks', 'reminders', 'correspondence', 'approvals', 'system', 'marketing'] as const;
+export const NOTIFICATION_CATEGORIES = ['messenger', 'tasks', 'reminders', 'correspondence', 'approvals', 'referrals', 'system', 'marketing'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 export type ChannelPref = { push?: boolean; inApp?: boolean; sms?: boolean };
@@ -29,6 +29,8 @@ export function categoryForType(type: string): NotificationCategory {
   if (t.startsWith('reminder') || t.startsWith('calendar') || t.startsWith('checklist')) return 'reminders';
   if (t.startsWith('correspondence') || t.startsWith('letter')) return 'correspondence';
   if (t.startsWith('approval') || t.startsWith('leave')) return 'approvals';
+  // ارجاع گزارش/سند/دانش سازمانی به یک کارشناس — قبلاً «system» بود و ساکت می‌ماند
+  if (t.startsWith('referral') || t.startsWith('report.referred') || t.startsWith('knowledge.') || t.startsWith('document.referr')) return 'referrals';
   if (t.startsWith('marketing') || t.startsWith('campaign') || t.startsWith('promo')) return 'marketing';
   return 'system';
 }
@@ -38,6 +40,23 @@ export function isCriticalType(type: string, explicit?: boolean): boolean {
   if (explicit !== undefined) return explicit;
   const t = type.toLowerCase();
   return t.startsWith('reminder.alarm') || t.startsWith('security.') || t.startsWith('auth.');
+}
+
+/**
+ * «نیازمند اقدام» (مهم): ارجاع‌ها، تأییدیه‌ها، مکاتبات (ارجاع/امضا)، وظیفه‌ی ارجاع‌شده/برگشتی/معوق، منشن.
+ * صریحِ فراخواننده مقدم است. این پرچم روی ردیف ذخیره می‌شود و توست چسبنده، بنر داشبورد و یادآوری مجدد را فعال می‌کند.
+ */
+export const INFORMATIONAL_SUFFIX = /[._](reviewed|accepted|rejected|declined|cancelled|canceled|completed|done|approved|seen|viewed|read|forwarded_ack|started)$/;
+const IMPORTANT_TASK_TYPES = ['task.assigned', 'task.returned', 'task.overdue', 'task.extension_requested', 'task.result_submitted', 'task.problem'];
+export function isImportantType(type: string, category: NotificationCategory, explicit?: boolean): boolean {
+  if (explicit !== undefined) return explicit;
+  const t = type.toLowerCase();
+  if (t.startsWith('notification.reminder') || t === 'system.test') return false;
+  // اعلانِ «نتیجه/اطلاع» (پذیرفته/رد/لغو/انجام/دیده‌شد/بررسی‌شد) خروجی یک اقدام قبلی است، نه کاری برای گیرنده
+  if (category === 'referrals' || category === 'approvals' || category === 'correspondence') return !INFORMATIONAL_SUFFIX.test(t);
+  if (category === 'tasks') return IMPORTANT_TASK_TYPES.some((x) => t.startsWith(x));
+  if (category === 'messenger') return t.includes('mention');
+  return false;
 }
 
 export function normalizeCategory(value: string | null | undefined): NotificationCategory | null {
@@ -51,6 +70,7 @@ const DEFAULT_PUSH: Record<NotificationCategory, boolean> = {
   reminders: true,
   correspondence: true,
   approvals: true,
+  referrals: true,
   system: true,
   marketing: false,
 };
@@ -90,6 +110,60 @@ export function inQuietHours(nowMin: number, start: string | null | undefined, e
   const e = parseHHmm(end);
   if (s === null || e === null || s === e) return false;
   return s < e ? nowMin >= s && nowMin < e : nowMin >= s || nowMin < e;
+}
+
+/** پیش‌فرض‌های کانال پوش هر دسته (برای آزمون/نمایش). */
+export function defaultPushFor(category: NotificationCategory): boolean {
+  return DEFAULT_PUSH[category];
+}
+
+// ── یادآوری مجدد اعلان مهمِ نخوانده ─────────────────────────────────────────
+export const REMINDER_DEFAULT_HOURS = 4;
+export const REMINDER_MIN_HOURS = 1;
+export const REMINDER_MAX_HOURS = 48;
+/** ساعات کاری (وقت تهران) برای یادآوری مجدد: [۰۸:۰۰، ۱۹:۰۰) */
+export const WORK_START_MIN = 8 * 60;
+export const WORK_END_MIN = 19 * 60;
+/** سقف: حداکثر یادآوری مجدد در هر اجرای کرون برای هر کاربر (۱ پیام تجمیعی) و در هر روز */
+export const REMINDER_DAILY_CAP = 3;
+/** اعلان‌های مهم‌تر از این سن دیگر یادآوری نمی‌شوند (از انباشت قدیمی جلوگیری می‌کند) */
+export const REMINDER_MAX_AGE_HOURS = 72;
+
+export function clampReminderHours(v: unknown): number {
+  const n = typeof v === 'number' ? Math.round(v) : Number.NaN;
+  if (!Number.isFinite(n)) return REMINDER_DEFAULT_HOURS;
+  return Math.min(REMINDER_MAX_HOURS, Math.max(REMINDER_MIN_HOURS, n));
+}
+
+/** آیا همین لحظه برای یادآوری مناسب است؟ ساعات کاری تهران و بیرون از ساعات سکوت کاربر. */
+export function reminderWindowOpen(prefs: PrefsLike, now: Date): boolean {
+  const min = tehranMinutes(now);
+  if (min < WORK_START_MIN || min >= WORK_END_MIN) return false;
+  if (prefs?.quietHoursEnabled && inQuietHours(min, prefs.quietStart, prefs.quietEnd)) return false;
+  return true;
+}
+
+export type ReminderCandidate = { id: string; createdAt: Date; readAt: Date | null; remindedAt: Date | null; important: boolean; type: string };
+
+/**
+ * کدام اعلان‌ها الان مشمول یادآوری‌اند؟ مهم + نخوانده + هنوز یادآوری‌نشده + قدیمی‌تر از N ساعت و تازه‌تر از سقف سن.
+ * (خود یادآوری‌ها هرگز دوباره یادآوری نمی‌شوند.) تابع خالص — کرون فقط I/O می‌کند.
+ */
+export function selectDueReminders(
+  items: ReminderCandidate[],
+  prefs: (PrefsLike & { reminderEnabled?: boolean | null; reminderAfterHours?: number | null }) | null,
+  now: Date,
+): ReminderCandidate[] {
+  if (prefs && prefs.reminderEnabled === false) return [];
+  if (!reminderWindowOpen(prefs, now)) return [];
+  const afterMs = clampReminderHours(prefs?.reminderAfterHours ?? REMINDER_DEFAULT_HOURS) * 3600_000;
+  const maxAgeMs = REMINDER_MAX_AGE_HOURS * 3600_000;
+  return items.filter((n) => {
+    if (!n.important || n.readAt || n.remindedAt) return false;
+    if (n.type.toLowerCase().startsWith('notification.reminder')) return false;
+    const age = now.getTime() - n.createdAt.getTime();
+    return age >= afterMs && age <= maxAgeMs;
+  });
 }
 
 export type DeliveryPlan = { inApp: boolean; push: boolean; sms: boolean; quiet: boolean };

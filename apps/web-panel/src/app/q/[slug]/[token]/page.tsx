@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { LogoMark } from "@/components/icons";
 import { SignaturePad } from "@/components/ui/SignaturePad";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import { fetchPublicQuotation, acceptPublicQuotation, ApiError, type PublicQuotation } from "@/lib/api";
 
 const STATUS_LABELS: Record<PublicQuotation["status"], string> = {
@@ -91,20 +91,20 @@ export default function PublicQuotationPage({ params }: { params: Promise<{ slug
                 <div className="min-w-0">
                   <div className="text-[12.5px] font-bold truncate">{l.description}</div>
                   <div className="text-[11px] text-muted mt-0.5">
-                    {l.quantity} × {formatToman(l.unitPrice)}
+                    {l.quantity} × {formatMoney(l.unitPrice)}
                   </div>
                 </div>
-                <div className="text-[12.5px] font-extrabold shrink-0">{formatToman(l.lineTotal)}</div>
+                <div className="text-[12.5px] font-extrabold shrink-0">{formatMoney(l.lineTotal)}</div>
               </div>
             ))}
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 border border-border rounded-xl p-3.5 mt-4">
             <div className="text-[12px] text-muted">
-              جمع اقلام: {formatToman(quotation.subtotal)}
-              {quotation.discount > 0 ? ` · تخفیف: ${formatToman(quotation.discount)}` : ""}
+              جمع اقلام: {formatMoney(quotation.subtotal)}
+              {quotation.discount > 0 ? ` · تخفیف: ${formatMoney(quotation.discount)}` : ""}
             </div>
-            <div className="text-[15px] font-extrabold">{formatToman(quotation.total)}</div>
+            <div className="text-[15px] font-extrabold">{formatMoney(quotation.total)}</div>
           </div>
 
           {quotation.notes ? (

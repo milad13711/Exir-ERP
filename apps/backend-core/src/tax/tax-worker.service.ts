@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
@@ -34,6 +35,7 @@ export class TaxWorkerService {
       for (const tenant of tenants) {
         try {
           const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+          if (await isConversionActive(tenant.id, tenantDb)) continue; // ارسال به مودیان وسط تبدیل ارز پایه نباید رخ دهد
           const ctx: TenantRequestContext = {
             tenantId: tenant.id,
             tenantSlug: tenant.slug,

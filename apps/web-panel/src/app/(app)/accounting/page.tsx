@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { AccountingIcon, PlusIcon, WarningIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits, moneyUnit } from "@/lib/persian";
 import { fetchAccounts, type Account, type JournalEntry } from "@/lib/api";
 import { fetchPeriodSummary, fetchEntriesByPeriod, type PeriodSummary, type PeriodSel } from "@/lib/accounting-api";
 import { currentMonthKey } from "@/components/accounting/PeriodPicker";
@@ -145,13 +145,13 @@ export default function AccountingPage() {
 
       {summary ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-          <KpiCard label="موجودی نقد و بانک (تا پایان دوره)" value={summary.cashBalance} unitSuffix="تومان" tone="primary" icon={<AccountingIcon />} />
-          <KpiCard label={monthKey === "all" ? "درآمد کل دوره" : "درآمد این ماه"} value={summary.monthRevenue} unitSuffix="تومان" tone="success" icon={<AccountingIcon />} />
-          <KpiCard label={monthKey === "all" ? "هزینه کل دوره" : "هزینه این ماه"} value={summary.monthExpense} unitSuffix="تومان" tone="danger" icon={<AccountingIcon />} />
+          <KpiCard label="موجودی نقد و بانک (تا پایان دوره)" value={summary.cashBalance} unitSuffix={moneyUnit()} tone="primary" icon={<AccountingIcon />} />
+          <KpiCard label={monthKey === "all" ? "درآمد کل دوره" : "درآمد این ماه"} value={summary.monthRevenue} unitSuffix={moneyUnit()} tone="success" icon={<AccountingIcon />} />
+          <KpiCard label={monthKey === "all" ? "هزینه کل دوره" : "هزینه این ماه"} value={summary.monthExpense} unitSuffix={moneyUnit()} tone="danger" icon={<AccountingIcon />} />
           <KpiCard
             label="سود (زیان) خالص"
             value={summary.monthNetIncome}
-            unitSuffix="تومان"
+            unitSuffix={moneyUnit()}
             tone={summary.monthNetIncome >= 0 ? "success" : "danger"}
             icon={<AccountingIcon />}
           />
@@ -176,7 +176,7 @@ export default function AccountingPage() {
               className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3.5 py-2 cursor-pointer hover:border-primary transition-colors"
             >
               <span className="text-[12px] font-bold">{a.name}</span>
-              <span className="text-[12px] text-primary font-bold">{formatToman(a.balance)}</span>
+              <span className="text-[12px] text-primary font-bold">{formatMoney(a.balance)}</span>
             </button>
           ))}
         </div>
@@ -250,7 +250,7 @@ export default function AccountingPage() {
                     <div className="text-[13px] font-bold truncate">{entry.description ?? "بدون شرح"}</div>
                     <div className="text-[11.5px] text-muted mt-0.5">{formatJalaliDate(entry.date)}</div>
                   </div>
-                  <div className="text-[13px] font-extrabold">{formatToman(total)}</div>
+                  <div className="text-[13px] font-extrabold">{formatMoney(total)}</div>
                   <Badge tone={ENTRY_STATUS_TONES[entry.status]}>{ENTRY_STATUS_LABELS[entry.status]}</Badge>
                 </button>
               );
@@ -295,7 +295,7 @@ export default function AccountingPage() {
                   <Badge tone={ACCOUNT_TYPE_TONES[a.type]}>{ACCOUNT_TYPE_LABELS[a.type]}</Badge>
                 </div>
                 <div className="text-[13px] font-extrabold w-[110px] sm:w-[140px] text-left shrink-0">
-                  {formatToman(a.balance)}
+                  {formatMoney(a.balance)}
                 </div>
               </button>
             ))

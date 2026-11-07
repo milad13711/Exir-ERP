@@ -11,6 +11,7 @@ import {
   type TenantUser,
   type StageTemplate,
 } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -141,7 +142,7 @@ export function NewProjectModal({ project, onClose, onCreated }: { project?: Pro
         )}
 
         <div>
-          <label className={labelClass}>بودجه (تومان — اختیاری)</label>
+          <label className={labelClass}>بودجه ({moneyUnit()} — اختیاری)</label>
           <input
             value={budget}
             onChange={(e) => setBudget(e.target.value.replace(/[^0-9]/g, ""))}

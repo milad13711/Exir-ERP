@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -56,6 +56,14 @@ export class EventsController {
     await this.permissions.assertEdit(ctx, 'events');
     await this.permissions.assertViewAll(ctx, 'events'); // بدون «مشاهده‌ی همه» رکورد قابل‌دیدن نیست؛ پس عملیات روی شناسه‌اش هم مجاز نیست
     return this.events.update(ctx, id, dto);
+  }
+
+  /** حذف قطعی رویداد بی‌رزرو؛ رویداد دارای رزرو/بلیط فقط لغو می‌شود. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'events');
+    await this.permissions.assertViewAll(ctx, 'events');
+    return this.events.remove(ctx, id);
   }
 
   @Post(':id/publish')

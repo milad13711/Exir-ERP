@@ -6,12 +6,17 @@ import {
   createSample,
   fetchTestTypes,
   createTestType,
+  deleteQualitySample,
+  deleteQualitySampleResult,
   addSampleResult,
   ApiError,
   type QualitySample,
   type QualityTestType,
   type QualityVerdict,
 } from "@/lib/api";
+import { TestTypesManager } from "./TestTypesManager";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 
 const VERDICT_LABELS: Record<QualityVerdict, string> = { PENDING: "در انتظار نتیجه", PASS: "قبول", FAIL: "رد" };
@@ -26,6 +31,8 @@ export function QualityControlSection({ productionOrderId }: { productionOrderId
   const [source, setSource] = useState<"IN_PROCESS" | "FINAL_PRODUCT">("FINAL_PRODUCT");
   const [error, setError] = useState<string | null>(null);
   const [resultForm, setResultForm] = useState<Record<string, { testTypeId: string; measuredValue: string }>>({});
+  const can = useModuleCan("quality-control");
+  const [manageOpen, setManageOpen] = useState(false);
   const [newTestTypeOpen, setNewTestTypeOpen] = useState(false);
   const [ttName, setTtName] = useState("");
   const [ttUnit, setTtUnit] = useState("");
@@ -133,6 +140,24 @@ export function QualityControlSection({ productionOrderId }: { productionOrderId
                       <span className={r.verdict === "FAIL" ? "text-danger font-bold" : "font-bold"}>
                         {r.measuredValue}
                         {r.testType.unit}
+                        {can.canDelete ? (
+                          <button
+                            type="button"
+                            aria-label="حذف نتیجه"
+                            className="ms-2 text-muted hover:text-danger cursor-pointer px-2 min-h-8"
+                            onClick={async () => {
+                              if (!window.confirm("این نتیجه‌ی آزمون حذف شود؟")) return;
+                              try {
+                                await deleteQualitySampleResult(s.id, r.id);
+                                reload();
+                              } catch (err) {
+                                setError(err instanceof ApiError ? err.message : "حذف ناموفق بود");
+                              }
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </span>
                     </div>
                   ))}
@@ -169,6 +194,9 @@ export function QualityControlSection({ productionOrderId }: { productionOrderId
                   ثبت نتیجه
                 </button>
               </div>
+              {can.canDelete ? (
+                <DeleteRecordButton label="حذف نمونه" confirmText="این نمونه با همه‌ی نتایجش حذف شود؟" onDelete={() => deleteQualitySample(s.id)} onDeleted={reload} />
+              ) : null}
             </div>
           ))}
         </div>
@@ -189,6 +217,11 @@ export function QualityControlSection({ productionOrderId }: { productionOrderId
           + تعریف نوع آزمون جدید
         </button>
       )}
+
+      <button type="button" onClick={() => setManageOpen((v) => !v)} className="text-[11px] text-muted mt-2 ms-3 cursor-pointer">
+        {manageOpen ? "بستن مدیریت انواع آزمون" : "مدیریت انواع آزمون (ویرایش/بایگانی/حذف)"}
+      </button>
+      {manageOpen ? <TestTypesManager onChanged={() => fetchTestTypes().then(setTestTypes).catch(() => {})} /> : null}
 
       <div className="mt-3">
         <ExcelImportExportBar

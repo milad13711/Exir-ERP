@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
+import { isPlanLevelInvoice } from '../billing/subscription-summary.js';
 
 /**
  * پایان دوره‌ی ۷ روزه‌ی رایگان (TenantsService.createTenant، مسیر ثبت‌نام
@@ -31,6 +32,15 @@ export class TrialExpiryCronService {
 
     for (const sub of expiredSubscriptions) {
       try {
+        // پیش‌فاکتور در طول دوره‌ی آزمایشی پرداخت شده؟ (قبل از اصلاح settleInvoicePaid، پرداخت اشتراک را به ACTIVE نمی‌برد و مشتری پرداخت‌کننده قفل می‌شد)
+        const paid = await this.controlDb.invoice.findMany({ where: { tenantId: sub.tenantId, status: 'PAID', paidAt: { gte: sub.startedAt } }, select: { purpose: true, items: true } });
+        if (paid.some(isPlanLevelInvoice)) {
+          const end = new Date();
+          end.setMonth(end.getMonth() + 1);
+          await this.controlDb.subscription.update({ where: { id: sub.id }, data: { status: 'ACTIVE', currentPeriodEnd: end } });
+          this.logger.log(`Tenant ${sub.tenant.slug}: trial ended but plan invoice already paid — subscription set ACTIVE`);
+          continue;
+        }
         await this.controlDb.$transaction([
           this.controlDb.tenant.update({ where: { id: sub.tenantId }, data: { status: 'PENDING_PAYMENT' } }),
           this.controlDb.subscription.update({ where: { id: sub.id }, data: { status: 'PAST_DUE' } }),

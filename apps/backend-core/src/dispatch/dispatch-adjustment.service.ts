@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -32,14 +33,15 @@ export class DispatchAdjustmentService implements OnModuleInit {
       describe: async (ctx, id) => {
         const a = await ctx.tenantDb.dispatchInvoiceAdjustment.findUniqueOrThrow({ where: { id } });
         const inv = await ctx.tenantDb.salesInvoice.findUniqueOrThrow({ where: { id: a.invoiceId }, include: { contact: true } });
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const changes = a.lineChanges as unknown as LineChange[];
         return {
           fields: [
             { label: 'فاکتور', value: `${inv.invoiceNo} — ${inv.contact.name}` },
             { label: 'وزن خالص تأییدشده', value: `${a.netWeightKg} کیلوگرم` },
             { label: 'تعدیل اقلام', value: changes.filter((c) => c.oldQty !== c.newQty).map((c) => `${c.description}: ${c.oldQty} ← ${c.newQty}`).join('\n') || '—' },
-            { label: 'جمع قبل', value: `${a.oldTotal.toLocaleString('en-US')} تومان` },
-            { label: 'جمع بعد', value: `${a.newTotal.toLocaleString('en-US')} تومان` },
+            { label: 'جمع قبل', value: `${a.oldTotal.toLocaleString('en-US')} ${unit}` },
+            { label: 'جمع بعد', value: `${a.newTotal.toLocaleString('en-US')} ${unit}` },
           ],
         };
       },
@@ -113,6 +115,7 @@ export class DispatchAdjustmentService implements OnModuleInit {
       meta: { adjustmentId: adj.id, invoiceNo: invoice.invoiceNo, oldTotal: result.oldTotal, newTotal: result.newTotal },
     });
 
+    const unit = await loadUnitLabel(ctx.tenantDb);
     if (result.changed) {
       await this.approvals
         .request(ctx, {
@@ -120,7 +123,7 @@ export class DispatchAdjustmentService implements OnModuleInit {
           entityType: 'DISPATCH_ADJUSTMENT',
           entityId: adj.id,
           title: `تعدیل فاکتور ${invoice.invoiceNo} بر اساس وزن واقعی بار #${shipment.shipmentNo}`,
-          summary: `${result.oldTotal.toLocaleString('en-US')} ← ${result.newTotal.toLocaleString('en-US')} تومان`,
+          summary: `${result.oldTotal.toLocaleString('en-US')} ← ${result.newTotal.toLocaleString('en-US')} ${unit}`,
           link: shipmentLink(shipmentId),
           requestedByUserId: actor.userId ?? undefined,
         })

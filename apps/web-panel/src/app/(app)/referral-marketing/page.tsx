@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ShareIcon, PlusIcon, BellIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   fetchResellers,
   fetchResellerDashboard,
@@ -187,7 +187,7 @@ function DashboardTab() {
                 />
               </div>
               <div className="w-24 shrink-0 text-[12px] text-left font-bold" dir="ltr">
-                {formatToman(r.totalCommission)}
+                {formatMoney(r.totalCommission)}
               </div>
               <div className="w-16 shrink-0 text-[11.5px] text-muted text-center">
                 {toPersianDigits(r.referredCustomerCount)} مشتری
@@ -235,11 +235,11 @@ function MyPanelTab() {
         </Card>
         <Card className="p-4">
           <div className="text-[11.5px] text-muted">کمیسیون تسویه‌شده</div>
-          <div className="text-xl font-extrabold mt-1">{formatToman(paidCommission)}</div>
+          <div className="text-xl font-extrabold mt-1">{formatMoney(paidCommission)}</div>
         </Card>
         <Card className="p-4">
           <div className="text-[11.5px] text-muted">کمیسیون تعهدی</div>
-          <div className="text-xl font-extrabold mt-1">{formatToman(pendingCommission)}</div>
+          <div className="text-xl font-extrabold mt-1">{formatMoney(pendingCommission)}</div>
         </Card>
       </div>
 
@@ -274,7 +274,7 @@ function MyPanelTab() {
                     <div className="text-muted text-[11px] mt-0.5">{c.kind === "FIRST_PAYMENT" ? "پرداخت اول" : "تمدید"}</div>
                   </div>
                   <div className="text-left">
-                    <div className="font-bold">{formatToman(c.amount)}</div>
+                    <div className="font-bold">{formatMoney(c.amount)}</div>
                     <Badge tone={settled ? "success" : "warning"} className="mt-1">
                       {settled ? "تسویه‌شده" : "تعهدی"}
                     </Badge>

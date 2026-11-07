@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { CreateDriverDto } from './dto/create-driver.dto.js';
 import type { UpdateDriverDto } from './dto/update-driver.dto.js';
@@ -51,10 +51,42 @@ export class DriversService {
     return ctx.tenantDb.driver.update({ where: { id }, data: dto });
   }
 
-  /** بدون حذف واقعی — سوابق بار/پیشنهاد به این راننده وابسته است، مثل الگوی Product.isActive. */
-  async deactivate(ctx: TenantRequestContext, id: string) {
+  /** تعداد سوابقی که به این راننده وصل است (بار و پیشنهاد) — مبنای تصمیم «حذف قطعی یا بایگانی». */
+  async usage(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.driver.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('راننده یافت نشد');
+    const [shipments, offers] = await Promise.all([
+      ctx.tenantDb.shipment.count({ where: { driverId: id } }),
+      ctx.tenantDb.shipmentOffer.count({ where: { driverId: id } }),
+    ]);
+    return { shipments, offers, total: shipments + offers };
+  }
+
+  /** بایگانی (غیرفعال‌سازی) — راننده از فهرست پیشنهاد/تطبیق بار بیرون می‌رود ولی سوابقش می‌ماند؛ با restore برمی‌گردد. */
+  async archive(ctx: TenantRequestContext, id: string) {
     const existing = await ctx.tenantDb.driver.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('راننده یافت نشد');
     return ctx.tenantDb.driver.update({ where: { id }, data: { isActive: false } });
+  }
+
+  async restore(ctx: TenantRequestContext, id: string) {
+    const existing = await ctx.tenantDb.driver.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('راننده یافت نشد');
+    return ctx.tenantDb.driver.update({ where: { id }, data: { isActive: true } });
+  }
+
+  /**
+   * حذف قطعی فقط وقتی هیچ بار/پیشنهادی به راننده وصل نیست؛ وگرنه ۴۰۹ با پیام روشن و پیشنهاد «بایگانی»
+   * (تاریخچه‌ی بار، امتیاز نظرسنجی و پیشنهادها حفظ می‌شود).
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    const u = await this.usage(ctx, id);
+    if (u.total > 0) {
+      throw new ConflictException(
+        `این راننده در ${u.shipments} بار و ${u.offers} پیشنهاد بار استفاده شده و حذف نمی‌شود تا تاریخچه حفظ شود. به‌جای حذف می‌توانید او را بایگانی کنید.`,
+      );
+    }
+    await ctx.tenantDb.driver.delete({ where: { id } });
+    return { success: true };
   }
 }

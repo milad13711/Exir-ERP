@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
 import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -63,6 +64,7 @@ export class ContractsReminderService implements OnModuleInit {
 
   private async sweepTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
+    if (await isConversionActive(tenantId, tenantDb)) return;
     const now = new Date();
 
     await tenantDb.contract.updateMany({

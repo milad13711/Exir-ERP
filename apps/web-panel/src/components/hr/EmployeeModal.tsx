@@ -1,3 +1,4 @@
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { useEffect, useState } from "react";
 import { safeHref } from "@/lib/safe-url";
 import { deleteEmployee } from "@/lib/api";
@@ -6,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { UserActivityArchive } from "@/components/activity/UserActivityArchive";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits, moneyUnit } from "@/lib/persian";
 import {
   fetchEmployee,
   assignManager,
@@ -21,6 +22,8 @@ import {
   fetchRewards,
   createReward,
   deleteReward,
+  updateReward,
+  updatePenalty,
   fetchPenalties,
   createPenalty,
   deletePenalty,
@@ -61,6 +64,7 @@ export function EmployeeModal({
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  const hrCan = useModuleCan("hr");
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [managerId, setManagerId] = useState("");
@@ -213,11 +217,32 @@ export function EmployeeModal({
     a.click();
   }
 
+  const [editingAction, setEditingAction] = useState<{ kind: "REWARD" | "PENALTY"; id: string } | null>(null);
+
+  function startEditAction(kind: "REWARD" | "PENALTY", a: { id: string; title: string; description: string | null; amount: number | null }) {
+    setEditingAction({ kind, id: a.id });
+    setActionKind(kind);
+    setActionTitle(a.title);
+    setActionDescription(a.description ?? "");
+    setActionAmount(a.amount ? String(a.amount) : "");
+  }
+
   async function handleAddAction(e: React.FormEvent) {
     e.preventDefault();
     if (!actionTitle.trim()) return;
     setSavingAction(true);
     try {
+      if (editingAction) {
+        const patch = { title: actionTitle.trim(), description: actionDescription.trim() || undefined, amount: actionAmount ? Number(actionAmount) : undefined };
+        if (editingAction.kind === "REWARD") await updateReward(editingAction.id, patch);
+        else await updatePenalty(editingAction.id, patch);
+        setEditingAction(null);
+        setActionTitle("");
+        setActionDescription("");
+        setActionAmount("");
+        reloadActions();
+        return;
+      }
       const payload = {
         employeeId,
         title: actionTitle.trim(),
@@ -432,7 +457,7 @@ export function EmployeeModal({
             </div>
             <div>
               <div className="text-[11px] text-muted">حقوق پایه ماهانه</div>
-              <div className="text-[13px] font-bold mt-0.5">{formatToman(employee.baseSalary)}</div>
+              <div className="text-[13px] font-bold mt-0.5">{formatMoney(employee.baseSalary)}</div>
             </div>
             {employee.phone ? (
               <div>
@@ -549,7 +574,7 @@ export function EmployeeModal({
                       {JALALI_MONTH_NAMES[s.periodMonth - 1]} {toPersianDigits(s.periodYear)}
                     </span>
                     <span className="font-bold">
-                      {formatToman(s.baseSalary + s.allowances - s.deductions)}
+                      {formatMoney(s.baseSalary + s.allowances - s.deductions)}
                     </span>
                   </div>
                 ))}
@@ -696,10 +721,19 @@ export function EmployeeModal({
                       </div>
                       <div className="text-[11px] text-muted mt-0.5 break-words">
                         {formatJalaliDate(r.date)}
-                        {r.amount ? ` · ${formatToman(r.amount)}` : ""}
+                        {r.amount ? ` · ${formatMoney(r.amount)}` : ""}
                         {r.description ? ` · ${r.description}` : ""}
                       </div>
                     </div>
+                    {hrCan.canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => startEditAction("REWARD", r)}
+                        className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 min-h-10 rounded-lg cursor-pointer shrink-0"
+                      >
+                        ویرایش
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => handleDeleteReward(r.id)}
@@ -721,10 +755,19 @@ export function EmployeeModal({
                       </div>
                       <div className="text-[11px] text-muted mt-0.5 break-words">
                         {formatJalaliDate(p.date)}
-                        {p.amount ? ` · ${formatToman(p.amount)}` : ""}
+                        {p.amount ? ` · ${formatMoney(p.amount)}` : ""}
                         {p.description ? ` · ${p.description}` : ""}
                       </div>
                     </div>
+                    {hrCan.canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => startEditAction("PENALTY", p)}
+                        className="text-[11px] font-bold text-primary bg-primary-soft px-2.5 min-h-10 rounded-lg cursor-pointer shrink-0"
+                      >
+                        ویرایش
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => handleDeletePenalty(p.id)}
@@ -755,7 +798,7 @@ export function EmployeeModal({
                 <input
                   value={actionAmount}
                   onChange={(e) => setActionAmount(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="مبلغ (تومان، اختیاری)"
+                  placeholder={`مبلغ (${moneyUnit()}، اختیاری)`}
                   dir="ltr"
                   inputMode="numeric"
                   className="flex-1 min-w-[140px] text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
@@ -773,8 +816,22 @@ export function EmployeeModal({
                   disabled={savingAction || !actionTitle.trim()}
                   className="text-[12px] font-bold text-primary bg-primary-soft px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
                 >
-                  افزودن
+                  {editingAction ? "ذخیره" : "افزودن"}
                 </button>
+                {editingAction ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAction(null);
+                      setActionTitle("");
+                      setActionDescription("");
+                      setActionAmount("");
+                    }}
+                    className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                ) : null}
               </div>
             </form>
           </div>
@@ -785,7 +842,7 @@ export function EmployeeModal({
           <UserActivityArchive userId={employee.userId} />
         </Modal>
       ) : null}
-      <DeleteRecordButton confirmText="این پرسنل حذف شود؟ اگر فیش حقوقی، مرخصی یا سوابق دیگری دارد حذف نمی‌شود و باید «خاتمه‌ی همکاری» ثبت کنید." onDelete={() => deleteEmployee(employeeId)} onDeleted={() => { onChanged?.(); onClose(); }} />
+      {hrCan.canDelete ? <DeleteRecordButton confirmText="این پرسنل حذف شود؟ اگر فیش حقوقی، مرخصی یا سوابق دیگری دارد حذف نمی‌شود و باید «خاتمه‌ی همکاری» ثبت کنید." onDelete={() => deleteEmployee(employeeId)} onDeleted={() => { onChanged?.(); onClose(); }} /> : null}
     </Modal>
   );
 }

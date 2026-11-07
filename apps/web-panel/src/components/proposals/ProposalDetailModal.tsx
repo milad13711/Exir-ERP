@@ -1,5 +1,6 @@
 "use client";
 
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
-import { formatJalaliDate, formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   ApiError,
   addProposalStaffComment,
@@ -122,6 +123,7 @@ export function ProposalDetailModal({
   return (
     <Modal title={`پروپوزال شماره ${toPersianDigits(p.proposalNo)}`} onClose={onClose} width="max-w-[780px]">
       <div className="flex flex-col gap-5">
+          <ReferralPanel entityType="Proposal" entityId={id} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <div className="text-[16px] font-extrabold">{p.title}</div>
@@ -180,7 +182,7 @@ export function ProposalDetailModal({
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12px]">
           {[
-            ["مبلغ پروژه", formatToman(p.amount)],
+            ["مبلغ پروژه", formatMoney(p.amount)],
             ["مدت پیاده‌سازی", p.durationText || "—"],
             ["تاریخ ثبت", formatJalaliDate(p.issuedAt)],
             ["انقضا", p.validUntil ? formatJalaliDate(p.validUntil) : "—"],
@@ -347,7 +349,7 @@ export function ProposalDetailModal({
       {invoiceOpen ? (
         <Modal title="صدور فاکتور از پروپوزال" onClose={() => setInvoiceOpen(false)} width="max-w-[440px]">
           <div className="flex flex-col gap-3 text-[12.5px] leading-7">
-            <div>یک فاکتور فروش <b>پیش‌نویس</b> برای «{p.contact.company || p.contact.name}» به مبلغ <b>{formatToman(p.invoiceLines?.length ? p.invoiceLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0) : p.amount)}</b> با روش پرداخت «کارت/حساب بانکی» ساخته می‌شود.</div>
+            <div>یک فاکتور فروش <b>پیش‌نویس</b> برای «{p.contact.company || p.contact.name}» به مبلغ <b>{formatMoney(p.invoiceLines?.length ? p.invoiceLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0) : p.amount)}</b> با روش پرداخت «کارت/حساب بانکی» ساخته می‌شود.</div>
             <div className="bg-slate-50 rounded-lg px-3 py-2" dir="auto">کارت/حساب: {p.bankInfo || "از تنظیمات فروش (پیش‌فرض)"}</div>
             <div className="flex flex-col gap-1.5">
               <span className={labelClass}>تاریخ سررسید (اختیاری — پیش‌فرض: تاریخ سررسید پروپوزال)</span>

@@ -221,6 +221,13 @@ export function TaskDetailModal({ task: initial, onClose, onChanged }: { task: A
 
           <AttachmentsSection entityType="Task" entityId={t.id} readOnly={!role?.canManage || closed} />
 
+          {t.relatedEntity ? (
+            <a href={t.relatedEntity.link} className="flex items-center justify-between gap-2 bg-primary-soft border border-primary/20 rounded-xl px-3.5 py-2.5 text-[12.5px] font-bold text-primary">
+              <span>سند مرتبط: {t.relatedEntity.label}</span>
+              <span>مشاهده‌ی سند ←</span>
+            </a>
+          ) : null}
+
           {t.relatedModule === "Shipment" && t.relatedEntityId && installedModules.has("dispatch") ? <DispatchTaskPanel shipmentId={t.relatedEntityId} /> : null}
 
           {/* ── اقدام‌ها ── */}

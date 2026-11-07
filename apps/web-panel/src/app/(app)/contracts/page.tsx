@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { DocsIcon, PlusIcon, SettingsIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import { fetchContracts, fetchContractCategories, type Contract, type ContractStatus } from "@/lib/api";
 import { NewContractModal } from "@/components/contracts/NewContractModal";
 import { ContractDetailModal } from "@/components/contracts/ContractDetailModal";
@@ -183,7 +183,7 @@ export default function ContractsPage() {
                   تا {formatJalaliDate(c.endDate)}
                 </div>
                 <div className="text-[13px] font-extrabold w-[110px] text-left shrink-0 hidden sm:block">
-                  {formatToman(c.value)}
+                  {formatMoney(c.value)}
                 </div>
                 <Badge tone={STATUS_TONES[c.status]}>{STATUS_LABELS[c.status]}</Badge>
               </button>

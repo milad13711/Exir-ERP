@@ -41,6 +41,7 @@ import { ChecksModule } from './checks/checks.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { AttachmentsModule } from './attachments/attachments.module.js';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module.js';
+import { BaseCurrencyModule } from './base-currency/base-currency.module.js';
 import { AutomationModule } from './automation/automation.module.js';
 import { VoipModule } from './voip/voip.module.js';
 import { PublicModule } from './public/public.module.js';
@@ -71,6 +72,7 @@ import { SecurityModule } from './security/security.module.js';
 import { RateLimitGuard } from './security/rate-limit.guard.js';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor.js';
 import { ApprovalsModule } from './approvals/approvals.module.js';
+import { ReferralsModule } from './referrals/referrals.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
@@ -117,6 +119,7 @@ import { SignatureEvidenceModule } from './common/signature-evidence/signature-e
     AfterSalesModule,
     QrCodeModule,
     ApprovalsModule,
+    ReferralsModule,
     SchedulingModule,
     BackupDrModule,
     MonitoringModule,
@@ -158,6 +161,7 @@ import { SignatureEvidenceModule } from './common/signature-evidence/signature-e
     DashboardModule,
     AttachmentsModule,
     ExchangeRatesModule,
+    BaseCurrencyModule,
     SyncModule,
   ],
   providers: [

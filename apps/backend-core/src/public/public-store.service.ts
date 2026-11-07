@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -231,6 +232,9 @@ export class PublicStoreService {
   /** فید Google Merchant/Meta Commerce Manager — https://support.google.com/merchants/answer/7052112 */
   async productFeedCsv(slug: string, baseUrl: string): Promise<string> {
     const ctx = await this.resolveCtx(slug);
+    // فید گوگل/متا قیمت را به IRR می‌خواهد: ریال به‌ازای هر ۱ واحد پایه = tomanPerUnit × ۱۰ (تومان=۱۰، ریال=۱)
+    const base = await loadBaseCurrency(ctx.tenantDb);
+    const rialPer = (base.tomanPerUnit.num * 10n) / base.tomanPerUnit.den;
     const products = await ctx.tenantDb.product.findMany({
       where: { isActive: true, isPubliclyListed: true, publicSlug: { not: null } },
       include: { movements: { select: { quantityDelta: true } } },
@@ -247,7 +251,7 @@ export class PublicStoreService {
         csvEscape((p.publicDescription ?? p.name).slice(0, 5000)),
         csvEscape(link),
         csvEscape(image),
-        csvEscape(`${p.salePrice * 10} IRR`), // تومان × ۱۰ = ریال، واحد رسمی ISO 4217 که فیدهای گوگل/متا می‌پذیرند
+        csvEscape(`${BigInt(p.salePrice) * rialPer} IRR`), // ریال، واحد رسمی ISO 4217 که فیدهای گوگل/متا می‌پذیرند
         available > 0 ? 'in stock' : 'out of stock',
         'new',
       ].join(',');

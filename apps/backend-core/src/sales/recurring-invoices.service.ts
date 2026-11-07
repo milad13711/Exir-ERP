@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
 import { ActivityLogService } from '../activity/activity-log.service.js';
 import type { OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -143,6 +144,7 @@ export class RecurringInvoicesService implements OnModuleInit {
 
   private async generateForTenant(tenantId: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
+    if (await isConversionActive(tenantId, tenantDb)) return; // تغییر ارز پایه در جریان — دور بعدی
     const due = await tenantDb.recurringInvoiceTemplate.findMany({
       where: { isActive: true, nextRunAt: { lte: new Date() } },
       include: { lines: true },

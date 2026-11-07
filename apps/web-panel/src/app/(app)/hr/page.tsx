@@ -9,12 +9,13 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { HrIcon, PlusIcon, CheckIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate, toPersianDigits, toJalali } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits, toJalali, moneyUnit } from "@/lib/persian";
 import {
   fetchEmployees,
   fetchHrSummary,
   fetchAttendance,
   markAttendance,
+  deleteAttendanceRecord,
   fetchLeaveRequests,
   approveLeaveRequest,
   rejectLeaveRequest,
@@ -147,7 +148,7 @@ export default function HrPage() {
             icon={<HrIcon />}
             note={summary.pendingLeaveCount > 0 ? "نیازمند بررسی" : undefined}
           />
-          <KpiCard label="جمع حقوق پایه ماهانه" value={summary.monthlyPayrollTotal} unitSuffix="تومان" tone="accent" icon={<HrIcon />} />
+          <KpiCard label="جمع حقوق پایه ماهانه" value={summary.monthlyPayrollTotal} unitSuffix={moneyUnit()} tone="accent" icon={<HrIcon />} />
         </div>
       ) : null}
 
@@ -212,7 +213,7 @@ export default function HrPage() {
                         {e.department ? ` · ${e.department.name}` : ""}
                       </div>
                     </div>
-                    <div className="text-[12px] text-muted w-[140px] text-left shrink-0 hidden sm:block">{formatToman(e.baseSalary)}</div>
+                    <div className="text-[12px] text-muted w-[140px] text-left shrink-0 hidden sm:block">{formatMoney(e.baseSalary)}</div>
                   </button>
                   {isManager ? (
                     e.userId ? (
@@ -419,7 +420,8 @@ function DepartmentRow({
 }
 
 function AttendanceTab() {
-  const [rows, setRows] = useState<Array<{ employee: Employee; record: { status: string; checkIn: string | null; checkOut: string | null } | null }> | null>(
+  const hrCanAtt = useModuleCan("hr");
+  const [rows, setRows] = useState<Array<{ employee: Employee; record: { id: string; status: string; checkIn: string | null; checkOut: string | null } | null }> | null>(
     null,
   );
 
@@ -438,6 +440,11 @@ function AttendanceTab() {
   }
   async function markAbsent(employeeId: string) {
     await markAttendance({ employeeId, date: TODAY, status: "ABSENT" });
+    reload();
+  }
+  async function clearRecord(id: string) {
+    if (!window.confirm("ثبت امروز این کارمند پاک شود؟")) return;
+    await deleteAttendanceRecord(id);
     reload();
   }
 
@@ -492,6 +499,14 @@ function AttendanceTab() {
                   className="text-[11.5px] font-bold text-primary bg-primary-soft px-3 py-1.5 rounded-lg cursor-pointer"
                 >
                   ثبت خروج
+                </button>
+              ) : null}
+              {record && hrCanAtt.canDelete ? (
+                <button
+                  onClick={() => clearRecord(record.id)}
+                  className="text-[11.5px] font-bold text-danger bg-danger-soft px-3 min-h-10 rounded-lg cursor-pointer"
+                >
+                  حذف ثبت
                 </button>
               ) : null}
               {!record ? (
@@ -734,7 +749,7 @@ function PayrollTaxSettingsModal({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div>
-            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">سقف معافیت مالیاتی ماهانه (تومان)</label>
+            <label className="text-[12px] font-semibold text-ink-soft mb-1.5 block">سقف معافیت مالیاتی ماهانه ({moneyUnit()})</label>
             <input
               value={taxExemptionMonthly}
               onChange={(e) => setTaxExemptionMonthly(e.target.value.replace(/[^0-9]/g, ""))}
@@ -838,9 +853,9 @@ function PayrollRow({ slip, isLast, onChanged }: { slip: PayrollSlip; isLast: bo
         </div>
       ) : null}
       <div className="text-[10.5px] text-muted shrink-0" dir="rtl">
-        بیمه: {formatToman(slip.insuranceAmount)} · مالیات: {formatToman(slip.taxAmount)}
+        بیمه: {formatMoney(slip.insuranceAmount)} · مالیات: {formatMoney(slip.taxAmount)}
       </div>
-      <div className="text-[13px] font-extrabold w-[130px] text-left shrink-0">{formatToman(net)}</div>
+      <div className="text-[13px] font-extrabold w-[130px] text-left shrink-0">{formatMoney(net)}</div>
       <Badge tone={PAYROLL_STATUS_TONES[slip.status]}>{PAYROLL_STATUS_LABELS[slip.status]}</Badge>
       {slip.status === "DRAFT" ? (
         <button

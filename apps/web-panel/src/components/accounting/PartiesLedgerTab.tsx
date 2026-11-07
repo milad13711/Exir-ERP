@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchReceivables,
   fetchPayables,
@@ -58,13 +58,13 @@ function PartyStatementModal({ contactId, onClose }: { contactId: string; onClos
             <div>
               <div className="text-[11px] text-muted">مانده بدهکاری (طلب ما از او)</div>
               <div className={`text-[13px] font-bold mt-0.5 ${statement.arBalance > 0 ? "text-danger" : ""}`}>
-                {formatToman(statement.arBalance)}
+                {formatMoney(statement.arBalance)}
               </div>
             </div>
             <div>
               <div className="text-[11px] text-muted">مانده بستانکاری (بدهی ما به او)</div>
               <div className={`text-[13px] font-bold mt-0.5 ${statement.apBalance > 0 ? "text-danger" : ""}`}>
-                {formatToman(statement.apBalance)}
+                {formatMoney(statement.apBalance)}
               </div>
             </div>
           </div>
@@ -102,11 +102,11 @@ function PartyStatementModal({ contactId, onClose }: { contactId: string; onClos
                     </div>
                     <div className="text-left shrink-0">
                       <div className={delta > 0 ? "text-danger font-bold" : delta < 0 ? "text-success font-bold" : "text-muted"}>
-                        {delta !== 0 ? formatToman(delta) : "—"}
+                        {delta !== 0 ? formatMoney(delta) : "—"}
                         <span className="text-[10px] text-muted font-normal"> ({isAr ? "فروش" : "خرید"})</span>
                       </div>
                       <div className="text-[10.5px] text-muted mt-0.5">
-                        مانده {isAr ? "بدهکاری" : "بستانکاری"}: {formatToman(runningBalance)}
+                        مانده {isAr ? "بدهکاری" : "بستانکاری"}: {formatMoney(runningBalance)}
                       </div>
                     </div>
                   </div>
@@ -153,7 +153,7 @@ function PartyBalanceList({
         <div>
           <div className="text-[13.5px] font-bold">{title}</div>
           <div className={`text-[12px] font-bold mt-0.5 ${tone === "danger" ? "text-danger" : "text-success"}`}>
-            جمع: {formatToman(total)}
+            جمع: {formatMoney(total)}
           </div>
         </div>
         <button
@@ -183,7 +183,7 @@ function PartyBalanceList({
                 {r.company ? <div className="text-[11px] text-muted mt-0.5 truncate">{r.company}</div> : null}
               </div>
               <div className={`text-[13px] font-extrabold shrink-0 ${tone === "danger" ? "text-danger" : "text-success"}`}>
-                {formatToman(r.balance)}
+                {formatMoney(r.balance)}
               </div>
             </button>
           ))

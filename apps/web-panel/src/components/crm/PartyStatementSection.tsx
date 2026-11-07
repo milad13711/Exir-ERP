@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, moneyUnit } from "@/lib/persian";
 import {
   fetchPartyStatement,
   createPartyTransaction,
@@ -155,7 +155,7 @@ export function PartyStatementSection({
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-[11px] text-muted">مانده‌ی کلی</span>
             <Badge tone={netBalance > 0 ? "success" : netBalance < 0 ? "danger" : "neutral"}>
-              <span dir="ltr">{formatToman(Math.abs(netBalance))}</span>
+              <span dir="ltr">{formatMoney(Math.abs(netBalance))}</span>
               {netBalance > 0 ? " بدهکار به ما" : netBalance < 0 ? " بستانکار از ما" : " تسویه"}
             </Badge>
           </div>
@@ -166,7 +166,7 @@ export function PartyStatementSection({
                 dir="ltr"
                 className={`text-[14px] font-extrabold mt-0.5 ${statement.arBalance > 0 ? "text-danger" : "text-ink"}`}
               >
-                {formatToman(statement.arBalance)}
+                {formatMoney(statement.arBalance)}
               </div>
             </div>
             <div>
@@ -175,7 +175,7 @@ export function PartyStatementSection({
                 dir="ltr"
                 className={`text-[14px] font-extrabold mt-0.5 ${statement.apBalance > 0 ? "text-warning" : "text-ink"}`}
               >
-                {formatToman(statement.apBalance)}
+                {formatMoney(statement.apBalance)}
               </div>
             </div>
           </div>
@@ -213,7 +213,7 @@ export function PartyStatementSection({
           <input
             value={txAmount}
             onChange={(e) => setTxAmount(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="مبلغ (تومان)"
+            placeholder={`مبلغ (${moneyUnit()})`}
             dir="ltr"
             className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
           />
@@ -264,7 +264,7 @@ export function PartyStatementSection({
           <input
             value={transferAmount}
             onChange={(e) => setTransferAmount(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="مبلغ (تومان)"
+            placeholder={`مبلغ (${moneyUnit()})`}
             dir="ltr"
             className="text-[12.5px] outline-none bg-surface border border-border rounded-lg px-3 py-2"
           />

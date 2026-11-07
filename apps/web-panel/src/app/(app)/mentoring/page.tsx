@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CompassIcon, PlusIcon, SearchIcon, BoltIcon, BellIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   fetchMentoringEngagements,
   fetchMentoringOverview,
@@ -130,7 +130,7 @@ export default function MentoringPage() {
           </Card>
           <Card className="p-3.5">
             <div className="text-[11.5px] text-muted">درآمد این ماه</div>
-            <div className="text-lg font-extrabold mt-1">{formatToman(overview.revenueThisMonth)}</div>
+            <div className="text-lg font-extrabold mt-1">{formatMoney(overview.revenueThisMonth)}</div>
           </Card>
           <Card className="p-3.5">
             <div className="text-[11.5px] text-muted">رضایت مشتریان</div>

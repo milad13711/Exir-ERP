@@ -29,9 +29,15 @@ describe('assertSecureConfig', () => {
     expect(w.join(' ')).toContain('JWT_SECRET');
   });
 
+  it('production: OTP_DEV_ECHO=true refuses to boot (unless explicit escape hatch)', () => {
+    expect(() => assertSecureConfig({ NODE_ENV: 'production', JWT_SECRET: strong, OTP_DEV_ECHO: 'true' } as never)).toThrow(/OTP_DEV_ECHO/);
+    expect(assertSecureConfig({ NODE_ENV: 'production', JWT_SECRET: strong, OTP_DEV_ECHO: 'true', ALLOW_OTP_DEV_ECHO_IN_PRODUCTION: 'true' } as never).join('\n')).toContain('OTP_DEV_ECHO');
+    expect(() => assertSecureConfig({ NODE_ENV: 'development', JWT_SECRET: strong, OTP_DEV_ECHO: 'true' } as never)).not.toThrow();
+  });
+
   it('production: warns about OTP_DEV_ECHO, missing APP_SECRETS_KEY, localhost CORS, passwordless tenant DB, superuser role', () => {
-    const w = assertSecureConfig({ NODE_ENV: 'production', JWT_SECRET: strong, OTP_DEV_ECHO: 'true', CORS_ORIGINS: 'http://localhost:3000', TENANT_DB_ADMIN_USER: 'postgres' } as never).join('\n');
-    for (const needle of ['OTP_DEV_ECHO', 'APP_SECRETS_KEY', 'CORS_ORIGINS', 'TENANT_DB_ADMIN_PASSWORD', 'postgres']) expect(w).toContain(needle);
+    const w = assertSecureConfig({ NODE_ENV: 'production', JWT_SECRET: strong, CORS_ORIGINS: 'http://localhost:3000', TENANT_DB_ADMIN_USER: 'postgres' } as never).join('\n');
+    for (const needle of ['APP_SECRETS_KEY', 'CORS_ORIGINS', 'TENANT_DB_ADMIN_PASSWORD', 'postgres']) expect(w).toContain(needle);
   });
 
   it('never prints the secret itself', () => {

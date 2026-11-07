@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { faDate, faTime } from '../common/persian.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
@@ -170,6 +171,7 @@ export class AppointmentsService {
     appointment: { serviceType: { name: string; location: string | null; locationMode?: string | null }; contactId?: string | null; startAt: Date; location: string | null; publicToken: string; paymentStatus: string; depositAmount: number | null; isFullPayment: boolean },
     headline: string,
   ): Promise<string> {
+    const unit = await loadUnitLabel(ctx.tenantDb);
     const location = await this.resolveLocation(ctx, appointment, appointment.serviceType);
     const lines = [headline, `خدمت: ${appointment.serviceType.name}`, `تاریخ و ساعت: ${formatWhen(appointment.startAt)}`];
     if (location) lines.push(`آدرس: ${location}`);
@@ -177,7 +179,7 @@ export class AppointmentsService {
     else if (appointment.serviceType.locationMode === 'ONLINE') lines.push('نحوه‌ی برگزاری: آنلاین / تلفنی');
     lines.push(`جزئیات جلسه${appointment.paymentStatus === 'PENDING' ? ' و پرداخت' : ''}: ${this.publicLink(ctx, appointment.publicToken)}`);
     if (appointment.paymentStatus === 'PENDING' && appointment.depositAmount) {
-      lines.push(`${appointment.isFullPayment ? 'مبلغ قابل پرداخت' : 'بیعانه'}: ${appointment.depositAmount.toLocaleString('en-US')} تومان`);
+      lines.push(`${appointment.isFullPayment ? 'مبلغ قابل پرداخت' : 'بیعانه'}: ${appointment.depositAmount.toLocaleString('en-US')} ${unit}`);
     }
     return lines.join('\n');
   }
@@ -678,7 +680,8 @@ export class AppointmentsService {
         /* قیف هرگز نباید ثبت پرداخت نوبت را خراب کند */
       }
     }
-    await this.logContactHistory(ctx, updated.contactId, `پرداخت ${updated.isFullPayment ? 'کامل' : 'بیعانه'} نوبت «${updated.serviceType.name}» (${(updated.depositAmount ?? 0).toLocaleString('en-US')} تومان) ثبت شد`, actor);
+    const unit = await loadUnitLabel(ctx.tenantDb);
+    await this.logContactHistory(ctx, updated.contactId, `پرداخت ${updated.isFullPayment ? 'کامل' : 'بیعانه'} نوبت «${updated.serviceType.name}» (${(updated.depositAmount ?? 0).toLocaleString('en-US')} ${unit}) ثبت شد`, actor);
 
     await this.automation.emit(ctx, 'booking.appointment.deposit_paid', {
       customerName: updated.customerName,

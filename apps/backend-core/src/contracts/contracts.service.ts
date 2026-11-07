@@ -1,4 +1,5 @@
 import { ApprovalsService } from '../approvals/approvals.service.js';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -78,13 +79,14 @@ export class ContractsService implements OnModuleInit {
       },
       reject: async () => undefined,
       describe: async (ctx, id) => {
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const c = await ctx.tenantDb.contract.findUniqueOrThrow({ where: { id } });
         return {
           fields: [
             { label: 'عنوان', value: c.title },
             { label: 'شماره', value: String(c.contractNo) },
             { label: 'نوع طرفین', value: c.partyMode },
-            { label: 'مبلغ', value: `${Number(c.value ?? 0).toLocaleString('en-US')} تومان` },
+            { label: 'مبلغ', value: `${Number(c.value ?? 0).toLocaleString('en-US')} ${unit}` },
             { label: 'شروع تا پایان', value: `${c.startDate.toLocaleDateString('fa-IR')} تا ${c.endDate.toLocaleDateString('fa-IR')}` },
             { label: 'متن قرارداد', value: c.terms ?? '—' },
           ],
@@ -527,6 +529,27 @@ export class ContractsService implements OnModuleInit {
 
     if (!fromApprovals) await this.approvals.closeForEntity(ctx, 'CONTRACT', id, 'APPROVED', true);
     return this.finalizeIfComplete(ctx, id);
+  }
+
+  /**
+   * حذف قطعی فقط برای قرارداد «پیش‌نویس» که هنوز هیچ امضایی نخورده، قفل نشده و الحاقیه/درخواست ویرایش ندارد.
+   * قرارداد فعال/امضاشده سند حقوقی است و فقط فسخ (terminate) می‌شود.
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    const c = await ctx.tenantDb.contract.findUnique({
+      where: { id },
+      select: { id: true, status: true, isLocked: true, partyASignedAt: true, partyBSignedAt: true, _count: { select: { amendments: true, editRequests: true, mentoringEngagements: true } } },
+    });
+    if (!c) throw new NotFoundException('قرارداد یافت نشد');
+    if (c.status !== 'DRAFT' || c.isLocked || c.partyASignedAt || c.partyBSignedAt) {
+      throw new ConflictException('قرارداد امضاشده/فعال حذف نمی‌شود؛ برای پایان‌دادن به آن از «فسخ قرارداد» استفاده کنید');
+    }
+    if (c._count.amendments > 0 || c._count.editRequests > 0 || c._count.mentoringEngagements > 0) {
+      throw new ConflictException('این قرارداد الحاقیه، درخواست ویرایش یا قرارداد منتورینگ وابسته دارد و حذف نمی‌شود');
+    }
+    await ctx.tenantDb.contract.delete({ where: { id } });
+    await ctx.tenantDb.attachment.deleteMany({ where: { entityType: 'Contract', entityId: id } });
+    return { success: true };
   }
 
   async terminate(ctx: TenantRequestContext, id: string, reason: string | undefined) {

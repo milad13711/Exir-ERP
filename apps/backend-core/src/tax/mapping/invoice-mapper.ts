@@ -74,6 +74,13 @@ export type MapperInput = {
   taxInvoice: MapperTaxInvoice;
   mappings: Map<string, ProductMapping>;
   now?: Date;
+  /**
+   * چند ریال به‌ازای هر ۱ واحد ارز پایه‌ی فاکتور (مودیان همیشه ریال می‌خواهد). پیش‌فرض ۱۰ = پایه‌ی تومان؛
+   * برای پایه‌ی ریال ۱ است. باید عدد صحیح مثبت باشد (ارز پایه‌ی غیر ریال/تومان قابل ارسال به مودیان نیست).
+   */
+  rialPerUnit?: number;
+  /** برچسب واحد پایه در پیام‌ها */
+  unitLabel?: string;
 };
 
 export type MoodianInvoice = {
@@ -118,6 +125,9 @@ const emptyBody = () => Object.fromEntries(BODY_KEYS.map((k) => [k, null])) as M
 export function mapSalesInvoiceToMoodian(input: MapperInput): MapResult {
   const { settings, invoice, taxInvoice, mappings } = input;
   const now = input.now ?? new Date();
+  const rialPerUnit = input.rialPerUnit ?? TOMAN_TO_RIAL;
+  const unitLabel = input.unitLabel ?? 'تومان';
+  const toRial = (v: number): number => Math.round(v * rialPerUnit);
   const issues: TaxIssue[] = [];
   const o = taxInvoice.overrides ?? {};
 
@@ -231,12 +241,12 @@ export function mapSalesInvoiceToMoodian(input: MapperInput): MapResult {
   const tbill = tadis + tvam;
 
   const expectedRial = toRial(invoice.total);
-  const diffToman = Math.abs(tbill - expectedRial) / TOMAN_TO_RIAL;
+  const diffToman = Math.abs(tbill - expectedRial) / rialPerUnit;
   if (diffToman > 0) {
     if (diffToman > Math.max(1, invoice.lines.length)) {
-      issues.push(blocking('TOTAL_MISMATCH', `مجموع صورتحساب مودیان (${(tbill / TOMAN_TO_RIAL).toLocaleString('en-US')} تومان) با مبلغ فاکتور فروش (${invoice.total.toLocaleString('en-US')} تومان) نمی‌خواند؛ نرخ مالیات اقلام را بررسی کنید`, { field: 'tbill' }));
+      issues.push(blocking('TOTAL_MISMATCH', `مجموع صورتحساب مودیان (${(tbill / rialPerUnit).toLocaleString('en-US')} ${unitLabel}) با مبلغ فاکتور فروش (${invoice.total.toLocaleString('en-US')} ${unitLabel}) نمی‌خواند؛ نرخ مالیات اقلام را بررسی کنید`, { field: 'tbill' }));
     } else {
-      issues.push(warning('TOTAL_ROUNDING', `اختلاف گرد کردن ${diffToman.toLocaleString('en-US')} تومان بین فاکتور فروش و صورتحساب مودیان`, { field: 'tbill' }));
+      issues.push(warning('TOTAL_ROUNDING', `اختلاف گرد کردن ${diffToman.toLocaleString('en-US')} ${unitLabel} بین فاکتور فروش و صورتحساب مودیان`, { field: 'tbill' }));
     }
   }
 

@@ -5,6 +5,7 @@ import { VAZIRMATN_FONT_BASE64 as FONT_BASE64, escapeHtml } from '../common/pdf-
 import { hardenPage, safeImgSrc } from '../security/puppeteer-hardening.js';
 
 type OfferForPdf = {
+  unitLabel?: string;
   applicantName: string;
   jobDescription: string;
   collaborationType: string;
@@ -23,7 +24,7 @@ function buildHtml(offer: OfferForPdf, orgName: string, seal: { signatureImage?:
     ['شرح وظایف', offer.jobDescription],
     ['نحوه‌ی همکاری', offer.collaborationType],
     ['ساعت حضور روزانه در محل شرکت', offer.workingHours ?? '—'],
-    ['حقوق و دستمزد (ماهانه)', formatToman(offer.salary)],
+    ['حقوق و دستمزد (ماهانه)', formatToman(offer.salary, offer.unitLabel ?? 'تومان')],
     ['سایر تسهیلات', offer.benefits ?? '—'],
     ['مدت همکاری', offer.durationMonths ? `${offer.durationMonths} ماه` : 'نامحدود'],
     ['تاریخ شروع', offer.startDate ? formatJalaliDate(offer.startDate) : '—'],

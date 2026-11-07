@@ -4,7 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { LogoMark, CheckIcon } from "@/components/icons";
 import { SlotPicker } from "@/components/booking/SlotPicker";
-import { toPersianDigits, formatToman } from "@/lib/persian";
+import { toPersianDigits, formatMoney } from "@/lib/persian";
 import {
   fetchPublicServiceTypes,
   fetchPublicFreeSlots,
@@ -216,7 +216,7 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                         <div className="text-[14px] font-bold">{s.name}</div>
                         <div className="text-[12px] text-muted mt-0.5">{toPersianDigits(s.durationMinutes)} دقیقه</div>
                       </div>
-                      <div className="text-[13px] font-extrabold text-primary shrink-0">{formatToman(s.price)}</div>
+                      <div className="text-[13px] font-extrabold text-primary shrink-0">{formatMoney(s.price)}</div>
                     </button>
                   ))}
                 </div>
@@ -240,12 +240,12 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
               )}
               {selectedService.requiresFullPayment && (
                 <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 -mt-1">
-                  پرداخت کامل مبلغ خدمت ({formatToman(selectedService.price)}) هنگام رزرو در درگاه پرداخت انجام می‌شود؛ لینک پرداخت پیامک هم می‌شود.
+                  پرداخت کامل مبلغ خدمت ({formatMoney(selectedService.price)}) هنگام رزرو در درگاه پرداخت انجام می‌شود؛ لینک پرداخت پیامک هم می‌شود.
                 </div>
               )}
               {selectedService.requiresDeposit && !selectedService.requiresFullPayment && (
                 <div className="text-[12.5px] text-primary bg-primary-soft rounded-xl p-3 -mt-1">
-                  این خدمت نیاز به پرداخت بیعانه‌ی {formatToman(selectedService.depositAmount ?? 0)} دارد.
+                  این خدمت نیاز به پرداخت بیعانه‌ی {formatMoney(selectedService.depositAmount ?? 0)} دارد.
                 </div>
               )}
 
@@ -394,8 +394,8 @@ export default function PublicBookingPage({ params }: { params: Promise<{ slug: 
                 <div className="text-[13px] leading-7 bg-primary-soft text-ink rounded-xl p-3.5">
                   <div className="font-bold mb-1">{payment.isFull ? "پرداخت کامل مبلغ جلسه" : "پرداخت بیعانه‌ی رزرو"}</div>
                   {payment.isFull
-                    ? `مبلغ ${formatToman(payment.amount)} کل هزینه‌ی جلسه است و برای ثبت نهایی رزرو همین حالا در درگاه پرداخت می‌شود.`
-                    : `مبلغ ${formatToman(payment.amount)} فقط بیعانه‌ی رزرو است (کل هزینه‌ی جلسه ${formatToman(selectedService.price)})؛ برای ثبت نهایی جلسه پرداخت می‌شود و باقی‌مانده را در زمان جلسه تسویه می‌کنید.`}
+                    ? `مبلغ ${formatMoney(payment.amount)} کل هزینه‌ی جلسه است و برای ثبت نهایی رزرو همین حالا در درگاه پرداخت می‌شود.`
+                    : `مبلغ ${formatMoney(payment.amount)} فقط بیعانه‌ی رزرو است (کل هزینه‌ی جلسه ${formatMoney(selectedService.price)})؛ برای ثبت نهایی جلسه پرداخت می‌شود و باقی‌مانده را در زمان جلسه تسویه می‌کنید.`}
                 </div>
               ) : null}
               <div>

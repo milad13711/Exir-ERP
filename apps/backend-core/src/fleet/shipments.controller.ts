@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -7,6 +7,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ShipmentsService } from './shipments.service.js';
 import { CreateShipmentDto } from './dto/create-shipment.dto.js';
+import { UpdateShipmentDto } from './dto/update-shipment.dto.js';
 import { SendOffersDto } from './dto/send-offers.dto.js';
 import { UpdateFleetSmsSettingsDto } from './dto/update-fleet-sms-settings.dto.js';
 
@@ -52,6 +53,27 @@ export class ShipmentsController {
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertViewAll(ctx, 'fleet');
     return this.shipments.detail(ctx, id);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateShipmentDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet');
+    return this.shipments.update(ctx, id, dto);
+  }
+
+  @Get(':id/usage')
+  async usage(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertViewAll(ctx, 'fleet');
+    return this.shipments.usage(ctx, id);
+  }
+
+  /** حذف قطعی فقط برای بار پیش‌نویس/لغوشده؛ در غیر این صورت ۴۰۹ و باید «لغو» شود. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'fleet');
+    await this.permissions.assertViewAll(ctx, 'fleet');
+    return this.shipments.remove(ctx, id);
   }
 
   @Get(':id/match-candidates')

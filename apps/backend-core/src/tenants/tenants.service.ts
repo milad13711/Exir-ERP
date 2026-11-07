@@ -5,6 +5,7 @@ import { TenantDbAdminService } from './tenant-db-admin.service.js';
 import { sealTenantDbPassword } from '../prisma/tenant-db-credentials.js';
 import { seedDefaultTenantData, getSystemRoleId, type IndustryTemplateSeed } from './default-tenant-data.seed.js';
 import { ReferralSyncService } from './referral-sync.service.js';
+import { isPlanLevelInvoice } from '../billing/subscription-summary.js';
 import { addBillingPeriod } from '../modules-catalog/module-pricing.js';
 import type { Tenant } from '../../generated/control-client/index.js';
 
@@ -603,12 +604,14 @@ export class TenantsService {
     const tenant = await this.controlDb.tenant.findUnique({ where: { id: invoice.tenantId } });
     const shouldActivate = tenant?.status === 'PENDING_PAYMENT';
 
-    const [updated] = await this.controlDb.$transaction([
-      this.controlDb.invoice.update({
-        where: { id: invoiceId },
+    // اتمی: فقط برنده‌ی رقابت (کالبک دوبارهٔ زرین‌پال / کلیک همزمان) از PENDING-مانند به PAID می‌برد و عوارض جانبی را اجرا می‌کند
+    const claimed = await this.controlDb.$transaction(async (tx) => {
+      const res = await tx.invoice.updateMany({
+        where: { id: invoiceId, status: { notIn: ['PAID', 'AWAITING_APPROVAL'] } },
         data: { status: 'PAID', paidAt: new Date(), paymentRefId: actor.paymentRefId },
-      }),
-      this.controlDb.auditLog.create({
+      });
+      if (res.count === 0) return false;
+      await tx.auditLog.create({
         data: {
           actorType: actor.actorType,
           actorId: actor.actorId,
@@ -616,13 +619,18 @@ export class TenantsService {
           action: 'invoice.paid',
           entityType: 'Invoice',
           entityId: invoiceId,
-          metadata: { amount: invoice.amount, ...actor.metadata },
+          metadata: { amount: invoice.amount, ...actor.metadata } as never,
         },
-      }),
-      ...(shouldActivate
-        ? [this.controlDb.tenant.update({ where: { id: invoice.tenantId }, data: { status: 'ACTIVE' } })]
-        : []),
-    ]);
+      });
+      if (shouldActivate) await tx.tenant.update({ where: { id: invoice.tenantId }, data: { status: 'ACTIVE' } });
+      return true;
+    });
+    const updated = (await this.controlDb.invoice.findUnique({ where: { id: invoiceId } })) ?? invoice;
+    if (!claimed) return updated;
+
+    if (isPlanLevelInvoice(invoice)) {
+      await this.applyPlanPayment(invoice.tenantId, invoice.purpose, actor, invoiceId);
+    }
 
     if (invoice.purpose === 'MODULE_PURCHASE' || invoice.purpose === 'MODULE_RENEWAL') {
       await this.activatePurchasedModules(invoice.tenantId, invoiceId, invoice.items);
@@ -631,7 +639,9 @@ export class TenantsService {
     if (invoice.purpose === 'SMS_PACKAGE') {
       // شارژ آنی کیف پول پیامکی — فاکتور فقط یک‌بار PAID می‌شود (بالاتر برگشت زودهنگام دارد)، پس دوبار اعتبار نمی‌گیرد
       const credits = (invoice.items as { credits?: number } | null)?.credits ?? 0;
-      if (credits > 0) {
+      const alreadyCredited = credits > 0 && !!(await this.controlDb.auditLog.findFirst({ where: { tenantId: invoice.tenantId, action: 'sms.package_credited', entityId: invoiceId }, select: { id: true } }));
+      if (credits > 0 && !alreadyCredited) {
+        await this.controlDb.auditLog.create({ data: { actorType: actor.actorType, actorId: actor.actorId, tenantId: invoice.tenantId, action: 'sms.package_credited', entityType: 'Invoice', entityId: invoiceId, metadata: { credits } as never } });
         await this.controlDb.tenantSmsWallet.upsert({
           where: { tenantId: invoice.tenantId },
           create: { tenantId: invoice.tenantId, credits },
@@ -646,6 +656,40 @@ export class TenantsService {
     }
 
     return updated;
+  }
+
+  /**
+   * پرداخت فاکتور سطح پلن باید خودِ رکورد اشتراک را هم هماهنگ کند، نه فقط Tenant.status را: قبلاً اشتراک TRIAL/PAST_DUE با
+   * تاریخ پایان گذشته می‌ماند ⇒ هدر «اشتراک منقضی شده» برای مشتری پرداخت‌کرده، و کرون پایان آزمایشی بعد از پرداخت هم قفلش می‌کرد.
+   *  - TRIAL/PAST_DUE/تاریخ‌گذشته ⇒ ACTIVE با پایان = max(پایان فعلی، یک ماه از الان)
+   *  - تمدید پلن (PLAN_RENEWAL) روی اشتراک سالم ⇒ یک ماه به انتهای فعلی اضافه می‌شود
+   *  - پیش‌فاکتور دستی روی اشتراک ACTIVE سالم و مادام‌العمر ⇒ بدون تغییر (تمدید دستی ادمین جداست: renewTenant)
+   */
+  private async applyPlanPayment(tenantId: string, purpose: string | null, actor: { actorType: string; actorId: string | null }, invoiceId?: string) {
+    // ایدمپوتنت به‌ازای فاکتور: پرداخت مجدد پس از markInvoiceUnpaid نباید دوباره تمدید کند
+    if (invoiceId) {
+      const done = await this.controlDb.auditLog.findFirst({ where: { tenantId, action: 'subscription.extended_by_payment', entityType: 'Subscription', metadata: { path: ['invoiceId'], equals: invoiceId } }, select: { id: true } });
+      if (done) return;
+    }
+    const sub = await this.controlDb.subscription.findFirst({ where: { tenantId, status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE'] } }, orderBy: { startedAt: 'desc' } });
+    if (!sub || sub.lifetime) return;
+    const now = new Date();
+    const lapsed = sub.status !== 'ACTIVE' || sub.currentPeriodEnd.getTime() <= now.getTime();
+    let newEnd: Date;
+    if (lapsed) {
+      const monthFromNow = new Date(now);
+      monthFromNow.setMonth(monthFromNow.getMonth() + 1);
+      newEnd = sub.currentPeriodEnd.getTime() > monthFromNow.getTime() ? sub.currentPeriodEnd : monthFromNow;
+    } else if (purpose === 'PLAN_RENEWAL') {
+      newEnd = new Date(sub.currentPeriodEnd);
+      newEnd.setMonth(newEnd.getMonth() + 1);
+    } else {
+      return;
+    }
+    await this.controlDb.subscription.update({ where: { id: sub.id }, data: { status: 'ACTIVE', currentPeriodEnd: newEnd } });
+    await this.controlDb.auditLog.create({
+      data: { actorType: actor.actorType, actorId: actor.actorId, tenantId, action: 'subscription.extended_by_payment', entityType: 'Subscription', entityId: sub.id, metadata: { invoiceId, before: { status: sub.status, end: sub.currentPeriodEnd }, after: { status: 'ACTIVE', end: newEnd } } as never },
+    });
   }
 
   /**

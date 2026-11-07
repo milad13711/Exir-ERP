@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { createPurchaseReturn, ApiError, type PurchaseOrderDetail } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 type DraftLine = { productId: string | null; description: string; maxQuantity: number; quantity: string; unitCost: number };
 
@@ -93,7 +94,7 @@ export function NewPurchaseReturnModal({
 
         <div className="flex items-center justify-between bg-slate-50 border border-border rounded-xl p-3.5">
           <div className="text-[12px] text-muted">مبلغ قابل دریافت از تأمین‌کننده</div>
-          <div className="text-[15px] font-extrabold">{total.toLocaleString("en-US")} تومان</div>
+          <div className="text-[15px] font-extrabold">{total.toLocaleString("en-US")} {moneyUnit()}</div>
         </div>
 
         {error ? <div className="text-[12px] text-danger">{error}</div> : null}

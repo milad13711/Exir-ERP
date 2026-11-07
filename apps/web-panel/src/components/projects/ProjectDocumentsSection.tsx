@@ -4,7 +4,7 @@ import { PlusIcon, TrashIcon } from "@/components/icons";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
 import { useWorkspace } from "@/lib/workspace-context";
-import { formatToman } from "@/lib/persian";
+import { formatMoney } from "@/lib/persian";
 import { VisibilityToggle } from "@/components/projects/VisibilityToggle";
 import { PROPOSAL_STATUS_LABELS } from "@/components/proposals/constants";
 import {
@@ -89,7 +89,7 @@ export function ProjectDocumentsSection({ projectId, version, onCreateInvoice }:
                     #{p.proposalNo} — {p.title}
                   </span>
                   <span className="text-[11px] text-muted">{PROPOSAL_STATUS_LABELS[p.status as keyof typeof PROPOSAL_STATUS_LABELS] ?? p.status}</span>
-                  {p.amount > 0 ? <span className="text-[11.5px] font-bold">{formatToman(p.amount)}</span> : null}
+                  {p.amount > 0 ? <span className="text-[11.5px] font-bold">{formatMoney(p.amount)}</span> : null}
                   <VisibilityToggle compact visible={p.projectShowOnPublicLink} disabled={busy || p.status === "DRAFT"} onChange={(v) => run(() => setProjectProposalShow(projectId, p.id, v))} />
                   <button type="button" aria-label="جداکردن پروپوزال" disabled={busy} onClick={() => run(() => unlinkProjectProposal(projectId, p.id))} className="text-danger cursor-pointer disabled:opacity-50">
                     <TrashIcon className="w-3 h-3" />
@@ -126,7 +126,7 @@ export function ProjectDocumentsSection({ projectId, version, onCreateInvoice }:
                 <div key={i.id} className="flex items-center gap-2 bg-slate-50 border border-border rounded-lg px-3 py-2 flex-wrap">
                   <span className="text-[12px] font-semibold flex-1">فاکتور #{i.invoiceNo}</span>
                   <span className="text-[11px] text-muted">{INVOICE_STATUS_LABELS[i.status] ?? i.status}</span>
-                  <span className="text-[11.5px] font-bold">{formatToman(i.total)}</span>
+                  <span className="text-[11.5px] font-bold">{formatMoney(i.total)}</span>
                   <VisibilityToggle compact visible={i.projectShowOnPublicLink} disabled={busy || i.status === "DRAFT" || i.status === "CANCELLED"} onChange={(v) => run(() => setProjectInvoiceShow(projectId, i.id, v))} />
                   <button type="button" aria-label="جداکردن فاکتور" disabled={busy} onClick={() => run(() => unlinkProjectInvoice(projectId, i.id))} className="text-danger cursor-pointer disabled:opacity-50">
                     <TrashIcon className="w-3 h-3" />
@@ -199,7 +199,7 @@ function InvoicePicker({ onPick, busy }: { onPick: (i: SalesInvoice) => void; bu
             <span className="text-[12px] font-semibold truncate">
               فاکتور #{i.invoiceNo} — {i.contact.company || i.contact.name}
             </span>
-            <span className="text-[11px] font-bold shrink-0">{formatToman(i.total)}</span>
+            <span className="text-[11px] font-bold shrink-0">{formatMoney(i.total)}</span>
           </button>
         ))}
       </div>

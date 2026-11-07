@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { TrashIcon, PlusIcon, PencilIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, moneyUnit } from "@/lib/persian";
 import {
   fetchAccounts,
   fetchBudgets,
@@ -179,7 +179,7 @@ export function BudgetsTab() {
                   <input
                     value={l.amount}
                     onChange={(e) => updateLine(i, { amount: e.target.value.replace(/[^0-9]/g, "") })}
-                    placeholder="مبلغ بودجه (تومان)"
+                    placeholder={`مبلغ بودجه (${moneyUnit()})`}
                     dir="ltr"
                     className="w-40 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                   />
@@ -236,7 +236,7 @@ export function BudgetsTab() {
               <div className="text-left">
                 <div className="text-[11px] text-muted">جمع بودجه / واقعی</div>
                 <div className="text-[13px] font-bold mt-0.5">
-                  {formatToman(totalBudget)} / {formatToman(totalActual)}
+                  {formatMoney(totalBudget)} / {formatMoney(totalActual)}
                 </div>
               </div>
               <button
@@ -262,10 +262,10 @@ export function BudgetsTab() {
                   <Badge tone={over ? "danger" : "success"}>{over ? "بیش از بودجه" : "در محدوده"}</Badge>
                 </div>
                 <div className="flex items-center gap-3 text-[11.5px] text-muted">
-                  <span>بودجه: {formatToman(l.amount)}</span>
-                  <span>واقعی: {formatToman(l.actual)}</span>
+                  <span>بودجه: {formatMoney(l.amount)}</span>
+                  <span>واقعی: {formatMoney(l.actual)}</span>
                   <span className={over ? "text-danger font-bold" : "text-success font-bold"}>
-                    مابه‌التفاوت: {formatToman(l.variance)}
+                    مابه‌التفاوت: {formatMoney(l.variance)}
                   </span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
@@ -338,7 +338,7 @@ export function BudgetsTab() {
                   <input
                     value={l.amount}
                     onChange={(e) => updateLine(i, { amount: e.target.value.replace(/[^0-9]/g, "") })}
-                    placeholder="مبلغ بودجه (تومان)"
+                    placeholder={`مبلغ بودجه (${moneyUnit()})`}
                     dir="ltr"
                     className="w-40 text-[12.5px] bg-slate-50 border border-border rounded-lg px-2.5 py-2 outline-none"
                   />

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Res, UseGuards, ConflictException, Delete, NotFoundException, Param, Patch, Query } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -9,6 +9,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
 import { CreateTestTypeDto } from './dto/create-test-type.dto.js';
+import { UpdateTestTypeDto } from './dto/update-test-type.dto.js';
 
 const TEST_TYPE_EXCEL_HEADERS = ['نام', 'واحد', 'حداقل قابل قبول', 'حداکثر قابل قبول', 'توضیحات'];
 
@@ -18,10 +19,13 @@ const TEST_TYPE_EXCEL_HEADERS = ['نام', 'واحد', 'حداقل قابل قب
 export class TestTypesController {
   constructor(private readonly permissions: PermissionsService) {}
 
+  /** status=active (پیش‌فرض، برای انتخاب‌گرها) | archived | all */
   @Get()
-  async list(@Ctx() ctx: TenantRequestContext) {
+  async list(@Query('status') status: string | undefined, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertView(ctx, 'quality-control');
-    return ctx.tenantDb.qualityTestType.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+    const where = status === 'archived' ? { isActive: false } : status === 'all' ? {} : { isActive: true };
+    const rows = await ctx.tenantDb.qualityTestType.findMany({ where, orderBy: { name: 'asc' }, include: { _count: { select: { results: true } } } });
+    return rows.map(({ _count, ...t }) => ({ ...t, usageCount: _count.results }));
   }
 
   @Post()
@@ -109,5 +113,42 @@ export class TestTypesController {
     }
 
     return summarize(results);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateTestTypeDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'quality-control');
+    const t = await ctx.tenantDb.qualityTestType.findUnique({ where: { id }, select: { id: true } });
+    if (!t) throw new NotFoundException('نوع آزمون یافت نشد');
+    return ctx.tenantDb.qualityTestType.update({ where: { id }, data: dto });
+  }
+
+  @Post(':id/archive')
+  async archive(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'quality-control');
+    const t = await ctx.tenantDb.qualityTestType.findUnique({ where: { id }, select: { id: true } });
+    if (!t) throw new NotFoundException('نوع آزمون یافت نشد');
+    return ctx.tenantDb.qualityTestType.update({ where: { id }, data: { isActive: false } });
+  }
+
+  @Post(':id/restore')
+  async restore(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'quality-control');
+    const t = await ctx.tenantDb.qualityTestType.findUnique({ where: { id }, select: { id: true } });
+    if (!t) throw new NotFoundException('نوع آزمون یافت نشد');
+    return ctx.tenantDb.qualityTestType.update({ where: { id }, data: { isActive: true } });
+  }
+
+  /** حذف قطعی فقط اگر در هیچ نتیجه‌ی آزمایشی استفاده نشده؛ وگرنه بایگانی. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'quality-control');
+    const t = await ctx.tenantDb.qualityTestType.findUnique({ where: { id }, include: { _count: { select: { results: true } } } });
+    if (!t) throw new NotFoundException('نوع آزمون یافت نشد');
+    if (t._count.results > 0) {
+      throw new ConflictException(`این نوع آزمون در ${t._count.results} نتیجه‌ی آزمایش استفاده شده و حذف نمی‌شود تا تاریخچه حفظ شود. به‌جای حذف می‌توانید آن را بایگانی کنید.`);
+    }
+    await ctx.tenantDb.qualityTestType.delete({ where: { id } });
+    return { success: true };
   }
 }

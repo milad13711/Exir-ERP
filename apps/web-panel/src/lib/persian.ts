@@ -35,9 +35,31 @@ export function formatNumber(value: number): string {
   return toPersianDigits(grouped);
 }
 
-/** Formats a Toman amount with thousand separators and a trailing unit label. */
+/**
+ * Formats a PLATFORM (Exir billing / module store / SMS package) amount — always Toman, independent of the
+ * tenant's own base currency. Use `formatMoney` for anything stored in the tenant's database.
+ */
 export function formatToman(value: number): string {
   return `${formatNumber(value)} تومان`;
+}
+
+// Tenant base-currency label ("تومان" by default, "ریال" after a base-currency change). Module-level so the many
+// formatting call sites stay synchronous; it is set once before the app/public page renders (WorkspaceProvider
+// from /me, PublicCurrencyBoundary from the public currency endpoint).
+let currentMoneyUnit = "تومان";
+
+export function setMoneyUnit(label: string | null | undefined): void {
+  const clean = (label ?? "").trim();
+  currentMoneyUnit = clean ? clean.slice(0, 20) : "تومان";
+}
+
+export function moneyUnit(): string {
+  return currentMoneyUnit;
+}
+
+/** Formats an amount in the tenant's base currency (thousand separators + current unit label). */
+export function formatMoney(value: number): string {
+  return `${formatNumber(value)} ${currentMoneyUnit}`;
 }
 
 // Gregorian <-> Jalali (Shamsi) conversion — the standard jalaali algorithm

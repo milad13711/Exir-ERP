@@ -10,11 +10,15 @@ import {
   updateProductionStage,
   completeProductionOrder,
   rejectProductionOrder,
+  deleteProductionOrder,
   ApiError,
   type ProductionOrder,
   type SalesInvoice,
 } from "@/lib/api";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES, STAGE_STATUS_LABELS } from "./production-shared";
+import { NewProductionOrderModal } from "./NewProductionOrderModal";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { QualityControlSection } from "./QualityControlSection";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -41,6 +45,8 @@ export function ProductionOrderDetailModal({
   const [reportDrafts, setReportDrafts] = useState<Record<string, string>>({});
   const [expandedStageDocs, setExpandedStageDocs] = useState<Record<string, boolean>>({});
   const [relatedInvoice, setRelatedInvoice] = useState<SalesInvoice | null>(null);
+  const can = useModuleCan("production");
+  const [editOpen, setEditOpen] = useState(false);
 
   function reload() {
     fetchProductionOrder(orderId).then((o) => {
@@ -252,7 +258,33 @@ export function ProductionOrderDetailModal({
               </button>
             )
           ) : null}
+          {order.status === "DRAFT" && can.canEdit ? (
+            <button disabled={busy} onClick={() => setEditOpen(true)} className={`${btnBase} bg-primary-soft text-primary`}>
+              ویرایش دستور تولید
+            </button>
+          ) : null}
         </div>
+        {(order.status === "DRAFT" || order.status === "CANCELLED") && can.canDelete ? (
+          <DeleteRecordButton
+            label="حذف دستور تولید"
+            confirmText="این دستور تولید برای همیشه حذف شود؟ (دستور در جریان یا تکمیل‌شده حذف نمی‌شود، فقط رد می‌شود)"
+            onDelete={() => deleteProductionOrder(order.id)}
+            onDeleted={() => {
+              onChanged();
+              onClose();
+            }}
+          />
+        ) : null}
+        {editOpen ? (
+          <NewProductionOrderModal
+            edit={order}
+            onClose={() => setEditOpen(false)}
+            onCreated={() => {
+              reload();
+              onChanged();
+            }}
+          />
+        ) : null}
       </div>
     </Modal>
   );

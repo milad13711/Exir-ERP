@@ -1,3 +1,4 @@
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -5,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { PhoneIcon, MailIcon, ReceiptIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, moneyUnit } from "@/lib/persian";
 import {
   fetchCrmDeal,
   updateCrmDealStage,
@@ -110,6 +111,7 @@ export function DealModal({
         <div className="py-10 text-center text-muted text-sm">در حال بارگذاری...</div>
       ) : (
         <div className="flex flex-col gap-5">
+          <ReferralPanel entityType="CrmDeal" entityId={deal.id} />
           {editing ? (
             <div className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">
               <input
@@ -122,7 +124,7 @@ export function DealModal({
                 <input
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="ارزش (تومان)"
+                  placeholder={`ارزش (${moneyUnit()})`}
                   dir="ltr"
                   inputMode="numeric"
                   className="flex-1 text-[13px] outline-none bg-surface border border-border rounded-lg px-2.5 py-2"
@@ -175,7 +177,7 @@ export function DealModal({
                   </button>
                 </div>
               </div>
-              <div className="text-xl font-extrabold text-primary mt-2">{formatToman(deal.value)}</div>
+              <div className="text-xl font-extrabold text-primary mt-2">{formatMoney(deal.value)}</div>
               {deal.expectedCloseAt ? (
                 <div className="text-[12px] text-muted mt-1">
                   تاریخ تخمینی بستن: {formatJalaliDate(deal.expectedCloseAt)}

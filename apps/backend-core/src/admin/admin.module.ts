@@ -25,9 +25,11 @@ import { AdminResellersController } from './admin-resellers.controller.js';
 import { AdminSmsPackagesController } from './admin-sms-packages.controller.js';
 import { AdminResellerApplicationsController } from './admin-reseller-applications.controller.js';
 import { ResellerApplicationsService } from './reseller-applications.service.js';
+import { ModuleReleasesModule } from '../module-releases/module-releases.module.js';
+import { AdminModuleReleasesController } from '../module-releases/admin-module-releases.controller.js';
 
 @Module({
-  imports: [NotificationsModule, PublicModule, ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule, TenantInvoiceApprovalModule],
+  imports: [ModuleReleasesModule, NotificationsModule, PublicModule, ReferralMarketingModule, TenantsModule, LicensingModule, BillingModule, SupportModule, PushNotificationsModule, TenantInvoiceApprovalModule],
   controllers: [
     AdminAuthController,
     AdminTenantsController,
@@ -42,6 +44,7 @@ import { ResellerApplicationsService } from './reseller-applications.service.js'
     AdminResellersController,
     AdminSecurityController,
     AdminUsersController,
+    AdminModuleReleasesController,
   ],
   providers: [AdminAuthService, AdminUsersService, AdminSupportService, ResellerApplicationsService],
 })

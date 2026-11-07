@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import { fetchMentoringClientLifetime, fetchMentoringByAdvisor, type MentoringClientLifetimeRow, type MentoringAdvisorRow } from "@/lib/api";
 
 export function MentoringReportsModal({ onClose }: { onClose: () => void }) {
@@ -54,7 +54,7 @@ export function MentoringReportsModal({ onClose }: { onClose: () => void }) {
                     <td className="py-2.5">
                       {toPersianDigits(row.completedSessions)} از {toPersianDigits(row.totalSessions)}
                     </td>
-                    <td className="py-2.5 font-bold">{formatToman(row.totalRevenue)}</td>
+                    <td className="py-2.5 font-bold">{formatMoney(row.totalRevenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -96,7 +96,7 @@ export function MentoringReportsModal({ onClose }: { onClose: () => void }) {
                         "—"
                       )}
                     </td>
-                    <td className="py-2.5 font-bold">{formatToman(row.revenue)}</td>
+                    <td className="py-2.5 font-bold">{formatMoney(row.revenue)}</td>
                   </tr>
                 ))}
               </tbody>

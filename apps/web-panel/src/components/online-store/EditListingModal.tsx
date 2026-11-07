@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CloseIcon, TrashIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits, moneyUnit } from "@/lib/persian";
 import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { updateStoreListing, ApiError, type StoreProduct } from "@/lib/api";
 
@@ -140,13 +140,13 @@ export function EditListingModal({
           </div>
 
           <div>
-            <label className={labelClass}>قیمت قبل از تخفیف (تومان — اختیاری، برای نشان تخفیف)</label>
+            <label className={labelClass}>قیمت قبل از تخفیف ({moneyUnit()} — اختیاری، برای نشان تخفیف)</label>
             <input
               value={compareAtPrice}
               onChange={(e) => setCompareAtPrice(e.target.value.replace(/[^\d]/g, ""))}
               dir="ltr"
               inputMode="numeric"
-              placeholder={`باید بیشتر از ${formatToman(product.salePrice)} باشد`}
+              placeholder={`باید بیشتر از ${formatMoney(product.salePrice)} باشد`}
               className={inputClass}
             />
           </div>
@@ -163,7 +163,7 @@ export function EditListingModal({
             disabled={saving}
             className="w-full py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
           >
-            {saving ? "در حال ذخیره..." : `ذخیره — ${formatToman(product.salePrice)}`}
+            {saving ? "در حال ذخیره..." : `ذخیره — ${formatMoney(product.salePrice)}`}
           </button>
         </div>
       </div>

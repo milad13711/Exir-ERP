@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { LogoMark } from "@/components/icons";
-import { formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney } from "@/lib/persian";
 import {
   fetchPublicAppointmentByToken,
   startPublicAppointmentPaymentByToken,
@@ -86,7 +86,7 @@ export default function PublicAppointmentPage({ params }: { params: Promise<{ sl
                 <div className="border-2 border-success/30 bg-success-soft rounded-xl p-4 text-[13px]">
                   <div className="text-success font-extrabold text-center mb-2">✓ رسید تأیید رزرو</div>
                   <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between"><span className="text-muted">مبلغ پرداخت‌شده</span><span className="font-bold">{formatToman(view.amount ?? 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">مبلغ پرداخت‌شده</span><span className="font-bold">{formatMoney(view.amount ?? 0)}</span></div>
                     <div className="flex justify-between"><span className="text-muted">نوع پرداخت</span><span className="font-bold">{view.isFullPayment ? "پرداخت کامل" : "بیعانه"}</span></div>
                     {view.paidAt && <div className="flex justify-between"><span className="text-muted">تاریخ پرداخت</span><span className="font-bold">{formatJalaliDateTime(view.paidAt)}</span></div>}
                     {view.paymentRefId ? <div className="flex justify-between"><span className="text-muted">کد پیگیری</span><span className="font-bold" dir="ltr">{view.paymentRefId}</span></div> : null}
@@ -98,7 +98,7 @@ export default function PublicAppointmentPage({ params }: { params: Promise<{ sl
                 <div className="flex flex-col gap-2">
                   {error && <div className="text-[12.5px] text-danger font-semibold text-center">{error}</div>}
                   <button onClick={pay} disabled={busy} className="py-3 rounded-xl bg-primary text-white text-[13.5px] font-bold disabled:opacity-50 cursor-pointer">
-                    {busy ? "در حال انتقال به درگاه..." : `پرداخت ${view.isFullPayment ? "کامل مبلغ" : "بیعانه"} — ${formatToman(view.amount)}`}
+                    {busy ? "در حال انتقال به درگاه..." : `پرداخت ${view.isFullPayment ? "کامل مبلغ" : "بیعانه"} — ${formatMoney(view.amount)}`}
                   </button>
                 </div>
               )}

@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -164,6 +165,7 @@ export class PayrollController {
     const byKey = Object.fromEntries(settingsRows.map((r) => [r.key, r.value as string]));
 
     const pdf = await this.pdf.render(slip, {
+      unitLabel: await loadUnitLabel(ctx.tenantDb),
       orgName: tenant.name,
       economicCode: byKey.economicCode ?? null,
       nationalId: byKey.nationalId ?? null,

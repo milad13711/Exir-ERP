@@ -695,6 +695,10 @@ model SupportTicket {
   createdAt       DateTime       @default(now())
   resolvedAt      DateTime?
   resolutionNote  String?
+  /// دسته‌ی تیکت (null = تیکت عادی مشتری)؛ مثلاً MODULE_RELEASE برای اعلام خودکار به‌روزرسانی ماژول
+  category        String?
+  /// کلید یکتای منبع خودکار (مثلاً module-release:<releaseId>) — جلوگیری از ساخت تیکت تکراری
+  sourceRef       String?
 
   tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdByUser GlobalUser       @relation(fields: [createdByUserId], references: [id])
@@ -702,6 +706,7 @@ model SupportTicket {
   messages      SupportMessage[]
   internalTasks InternalTask[]
 
+  @@unique([tenantId, sourceRef])
   @@map("support_tickets")
 }
 
@@ -873,4 +878,77 @@ model SecurityState {
   updatedAt    DateTime @updatedAt
 
   @@map("security_state")
+}
+
+
+// ── اعلان به‌روزرسانی ماژول‌ها به تننت‌ها ─────────────────────────────────────
+
+/// یک نسخه‌ی منتشرشده (یا پیش‌نویس) از یک ماژول سیستمی؛ وضعیت و کانال‌ها TEXT هستند (DRAFT|PUBLISHED).
+model ModuleRelease {
+  id                 String    @id @default(uuid())
+  /// کد کوتاه برای لینک پیامک (/releases/<shortCode>)
+  shortCode          String    @unique
+  moduleCode         String
+  version            String
+  title              String
+  summary            String    @default("")
+  status             String    @default("DRAFT")
+  publishedAt        DateTime?
+  publishedByAdminId String?
+  createdByAdminId   String?
+  /// کانال‌هایی که ادمین هنگام انتشار انتخاب کرد: { notify, ticket, sms }
+  channels           Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  changes    ModuleReleaseChange[]
+  deliveries ModuleReleaseDelivery[]
+
+  @@unique([moduleCode, version])
+  @@index([status, publishedAt])
+  @@map("module_releases")
+}
+
+model ModuleReleaseChange {
+  id          String @id @default(uuid())
+  releaseId   String
+  sortOrder   Int    @default(0)
+  /// NEW | IMPROVED | FIX
+  type        String @default("NEW")
+  title       String
+  description String @default("")
+  /// «ارزش جدید برای شما»
+  valueText   String @default("")
+  /// مسیر نسبی داخلی (از فهرست مجاز مسیرهای ماژول‌ها)
+  deepLink    String?
+
+  release ModuleRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@index([releaseId, sortOrder])
+  @@map("module_release_changes")
+}
+
+/// لاگ تحویل به‌ازای (انتشار، تننت، کانال) — یکتا؛ تضمین عدم تکرار اعلان/تیکت/پیامک در تلاش مجدد.
+/// channel: NOTIFY | TICKET | SMS | TEST. status: PENDING | SENT | PARTIAL | FAILED | SKIPPED.
+model ModuleReleaseDelivery {
+  id          String    @id @default(uuid())
+  releaseId   String
+  tenantId    String
+  channel     String
+  status      String    @default("PENDING")
+  attempts    Int       @default(1)
+  sentCount   Int       @default(0)
+  failedCount Int       @default(0)
+  reason      String?
+  ticketId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  finishedAt  DateTime?
+
+  release ModuleRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@unique([releaseId, tenantId, channel])
+  @@index([releaseId, status])
+  @@index([tenantId])
+  @@map("module_release_deliveries")
 }

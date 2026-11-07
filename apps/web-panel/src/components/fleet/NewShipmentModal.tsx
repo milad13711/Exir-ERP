@@ -2,7 +2,14 @@ import { useState } from "react";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateTimeInput } from "@/components/ui/JalaliDateTimeInput";
-import { createShipment, fetchCrmContact } from "@/lib/api";
+import { createShipment, updateShipment, fetchCrmContact, type Shipment } from "@/lib/api";
+
+/** ISO → مقدار محلی «YYYY-MM-DDTHH:mm» که JalaliDateTimeInput انتظار دارد. */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-lg px-3 py-2.5 focus:border-primary transition-colors";
@@ -12,7 +19,10 @@ export function NewShipmentModal({
   onClose,
   onCreated,
   prefill,
+  edit,
 }: {
+  /** حالت ویرایش بار پیش‌نویس */
+  edit?: Shipment;
   onClose: () => void;
   onCreated: () => void;
   prefill?: {
@@ -25,13 +35,13 @@ export function NewShipmentModal({
     sourceInvoiceId?: string;
   };
 }) {
-  const [contactId, setContactId] = useState(prefill?.contactId ?? "");
-  const [cargoType, setCargoType] = useState(prefill?.cargoType ?? "");
-  const [quantity, setQuantity] = useState(prefill?.quantity?.toString() ?? "");
-  const [unit, setUnit] = useState("کیلوگرم");
-  const [deliveryAddress, setDeliveryAddress] = useState(prefill?.deliveryAddress ?? "");
-  const [region, setRegion] = useState("");
-  const [pickupAt, setPickupAt] = useState("");
+  const [contactId, setContactId] = useState(edit?.contactId ?? prefill?.contactId ?? "");
+  const [cargoType, setCargoType] = useState(edit?.cargoType ?? prefill?.cargoType ?? "");
+  const [quantity, setQuantity] = useState(edit?.quantity?.toString() ?? prefill?.quantity?.toString() ?? "");
+  const [unit, setUnit] = useState(edit ? (edit.unit ?? "") : "کیلوگرم");
+  const [deliveryAddress, setDeliveryAddress] = useState(edit?.deliveryAddress ?? prefill?.deliveryAddress ?? "");
+  const [region, setRegion] = useState(edit?.region ?? "");
+  const [pickupAt, setPickupAt] = useState(edit ? toLocalInput(edit.pickupAt) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +61,20 @@ export function NewShipmentModal({
     setSaving(true);
     setError(null);
     try {
+      if (edit) {
+        await updateShipment(edit.id, {
+          contactId: contactId || undefined,
+          cargoType: cargoType.trim(),
+          quantity: Number(quantity),
+          unit: unit.trim() || undefined,
+          deliveryAddress: deliveryAddress.trim(),
+          region: region.trim() || undefined,
+          pickupAt: new Date(pickupAt).toISOString(),
+        });
+        onCreated();
+        onClose();
+        return;
+      }
       await createShipment({
         sourceType: prefill?.sourceType,
         sourceStockMovementId: prefill?.sourceStockMovementId,
@@ -73,7 +97,7 @@ export function NewShipmentModal({
   }
 
   return (
-    <Modal title="ثبت بار جدید" onClose={onClose} width="max-w-[520px]">
+    <Modal title={edit ? `ویرایش بار شماره ${edit.shipmentNo}` : "ثبت بار جدید"} onClose={onClose} width="max-w-[520px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>مشتری/گیرنده (اختیاری)</label>
@@ -123,7 +147,7 @@ export function NewShipmentModal({
           disabled={saving || !cargoType.trim() || !quantity || !deliveryAddress.trim() || !pickupAt}
           className="mt-1 py-2.5 rounded-xl bg-primary text-white text-[13px] font-bold disabled:opacity-50"
         >
-          {saving ? "در حال ثبت..." : "ثبت بار"}
+          {saving ? "در حال ثبت..." : edit ? "ذخیره‌ی تغییرات" : "ثبت بار"}
         </button>
       </form>
     </Modal>

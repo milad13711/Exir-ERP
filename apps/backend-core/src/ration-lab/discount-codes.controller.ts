@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -8,6 +8,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { buildExcelBuffer, parseExcelBuffer, summarize, type ImportRowResult } from '../common/excel.js';
 import { ImportExcelDto } from '../common/dto/import-excel.dto.js';
+import { UpdateDiscountCodeDto } from './dto/update-discount-code.dto.js';
 import { CreateDiscountCodeDto } from './dto/create-discount-code.dto.js';
 
 const DISCOUNT_CODE_EXCEL_HEADERS = ['کد', 'درصد تخفیف', 'تاریخ انقضا', 'حداکثر تعداد استفاده'];
@@ -122,5 +123,38 @@ export class RationDiscountCodesController {
     const code = await ctx.tenantDb.rationDiscountCode.findUnique({ where: { id } });
     if (!code) throw new NotFoundException('کد تخفیف یافت نشد');
     return ctx.tenantDb.rationDiscountCode.update({ where: { id }, data: { isActive: false } });
+  }
+
+  /** ویرایش درصد/انقضا/سقف استفاده (خود کد تغییر نمی‌کند — روی نمونه‌های قبلی ثبت شده است). */
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateDiscountCodeDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'ration-lab');
+    const code = await ctx.tenantDb.rationDiscountCode.findUnique({ where: { id } });
+    if (!code) throw new NotFoundException('کد تخفیف یافت نشد');
+    return ctx.tenantDb.rationDiscountCode.update({
+      where: { id },
+      data: { percentOff: dto.percentOff, maxRedemptions: dto.maxRedemptions, ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}) },
+    });
+  }
+
+  @Patch(':id/activate')
+  async activate(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'ration-lab');
+    const code = await ctx.tenantDb.rationDiscountCode.findUnique({ where: { id } });
+    if (!code) throw new NotFoundException('کد تخفیف یافت نشد');
+    return ctx.tenantDb.rationDiscountCode.update({ where: { id }, data: { isActive: true } });
+  }
+
+  /** حذف قطعی فقط برای کدی که هرگز استفاده نشده؛ وگرنه غیرفعال‌سازی (تاریخچه‌ی تخفیف نمونه‌ها حفظ شود). */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'ration-lab');
+    const code = await ctx.tenantDb.rationDiscountCode.findUnique({ where: { id } });
+    if (!code) throw new NotFoundException('کد تخفیف یافت نشد');
+    if (code.redemptionCount > 0) {
+      throw new ConflictException(`این کد ${code.redemptionCount} بار استفاده شده و حذف نمی‌شود. به‌جای حذف آن را غیرفعال کنید.`);
+    }
+    await ctx.tenantDb.rationDiscountCode.delete({ where: { id } });
+    return { success: true };
   }
 }

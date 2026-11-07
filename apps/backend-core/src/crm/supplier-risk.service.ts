@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { loadBaseCurrency } from '../base-currency/base-unit.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { PartyStatementService } from './party-statement.service.js';
 
@@ -31,6 +32,9 @@ export class SupplierRiskService {
   constructor(private readonly partyStatement: PartyStatementService) {}
 
   async assess(ctx: TenantRequestContext, supplierId: string): Promise<SupplierRiskAssessment> {
+    const base = await loadBaseCurrency(ctx.tenantDb);
+    const unit = base.label;
+    const toToman = (n: number) => (n * Number(base.tomanPerUnit.num)) / Number(base.tomanPerUnit.den);
     const orders = await ctx.tenantDb.purchaseOrder.findMany({
       where: { supplierId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
       include: { payments: { select: { amount: true, paidAt: true } } },
@@ -77,7 +81,7 @@ export class SupplierRiskService {
 
     const reliabilityRate = paidCount > 0 ? promptCount / paidCount : 0.5;
     const reliabilityScore = reliabilityRate * 40;
-    const volumeScore = Math.min(30, (totalVolume / 1_000_000_000) * 30);
+    const volumeScore = Math.min(30, (toToman(totalVolume) / 1_000_000_000) * 30);
     const frequencyScore = Math.min(15, orders.length * 1.5);
     const completionBonus = (paidCount / orders.length) * 15;
     const stalePenalty = staleUnpaidCount * 15;
@@ -88,7 +92,7 @@ export class SupplierRiskService {
 
     const reasons = [
       `پرداخت ظرف ۳۰ روز از صدور سفارش: ${Math.round(reliabilityRate * 100)}٪ از ${paidCount} سفارش تسویه‌شده`,
-      `حجم کل خرید: ${totalVolume.toLocaleString('en-US')} تومان در ${orders.length} سفارش`,
+      `حجم کل خرید: ${totalVolume.toLocaleString('en-US')} ${unit} در ${orders.length} سفارش`,
       staleUnpaidCount > 0
         ? `${staleUnpaidCount} سفارش بیش از ۴۵ روز است تسویه نشده — ریسک را افزایش می‌دهد`
         : 'بدون سفارش معوق طولانی‌مدت',

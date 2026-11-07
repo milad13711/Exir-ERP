@@ -4,7 +4,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import { Badge } from "@/components/ui/Badge";
 import { PhoneIcon, ChevronDownIcon } from "@/components/icons";
-import { formatJalaliDate, formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   sendOverdueInvoiceReminderSms,
   createInvoiceFollowUp,
@@ -84,7 +84,7 @@ function InvoiceRow({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <div className="text-[12.5px] font-extrabold whitespace-nowrap">{formatToman(invoice.total - invoice.paidAmount)}</div>
+          <div className="text-[12.5px] font-extrabold whitespace-nowrap">{formatMoney(invoice.total - invoice.paidAmount)}</div>
           <button
             type="button"
             onClick={onToggle}

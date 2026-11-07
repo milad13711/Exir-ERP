@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   markCheckDeposited,
   markCheckCleared,
@@ -102,7 +102,7 @@ export function CheckDetailModal({
         <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-3 flex flex-col gap-1.5 text-[12.5px]">
           <div className="flex justify-between">
             <span className="text-muted">مبلغ</span>
-            <span className="font-bold">{formatToman(check.amount)}</span>
+            <span className="font-bold">{formatMoney(check.amount)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">سررسید</span>

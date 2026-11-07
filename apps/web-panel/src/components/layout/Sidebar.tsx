@@ -10,6 +10,9 @@ import { primaryNav, secondaryNav, type NavItem } from "./nav";
 import { useWorkspace } from "@/lib/workspace-context";
 import { updateNavOrder } from "@/lib/api";
 import { useMessengerUnread } from "@/lib/useMessengerUnread";
+import { useReleasesUnread } from "@/lib/useReleasesUnread";
+import { useNotificationState } from "@/lib/notification-store";
+import { navBadgeFor } from "@/lib/notification-logic";
 
 function NavLink({
   href,
@@ -92,6 +95,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { me, refreshMe, isPlatformOwner, installedModules } = useWorkspace();
   const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
+  const releasesUnread = useReleasesUnread();
+  const { attention } = useNotificationState();
   const navOrder = me?.navOrder ?? [];
   const isCustomOrder = navOrder.length > 0;
   const visiblePrimaryNav = useVisibleNav(primaryNav, navOrder);
@@ -182,7 +187,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 label={item.label}
                 Icon={item.icon}
                 active={pathname === item.href}
-                badge={item.href === "/messenger" ? messengerUnread : 0}
+                badge={item.href === "/messenger" ? messengerUnread : item.href === "/releases" ? releasesUnread : item.href === "/dashboard" ? 0 : navBadgeFor(item.href, attention?.byLink)}
                 onNavigate={onNavigate}
                 editing={editing}
                 onDragStart={() => {

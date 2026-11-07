@@ -1,5 +1,6 @@
 "use client";
 
+import { ReferralPanel } from "@/components/referrals/ReferralPanel";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -150,6 +151,7 @@ export function ReportDetailModal({ id, onClose, onChanged }: { id: string; onCl
   return (
     <Modal title={`گزارش شماره ${toPersianDigits(report.reportNo)}`} onClose={onClose} width="max-w-[620px]">
       <div className="flex flex-col gap-4">
+          <ReferralPanel entityType="Report" entityId={report.id} hideRefer />
         {editing ? (
           <div className="flex flex-col gap-2.5 bg-slate-50 border border-border rounded-xl p-3.5">
             <input

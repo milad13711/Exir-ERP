@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/Card";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Badge } from "@/components/ui/Badge";
 import { CheckIcon, DashboardIcon, OrdersIcon, WarningIcon, BillingIcon, WarehouseIcon, ChatIcon } from "@/components/icons";
-import { formatJalaliDate, formatJalaliDateTime, formatNumber, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatNumber, formatMoney, moneyUnit } from "@/lib/persian";
 import { formatActivityAction } from "@/lib/activity-labels";
 import { useMessengerUnread } from "@/lib/useMessengerUnread";
 import {
@@ -105,13 +105,15 @@ type KpiSpec = {
 };
 
 const KPI_SPECS: Record<string, KpiSpec> = {
-  "kpi-cash": { label: "موجودی نقد و بانک", tone: "primary", icon: <DashboardIcon className="w-full h-full" />, unitSuffix: "تومان", value: (s) => s.cashBalance },
+  "kpi-cash": { label: "موجودی نقد و بانک", tone: "primary", icon: <DashboardIcon className="w-full h-full" />, get unitSuffix() { return moneyUnit(); }, value: (s) => s.cashBalance },
   "kpi-month-invoices": { label: "فاکتورهای این ماه", tone: "success", icon: <OrdersIcon className="w-full h-full" />, unitSuffix: "فاکتور", value: (s) => s.monthInvoiceCount },
   "kpi-overdue": {
     label: "مطالبات معوق",
     tone: "danger",
     icon: <WarningIcon className="w-full h-full" />,
-    unitSuffix: "تومان",
+    get unitSuffix() {
+      return moneyUnit();
+    },
     value: (s) => s.overdueReceivables.total,
     note: (s) => (s.overdueReceivables.count > 0 ? `${s.overdueReceivables.count} فاکتور معوق` : undefined),
   },
@@ -119,7 +121,9 @@ const KPI_SPECS: Record<string, KpiSpec> = {
     label: "چک‌های نزدیک به سررسید",
     tone: "warning",
     icon: <BillingIcon className="w-full h-full" />,
-    unitSuffix: "تومان",
+    get unitSuffix() {
+      return moneyUnit();
+    },
     value: (s) => s.checksDueSoon.total,
     note: (s) => (s.checksDueSoon.count > 0 ? `${s.checksDueSoon.count} چک ظرف ۷ روز آینده` : undefined),
   },
@@ -240,7 +244,7 @@ function ChecksDueWidget({ variant }: WidgetProps) {
                   </div>
                   <div className="text-[11px] text-warning mt-0.5">سررسید: {formatJalaliDate(c.dueDate)}</div>
                 </div>
-                <div className="text-[12.5px] font-extrabold shrink-0">{formatToman(c.amount)}</div>
+                <div className="text-[12.5px] font-extrabold shrink-0">{formatMoney(c.amount)}</div>
               </Row>
             );
           })}
@@ -385,7 +389,7 @@ function ContractsExpiringWidget({ variant }: WidgetProps) {
                   <div className="text-[12.5px] font-bold">قرارداد #{c.contractNo} — {party}</div>
                   <div className="text-[11px] text-warning mt-0.5">پایان: {formatJalaliDate(c.endDate)}</div>
                 </div>
-                <div className="text-[12.5px] font-extrabold shrink-0">{formatToman(c.value)}</div>
+                <div className="text-[12.5px] font-extrabold shrink-0">{formatMoney(c.value)}</div>
               </Row>
             );
           })}

@@ -11,6 +11,7 @@ import {
   inviteUser,
   createRole,
   deleteRole,
+  renameRole,
   fetchDepartments,
   createDepartment,
   updateDepartment,
@@ -120,6 +121,17 @@ export default function UsersRolesPage() {
       setEditingRole(role);
     } catch (err) {
       setRoleError(err instanceof ApiError ? err.message : "ساخت نقش با خطا مواجه شد");
+    }
+  }
+
+  async function handleRenameRole(id: string, current: string) {
+    const name = window.prompt("نام جدید نقش", current)?.trim();
+    if (!name || name === current) return;
+    try {
+      await renameRole(id, name);
+      reload();
+    } catch (err) {
+      setRoleError(err instanceof ApiError ? err.message : "تغییر نام نقش با خطا مواجه شد");
     }
   }
 
@@ -424,6 +436,14 @@ export default function UsersRolesPage() {
                   <ShieldIcon className="w-3.5 h-3.5" />
                   تنظیم دسترسی
                 </button>
+                {!r.isSystem ? (
+                  <button
+                    onClick={() => handleRenameRole(r.id, r.name)}
+                    className="text-[12px] font-bold text-ink-soft px-2.5 py-1.5 rounded-lg cursor-pointer"
+                  >
+                    تغییر نام
+                  </button>
+                ) : null}
                 {!r.isSystem ? (
                   <button
                     onClick={() => handleDeleteRole(r.id)}

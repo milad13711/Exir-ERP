@@ -2,6 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/Modal";
 import { createAppointmentOpportunity, ApiError, type Appointment, type CrmDeal, type CrmDealStage } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const STAGE_OPTIONS: { value: CrmDealStage; label: string }[] = [
   { value: "NEW", label: "جدید" },
@@ -69,7 +70,7 @@ export function CreateOpportunityModal({ appointment: a, onClose }: { appointmen
         </label>
         <div className="flex gap-3">
           <label className="flex flex-col gap-1.5 flex-1">
-            <span className="text-[12px] font-semibold text-ink-soft">ارزش تخمینی (تومان)</span>
+            <span className="text-[12px] font-semibold text-ink-soft">ارزش تخمینی ({moneyUnit()})</span>
             <input type="number" min={0} value={value} onChange={(e) => setValue(e.target.value)} className="w-full text-[13px] outline-none bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary" dir="ltr" />
           </label>
           <label className="flex flex-col gap-1.5 flex-1">

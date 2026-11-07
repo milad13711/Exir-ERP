@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -26,6 +27,7 @@ export class DispatchCronService {
       if (!installed) continue;
       try {
         const tenantDb = this.tenantPrisma.forTenant({ dbHost: tenant.dbHost, dbPort: tenant.dbPort, dbName: tenant.dbName });
+        if (await isConversionActive(tenant.id, tenantDb)) continue;
         const ctx = { tenantId: tenant.id, tenantSlug: tenant.slug, tenantDb, auth: { role: 'OWNER' } } as unknown as TenantRequestContext;
         const productionInstalled = await this.controlDb.tenantModule.findFirst({
           where: { tenantId: tenant.id, status: { in: ['INSTALLED', 'TRIAL'] }, module: { code: 'production' } },

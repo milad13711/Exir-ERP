@@ -18,7 +18,7 @@ import {
 import { PROPOSAL_STATUS_LABELS, PROPOSAL_STATUS_TONES } from "@/components/proposals/constants";
 import { useWorkspace } from "@/lib/workspace-context";
 import { canViewModule } from "@/lib/access";
-import { formatJalaliDate, formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney } from "@/lib/persian";
 import {
   fetchContracts,
   fetchProjects,
@@ -199,7 +199,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
             <div key={`invoice-${inv.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
               <ReceiptIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">فاکتور #{inv.invoiceNo}</span>
-              <span className="text-[11px] text-muted">{formatToman(inv.total)}</span>
+              <span className="text-[11px] text-muted">{formatMoney(inv.total)}</span>
               <Badge tone={inv.status === "PAID" ? "success" : inv.status === "CANCELLED" ? "danger" : "neutral"}>
                 {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
               </Badge>
@@ -209,14 +209,14 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
             <div key={`quotation-${q.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
               <OrdersIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">پیش‌فاکتور #{q.quotationNo}</span>
-              <span className="text-[11px] text-muted">{formatToman(q.total)}</span>
+              <span className="text-[11px] text-muted">{formatMoney(q.total)}</span>
             </div>
           ))}
           {checks.map((chk) => (
             <div key={`check-${chk.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
               <BillingIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">
-                چک {chk.direction === "RECEIVED" ? "دریافتی" : "صادرشده"}: {formatToman(chk.amount)}
+                چک {chk.direction === "RECEIVED" ? "دریافتی" : "صادرشده"}: {formatMoney(chk.amount)}
               </span>
               <span className="text-[11px] text-muted">سررسید {formatJalaliDate(chk.dueDate)}</span>
             </div>
@@ -232,7 +232,7 @@ export function PartyHistorySection({ contactId }: { contactId: string }) {
             <div key={`store-order-${so.id}`} className="flex items-center gap-2.5 bg-slate-50 border border-border rounded-lg px-3 py-2">
               <StoreIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="text-[12px] font-semibold flex-1 truncate">سفارش فروشگاه #{so.orderNo}</span>
-              <span className="text-[11px] text-muted">{formatToman(so.subtotal)}</span>
+              <span className="text-[11px] text-muted">{formatMoney(so.subtotal)}</span>
             </div>
           ))}
           {formSubmissions.map((fs) => (

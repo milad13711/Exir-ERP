@@ -8,6 +8,7 @@ function make(matrix: Record<string, boolean>) {
   const permissions = {
     getEffective: vi.fn(async () => matrix),
     viewScope: vi.fn(async () => ({ ownerUserId: 'me' })),
+    hasEditGrant: vi.fn(async () => false),
     assertEdit: vi.fn(async () => undefined),
     assertCreate: vi.fn(async () => undefined),
     assertDelete: vi.fn(async () => undefined),
@@ -15,7 +16,7 @@ function make(matrix: Record<string, boolean>) {
   const svc: Record<string, any> = {};
   for (const m of ['list', 'detail', 'update', 'remove', 'setStatus', 'updateStatusNote', 'assign', 'addStaffComment', 'shareLink', 'smsPreview', 'sendSms', 'issueInvoice', 'create']) svc[m] = vi.fn(async () => ({}));
   const templates = { create: vi.fn(async () => ({})), list: vi.fn(async () => []) };
-  const ctx = { auth: { role: 'MEMBER', sub: 'g' }, tenantDb: { user: { findUnique: vi.fn(async () => ({ id: 'me' })) } } } as never;
+  const ctx = { auth: { role: 'MEMBER', sub: 'g' }, tenantDb: { user: { findUnique: vi.fn(async () => ({ id: 'me' })) }, documentReferral: { findMany: vi.fn(async () => []) }, task: { findMany: vi.fn(async () => []) } } } as never;
   return { c: new ProposalsController(svc as never, templates as never, permissions as never), svc, permissions, ctx, templates };
 }
 const ID = '11111111-2222-3333-4444-555555555555';

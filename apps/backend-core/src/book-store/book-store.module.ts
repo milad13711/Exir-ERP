@@ -8,11 +8,12 @@ import { SalesModule } from '../sales/sales.module.js';
 import { BookStoreController } from './book-store.controller.js';
 import { BookStoreService } from './book-store.service.js';
 import { BookStoreSettingsService } from './book-store-settings.service.js';
+import { EbookDeliveryService } from './ebook-delivery.service.js';
 
 @Module({
   imports: [PermissionsModule, ModuleGuardModule, AutomationModule, SmsModule, SalesModule, CrmModule],
   controllers: [BookStoreController],
-  providers: [BookStoreService, BookStoreSettingsService],
-  exports: [BookStoreService, BookStoreSettingsService],
+  providers: [BookStoreService, BookStoreSettingsService, EbookDeliveryService],
+  exports: [BookStoreService, BookStoreSettingsService, EbookDeliveryService],
 })
 export class BookStoreModule {}

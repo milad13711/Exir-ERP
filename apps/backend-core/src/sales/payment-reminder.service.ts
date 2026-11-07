@@ -1,4 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { isConversionActive } from '../base-currency/conversion-gate.js';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { OnModuleInit } from '@nestjs/common';
 import { faDate } from '../common/persian.js';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -20,12 +22,12 @@ const REMINDER_COOLDOWN_MS = 20 * 60 * 60 * 1000; // شبکه‌ی ایمنی؛ 
 export const INVOICE_DUE_REMINDER_JOB_CODE = 'invoice-due-reminder';
 
 /** همان متن یادآور تکمیل وجه که یادآور روزانه استفاده می‌کند — یک‌بار اینجا نوشته شده تا با ارسال دستی هم یکی باشد. */
-function buildDueReminderMessage(invoice: { invoiceNo: number; total: number; paidAmount: number; dueAt: Date }): string {
+function buildDueReminderMessage(invoice: { invoiceNo: number; total: number; paidAmount: number; dueAt: Date }, unit = 'تومان'): string {
   const remaining = invoice.total - invoice.paidAmount;
   const daysLeft = Math.ceil((invoice.dueAt.getTime() - Date.now()) / 86_400_000);
   const dueDateFa = faDate(invoice.dueAt);
   const overdueFa = daysLeft < 0 ? `${Math.abs(daysLeft)} روز از سررسید گذشته` : `${dueDateFa} سررسید می‌شود`;
-  return `اکسیر ERP: فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} تومان ${overdueFa}. لطفاً نسبت به تسویه اقدام فرمایید.`;
+  return `اکسیر ERP: فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} ${unit} ${overdueFa}. لطفاً نسبت به تسویه اقدام فرمایید.`;
 }
 
 /**
@@ -91,6 +93,7 @@ export class PaymentReminderService implements OnModuleInit {
 
   private async remindForTenant(tenantId: string, tenantSlug: string, dbHost: string, dbPort: number, dbName: string): Promise<void> {
     const tenantDb = this.tenantPrisma.forTenant({ dbHost, dbPort, dbName });
+    if (await isConversionActive(tenantId, tenantDb)) return;
     const schedule = await this.scheduling.getConfig(tenantDb, INVOICE_DUE_REMINDER_JOB_CODE);
     const now = new Date();
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
@@ -109,6 +112,7 @@ export class PaymentReminderService implements OnModuleInit {
 
     const managers = await getManagerUsers(this.controlDb, tenantDb, tenantId);
 
+    const unit = await loadUnitLabel(tenantDb);
     for (const invoice of due) {
       const remaining = invoice.total - invoice.paidAmount;
       const daysLeft = Math.ceil((invoice.dueAt!.getTime() - Date.now()) / 86_400_000);
@@ -118,7 +122,7 @@ export class PaymentReminderService implements OnModuleInit {
       // نقدی یعنی پرداخت حضوری در محل — هیچ پیامک یادآور پرداختی برای مشتری معنی ندارد.
       if (invoice.contact.phone && invoice.paymentMethod !== 'CASH') {
         const publicUrl = `${publicWebUrl}/invoice/${publicRef(tenantSlug)}/${invoice.publicToken}`;
-        const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0]);
+        const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0], unit);
         const result = await this.sms.sendSms({ tenantId, tenantDb }, invoice.contact.phone, message);
         if (!result.success) {
           this.logger.warn(`Payment reminder SMS failed (tenant ${tenantId}, invoice ${invoice.id}): ${result.error}`);
@@ -130,7 +134,7 @@ export class PaymentReminderService implements OnModuleInit {
           userId: manager.tenantUserId,
           type: 'invoice.payment_due',
           title: `یادآوری وصول مطالبات — ${invoice.contact.name}`,
-          body: `فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} تومان ${overdueFa}.`,
+          body: `فاکتور شماره ${invoice.invoiceNo} به مبلغ باقی‌مانده‌ی ${remaining.toLocaleString('en-US')} ${unit} ${overdueFa}.`,
           link: '/sales',
         });
       }
@@ -158,7 +162,7 @@ export class PaymentReminderService implements OnModuleInit {
 
     const publicWebUrl = (process.env.WEB_PANEL_PUBLIC_URL ?? '').replace(/\/$/, '');
     const publicUrl = `${publicWebUrl}/invoice/${publicRef(ctx.tenantSlug)}/${invoice.publicToken}`;
-    const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0]);
+    const message = buildDueReminderMessage({ ...invoice, publicUrl } as unknown as Parameters<typeof buildDueReminderMessage>[0], await loadUnitLabel(ctx.tenantDb));
     const result = await this.sms.sendSms({ tenantId: ctx.tenantId, tenantDb: ctx.tenantDb }, invoice.contact.phone, message);
     if (result.success) {
       await ctx.tenantDb.salesInvoice.update({ where: { id: invoiceId }, data: { lastPaymentReminderAt: new Date() } });

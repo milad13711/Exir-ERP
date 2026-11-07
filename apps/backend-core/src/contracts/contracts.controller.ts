@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { assertRelationsAllowed } from '../referrals/grant-edit.js';
+import { NotFoundException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Request, Response } from 'express';
 import { SignatureEvidenceService } from '../common/signature-evidence/signature-evidence.service.js';
 import { hashContent } from '../common/signature-evidence/signature-evidence.util.js';
@@ -9,6 +11,7 @@ import { Ctx } from '../common/decorators/ctx.decorator.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
 import { contractScope } from '../permissions/entity-scopes.js';
+import { scopeWithGrants } from '../referrals/referral-grants.js';
 import { assertInScope } from '../permissions/scope.util.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
@@ -37,6 +40,11 @@ export class ContractsController {
   /** «مشاهده‌ی همه» = همه‌ی قراردادها؛ «فقط خودم» = قراردادهایی که خودش ساخته، امضای شرکتشان به او ارجاع شده یا قرارداد داخلی خودش است. */
   private contractScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
     return contractScope(this.permissions, ctx);
+  }
+
+  /** دامنه‌ی فقط-خواندن: دید عادی + قرارداد ارجاع‌شده/وظیفه‌ی پیوندخورده. */
+  private contractReadScope(ctx: TenantRequestContext): Promise<Record<string, unknown>> {
+    return scopeWithGrants(ctx, 'Contract', () => this.contractScope(ctx));
   }
 
   private async assertContractInScope(ctx: TenantRequestContext, id: string) {
@@ -105,25 +113,27 @@ export class ContractsController {
     @Query('q') q: string | undefined,
     @Ctx() ctx: TenantRequestContext,
   ) {
-    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category, q }, await this.contractScope(ctx));
+    return this.contracts.list(ctx, { type, status, contactId, legalCategory, category, q }, await this.contractReadScope(ctx));
   }
 
   @Get(':id')
   async detail(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    return this.contracts.detail(ctx, id, await this.contractScope(ctx));
+    return this.contracts.detail(ctx, id, await this.contractReadScope(ctx));
   }
 
   @Get(':id/pdf')
   async downloadPdf(@Param('id') id: string, @Ctx() ctx: TenantRequestContext, @Res() res: Response) {
-    const scope = await this.contractScope(ctx);
+    const scope = await this.contractReadScope(ctx);
     const [contract, tenant, stamp] = await Promise.all([
       this.contracts.detail(ctx, id, scope),
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
       this.contracts.getCompanySignature(ctx),
     ]);
 
+    const unitLabel = await loadUnitLabel(ctx.tenantDb);
     const pdf = await this.pdf.render(
       {
+        unitLabel,
         contractNo: contract.contractNo,
         title: contract.title,
         status: contract.status,
@@ -161,9 +171,26 @@ export class ContractsController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateContractDto, @Ctx() ctx: TenantRequestContext) {
+    if (await this.permissions.hasEditGrant(ctx, 'Contract', id)) {
+      const existing = await ctx.tenantDb.contract.findUnique({ where: { id }, select: { contactId: true } });
+      if (!existing) throw new NotFoundException('قرارداد یافت نشد');
+      await assertRelationsAllowed(this.permissions, ctx, { contactId: dto.contactId }, existing);
+      // امضاکننده‌ی ارجاع‌شده = تفویض اختیار امضا؛ با ارجاع مجاز نیست
+      const { referredSignerUserId: _signer, ...safe } = dto;
+      void _signer;
+      return this.contracts.update(ctx, id, safe as typeof dto);
+    }
     await this.permissions.assertEdit(ctx, 'contracts');
     await this.assertContractInScope(ctx, id);
     return this.contracts.update(ctx, id, dto);
+  }
+
+  /** حذف قطعی؛ فقط پیش‌نویسِ بدون امضا و وابسته. در غیر این صورت ۴۰۹ و باید «فسخ» شود. */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'contracts');
+    await this.assertContractInScope(ctx, id);
+    return this.contracts.remove(ctx, id);
   }
 
   /** مدرک حقوقی امضای داخلی (IP/دستگاه/موقعیت/هش‌ها) — شکست ثبت مدرک، امضای انجام‌شده را خراب نمی‌کند. */

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchAccounts,
   fetchReconciliation,
@@ -114,20 +114,20 @@ export function ReconciliationTab({ initialAccountId }: { initialAccountId?: str
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card className="p-3.5">
             <div className="text-[11px] text-muted">مانده‌ی دفتر</div>
-            <div className="text-[14px] font-extrabold mt-0.5">{formatToman(overview.bookBalance)}</div>
+            <div className="text-[14px] font-extrabold mt-0.5">{formatMoney(overview.bookBalance)}</div>
           </Card>
           <Card className="p-3.5">
             <div className="text-[11px] text-muted">مانده‌ی صورت‌حساب</div>
-            <div className="text-[14px] font-extrabold mt-0.5">{formatToman(overview.statementBalance)}</div>
+            <div className="text-[14px] font-extrabold mt-0.5">{formatMoney(overview.statementBalance)}</div>
           </Card>
           <Card className="p-3.5">
             <div className="text-[11px] text-muted">تطبیق‌شده</div>
-            <div className="text-[14px] font-extrabold mt-0.5 text-success">{formatToman(overview.reconciledBalance)}</div>
+            <div className="text-[14px] font-extrabold mt-0.5 text-success">{formatMoney(overview.reconciledBalance)}</div>
           </Card>
           <Card className={`p-3.5 ${overview.difference !== 0 ? "border-warning" : ""}`}>
             <div className="text-[11px] text-muted">مابه‌التفاوت</div>
             <div className={`text-[14px] font-extrabold mt-0.5 ${overview.difference !== 0 ? "text-warning" : "text-success"}`}>
-              {formatToman(overview.difference)}
+              {formatMoney(overview.difference)}
             </div>
           </Card>
         </div>

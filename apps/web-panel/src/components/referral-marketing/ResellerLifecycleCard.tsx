@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   createResellerSettlement,
   endResellerCooperation,
@@ -82,10 +82,10 @@ export function ResellerLifecycleCard({ reseller, onChanged }: { reseller: Resel
                 <Badge tone={s.status === "SETTLED" ? "success" : "warning"}>{s.status === "SETTLED" ? "تسویه‌شده" : "در انتظار تسویه"}</Badge>
               </div>
               <div className="mt-1.5 text-muted">
-                کل کمیسیون {formatToman(s.totalCommission)} · پرداخت‌شده {formatToman(s.paidCommission)} · <b className="text-ink">مانده {formatToman(s.amountDue)}</b>
+                کل کمیسیون {formatMoney(s.totalCommission)} · پرداخت‌شده {formatMoney(s.paidCommission)} · <b className="text-ink">مانده {formatMoney(s.amountDue)}</b>
               </div>
               {s.lines.length > 0 && (
-                <div className="mt-1.5 text-[11.5px] text-muted whitespace-pre-wrap">{s.lines.filter((l) => l.due > 0).map((l) => `${l.customer} (سفارش ${l.orderNo}): ${formatToman(l.due)}`).join("\n")}</div>
+                <div className="mt-1.5 text-[11.5px] text-muted whitespace-pre-wrap">{s.lines.filter((l) => l.due > 0).map((l) => `${l.customer} (سفارش ${l.orderNo}): ${formatMoney(l.due)}`).join("\n")}</div>
               )}
               {s.status === "ISSUED" && (
                 <button disabled={busy} onClick={() => run(() => settleResellerSettlement(s.id))} className="mt-2 text-[11.5px] font-bold text-success bg-success-soft px-3 py-1 rounded-lg cursor-pointer disabled:opacity-50">

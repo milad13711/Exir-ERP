@@ -39,13 +39,20 @@ export class ReportsController {
 
   @Post('categories')
   async createCategory(@Body() dto: CreateReportCategoryDto, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertCreate(ctx, 'reports');
     return this.reports.createCategory(ctx, dto);
+  }
+
+  @Patch('categories/:id')
+  async renameCategory(@Param('id') id: string, @Body() dto: CreateReportCategoryDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertViewAll(ctx, 'reports'); // دسته‌بندی داده‌ی مشترک است
+    return this.reports.renameCategory(ctx, id, dto);
   }
 
   @Delete('categories/:id')
   async deleteCategory(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'reports');
+    await this.permissions.assertDelete(ctx, 'reports');
     await this.permissions.assertViewAll(ctx, 'reports'); // دسته‌بندی داده‌ی مشترک است؛ حذفش فقط با «مشاهده‌ی همه»
     return this.reports.deleteCategory(ctx, id);
   }
@@ -84,6 +91,7 @@ export class ReportsController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateReportDto, @Ctx() ctx: TenantRequestContext) {
+    if (await this.permissions.hasEditGrant(ctx, 'Report', id)) return this.reports.update(ctx, id, dto, {});
     await this.permissions.assertEdit(ctx, 'reports');
     return this.reports.update(ctx, id, dto, await reportEditScope(this.permissions, ctx));
   }
@@ -126,7 +134,7 @@ export class ReportsController {
 
   @Post(':id/referrals/:referralId/paraph')
   async paraphReferral(@Param('id') id: string, @Param('referralId') referralId: string, @Ctx() ctx: TenantRequestContext) {
-    await this.permissions.assertEdit(ctx, 'reports');
+    // گیرنده‌ی ارجاع ممکن است فقط «مشاهده» داشته باشد؛ خودِ سرویس فقط گیرنده‌ی همین ارجاع (یا مدیر) را می‌پذیرد.
     return this.reports.paraphReferral(ctx, id, referralId, await reportScope(this.permissions, ctx));
   }
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
 import { createCrmDeal, type CrmDeal } from "@/lib/api";
+import { moneyUnit } from "@/lib/persian";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -55,7 +56,7 @@ export function NewDealModal({
           />
         </div>
         <div>
-          <label className={labelClass}>ارزش تقریبی (تومان)</label>
+          <label className={labelClass}>ارزش تقریبی ({moneyUnit()})</label>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ""))}

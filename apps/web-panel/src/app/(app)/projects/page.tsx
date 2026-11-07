@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BuildingIcon, PlusIcon, WarningIcon, SettingsIcon, DashboardIcon, OrdersIcon, SendIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import { fetchProjects, type Project, type ProjectStatus } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { NewProjectModal } from "@/components/projects/NewProjectModal";
@@ -126,7 +126,7 @@ export default function ProjectsPage() {
           {p.contact ? ` · ${p.contact.name}` : ""}
         </div>
         <ProjectProgressBar percent={p.progressPercent} done={p.stageProgress.done} total={p.stageProgress.total} size="sm" />
-        {p.budget != null && <div className="text-[12px] font-extrabold">{formatToman(p.budget)}</div>}
+        {p.budget != null && <div className="text-[12px] font-extrabold">{formatMoney(p.budget)}</div>}
       </button>
     );
   }
@@ -245,7 +245,7 @@ export default function ProjectsPage() {
                 )}
                 {p.budget != null && (
                   <div className="text-[13px] font-extrabold w-[110px] text-left shrink-0 hidden sm:block">
-                    {formatToman(p.budget)}
+                    {formatMoney(p.budget)}
                   </div>
                 )}
                 <Badge tone={STATUS_TONES[p.status]}>{STATUS_LABELS[p.status]}</Badge>

@@ -20,6 +20,7 @@ const CATEGORIES: { key: NotificationCategoryKey; label: string; hint: string; p
   { key: "reminders", label: "یادآوری‌ها", hint: "آلارم یادآوری‌های تقویم در لحظه‌ی موعد", pushDefault: true },
   { key: "correspondence", label: "مکاتبات", hint: "ارجاع و درخواست امضا", pushDefault: true },
   { key: "approvals", label: "تأییدیه‌ها", hint: "مرخصی، درخواست‌ها و گردش تأیید", pushDefault: true },
+  { key: "referrals", label: "ارجاع‌ها", hint: "گزارش یا سندی که برای بررسی/اقدام به شما ارجاع شده", pushDefault: true },
   { key: "system", label: "سیستم", hint: "هشدارهای عمومی، مالی و امنیتی", pushDefault: true },
   { key: "marketing", label: "بازاریابی", hint: "کمپین‌ها و پیشنهادها", pushDefault: false },
 ];
@@ -140,6 +141,38 @@ export default function NotificationsSettingsPage() {
               </div>
               <Toggle checked={prefs.smsFallbackEnabled} onClick={() => handleChange({ smsFallbackEnabled: !prefs.smsFallbackEnabled })} />
             </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border">
+              <div>
+                <div className="text-[13px] font-bold">نمایش اعلان زنده در برنامه</div>
+                <div className="text-[11.5px] text-muted mt-0.5 leading-5">هنگام کار با برنامه، اعلان تازه به‌صورت کارت بالای صفحه با دکمه‌ی «مشاهده» نشان داده می‌شود (موارد مهم تا بستن می‌مانند).</div>
+              </div>
+              <Toggle checked={prefs.toastEnabled} onClick={() => handleChange({ toastEnabled: !prefs.toastEnabled })} />
+            </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border">
+              <div>
+                <div className="text-[13px] font-bold">یادآوری اعلان مهمِ خوانده‌نشده</div>
+                <div className="text-[11.5px] text-muted mt-0.5 leading-5">اگر ارجاع، تأیید یا وظیفه‌ی مهمی خوانده نشود، یک‌بار یادآوری می‌شود؛ فقط در ساعات کاری (۸ تا ۱۹ تهران) و خارج از ساعات سکوت.</div>
+              </div>
+              <Toggle checked={prefs.reminderEnabled} onClick={() => handleChange({ reminderEnabled: !prefs.reminderEnabled })} />
+            </div>
+            {prefs.reminderEnabled ? (
+              <div className="flex items-center gap-3 px-4 py-4 border-b border-border text-[12.5px]">
+                <label className="flex items-center gap-2">
+                  یادآوری پس از
+                  <select
+                    value={prefs.reminderAfterHours}
+                    onChange={(e) => handleChange({ reminderAfterHours: Number(e.target.value) })}
+                    className="border border-border rounded-lg px-2 py-2 bg-white min-h-10"
+                  >
+                    {[1, 2, 4, 8, 12, 24].map((h) => (
+                      <option key={h} value={h}>
+                        {h} ساعت
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border">
               <div>
                 <div className="text-[13px] font-bold">پخش صدا هنگام اعلان جدید</div>

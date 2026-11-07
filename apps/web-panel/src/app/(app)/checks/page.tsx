@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BillingIcon, PlusIcon, SettingsIcon } from "@/components/icons";
-import { formatToman, formatJalaliDate } from "@/lib/persian";
+import { formatMoney, formatJalaliDate } from "@/lib/persian";
 import {
   fetchChecks,
   fetchCheckReminderChannels,
@@ -168,7 +168,7 @@ export default function ChecksPage() {
                     {(c.status === "PENDING" || c.status === "DEPOSITED") && daysLeft >= 0 && daysLeft <= 7 ? ` (${daysLeft} روز مانده)` : ""}
                   </div>
                 </div>
-                <div className="text-[13px] font-extrabold shrink-0">{formatToman(c.amount)}</div>
+                <div className="text-[13px] font-extrabold shrink-0">{formatMoney(c.amount)}</div>
               </button>
             );
           })

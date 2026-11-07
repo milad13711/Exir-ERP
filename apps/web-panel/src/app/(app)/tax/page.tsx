@@ -10,7 +10,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { PlusIcon } from "@/components/icons";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRequestGuard } from "@/hooks/useRequestGuard";
-import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, toPersianDigits } from "@/lib/persian";
 import { fetchTaxInvoices, fetchTaxStatus, type TaxInvoiceListItem, type TaxInvoiceStatus, type TaxStatus } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace-context";
 import { TAX_STATUSES, TAX_STATUS_LABELS, TAX_STATUS_TONES, TAX_SUBJECT_LABELS } from "@/components/tax/constants";
@@ -141,7 +141,7 @@ function TaxPageInner() {
                         <Badge tone={TAX_STATUS_TONES[r.status]}>{TAX_STATUS_LABELS[r.status]}</Badge>
                       </div>
                       <div className="flex items-center justify-between text-[11.5px] text-muted mt-2.5">
-                        <span className="font-bold text-ink">{formatToman(r.salesInvoice.total)}</span>
+                        <span className="font-bold text-ink">{formatMoney(r.salesInvoice.total)}</span>
                         <span>{formatJalaliDate(r.createdAt)}</span>
                       </div>
                       {r.errors?.length ? <div className="text-[11.5px] text-danger mt-1.5 truncate">{r.errors[0]!.fa}</div> : null}

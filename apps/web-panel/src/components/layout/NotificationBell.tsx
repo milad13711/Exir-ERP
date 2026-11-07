@@ -1,153 +1,134 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellIcon } from "@/components/icons";
-import { formatJalaliDateTime } from "@/lib/persian";
-import {
-  fetchNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  markNotificationsDelivered,
-  fetchNotificationPreferences,
-  type AppNotification,
-} from "@/lib/api";
-import { playNotificationSound } from "@/lib/notification-sound";
-import { setAppBadge } from "@/lib/push-client";
+import clsx from "clsx";
+import Link from "next/link";
+import { BellIcon, CloseIcon } from "@/components/icons";
+import { NotificationList } from "@/components/notifications/NotificationList";
+import { markAllRead, markRead, useNotificationState } from "@/lib/notification-store";
+import { badgeLabel, filterItems, safeHref } from "@/lib/notification-logic";
+import type { AppNotification } from "@/lib/api";
 
+type Filter = "all" | "unread";
+
+/**
+ * زنگوله‌ی هدر: نشان عددی (۹۹+)، زنگ یک‌باره هنگام رسیدن اعلان جدید، و صندوق اعلان‌ها
+ * (دسکتاپ: پنل کنار زنگوله؛ موبایل: برگه‌ی تمام‌صفحه). داده از store مشترک می‌آید (poll واحد، آگاه از visibility).
+ */
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [items, setItems] = useState<AppNotification[] | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const { unreadCount, importantUnread, items, loaded, arrivalTick } = useNotificationState();
   const router = useRouter();
-  // این اعلان‌ها فقط با poll (هر ۱۵ ثانیه + روی focus/visibility) دریافت می‌شوند، نه سوکت زنده؛
-  // پس «صدا هنگام رسیدن» یعنی صدا وقتی یک poll نسبت به poll قبلی تعداد نخوانده‌ی بیشتری برگرداند.
-  const prevUnreadRef = useRef<number | null>(null);
-  const soundEnabledRef = useRef(true);
-  // ack «تحویل درون‌برنامه»: شناسه‌های اعلان‌هایی که هنوز تحویل‌نشده‌اند، دسته‌ای و با تأخیر کوتاه فرستاده می‌شوند (هر شناسه حداکثر یک‌بار)
-  const ackedRef = useRef<Set<string>>(new Set());
-  const pendingAckRef = useRef<Set<string>>(new Set());
-  const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function queueDeliveredAck(list: AppNotification[]) {
-    for (const n of list) {
-      if (!n.deliveredAt && !n.readAt && !ackedRef.current.has(n.id)) pendingAckRef.current.add(n.id);
-    }
-    if (pendingAckRef.current.size === 0 || ackTimerRef.current) return;
-    ackTimerRef.current = setTimeout(() => {
-      ackTimerRef.current = null;
-      const ids = [...pendingAckRef.current].slice(0, 100);
-      pendingAckRef.current.clear();
-      ids.forEach((id) => ackedRef.current.add(id));
-      markNotificationsDelivered(ids).catch(() => ids.forEach((id) => ackedRef.current.delete(id)));
-    }, 1200);
-  }
-
-  function reload() {
-    // pref هم اینجا (با همان تناوب) تازه می‌شود تا تغییر کلید در صفحه‌ی تنظیمات — بدون رفرش کامل —
-    // ظرف چند ثانیه روی همین نمونه‌ی نصب‌شده در layout هم اثر بگذارد.
-    fetchNotificationPreferences()
-      .then((prefs) => {
-        soundEnabledRef.current = prefs.soundEnabled;
-      })
-      .catch(() => {});
-    fetchNotifications()
-      .then((data) => {
-        if (prevUnreadRef.current !== null && data.unreadCount > prevUnreadRef.current && soundEnabledRef.current) {
-          playNotificationSound();
-        }
-        prevUnreadRef.current = data.unreadCount;
-        setUnreadCount(data.unreadCount);
-        setItems(data.items);
-        setAppBadge(data.unreadCount);
-        queueDeliveredAck(data.items);
-      })
-      .catch(() => {});
-  }
 
   useEffect(() => {
-    reload();
-    const interval = setInterval(reload, 15_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") reload();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", reload);
-    // سرویس‌ورکر خبر داد پوش رسیده (برنامه باز است): بدون انتظار برای poll بعدی تازه شو
-    window.addEventListener("exir:push-received", reload);
-    window.addEventListener("online", reload);
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    // موبایل: برگه‌ی تمام‌صفحه نباید پشتش اسکرول شود
+    const prev = document.body.style.overflow;
+    if (window.matchMedia("(max-width: 639px)").matches) document.body.style.overflow = "hidden";
     return () => {
-      clearInterval(interval);
-      window.removeEventListener("exir:push-received", reload);
-      window.removeEventListener("online", reload);
-      if (ackTimerRef.current) clearTimeout(ackTimerRef.current);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", reload);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
     };
-  }, []);
+  }, [open]);
 
-  async function handleClick(n: AppNotification) {
-    if (!n.readAt) {
-      await markNotificationRead(n.id);
-      reload();
-    }
+  async function handleOpen(n: AppNotification) {
     setOpen(false);
-    if (n.link) router.push(n.link);
+    if (!n.readAt) void markRead(n.id);
+    router.push(safeHref(n.link));
   }
 
-  async function handleMarkAllRead() {
-    await markAllNotificationsRead();
-    reload();
-  }
+  const label = badgeLabel(unreadCount);
+  const shown = filterItems(items, filter);
 
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative w-10 h-10 rounded-xl border border-border bg-white flex items-center justify-center text-ink-soft cursor-pointer"
-        aria-label="اعلان‌ها"
+        className={clsx("relative w-10 h-10 rounded-xl border bg-white flex items-center justify-center cursor-pointer", unreadCount > 0 ? "border-danger/40 text-danger" : "border-border text-ink-soft")}
+        aria-label={unreadCount > 0 ? `اعلان‌ها، ${label} مورد خوانده‌نشده` : "اعلان‌ها"}
+        aria-haspopup="dialog"
+        aria-expanded={open}
       >
-        <BellIcon className="w-[19px] h-[19px]" />
-        {unreadCount > 0 ? (
-          <span className="absolute top-2 start-2.5 w-2 h-2 rounded-full bg-danger border-2 border-white" />
+        <BellIcon key={`bell-${arrivalTick}`} className={clsx("w-[19px] h-[19px]", arrivalTick > 0 && "notif-ring")} />
+        {label ? (
+          <span
+            key={`badge-${arrivalTick}`}
+            className={clsx(
+              "absolute -top-1.5 -end-1.5 min-w-[20px] h-5 px-1.5 rounded-full bg-danger text-white text-[11px] font-extrabold leading-none flex items-center justify-center border-2 border-white",
+              arrivalTick > 0 && "notif-badge-pop",
+            )}
+            aria-hidden="true"
+          >
+            {label}
+          </span>
         ) : null}
       </button>
+      {/* اعلام صوتی/صفحه‌خوان برای تغییر تعداد، بدون تکرار در هر poll */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {arrivalTick > 0 && label ? `اعلان جدید رسید؛ ${label} مورد خوانده‌نشده` : ""}
+      </span>
 
       {open ? (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-2 end-0 w-[320px] max-h-[420px] overflow-y-auto bg-surface border border-border rounded-xl shadow-lg z-20">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 bg-surface">
-              <span className="text-[13px] font-bold">اعلان‌ها</span>
-              {unreadCount > 0 ? (
-                <button
-                  onClick={handleMarkAllRead}
-                  className="text-[11.5px] font-bold text-primary cursor-pointer"
-                >
-                  علامت‌گذاری همه به‌عنوان خوانده‌شده
+          <div className="fixed inset-0 z-10 hidden sm:block" onClick={() => setOpen(false)} />
+          <div
+            role="dialog"
+            aria-label="اعلان‌ها"
+            className="fixed inset-0 z-[70] flex flex-col bg-surface sm:absolute sm:inset-auto sm:top-full sm:mt-2 sm:end-0 sm:z-20 sm:w-[400px] sm:max-h-[560px] sm:border sm:border-border sm:rounded-xl sm:shadow-lg overflow-hidden pt-[env(safe-area-inset-top)] sm:pt-0"
+          >
+            <div className="shrink-0 border-b border-border bg-surface">
+              <div className="flex items-center justify-between gap-2 px-4 h-14 sm:h-12">
+                <span className="text-[14px] font-extrabold">
+                  اعلان‌ها
+                  {importantUnread > 0 ? <span className="ms-2 rounded-full bg-danger text-white text-[10.5px] font-bold px-2 py-0.5">{badgeLabel(importantUnread)} نیازمند اقدام</span> : null}
+                </span>
+                <button type="button" onClick={() => setOpen(false)} className="sm:hidden w-10 h-10 -me-2 flex items-center justify-center rounded-lg text-ink-soft" aria-label="بستن">
+                  <CloseIcon className="w-5 h-5" />
                 </button>
-              ) : null}
+              </div>
+              <div className="flex items-center justify-between gap-2 px-4 pb-2">
+                <div className="flex gap-1" role="tablist" aria-label="فیلتر اعلان‌ها">
+                  {([["all", "همه"], ["unread", `نخوانده${label ? ` (${label})` : ""}`]] as [Filter, string][]).map(([k, t]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="tab"
+                      aria-selected={filter === k}
+                      onClick={() => setFilter(k)}
+                      className={clsx("min-h-10 sm:min-h-8 px-3 rounded-lg text-[12px] font-bold cursor-pointer", filter === k ? "bg-primary text-white" : "bg-slate-100 text-ink-soft hover:bg-slate-200")}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {unreadCount > 0 ? (
+                  <button type="button" onClick={() => void markAllRead()} className="min-h-10 sm:min-h-8 px-1 text-[11.5px] font-bold text-primary cursor-pointer">
+                    علامت‌گذاری همه به‌عنوان خوانده‌شده
+                  </button>
+                ) : null}
+              </div>
             </div>
-            {items === null ? (
-              <div className="p-6 text-center text-muted text-sm">در حال بارگذاری...</div>
-            ) : items.length === 0 ? (
-              <div className="p-6 text-center text-muted text-sm">اعلانی وجود ندارد</div>
-            ) : (
-              items.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className={`w-full text-right px-4 py-3 border-b border-border last:border-b-0 hover:bg-slate-50 cursor-pointer ${
-                    !n.readAt ? "bg-primary-soft/40" : ""
-                  }`}
-                >
-                  <div className="text-[12.5px] font-bold">{n.title}</div>
-                  {n.body ? <div className="text-[11.5px] text-muted mt-0.5">{n.body}</div> : null}
-                  <div className="text-[10.5px] text-muted mt-1">{formatJalaliDateTime(n.createdAt)}</div>
-                </button>
-              ))
-            )}
+
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              {!loaded ? (
+                <div className="p-6 text-center text-muted text-sm">در حال بارگذاری...</div>
+              ) : (
+                <NotificationList items={shown} onOpen={handleOpen} empty={filter === "unread" ? "همه‌ی اعلان‌ها را خوانده‌اید" : "اعلانی وجود ندارد"} />
+              )}
+            </div>
+
+            <Link
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              className="shrink-0 min-h-12 flex items-center justify-center border-t border-border text-[12.5px] font-bold text-primary bg-surface pb-[env(safe-area-inset-bottom)]"
+            >
+              مشاهده‌ی همه‌ی اعلان‌ها
+            </Link>
           </div>
         </>
       ) : null}

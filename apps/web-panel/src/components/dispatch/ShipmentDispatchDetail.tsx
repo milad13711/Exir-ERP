@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { SignatureEvidencePanel } from "@/components/shared/SignatureEvidencePanel";
 import { useWorkspace } from "@/lib/workspace-context";
-import { formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   DISPATCH_STATUS_LABELS,
   dispatchAction,
@@ -474,7 +474,7 @@ export function ShipmentDispatchDetail({ shipmentId }: { shipmentId: string }) {
                     {adj.lineChanges.filter((c) => c.oldQty !== c.newQty).map((c) => (
                       <div key={c.lineId}>{c.description}: {toPersianDigits(c.oldQty)} ← <b>{toPersianDigits(c.newQty)}</b></div>
                     ))}
-                    <div>جمع فاکتور: {formatToman(adj.oldTotal)} ← <b>{formatToman(adj.newTotal)}</b></div>
+                    <div>جمع فاکتور: {formatMoney(adj.oldTotal)} ← <b>{formatMoney(adj.newTotal)}</b></div>
                     {adj.finalizedAt ? <div className="text-success font-bold">فاکتور نهایی و سند حسابداری ثبت شد</div> : null}
                     {adj.finalizeError ? <div className="text-danger">نهایی‌کردن خودکار ناموفق: {adj.finalizeError}</div> : null}
                     {can.decideAdjustment && adj.status === "PROPOSED" ? (

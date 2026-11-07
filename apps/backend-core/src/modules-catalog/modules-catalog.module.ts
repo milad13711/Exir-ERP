@@ -8,5 +8,6 @@ import { ModuleRenewalService } from './module-renewal.service.js';
   imports: [SmsModule, TenantInvoiceApprovalModule],
   controllers: [ModulesCatalogController],
   providers: [ModuleRenewalService],
+  exports: [ModuleRenewalService],
 })
 export class ModulesCatalogModule {}

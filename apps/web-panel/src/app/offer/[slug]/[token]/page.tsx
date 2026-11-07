@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { SignaturePad } from "@/components/ui/SignaturePad";
 import { LogoMark, BriefcaseIcon } from "@/components/icons";
-import { formatJalaliDate, formatToman } from "@/lib/persian";
+import { formatJalaliDate, formatMoney } from "@/lib/persian";
 import { fileToDataUri, uploadErrorMessage } from "@/lib/upload";
 import { fetchPublicJobOffer, respondToPublicJobOffer, ApiError, type PublicJobOfferView } from "@/lib/api";
 
@@ -79,7 +79,7 @@ export default function PublicJobOfferPage({ params }: { params: Promise<{ slug:
                 <Row label="شرح وظایف" value={offer.jobDescription} />
                 <Row label="نحوه‌ی همکاری" value={offer.collaborationType} />
                 {offer.workingHours && <Row label="ساعت حضور روزانه در محل شرکت" value={offer.workingHours} />}
-                <Row label="حقوق و دستمزد (ماهانه)" value={formatToman(offer.salary)} />
+                <Row label="حقوق و دستمزد (ماهانه)" value={formatMoney(offer.salary)} />
                 {offer.benefits && <Row label="سایر تسهیلات" value={offer.benefits} />}
                 <Row label="مدت همکاری" value={offer.durationMonths ? `${offer.durationMonths} ماه` : "نامحدود"} />
                 {offer.startDate && <Row label="تاریخ شروع" value={formatJalaliDate(offer.startDate)} />}

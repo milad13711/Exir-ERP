@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
 import { RequireModule } from '../common/decorators/require-module.decorator.js';
@@ -9,6 +9,7 @@ import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { currentStock } from '../warehouse/stock.js';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto.js';
+import { UpdateProductionOrderDto } from './dto/update-production-order.dto.js';
 import { ApproveRawMaterialDto } from './dto/approve-raw-material.dto.js';
 import { UpdateStageDto } from './dto/update-stage.dto.js';
 import { CompleteOrderDto } from './dto/complete-order.dto.js';
@@ -50,6 +51,80 @@ export class ProductionOrdersController {
     const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id }, include: ORDER_INCLUDE });
     if (!order) throw new NotFoundException('دستور تولید یافت نشد');
     return order;
+  }
+
+  /** ویرایش دستور تولید پیش‌نویس؛ بعد از تأیید مواد اولیه (کسر موجودی) فقط «رد» ممکن است. */
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateProductionOrderDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production');
+    const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('دستور تولید یافت نشد');
+    if (order.status !== 'DRAFT') throw new ConflictException('فقط دستور تولید پیش‌نویس قابل ویرایش است');
+
+    if (dto.bomId) {
+      const bom = await ctx.tenantDb.billOfMaterial.findUnique({ where: { id: dto.bomId } });
+      if (!bom || !bom.isActive) throw new NotFoundException('فرمول تولید یافت نشد یا غیرفعال است');
+    }
+    if (dto.warehouseId && !(await ctx.tenantDb.warehouse.findUnique({ where: { id: dto.warehouseId }, select: { id: true } }))) {
+      throw new NotFoundException('انبار یافت نشد');
+    }
+    if (dto.stages) {
+      const wcs = await ctx.tenantDb.workCenter.findMany({ where: { id: { in: dto.stages.map((s) => s.workCenterId) } } });
+      if (wcs.length !== new Set(dto.stages.map((s) => s.workCenterId)).size) throw new NotFoundException('یکی از ایستگاه‌های تولید یافت نشد');
+      if (wcs.some((w) => !w.isActive)) throw new BadRequestException('یکی از ایستگاه‌های انتخاب‌شده بایگانی شده است');
+      const assigneeIds = [...new Set(dto.stages.map((s) => s.assignedUserId).filter((x): x is string => !!x))];
+      if (assigneeIds.length) {
+        const found = await ctx.tenantDb.user.count({ where: { id: { in: assigneeIds } } });
+        if (found !== assigneeIds.length) throw new BadRequestException('یکی از کاربران مسئول ایستگاه‌ها یافت نشد');
+      }
+    }
+    if (dto.relatedInvoiceId && !(await ctx.tenantDb.salesInvoice.findUnique({ where: { id: dto.relatedInvoiceId }, select: { id: true } }))) {
+      throw new BadRequestException('فاکتور مرتبط یافت نشد');
+    }
+    return ctx.tenantDb.$transaction(async (tx) => {
+      // قفل خوشبینانه: وضعیت DRAFT همزمان با نوشتن بررسی می‌شود (تأیید/شروع همزمان نباید ویرایش شود)
+      const claim = await tx.productionOrder.updateMany({ where: { id, status: 'DRAFT' }, data: { bomId: order.bomId } });
+      if (claim.count === 0) throw new ConflictException('فقط دستور تولید پیش‌نویس قابل ویرایش است');
+      if (dto.stages) {
+        await tx.productionOrderStage.deleteMany({ where: { productionOrderId: id } });
+        await tx.productionOrderStage.createMany({
+          data: dto.stages.map((s, i) => ({ productionOrderId: id, workCenterId: s.workCenterId, assignedUserId: s.assignedUserId, sequenceOrder: i })),
+        });
+      }
+      return tx.productionOrder.update({
+        where: { id },
+        data: {
+          bomId: dto.bomId,
+          warehouseId: dto.warehouseId,
+          quantityPlanned: dto.quantityPlanned,
+          relatedInvoiceId: dto.relatedInvoiceId,
+          plannedStartAt: dto.plannedStartAt ? new Date(dto.plannedStartAt) : undefined,
+          plannedEndAt: dto.plannedEndAt ? new Date(dto.plannedEndAt) : undefined,
+        },
+        include: ORDER_INCLUDE,
+      });
+    });
+  }
+
+  /**
+   * حذف قطعی فقط برای دستور تولید پیش‌نویس یا لغوشده‌ی بی‌نمونه‌ی کیفی (هیچ کسر موجودی/هزینه‌ای ندارد).
+   * دستور در جریان/تکمیل‌شده/ردشده سابقه‌ی مصرف مواد و بهای تمام‌شده است و فقط «رد» می‌شود.
+   */
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'production');
+    await this.permissions.assertViewAll(ctx, 'production');
+    const order = await ctx.tenantDb.productionOrder.findUnique({ where: { id }, select: { id: true, status: true, _count: { select: { qualitySamples: true } } } });
+    if (!order) throw new NotFoundException('دستور تولید یافت نشد');
+    if (order.status !== 'DRAFT' && order.status !== 'CANCELLED') {
+      throw new ConflictException('فقط دستور تولید پیش‌نویس یا لغوشده حذف می‌شود؛ دستور در جریان/تکمیل‌شده سابقه‌ی مصرف مواد است و باید «رد» شود');
+    }
+    if (order._count.qualitySamples > 0) {
+      throw new ConflictException('برای این دستور نمونه‌ی کنترل کیفیت ثبت شده و حذف نمی‌شود');
+    }
+    await ctx.tenantDb.productionOrder.delete({ where: { id } });
+    return { success: true };
   }
 
   @Post()

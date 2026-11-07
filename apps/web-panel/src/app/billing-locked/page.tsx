@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogoMark } from "@/components/icons";
 import { formatToman, formatJalaliDate } from "@/lib/persian";
-import { fetchInvoices, clearToken, ApiError, type Invoice } from "@/lib/api";
+import { fetchInvoices, fetchSubscriptionSummary, requestRenewalInvoice, clearToken, ApiError, type Invoice, type SubscriptionSummary } from "@/lib/api";
+import { tenantDetail } from "@/lib/subscription-copy";
 
 /**
  * تننتی که تریال آن تمام شده به‌جای اینکه اصلاً اجازه‌ی ورود نداشته باشد
@@ -15,8 +16,26 @@ import { fetchInvoices, clearToken, ApiError, type Invoice } from "@/lib/api";
 export default function BillingLockedPage() {
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null | "none">(null);
+  const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function requestInvoice() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await requestRenewalInvoice();
+      if (r.status === "PENDING") window.location.href = `/pay/${r.invoiceId}`;
+      else setError("فاکتور در حال صدور است؛ کمی بعد دوباره سر بزنید.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "درخواست ثبت نشد");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
+    fetchSubscriptionSummary().then(setSummary).catch(() => {});
     fetchInvoices()
       .then((invoices) => {
         const pending = invoices.find((inv) => inv.status === "PENDING") ?? null;
@@ -53,7 +72,19 @@ export default function BillingLockedPage() {
           <div className="text-center text-muted text-sm py-6">در حال بارگذاری فاکتور...</div>
         ) : invoice === "none" ? (
           <div className="text-center text-[12.5px] text-ink-soft leading-relaxed py-4">
-            فاکتوری برای این محیط کاری پیدا نشد — با پشتیبانی اکسیر تماس بگیرید.
+            {summary?.tenant.nextAction === "REQUEST_INVOICE" ? (
+              <>
+                <p className="mb-3">{tenantDetail(summary.tenant)}. فاکتور قابل‌پرداختی در حال حاضر وجود ندارد.</p>
+                <button type="button" disabled={busy} onClick={requestInvoice} className="w-full py-3.5 rounded-2xl bg-primary text-white text-[14px] font-bold disabled:opacity-60">
+                  {busy ? "در حال ثبت..." : "درخواست صدور فاکتور"}
+                </button>
+                {error ? <p className="text-danger mt-2">{error}</p> : null}
+              </>
+            ) : summary?.tenant.reason === "payment_recorded_locked" ? (
+              "پرداخت شما ثبت شده است اما فعال‌سازی اعمال نشده — با پشتیبانی اکسیر تماس بگیرید تا همین امروز فعال شود."
+            ) : (
+              "فاکتوری برای این محیط کاری پیدا نشد — با پشتیبانی اکسیر تماس بگیرید."
+            )}
           </div>
         ) : (
           <>

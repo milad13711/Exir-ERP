@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatNumber, formatJalaliDate, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
+import { formatMoney, moneyUnit, formatNumber, formatJalaliDate, formatJalaliDateTime, toPersianDigits } from "@/lib/persian";
 import {
   fetchProduct,
   createStockMovement,
@@ -214,7 +214,7 @@ export function ProductModal({
               />
               {currencies.length > 0 ? (
                 <select value={editCurrencyId} onChange={(e) => setEditCurrencyId(e.target.value)} className={inputClass}>
-                  <option value="">قیمت‌گذاری تومانی</option>
+                  <option value="">{`قیمت‌گذاری ${moneyUnit()}`}</option>
                   {currencies.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.code} — {c.name}
@@ -266,8 +266,8 @@ export function ProductModal({
               ) : null}
               {editCurrencyId && editSelectedCurrency && Number(editSalePrice) > 0 ? (
                 <div className="text-[11px] text-muted">
-                  معادل تومانی فعلی قیمت فروش:{" "}
-                  {Math.round(Number(editSalePrice) * Number(editSelectedCurrency.rate)).toLocaleString("en-US")} تومان
+                  معادل فعلی قیمت فروش به {moneyUnit()}:{" "}
+                  {Math.round(Number(editSalePrice) * Number(editSelectedCurrency.rate)).toLocaleString("en-US")} {moneyUnit()}
                 </div>
               ) : null}
               <div className="flex items-center gap-2 justify-between">
@@ -302,7 +302,7 @@ export function ProductModal({
             <div className="grid grid-cols-3 gap-3 bg-slate-50 border border-border rounded-xl p-3.5">
               <div>
                 <div className="text-[11px] text-muted">بهای تمام‌شده</div>
-                <div className="text-[13px] font-bold mt-0.5">{formatToman(product.costPrice)}</div>
+                <div className="text-[13px] font-bold mt-0.5">{formatMoney(product.costPrice)}</div>
                 {product.currency && product.costPriceFx != null ? (
                   <div className="text-[10.5px] text-muted mt-0.5" dir="ltr">
                     {product.costPriceFx} {product.currency.code}
@@ -316,7 +316,7 @@ export function ProductModal({
                     {product.salePriceSource === "MANUAL" ? "دستی" : "خودکار"}
                   </Badge>
                 </div>
-                <div className="text-[13px] font-bold mt-0.5">{formatToman(product.salePrice)}</div>
+                <div className="text-[13px] font-bold mt-0.5">{formatMoney(product.salePrice)}</div>
                 {product.currency && product.salePriceFx != null ? (
                   <div className="text-[10.5px] text-muted mt-0.5" dir="ltr">
                     {product.salePriceFx} {product.currency.code}

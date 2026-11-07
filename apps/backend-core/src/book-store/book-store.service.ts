@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { TenantSmsService } from '../sms/tenant-sms.service.js';
@@ -6,6 +6,7 @@ import { InvoicesService } from '../sales/invoices.service.js';
 import { FunnelService } from '../crm/funnel.service.js';
 import { ensureDefaultWarehouse } from '../warehouse/default-warehouse.js';
 import { BookStoreSettingsService, type BookStoreSettings } from './book-store-settings.service.js';
+import { EbookDeliveryService } from './ebook-delivery.service.js';
 
 /**
  * فروش تک‌محصولی — صفحه‌ی فروش یک محصول با چند نسخه (مثلاً چاپی/الکترونیکی/
@@ -41,12 +42,15 @@ export interface CreateBookOrderInput {
 
 @Injectable()
 export class BookStoreService {
+  private readonly logger = new Logger('BookStoreService');
+
   constructor(
     private readonly automation: AutomationEngineService,
     private readonly sms: TenantSmsService,
     private readonly invoices: InvoicesService,
     private readonly settings: BookStoreSettingsService,
     private readonly funnel: FunnelService,
+    private readonly ebook: EbookDeliveryService,
   ) {}
 
   list(ctx: TenantRequestContext) {
@@ -99,7 +103,11 @@ export class BookStoreService {
     return created;
   }
 
-  /** پرداخت موفق شد — مخاطب پیدا/ساخته می‌شود، فاکتور صادر می‌شود، و پیامک تأیید ارسال می‌شود. Idempotent. */
+  /**
+   * پرداخت موفق شد — مخاطب پیدا/ساخته می‌شود، فاکتور صادر می‌شود، و پیامک تأیید ارسال می‌شود. Idempotent.
+   * برای نسخه‌ی الکترونیک (اگر EbookDeliveryService برای این تننت فعال باشد) کد مجوز ثبت می‌شود، ساخت
+   * نسخه‌ی اختصاصی در پس‌زمینه شروع می‌شود و لینک دریافت امضاشده در همان پیامک می‌رود.
+   */
   async finalizeOrderPayment(ctx: TenantRequestContext, orderId: string) {
     const order = await ctx.tenantDb.bookOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('این سفارش یافت نشد');
@@ -113,17 +121,32 @@ export class BookStoreService {
       lines: [{ description: `کتاب سلطان قیف — ${format.label}`, quantity: 1, unitPrice: order.unitPrice }],
     });
 
+    const isEbook = order.format === 'EBOOK' && this.ebook.isEnabledFor(ctx);
     const updated = await ctx.tenantDb.bookOrder.update({
       where: { id: orderId },
-      data: { status: 'PAID', paidAt: new Date(), contactId: contact.id, invoiceId: invoice.id },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+        contactId: contact.id,
+        invoiceId: invoice.id,
+        licenseCode: isEbook ? this.ebook.licenseCodeFor(ctx, order) : undefined,
+      },
     });
+    // ~۳۰ ثانیه طول می‌کشد؛ صفحه‌ی بازگشت از درگاه منتظرش نمی‌ماند (لینک دانلود اگر لازم باشد صبر/تلاش دوباره می‌کند)
+    if (isEbook) {
+      void this.ebook.ensureIssued(ctx, order).catch((err) => this.logger.error(`ebook issue #${order.orderNo}: ${String(err)}`));
+    }
 
     // خرید کتاب = خرید واقعی ⇒ سرنخ مشتری می‌شود / خرید تکراری (قیف فروش)
     if (order.unitPrice > 0) await this.funnel.recordPurchase(ctx, contact.id, order.unitPrice, 'خرید مجدد (فروشگاه کتاب)', { type: 'SALES_INVOICE', id: invoice.id });
 
+    const links = isEbook ? this.ebook.links(ctx, orderId) : null;
+    const siteUrl = (process.env.FUNNELKING_PUBLIC_URL ?? '').replace(/\/$/, '');
     const deliveryNote = format.needsShipping
       ? 'سفارش شما ثبت شد و به‌زودی ارسال می‌شود.'
-      : `${format.label} خریداری‌شده به‌زودی برای شما ارسال می‌شود.`;
+      : links
+        ? `دریافت نسخه‌ی اختصاصی شما (PDF و EPUB): ${links.pageUrl}${siteUrl ? ` — دریافت دوباره در هر زمان: ${siteUrl}/library` : ''}`
+        : `${format.label} خریداری‌شده به‌زودی برای شما ارسال می‌شود.`;
     await this.sms.sendSms(ctx, order.buyerPhone, `خرید کتاب سلطان قیف با موفقیت انجام شد. ${deliveryNote}`);
     await this.automation.emit(ctx, 'book-store.order.paid', { format: order.format, buyerName: order.buyerName });
 

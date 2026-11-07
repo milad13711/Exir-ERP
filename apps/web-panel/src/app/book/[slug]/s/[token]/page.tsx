@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { LogoMark } from "@/components/icons";
 import { SlotPicker } from "@/components/booking/SlotPicker";
-import { formatJalaliDateTime, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatMoney } from "@/lib/persian";
 import {
   fetchProviderAppointment,
   fetchProviderSlots,
@@ -91,7 +91,7 @@ export default function ProviderAppointmentPage({ params }: { params: Promise<{ 
                 {view.notes && <Row label="توضیحات متقاضی" value={view.notes} />}
                 <Row
                   label="پرداخت"
-                  value={view.paymentStatus === "PAID" ? `پرداخت شده (${view.isFullPayment ? "کامل" : "بیعانه"} ${formatToman(view.amount ?? 0)})` : view.paymentStatus === "PENDING" ? "در انتظار پرداخت" : "بدون پرداخت"}
+                  value={view.paymentStatus === "PAID" ? `پرداخت شده (${view.isFullPayment ? "کامل" : "بیعانه"} ${formatMoney(view.amount ?? 0)})` : view.paymentStatus === "PENDING" ? "در انتظار پرداخت" : "بدون پرداخت"}
                 />
                 {view.status === "CANCELLED" && view.cancelReason && <Row label="دلیل لغو" value={view.cancelReason} />}
               </div>

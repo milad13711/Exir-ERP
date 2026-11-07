@@ -5,6 +5,8 @@ import { getVisibleEmployeeIds } from '../hr/org-chain.util.js';
 import { contractScope, projectScope, proposalScope } from '../permissions/entity-scopes.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { assertInScope } from '../permissions/scope.util.js';
+import { isEditableByGrant } from '../referrals/entity-defs.js';
+import { scopeWithGrants } from '../referrals/referral-grants.js';
 import { reportEditScope, reportScope } from '../reports/report-scope.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { assertTaskAttachmentAccess, TASK_ATTACHMENT_ENTITIES } from '../tasks/task-attachment-access.js';
@@ -21,6 +23,9 @@ const OWNED: Record<string, { module: string; ownerField: string; model: 'salesQ
   CrmContact: { module: 'crm', ownerField: 'ownerUserId', model: 'crmContact' },
   CrmDeal: { module: 'crm', ownerField: 'ownerUserId', model: 'crmDeal' },
 };
+
+/** انواع قابل ارجاع که پیوست دارند. */
+const REFERRABLE_ATTACHMENT_TYPES: ReadonlySet<string> = new Set(['SalesInvoice', 'SalesQuotation', 'PurchaseOrder', 'CrmContact', 'CrmDeal', 'Proposal', 'Contract', 'Project', 'Report']);
 
 /** Entities in modules whose list is view-all only (no per-record owner scope). */
 const VIEW_ALL_ONLY: Record<string, string> = {
@@ -79,30 +84,38 @@ export class AttachmentAccessService {
       return;
     }
 
+    // ارجاع فعال/وظیفه‌ی باز: افزودن/حذف پیوند همین یک سند هم مجاز است (پس از DONE فقط خواندن).
+    if (mode !== 'read' && REFERRABLE_ATTACHMENT_TYPES.has(entityType) && (await this.permissions.hasEditGrant(ctx, entityType, entityId))) {
+      // سندِ قفل/صادرشده/امضاشده/تأییدشده: دسترسی ارجاع کافی نیست؛ به بررسی عادیِ ماتریس می‌رود
+      if (await isEditableByGrant(ctx, entityType, entityId)) return;
+    }
+
     const owned = OWNED[entityType];
     if (owned) {
-      const scope = await this.permissions.viewScope(ctx, owned.module, owned.ownerField);
+      const scope = mode === 'read'
+        ? await this.permissions.viewScopeGranted(ctx, owned.module, owned.ownerField, entityType)
+        : await this.permissions.viewScope(ctx, owned.module, owned.ownerField);
       await this.assertWriteMatrix(ctx, owned.module, mode);
       await assertInScope(ctx.tenantDb[owned.model], scope, { id: entityId }, { message: 'رکورد یافت نشد' });
       return;
     }
 
     if (entityType === 'Contract') {
-      const scope = await contractScope(this.permissions, ctx);
+      const scope = mode === 'read' ? await scopeWithGrants(ctx, 'Contract', () => contractScope(this.permissions, ctx)) : await contractScope(this.permissions, ctx);
       await this.assertWriteMatrix(ctx, 'contracts', mode);
       await assertInScope(ctx.tenantDb.contract, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
       return;
     }
 
     if (entityType === 'Proposal') {
-      const scope = await proposalScope(this.permissions, ctx);
+      const scope = mode === 'read' ? await scopeWithGrants(ctx, 'Proposal', () => proposalScope(this.permissions, ctx)) : await proposalScope(this.permissions, ctx);
       await this.assertWriteMatrix(ctx, 'proposals', mode);
       await assertInScope(ctx.tenantDb.proposal, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
       return;
     }
 
     if (entityType === 'Project') {
-      const scope = await projectScope(this.permissions, ctx);
+      const scope = mode === 'read' ? await scopeWithGrants(ctx, 'Project', () => projectScope(this.permissions, ctx)) : await projectScope(this.permissions, ctx);
       await this.assertWriteMatrix(ctx, 'projects', mode);
       await assertInScope(ctx.tenantDb.project, scope, { id: entityId }, { message: 'رکورد یافت نشد' });
       return;

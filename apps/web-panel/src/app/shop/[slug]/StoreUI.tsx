@@ -1,7 +1,7 @@
 "use client";
 
 import { StarIcon } from "@/components/icons";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 
 /** ستاره‌های امتیاز — برای کارت کالا و صفحه‌ی جزئیات، هر دو. */
 export function RatingStars({ avgRating, reviewCount, size = "sm" }: { avgRating: number | null; reviewCount: number; size?: "sm" | "md" }) {
@@ -36,12 +36,12 @@ export function PriceBlock({
 }) {
   const priceClass = size === "sm" ? "text-[13.5px]" : "text-[22px]";
   if (!compareAtPrice || !discountPercent) {
-    return <span className={`${priceClass} font-extrabold`}>{formatToman(price)}</span>;
+    return <span className={`${priceClass} font-extrabold`}>{formatMoney(price)}</span>;
   }
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className={`${priceClass} font-extrabold text-danger`}>{formatToman(price)}</span>
-      <span className="text-[11px] text-muted line-through">{formatToman(compareAtPrice)}</span>
+      <span className={`${priceClass} font-extrabold text-danger`}>{formatMoney(price)}</span>
+      <span className="text-[11px] text-muted line-through">{formatMoney(compareAtPrice)}</span>
       <span className="text-[10.5px] font-bold text-danger bg-danger-soft px-1.5 py-0.5 rounded-md">
         {toPersianDigits(discountPercent)}٪ تخفیف
       </span>

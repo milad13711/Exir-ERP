@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LogoMark, ReceiptIcon } from "@/components/icons";
 import { PublicDeliverySection } from "./PublicDeliverySection";
-import { formatJalaliDate, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatMoney, toPersianDigits } from "@/lib/persian";
 import { payPublicSalesInvoice, ApiError, type PublicSalesInvoiceView } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -148,9 +148,9 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
               <div key={i} className="flex items-center justify-between text-[13px]">
                 <span className="text-ink-soft">
                   {l.description} × {toPersianDigits(l.quantity)}
-                  <span className="text-[11px] text-muted"> (هر واحد {formatToman(l.unitPrice)})</span>
+                  <span className="text-[11px] text-muted"> (هر واحد {formatMoney(l.unitPrice)})</span>
                 </span>
-                <span className="font-bold">{formatToman(l.lineTotal)}</span>
+                <span className="font-bold">{formatMoney(l.lineTotal)}</span>
               </div>
             ))}
           </div>
@@ -158,34 +158,34 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
           <div className="mt-4 border-t border-border pt-4 flex flex-col gap-1.5 text-[13px]">
             <div className="flex justify-between">
               <span className="text-muted">جمع اقلام</span>
-              <span>{formatToman(invoice.subtotal)}</span>
+              <span>{formatMoney(invoice.subtotal)}</span>
             </div>
             {invoice.discount > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted">تخفیف</span>
-                <span>{formatToman(invoice.discount)}</span>
+                <span>{formatMoney(invoice.discount)}</span>
               </div>
             )}
             {invoice.taxAmount > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted">مالیات{invoice.taxRate ? ` (${toPersianDigits(invoice.taxRate)}٪)` : ""}</span>
-                <span>{formatToman(invoice.taxAmount)}</span>
+                <span>{formatMoney(invoice.taxAmount)}</span>
               </div>
             )}
             <div className="flex justify-between text-[15px] font-extrabold mt-1">
               <span>مبلغ کل</span>
-              <span>{formatToman(invoice.total)}</span>
+              <span>{formatMoney(invoice.total)}</span>
             </div>
             {invoice.paidAmount > 0 && (
               <div className="flex justify-between text-success font-bold">
                 <span>پرداخت‌شده</span>
-                <span>{formatToman(invoice.paidAmount)}</span>
+                <span>{formatMoney(invoice.paidAmount)}</span>
               </div>
             )}
             {remaining > 0 && (
               <div className="flex justify-between text-danger font-bold">
                 <span>باقی‌مانده</span>
-                <span>{formatToman(remaining)}</span>
+                <span>{formatMoney(remaining)}</span>
               </div>
             )}
           </div>
@@ -201,7 +201,7 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
                     <span className="text-muted">
                       {METHOD_LABELS[p.method] ?? p.method} — {formatJalaliDate(new Date(p.paidAt))}
                     </span>
-                    <span className="font-bold">{formatToman(p.amount)}</span>
+                    <span className="font-bold">{formatMoney(p.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -231,7 +231,7 @@ export function PublicInvoiceClient({ tenantSlug, token, invoice }: { tenantSlug
             <div className="mt-6">
               {error && <div className="text-[12.5px] text-danger font-semibold mb-2 text-center">{error}</div>}
               <button onClick={handlePay} disabled={paying} className="w-full py-3.5 rounded-xl bg-primary text-white text-[14px] font-bold cursor-pointer disabled:opacity-50">
-                {paying ? "در حال اتصال به درگاه..." : `پرداخت آنلاین ${formatToman(remaining)}`}
+                {paying ? "در حال اتصال به درگاه..." : `پرداخت آنلاین ${formatMoney(remaining)}`}
               </button>
             </div>
           )}

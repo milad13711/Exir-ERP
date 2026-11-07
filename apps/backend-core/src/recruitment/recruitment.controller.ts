@@ -1,4 +1,5 @@
 import { ConflictException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -223,8 +224,10 @@ export class RecruitmentController {
       this.controlDb.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } }),
       this.recruitment.getCompanySeal(ctx),
     ]);
+    const unitLabel = await loadUnitLabel(ctx.tenantDb);
     const pdf = await this.offerPdf.render(
       {
+        unitLabel,
         applicantName: offer.applicant.name,
         jobDescription: offer.jobDescription,
         collaborationType: offer.collaborationType,

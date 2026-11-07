@@ -4,7 +4,7 @@ import { ResellerLifecycleCard } from "./ResellerLifecycleCard";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, toPersianDigits } from "@/lib/persian";
+import { formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   fetchReseller,
   fetchResellerConversions,
@@ -225,7 +225,7 @@ export function ResellerDetailModal({ id, onClose, onChanged }: { id: string; on
                       <div className="text-muted text-[11px] mt-0.5">{c.kind === "FIRST_PAYMENT" ? "پرداخت اول" : "تمدید"}</div>
                     </div>
                     <div className="text-left">
-                      <div className="font-bold">{formatToman(c.amount)}</div>
+                      <div className="font-bold">{formatMoney(c.amount)}</div>
                       <Badge tone={settled ? "success" : "warning"} className="mt-1">
                         {settled ? "تسویه‌شده" : "تعهدی"}
                       </Badge>

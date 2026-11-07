@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { JalaliDateInput } from "@/components/ui/JalaliDateInput";
 import { ContactCombobox } from "@/components/shared/ContactCombobox";
+import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import {
   createBank,
   updateBank,
   createCashBox,
   updateCashBox,
+  deleteBank,
+  deleteCashBox,
   createChequeBook,
   createBankTransaction,
   type BankAccountRow,
@@ -19,6 +23,7 @@ import {
 } from "@/lib/accounting-api";
 import { fetchAccounts, fetchUsers, type Account, type TenantUser } from "@/lib/api";
 import { isValidCardNumber, isValidSheba, normalizeCard, normalizeDigits, normalizeSheba } from "@/lib/iran-bank";
+import { moneyUnit } from "@/lib/persian";
 
 export const fieldInput =
   "w-full min-h-[44px] text-[16px] sm:text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -46,6 +51,7 @@ function useCashAccounts(excludeIds: string[]) {
 // ── حساب بانکی ─────────────────────────────────────────────────────────────
 
 export function BankFormModal({ bank, linkedIds, onClose, onSaved }: { bank?: BankAccountRow; linkedIds: string[]; onClose: () => void; onSaved: () => void }) {
+  const can = useModuleCan("accounting");
   const [name, setName] = useState(bank?.name ?? "");
   const [bankName, setBankName] = useState(bank?.bankName ?? "");
   const [branch, setBranch] = useState(bank?.branch ?? "");
@@ -126,7 +132,7 @@ export function BankFormModal({ bank, linkedIds, onClose, onSaved }: { bank?: Ba
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className={fieldLabel}>مانده‌ی افتتاحیه (تومان)</label>
+                <label className={fieldLabel}>مانده‌ی افتتاحیه ({moneyUnit()})</label>
                 <input value={opening} onChange={(e) => setOpening(digits(e.target.value))} dir="ltr" inputMode="numeric" className={fieldInput} />
                 <label className="flex items-center gap-2 text-[12px] text-ink-soft mt-2 cursor-pointer min-h-[32px]">
                   <input type="checkbox" checked={openingNeg} onChange={(e) => setOpeningNeg(e.target.checked)} className="w-4 h-4 accent-[var(--color-primary)]" />
@@ -162,6 +168,17 @@ export function BankFormModal({ bank, linkedIds, onClose, onSaved }: { bank?: Ba
           {busy ? "در حال ذخیره..." : bank ? "ذخیره تغییرات" : "افزودن حساب بانکی"}
         </button>
       </form>
+      {bank && can.canDelete ? (
+        <DeleteRecordButton
+          label="حذف حساب بانکی"
+          confirmText="این حساب بانکی حذف شود؟ (فقط حساب بی‌سابقه حذف می‌شود؛ در غیر این صورت غیرفعال کنید)"
+          onDelete={() => deleteBank(bank.id)}
+          onDeleted={() => {
+            onSaved();
+            onClose();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -169,6 +186,7 @@ export function BankFormModal({ bank, linkedIds, onClose, onSaved }: { bank?: Ba
 // ── صندوق ──────────────────────────────────────────────────────────────────
 
 export function CashBoxFormModal({ box, linkedIds, onClose, onSaved }: { box?: CashBoxRow; linkedIds: string[]; onClose: () => void; onSaved: () => void }) {
+  const can = useModuleCan("accounting");
   const [name, setName] = useState(box?.name ?? "");
   const [custodian, setCustodian] = useState(box?.custodianUserId ?? "");
   const [opening, setOpening] = useState("");
@@ -222,7 +240,7 @@ export function CashBoxFormModal({ box, linkedIds, onClose, onSaved }: { box?: C
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className={fieldLabel}>موجودی افتتاحیه (تومان)</label>
+                <label className={fieldLabel}>موجودی افتتاحیه ({moneyUnit()})</label>
                 <input value={opening} onChange={(e) => setOpening(digits(e.target.value))} dir="ltr" inputMode="numeric" className={fieldInput} />
               </div>
               <div>
@@ -251,6 +269,17 @@ export function CashBoxFormModal({ box, linkedIds, onClose, onSaved }: { box?: C
           {busy ? "در حال ذخیره..." : box ? "ذخیره تغییرات" : "افزودن صندوق"}
         </button>
       </form>
+      {box && can.canDelete ? (
+        <DeleteRecordButton
+          label="حذف صندوق"
+          confirmText="این صندوق حذف شود؟ (فقط صندوق بی‌سابقه حذف می‌شود؛ در غیر این صورت غیرفعال کنید)"
+          onDelete={() => deleteCashBox(box.id)}
+          onDeleted={() => {
+            onSaved();
+            onClose();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -480,7 +509,7 @@ export function TransactionFormModal({
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className={fieldLabel}>مبلغ (تومان)</label>
+            <label className={fieldLabel}>مبلغ ({moneyUnit()})</label>
             <input value={amount} onChange={(e) => setAmount(digits(e.target.value))} dir="ltr" inputMode="numeric" className={fieldInput} />
           </div>
           <div>

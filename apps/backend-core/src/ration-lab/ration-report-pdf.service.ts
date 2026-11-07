@@ -7,6 +7,7 @@ import { hardenPage } from '../security/puppeteer-hardening.js';
 type RationLineForPdf = { ingredientName: string; quantityPerAnimalKg: number | string; unitCostSnapshot: number; lineCost: number };
 
 type RationReportForPdf = {
+  unitLabel?: string;
   sampleNo: number;
   collectedAt: Date;
   farmerName: string;
@@ -61,14 +62,14 @@ export class RationReportPdfService implements OnModuleDestroy {
   }
 }
 
-function lineRows(lines: RationLineForPdf[]): string {
+function lineRows(lines: RationLineForPdf[], u = 'تومان'): string {
   return lines
     .map(
       (l) => `<tr>
         <td>${escapeHtml(l.ingredientName)}</td>
         <td dir="ltr">${l.quantityPerAnimalKg}</td>
-        <td dir="ltr">${formatToman(l.unitCostSnapshot)}</td>
-        <td dir="ltr">${formatToman(l.lineCost)}</td>
+        <td dir="ltr">${formatToman(l.unitCostSnapshot, u)}</td>
+        <td dir="ltr">${formatToman(l.lineCost, u)}</td>
       </tr>`,
     )
     .join('');
@@ -92,6 +93,7 @@ function buildHtml(report: RationReportForPdf, orgName: string): string {
   const currentTotal = report.currentLines.reduce((s, l) => s + l.lineCost, 0);
   const proposedTotal = report.proposedLines.reduce((s, l) => s + l.lineCost, 0);
   const delta = proposedTotal - currentTotal;
+  const u = report.unitLabel ?? 'تومان';
 
   return /* html */ `
 <!doctype html>
@@ -157,17 +159,17 @@ function buildHtml(report: RationReportForPdf, orgName: string): string {
   <div class="compare">
     <div>
       <b>جیره‌ی فعلی</b>
-      <table><thead><tr><th>ماده</th><th>مقدار (کیلو)</th><th>قیمت واحد</th><th>هزینه</th></tr></thead><tbody>${lineRows(report.currentLines)}</tbody></table>
+      <table><thead><tr><th>ماده</th><th>مقدار (کیلو)</th><th>قیمت واحد</th><th>هزینه</th></tr></thead><tbody>${lineRows(report.currentLines, u)}</tbody></table>
     </div>
     <div>
       <b>جیره‌ی پیشنهادی</b>
-      <table><thead><tr><th>ماده</th><th>مقدار (کیلو)</th><th>قیمت واحد</th><th>هزینه</th></tr></thead><tbody>${lineRows(report.proposedLines)}</tbody></table>
+      <table><thead><tr><th>ماده</th><th>مقدار (کیلو)</th><th>قیمت واحد</th><th>هزینه</th></tr></thead><tbody>${lineRows(report.proposedLines, u)}</tbody></table>
     </div>
   </div>
   <div class="totals">
-    <div class="item"><div class="label">هزینه‌ی جیره‌ی فعلی</div><div class="value">${formatToman(currentTotal)}</div></div>
-    <div class="item"><div class="label">هزینه‌ی جیره‌ی پیشنهادی</div><div class="value">${formatToman(proposedTotal)}</div></div>
-    <div class="item"><div class="label">${delta <= 0 ? 'صرفه‌جویی' : 'افزایش هزینه'}</div><div class="value">${formatToman(Math.abs(delta))}</div></div>
+    <div class="item"><div class="label">هزینه‌ی جیره‌ی فعلی</div><div class="value">${formatToman(currentTotal, u)}</div></div>
+    <div class="item"><div class="label">هزینه‌ی جیره‌ی پیشنهادی</div><div class="value">${formatToman(proposedTotal, u)}</div></div>
+    <div class="item"><div class="label">${delta <= 0 ? 'صرفه‌جویی' : 'افزایش هزینه'}</div><div class="value">${formatToman(Math.abs(delta), u)}</div></div>
   </div>
 
   ${report.trend.length > 0 ? `<div class="section-title">روند میانگین شیر هر دام (لیتر)</div>${trendChart(report.trend)}` : ''}

@@ -9,6 +9,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tasks", label: "وظایف", icon: CheckIcon },
   { href: "/leads", label: "فروش", icon: TargetIcon },
   { href: "/catalog", label: "کاتالوگ", icon: PackageIcon },
+  { href: "/releases", label: "انتشار به‌روزرسانی", icon: PackageIcon },
   { href: "/reseller-applications", label: "درخواست نمایندگی", icon: ReceiptIcon },
   { href: "/resellers", label: "همکاران", icon: UsersIcon },
   { href: "/sms-packages", label: "بسته‌های پیامک", icon: PackageIcon },

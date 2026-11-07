@@ -6,7 +6,7 @@ import { SignaturePad } from "@/components/ui/SignaturePad";
 import { LogoMark, DocsIcon } from "@/components/icons";
 import { ProposalText } from "@/components/proposals/ProposalText";
 import { PROPOSAL_STATUS_LABELS } from "@/components/proposals/constants";
-import { formatJalaliDate, formatJalaliDateTime, formatToman, toPersianDigits } from "@/lib/persian";
+import { formatJalaliDate, formatJalaliDateTime, formatMoney, toPersianDigits } from "@/lib/persian";
 import {
   ApiError,
   acceptPublicProposal,
@@ -76,7 +76,7 @@ export function PublicProposalClient({ slug, token }: { slug: string; token: str
   const files = view.attachments.filter((a) => !a.isImage);
   const rows: Array<[string, string | null]> = [
     ["مدت زمان پیاده‌سازی", view.durationText],
-    ["مبلغ پروژه", view.amount > 0 ? formatToman(view.amount) : null],
+    ["مبلغ پروژه", view.amount > 0 ? formatMoney(view.amount) : null],
     ["روش پرداخت", view.paymentMethodText],
     ["شیوه و زمان‌بندی پرداخت", view.paymentTerms],
     ["مهلت پرداخت", view.paymentDeadline],

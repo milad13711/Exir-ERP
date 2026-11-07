@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
 import { useModuleCan } from "@/hooks/useModuleCan";
-import { formatJalaliDateTime, formatNumber, formatToman } from "@/lib/persian";
+import { formatJalaliDateTime, formatNumber, formatMoney } from "@/lib/persian";
 import {
   ApiError,
   commitStockImport,
@@ -78,7 +78,7 @@ export function StockImportModal({ onClose, onImported }: { onClose: () => void;
     try {
       const r = await commitStockImport(file, createMissing, preview.fileHash);
       setDone(
-        `${formatNumber(r.rows)} ردیف ثبت شد${r.createdProducts ? ` · ${formatNumber(r.createdProducts)} کالای جدید ساخته شد` : ""} · ارزش ${formatToman(r.totalValue)}${r.journalPosted ? " · سند افتتاحیه ثبت شد" : ""}`,
+        `${formatNumber(r.rows)} ردیف ثبت شد${r.createdProducts ? ` · ${formatNumber(r.createdProducts)} کالای جدید ساخته شد` : ""} · ارزش ${formatMoney(r.totalValue)}${r.journalPosted ? " · سند افتتاحیه ثبت شد" : ""}`,
       );
       setPreview(null);
       setFile(null);
@@ -134,7 +134,7 @@ export function StockImportModal({ onClose, onImported }: { onClose: () => void;
               <Badge tone="success">{formatNumber(preview.okCount)} ردیف سالم</Badge>
               <Badge tone={preview.errorCount ? "danger" : "neutral"}>{formatNumber(preview.errorCount)} ردیف خطا</Badge>
               {preview.newProducts ? <Badge tone="primary">{formatNumber(preview.newProducts)} کالای جدید</Badge> : null}
-              <span className="text-muted">جمع تعداد: {formatNumber(preview.totalQuantity)} · ارزش: {formatToman(preview.totalValue)}</span>
+              <span className="text-muted">جمع تعداد: {formatNumber(preview.totalQuantity)} · ارزش: {formatMoney(preview.totalValue)}</span>
               {preview.errorCount ? (
                 <label className="flex items-center gap-1.5 mr-auto cursor-pointer font-semibold">
                   <input type="checkbox" checked={onlyErrors} onChange={(e) => setOnlyErrors(e.target.checked)} className="w-4 h-4" />
@@ -194,7 +194,7 @@ export function StockImportModal({ onClose, onImported }: { onClose: () => void;
             <label className="flex items-start gap-2 text-[12.5px] cursor-pointer">
               <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} disabled={!preview.canCommit} className="w-4 h-4 mt-1" />
               <span>
-                تأیید می‌کنم که {formatNumber(preview.okCount)} ردیف (ارزش {formatToman(preview.totalValue)}) به‌عنوان موجودی اولیه ثبت شود. بعداً فقط از همین بخش (ابطال کل دسته) قابل بازگشت است.
+                تأیید می‌کنم که {formatNumber(preview.okCount)} ردیف (ارزش {formatMoney(preview.totalValue)}) به‌عنوان موجودی اولیه ثبت شود. بعداً فقط از همین بخش (ابطال کل دسته) قابل بازگشت است.
               </span>
             </label>
             <button
@@ -216,7 +216,7 @@ export function StockImportModal({ onClose, onImported }: { onClose: () => void;
                 <div key={b.id} className="flex items-center gap-2 flex-wrap text-[12px] bg-slate-50 border border-border rounded-xl px-3 py-2">
                   <span className="font-semibold" dir="ltr">{b.fileName ?? "—"}</span>
                   <span className="text-muted">{formatJalaliDateTime(b.createdAt)}</span>
-                  <span className="text-muted">{formatNumber(b.rowCount)} ردیف · {formatToman(b.totalValue)}</span>
+                  <span className="text-muted">{formatNumber(b.rowCount)} ردیف · {formatMoney(b.totalValue)}</span>
                   {b.voidedAt ? (
                     <Badge tone="danger">باطل‌شده</Badge>
                   ) : can.canDelete ? (

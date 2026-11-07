@@ -3,6 +3,9 @@ import Link from "next/link";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { NewShipmentModal } from "@/components/fleet/NewShipmentModal";
+import { MasterDeleteDialog } from "@/components/production/MasterDeleteDialog";
+import { useModuleCan } from "@/hooks/useModuleCan";
 import { AttachmentsSection } from "@/components/shared/AttachmentsSection";
 import { toPersianDigits, formatJalaliDateTime } from "@/lib/persian";
 import { DISPATCH_STATUS_LABELS, DISPATCH_STATUS_TONES } from "@/lib/dispatch-api";
@@ -11,6 +14,8 @@ import {
   sendShipmentOffers,
   cancelShipment,
   deliverShipment,
+  deleteShipment,
+  fetchShipmentUsage,
   type Shipment,
   type ShipmentOfferStatus,
   type MatchCandidate,
@@ -41,6 +46,23 @@ export function ShipmentDetailModal({
   const [candidates, setCandidates] = useState<MatchCandidate[] | null>(null);
   const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>([]);
   const [matchOpen, setMatchOpen] = useState(false);
+  const can = useModuleCan("fleet");
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteInfo, setDeleteInfo] = useState<{ deletable: boolean; offers: number } | null>(null);
+
+  async function openDelete() {
+    setBusy(true);
+    setError(null);
+    try {
+      const u = await fetchShipmentUsage(shipment.id);
+      if (u.deletable) setDeleteInfo({ deletable: true, offers: u.offers });
+      else setError(u.dispatch > 0 ? "این بار در گردش «اعلام بار» است و حذف نمی‌شود؛ لغو را از صفحه‌ی اعلام بار انجام دهید" : "فقط بار پیش‌نویس یا لغوشده قابل حذف است؛ برای بار در جریان یا تحویل‌شده از «لغو بار» استفاده کنید");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "بررسی سوابق بار ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!matchOpen) return;
@@ -241,6 +263,58 @@ export function ShipmentDetailModal({
             </button>
           )}
         </div>
+
+        {(can.canEdit && shipment.status === "DRAFT" && !inDispatch) || can.canDelete ? (
+          <div className="flex items-center gap-2">
+            {can.canEdit && shipment.status === "DRAFT" && !inDispatch ? (
+              <button
+                onClick={() => setEditOpen(true)}
+                disabled={busy}
+                className="flex-1 min-h-10 rounded-xl bg-primary-soft text-primary text-[12.5px] font-bold cursor-pointer disabled:opacity-50"
+              >
+                ویرایش بار
+              </button>
+            ) : null}
+            {can.canDelete ? (
+              <button
+                onClick={openDelete}
+                disabled={busy}
+                className="flex-1 min-h-10 rounded-xl border border-danger/30 text-danger text-[12.5px] font-bold cursor-pointer disabled:opacity-50"
+              >
+                حذف بار
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {editOpen ? (
+          <NewShipmentModal
+            edit={shipment}
+            onClose={() => setEditOpen(false)}
+            onCreated={() => {
+              onChanged();
+              onClose();
+            }}
+          />
+        ) : null}
+
+        {deleteInfo ? (
+          deleteInfo.deletable ? (
+            <MasterDeleteDialog
+              title={`بار شماره ${toPersianDigits(shipment.shipmentNo)} — ${shipment.cargoType}`}
+              usageCount={0}
+              usageNoun=""
+              canDelete
+              onDelete={() => deleteShipment(shipment.id)}
+              onArchive={() => cancelShipment(shipment.id)}
+              onClose={() => setDeleteInfo(null)}
+              onDone={() => {
+                onChanged();
+                onClose();
+              }}
+            />
+          ) : null
+        ) : null}
 
         <AttachmentsSection entityType="Shipment" entityId={shipment.id} />
       </div>

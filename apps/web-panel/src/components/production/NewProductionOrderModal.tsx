@@ -9,12 +9,14 @@ import {
   fetchUsers,
   fetchSalesInvoices,
   createProductionOrder,
+  updateProductionOrder,
   ApiError,
   type Bom,
   type Warehouse,
   type WorkCenter,
   type TenantUser,
   type SalesInvoice,
+  type ProductionOrder,
 } from "@/lib/api";
 
 const inputClass =
@@ -23,7 +25,7 @@ const labelClass = "text-[12px] font-semibold text-ink-soft mb-1.5 block";
 
 type StageDraft = { workCenterId: string; assignedUserId: string };
 
-export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function NewProductionOrderModal({ onClose, onCreated, edit }: { onClose: () => void; onCreated: () => void; /** حالت ویرایش دستور پیش‌نویس */ edit?: ProductionOrder }) {
   const [boms, setBoms] = useState<Bom[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [workCenters, setWorkCenters] = useState<WorkCenter[]>([]);
@@ -45,7 +47,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
     fetchWarehouses().then((ws) => {
       setWarehouses(ws);
       const def = ws.find((w) => w.isDefault) ?? ws[0];
-      if (def) setWarehouseId(def.id);
+      if (def && !edit) setWarehouseId(def.id);
     }).catch(() => setWarehouses([]));
     fetchWorkCenters().then(setWorkCenters).catch(() => setWorkCenters([]));
     fetchUsers().then(setUsers).catch(() => setUsers([]));
@@ -61,7 +63,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
     setSubmitting(true);
     setError(null);
     try {
-      await createProductionOrder({
+      const payload = {
         bomId,
         warehouseId,
         quantityPlanned: Number(quantityPlanned),
@@ -73,7 +75,9 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
               .filter((s) => s.workCenterId)
               .map((s) => ({ workCenterId: s.workCenterId, assignedUserId: s.assignedUserId || undefined }))
           : undefined,
-      });
+      };
+      if (edit) await updateProductionOrder(edit.id, payload);
+      else await createProductionOrder(payload);
       onCreated();
       onClose();
     } catch (err) {
@@ -84,7 +88,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
   }
 
   return (
-    <Modal title="دستور تولید جدید" onClose={onClose} width="max-w-[560px]">
+    <Modal title={edit ? `ویرایش دستور تولید #${edit.orderNo}` : "دستور تولید جدید"} onClose={onClose} width="max-w-[560px]">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div>
           <label className={labelClass}>فرمول تولید</label>
@@ -214,7 +218,7 @@ export function NewProductionOrderModal({ onClose, onCreated }: { onClose: () =>
           disabled={submitting || !valid}
           className="mt-1.5 w-full py-2.5 rounded-xl bg-primary text-white text-[13.5px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "در حال ثبت..." : "ثبت دستور تولید"}
+          {submitting ? "در حال ثبت..." : edit ? "ذخیره‌ی تغییرات" : "ثبت دستور تولید"}
         </button>
       </form>
     </Modal>

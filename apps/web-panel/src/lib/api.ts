@@ -346,6 +346,8 @@ export type Me = {
     membershipRole: string;
   };
   tenant: { name: string; slug: string; publicKey?: string; themeColor: string | null };
+  /** ارز پایه‌ی محیط کاری (تومان پیش‌فرض) — برچسب واحد در همه‌ی نمایش مبالغ */
+  baseCurrency?: { code: string; label: string };
   navOrder: string[];
   twoFactor?: TwoFactorPolicyState;
   permissions?: { manager: boolean; modules: Record<string, { canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }> };
@@ -411,17 +413,6 @@ export function dismissOnboarding() {
 
 // ── Billing ──────────────────────────────────────────────────────────────
 
-export type Subscription = {
-  planName: string;
-  planCode: string;
-  status: string;
-  daysLeft: number;
-  hoursLeft: number;
-  currentPeriodEnd: string;
-  autoRenew: boolean;
-  lifetime?: boolean;
-} | null;
-
 export type LicenseStatus =
   | { mode: "cloud" }
   | {
@@ -442,8 +433,74 @@ export function fetchLicenseStatus() {
   return apiFetch<LicenseStatus>("/license/status");
 }
 
-export function fetchSubscription() {
-  return apiFetch<Subscription>("/billing/subscription");
+// ── خلاصه‌ی اشتراک (منبع واحد؛ بک‌اند: billing/subscription-summary.ts) ──
+
+export type SubscriptionState = "ACTIVE" | "TRIAL" | "EXPIRING_SOON" | "GRACE" | "EXPIRED" | "SUSPENDED" | "NOT_SUBSCRIBED" | "NO_EXPIRY";
+export type SubscriptionNextAction = "PAY_INVOICE" | "REQUEST_INVOICE" | "CONTACT_SUPPORT" | "NONE";
+export type SubscriptionSeverity = "none" | "info" | "warning" | "danger";
+export type SubscriptionOpenInvoice = { id: string; amount: number; dueAt: string; purpose: string | null };
+export type SubscriptionEntitlement = {
+  state: SubscriptionState;
+  usable: boolean;
+  billingOnly: boolean;
+  expiresAt: string | null;
+  daysLeft: number | null;
+  hoursLeft: number | null;
+  daysOverdue: number | null;
+  openInvoice: SubscriptionOpenInvoice | null;
+  awaitingApproval: boolean;
+  nextAction: SubscriptionNextAction;
+  severity: SubscriptionSeverity;
+  reason: string;
+};
+export type TenantSubscriptionEntitlement = SubscriptionEntitlement & {
+  source: "CLOUD_SUBSCRIPTION" | "ON_PREMISE_LICENSE" | "TENANT_STATUS";
+  planName: string | null;
+  planCode: string | null;
+  autoRenew: boolean | null;
+  lifetime: boolean;
+  staleRecord: boolean;
+};
+export type ModuleSubscriptionEntitlement = SubscriptionEntitlement & {
+  code: string;
+  name: string;
+  isCore: boolean;
+  installStatus: "INSTALLED" | "TRIAL" | "DISABLED" | null;
+  billingMode: "MONTHLY" | "YEARLY" | "LICENSE" | null;
+};
+export type SubscriptionBanner = {
+  scope: "tenant" | "module";
+  state: SubscriptionState;
+  severity: SubscriptionSeverity;
+  nextAction: SubscriptionNextAction;
+  daysLeft: number | null;
+  hoursLeft: number | null;
+  daysOverdue: number | null;
+  moduleCode: string | null;
+  moduleName: string | null;
+  moreModules: number;
+  invoiceId: string | null;
+  awaitingApproval: boolean;
+  reason: string;
+};
+export type SubscriptionSummary = {
+  generatedAt: string;
+  viewer: "ADMIN" | "MEMBER";
+  tenant: TenantSubscriptionEntitlement;
+  modules: ModuleSubscriptionEntitlement[];
+  banner: SubscriptionBanner | null;
+  openInvoices: Array<SubscriptionOpenInvoice & { scope: "plan" | "module"; moduleCode?: string }>;
+};
+
+export function fetchSubscriptionSummary() {
+  return apiFetch<SubscriptionSummary>("/billing/subscription-summary");
+}
+
+export function requestRenewalInvoice(moduleCode?: string) {
+  return apiFetch<{ invoiceId: string; status: "PENDING" | "AWAITING_APPROVAL"; created: boolean }>("/billing/renewal-requests", {
+    method: "POST",
+    body: JSON.stringify(moduleCode ? { moduleCode } : {}),
+  });
 }
 
 export type Invoice = {
@@ -505,18 +562,6 @@ export function activateModuleDemo(code: string) {
 
 export function checkoutModules(items: { code: string; billingMode: ModuleBillingMode }[]) {
   return apiFetch<{ invoiceId: string }>("/modules/checkout", { method: "POST", body: JSON.stringify({ items }) });
-}
-
-export type ModuleRenewalNotice = {
-  code: string;
-  name: string;
-  currentPeriodEnd: string;
-  daysLeft: number | null;
-  invoiceId: string | null;
-};
-
-export function fetchModuleRenewals() {
-  return apiFetch<ModuleRenewalNotice[]>("/me/module-renewals");
 }
 
 // ── Users & roles ────────────────────────────────────────────────────────
@@ -772,6 +817,10 @@ export function createRole(name: string) {
   return apiFetch<TenantRoleWithPermissions>("/roles", { method: "POST", body: JSON.stringify({ name }) });
 }
 
+export function renameRole(roleId: string, name: string) {
+  return apiFetch<TenantRoleWithPermissions>(`/roles/${roleId}`, { method: "PATCH", body: JSON.stringify({ name }) });
+}
+
 export function deleteRole(roleId: string) {
   return apiFetch<{ success: boolean }>(`/roles/${roleId}`, { method: "DELETE" });
 }
@@ -824,6 +873,8 @@ export type ApiTask = {
   createdBy?: { id: string; name: string } | null;
   relatedModule?: string | null;
   relatedEntityId?: string | null;
+  /** سندِ پیوندخورده که کاربر می‌تواند ببیند (فقط در جزئیات وظیفه) */
+  relatedEntity?: { entityType: string; label: string; link: string; noun: string } | null;
   reminderOffsetsMin?: number[];
   recurrence?: TaskRecurrence;
   recurrenceInterval?: number;
@@ -1429,10 +1480,36 @@ export type AppNotification = {
   category?: string | null;
   entityType?: string | null;
   entityId?: string | null;
+  /** نیازمند اقدام (ارجاع/تأیید/وظیفه…) — توست چسبنده، بنر «نیاز به توجه شما» و یادآوری مجدد */
+  important?: boolean;
 };
 
 export function fetchNotifications() {
-  return apiFetch<{ unreadCount: number; items: AppNotification[] }>("/notifications");
+  return apiFetch<{ unreadCount: number; importantUnread?: number; items: AppNotification[] }>("/notifications");
+}
+
+/** صفحه‌ی صندوق اعلان‌ها: صفحه‌بندی با createdAt و فیلتر نخوانده/مهم. */
+export function fetchNotificationsPage(opts: { limit?: number; unread?: boolean; important?: boolean; before?: string } = {}) {
+  const q = new URLSearchParams();
+  if (opts.limit) q.set("limit", String(opts.limit));
+  if (opts.unread) q.set("unread", "1");
+  if (opts.important) q.set("important", "1");
+  if (opts.before) q.set("before", opts.before);
+  const qs = q.toString();
+  return apiFetch<{ unreadCount: number; importantUnread: number; items: AppNotification[]; hasMore: boolean }>(`/notifications${qs ? `?${qs}` : ""}`);
+}
+
+export type NotificationAttention = {
+  items: AppNotification[];
+  total: number;
+  importantTotal: number;
+  byCategory: Record<string, number>;
+  /** اولین بخش لینک → تعداد نخوانده (مثلاً {"/tasks": 3}) برای نشان روی منو */
+  byLink: Record<string, number>;
+};
+
+export function fetchNotificationAttention() {
+  return apiFetch<NotificationAttention>("/notifications/attention");
 }
 
 export function markNotificationRead(id: string) {
@@ -1448,7 +1525,7 @@ export function markNotificationsDelivered(ids: string[]) {
   return apiFetch<{ delivered: number }>("/notifications/delivered", { method: "POST", body: JSON.stringify({ ids }) });
 }
 
-export type NotificationCategoryKey = "messenger" | "tasks" | "reminders" | "correspondence" | "approvals" | "system" | "marketing";
+export type NotificationCategoryKey = "messenger" | "tasks" | "reminders" | "correspondence" | "approvals" | "referrals" | "system" | "marketing";
 export type CategoryChannelPref = { push?: boolean; inApp?: boolean; sms?: boolean };
 
 export type NotificationPreferences = {
@@ -1460,6 +1537,9 @@ export type NotificationPreferences = {
   quietStart: string;
   quietEnd: string;
   smsFallbackEnabled: boolean;
+  toastEnabled: boolean;
+  reminderEnabled: boolean;
+  reminderAfterHours: number;
 };
 
 export function fetchNotificationPreferences() {
@@ -2266,6 +2346,103 @@ export type Currency = {
   updatedAt: string;
 };
 
+// ── تغییر ارز پایه (فقط مالک؛ نیازمند ماژول تبدیل ارز) ─────────────────────────
+
+export type BaseCurrencyIssue = { code: string; message: string; detail?: unknown };
+export type BaseCurrencyConversionSummary = {
+  id: string;
+  kind: "CONVERT" | "REVERSE";
+  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+  fromCode: string;
+  toCode: string;
+  fromLabel: string;
+  toLabel: string;
+  rate: string;
+  roundingMode: "STRICT" | "ROUND";
+  startedAt: string;
+  finishedAt: string | null;
+  executedByName: string | null;
+  errorMessage: string | null;
+  reversedById: string | null;
+  reverseOfId: string | null;
+  backupFile: string | null;
+  progress: { done: number; total: number; label: string } | null;
+};
+export type BaseCurrencyState = {
+  current: { code: string; label: string; changedAt: string | null; conversionId: string | null };
+  presets: Array<{ code: string; label: string }>;
+  running: BaseCurrencyConversionSummary | null;
+  lastConversion: BaseCurrencyConversionSummary | null;
+  canReverse: boolean;
+  backupRequired: boolean;
+};
+export type BaseCurrencyColumnStat = { table: string; column: string; group: string; count: number; sumBefore: string; sumExpectedAfter: string; lossy: number; overflow: boolean; maxAbs: string };
+export type BaseCurrencyPreview = {
+  from: { code: string; label: string };
+  to: { code: string; label: string };
+  rate: string;
+  roundingMode: "STRICT" | "ROUND";
+  confirmPhrase: string;
+  backupRequired: boolean;
+  canExecute: boolean;
+  tables: Array<{ table: string; group: string; rows: number; columns: BaseCurrencyColumnStat[] }>;
+  ledger: { totalDebit: string; totalCredit: string; entries: number; unbalancedEntries: number };
+  samples: Array<{ table: string; column: string; id: string; before: string; after: string; exact: boolean }>;
+  roundingCells: number;
+  blocking: BaseCurrencyIssue[];
+  warnings: BaseCurrencyIssue[];
+};
+export type BaseCurrencyDetail = BaseCurrencyConversionSummary & {
+  report: {
+    tables: Array<{ table: string; rows: number; columns: Array<BaseCurrencyColumnStat & { sumAfter: string; roundingAbsDiff: string }> }>;
+    ledgerBefore: { totalDebit: string; totalCredit: string; unbalancedEntries: number };
+    ledgerAfter: { totalDebit: string; totalCredit: string; unbalancedEntries: number };
+    ledgerAdjustments: number;
+    restoredCells: number;
+    ratesRounded: number;
+    roundingTotals: { cells: number; absDiffInNewUnits: string };
+    integrity: { invoiceIdentityBefore: number; invoiceIdentityAfter: number };
+  } | null;
+};
+export type BaseCurrencyTargetInput = { toCode: string; toLabel?: string; rate?: string; roundingMode?: "STRICT" | "ROUND" };
+
+export function fetchBaseCurrencyState() {
+  return apiFetch<BaseCurrencyState>("/settings/base-currency");
+}
+export function previewBaseCurrency(data: BaseCurrencyTargetInput) {
+  return apiFetch<BaseCurrencyPreview>("/settings/base-currency/preview", { method: "POST", body: JSON.stringify(data) });
+}
+/** کد پیامکی به «طرح» همین تغییر بسته می‌شود؛ با تغییر مقصد/حالت گرد‌کردن باید کد تازه گرفت. */
+export function requestBaseCurrencyConfirmation(data: BaseCurrencyTargetInput) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>("/settings/base-currency/confirmation", { method: "POST", body: JSON.stringify(data) });
+}
+export function requestBaseCurrencyReverseConfirmation(id: string, data: { roundingMode?: "STRICT" | "ROUND" }) {
+  return apiFetch<{ expiresInSeconds: number; devCode?: string }>(`/settings/base-currency/conversions/${id}/confirmation`, { method: "POST", body: JSON.stringify(data) });
+}
+export function executeBaseCurrency(data: BaseCurrencyTargetInput & { idempotencyKey: string; confirmPhrase: string; otp: string }) {
+  return apiFetch<BaseCurrencyConversionSummary>("/settings/base-currency/execute", { method: "POST", body: JSON.stringify(data) });
+}
+export function fetchBaseCurrencyHistory() {
+  return apiFetch<BaseCurrencyConversionSummary[]>("/settings/base-currency/conversions");
+}
+export function fetchBaseCurrencyConversion(id: string) {
+  return apiFetch<BaseCurrencyDetail>(`/settings/base-currency/conversions/${id}`);
+}
+export function reverseBaseCurrency(id: string, data: { idempotencyKey: string; confirmPhrase: string; otp: string; roundingMode?: "STRICT" | "ROUND" }) {
+  return apiFetch<BaseCurrencyConversionSummary>(`/settings/base-currency/conversions/${id}/reverse`, { method: "POST", body: JSON.stringify(data) });
+}
+
+/** برچسب واحد پول تننت برای صفحه‌های عمومی (بدون احراز هویت). */
+export async function fetchPublicCurrency(slug: string): Promise<{ code: string; label: string } | null> {
+  try {
+    const res = await fetch(`${API_URL}/public/tenants/${encodeURIComponent(slug)}/currency`);
+    if (!res.ok) return null;
+    return (await res.json()) as { code: string; label: string };
+  } catch {
+    return null;
+  }
+}
+
 export function fetchCurrencies() {
   return apiFetch<Currency[]>("/settings/currencies");
 }
@@ -2743,6 +2920,14 @@ export function createProductionOrder(data: {
   return apiFetch<ProductionOrder>("/production/orders", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function updateProductionOrder(id: string, data: Partial<Parameters<typeof createProductionOrder>[0]>) {
+  return apiFetch<ProductionOrder>(`/production/orders/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteProductionOrder(id: string) {
+  return apiFetch<{ success: true }>(`/production/orders/${id}`, { method: "DELETE" });
+}
+
 export function approveRawMaterials(id: string, notes?: string) {
   return apiFetch<ProductionOrder>(`/production/orders/${id}/approve-raw-materials`, {
     method: "POST",
@@ -2788,10 +2973,36 @@ export type QualityTestType = {
   acceptableMin: string | null;
   acceptableMax: string | null;
   description: string | null;
+  isActive?: boolean;
+  usageCount?: number;
 };
 
-export function fetchTestTypes() {
-  return apiFetch<QualityTestType[]>("/quality-control/test-types");
+export function fetchTestTypes(status?: "active" | "archived" | "all") {
+  return apiFetch<QualityTestType[]>(`/quality-control/test-types${status ? `?status=${status}` : ""}`);
+}
+
+export function updateTestType(id: string, data: { name?: string; unit?: string; acceptableMin?: number | null; acceptableMax?: number | null; description?: string }) {
+  return apiFetch<QualityTestType>(`/quality-control/test-types/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function archiveTestType(id: string) {
+  return apiFetch<QualityTestType>(`/quality-control/test-types/${id}/archive`, { method: "POST" });
+}
+
+export function restoreTestType(id: string) {
+  return apiFetch<QualityTestType>(`/quality-control/test-types/${id}/restore`, { method: "POST" });
+}
+
+export function deleteTestType(id: string) {
+  return apiFetch<{ success: true }>(`/quality-control/test-types/${id}`, { method: "DELETE" });
+}
+
+export function deleteQualitySample(id: string) {
+  return apiFetch<{ success: true }>(`/quality-control/samples/${id}`, { method: "DELETE" });
+}
+
+export function deleteQualitySampleResult(sampleId: string, resultId: string) {
+  return apiFetch<QualitySample>(`/quality-control/samples/${sampleId}/results/${resultId}`, { method: "DELETE" });
 }
 
 export function createTestType(data: { name: string; unit: string; acceptableMin?: number; acceptableMax?: number; description?: string }) {
@@ -2995,6 +3206,18 @@ export function fetchRationDiscountCodes() {
 
 export function createRationDiscountCode(data: { code: string; percentOff: number; expiresAt?: string; maxRedemptions?: number }) {
   return apiFetch<RationDiscountCode>("/ration-lab/discount-codes", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateRationDiscountCode(id: string, data: { percentOff?: number; expiresAt?: string; maxRedemptions?: number }) {
+  return apiFetch<RationDiscountCode>(`/ration-lab/discount-codes/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function activateRationDiscountCode(id: string) {
+  return apiFetch<RationDiscountCode>(`/ration-lab/discount-codes/${id}/activate`, { method: "PATCH" });
+}
+
+export function deleteRationDiscountCode(id: string) {
+  return apiFetch<{ success: true }>(`/ration-lab/discount-codes/${id}`, { method: "DELETE" });
 }
 
 export function deactivateRationDiscountCode(id: string) {
@@ -3392,6 +3615,14 @@ export function createReward(data: CreatePersonnelActionInput) {
   return apiFetch<PersonnelActionEntry>("/hr/rewards", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function updateReward(id: string, data: Partial<Omit<CreatePersonnelActionInput, "employeeId">>) {
+  return apiFetch<PersonnelActionEntry>(`/hr/rewards/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function updatePenalty(id: string, data: Partial<Omit<CreatePersonnelActionInput, "employeeId">>) {
+  return apiFetch<PersonnelActionEntry>(`/hr/penalties/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function deleteReward(id: string) {
   return apiFetch<{ ok: true }>(`/hr/rewards/${id}`, { method: "DELETE" });
 }
@@ -3453,6 +3684,10 @@ export function markAttendance(data: {
   checkOut?: string;
 }) {
   return apiFetch<AttendanceRecord>("/hr/attendance", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteAttendanceRecord(id: string) {
+  return apiFetch<{ success: true }>(`/hr/attendance/${id}`, { method: "DELETE" });
 }
 
 export function fetchLeaveRequests() {
@@ -5609,6 +5844,10 @@ export function addContractWitness(contractId: string, data: { name: string; pho
   return apiFetch<ContractWitness>(`/contracts/${contractId}/witnesses`, { method: "POST", body: JSON.stringify(data) });
 }
 
+export function deleteContract(id: string) {
+  return apiFetch<{ success: true }>(`/contracts/${id}`, { method: "DELETE" });
+}
+
 export function removeContractWitness(witnessId: string) {
   return apiFetch<{ ok: true }>(`/contracts/witnesses/${witnessId}`, { method: "DELETE" });
 }
@@ -6273,8 +6512,36 @@ export function updateDriver(id: string, data: Partial<Parameters<typeof createD
   return apiFetch<Driver>(`/fleet/drivers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function deactivateDriver(id: string) {
-  return apiFetch<Driver>(`/fleet/drivers/${id}`, { method: "DELETE" });
+/** حذف قطعی راننده — اگر به بار/پیشنهاد وصل باشد ۴۰۹ می‌دهد (به‌جایش بایگانی). */
+export function deleteDriver(id: string) {
+  return apiFetch<{ success: true }>(`/fleet/drivers/${id}`, { method: "DELETE" });
+}
+
+export function archiveDriver(id: string) {
+  return apiFetch<Driver>(`/fleet/drivers/${id}/archive`, { method: "POST" });
+}
+
+export function restoreDriver(id: string) {
+  return apiFetch<Driver>(`/fleet/drivers/${id}/restore`, { method: "POST" });
+}
+
+export function fetchDriverUsage(id: string) {
+  return apiFetch<{ shipments: number; offers: number; total: number }>(`/fleet/drivers/${id}/usage`);
+}
+
+export function updateShipment(
+  id: string,
+  data: { contactId?: string; cargoType?: string; quantity?: number; unit?: string; deliveryAddress?: string; region?: string; pickupAt?: string },
+) {
+  return apiFetch<Shipment>(`/fleet/shipments/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function fetchShipmentUsage(id: string) {
+  return apiFetch<{ status: ShipmentStatus; offers: number; dispatch: number; attachments: number; deletable: boolean }>(`/fleet/shipments/${id}/usage`);
+}
+
+export function deleteShipment(id: string) {
+  return apiFetch<{ success: true }>(`/fleet/shipments/${id}`, { method: "DELETE" });
 }
 
 export type ShipmentSourceType = "MANUAL" | "STOCK_MOVEMENT" | "SALES_INVOICE" | "PRODUCTION_ORDER";
@@ -7242,6 +7509,10 @@ export function createEvent(data: {
 
 export function updateEvent(id: string, data: Partial<Omit<Parameters<typeof createEvent>[0], "slug" | "ticketTypes">>) {
   return apiFetch<EventItem>(`/events/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteEvent(id: string) {
+  return apiFetch<{ ok: true }>(`/events/${id}`, { method: "DELETE" });
 }
 
 export function publishEvent(id: string) {
@@ -8362,6 +8633,10 @@ export function fetchReportCategories() {
 
 export function createReportCategory(name: string) {
   return apiFetch<ReportCategory>("/reports/categories", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function renameReportCategory(id: string, name: string) {
+  return apiFetch<ReportCategory>(`/reports/categories/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });
 }
 
 export function deleteReportCategory(id: string) {
@@ -9550,3 +9825,82 @@ export type AccountingBackfillBatch = { runId: string; stage: string; cursor: st
 export const fetchAccountingBackfillPreview = () => apiFetch<AccountingBackfillPreview>("/sales/accounting-backfill/preview");
 export const runAccountingBackfill = (data: { confirm: true; limit?: number; stage?: string; cursor?: string | null; runId?: string; dateMode?: "ORIGINAL" | "TODAY_IF_LOCKED" }) =>
   apiFetch<AccountingBackfillBatch>("/sales/accounting-backfill/run", { method: "POST", body: JSON.stringify(data) });
+
+// ── ارجاع سند (ارجاع عمومی روی هر موجودیت) ──────────────────────────────────
+
+export type ReferralStatus = "PENDING" | "ACCEPTED" | "DONE" | "RETURNED" | "CANCELLED" | "FORWARDED" | "REVOKED";
+
+export type DocumentReferral = {
+  id: string;
+  entityType: string;
+  entityId: string;
+  entityLabel: string | null;
+  fromUserId: string | null;
+  toUserId: string;
+  note: string | null;
+  dueAt: string | null;
+  status: ReferralStatus;
+  statusLabel: string;
+  acceptedAt: string | null;
+  resolvedAt: string | null;
+  resolvedNote: string | null;
+  createdAt: string;
+  fromName: string | null;
+  toName: string | null;
+  resolvedByName: string | null;
+  link: string | null;
+  noun: string;
+  overdue: boolean;
+  duplicate?: boolean;
+  /** مدیر می‌تواند دسترسی مشاهده‌ی ارجاع انجام‌شده را لغو کند */
+  canRevoke?: boolean;
+};
+
+export type EntityReferralInfo = {
+  entityType: string;
+  entityId: string;
+  label: string;
+  current: DocumentReferral | null;
+  /** اگر مسئول فعالی نیست و آخرین ارجاع «انجام‌شده» است */
+  completed: DocumentReferral | null;
+  additional: DocumentReferral[];
+  history: DocumentReferral[];
+  canRefer: boolean;
+  myActive: DocumentReferral | null;
+};
+
+export function fetchEntityReferrals(entityType: string, entityId: string) {
+  return apiFetch<EntityReferralInfo>(`/referrals/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`);
+}
+
+export function referDocument(data: { entityType: string; entityId: string; toUserId: string; note?: string; dueAt?: string; additional?: boolean }) {
+  return apiFetch<DocumentReferral>("/referrals", {
+    method: "POST",
+    body: JSON.stringify({ ...data, idempotencyKey: `${data.entityType}:${data.entityId}:${data.toUserId}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` }),
+  });
+}
+
+export function respondReferral(id: string, action: "accept" | "return" | "complete" | "cancel" | "revoke", note?: string) {
+  return apiFetch<DocumentReferral>(`/referrals/${id}/${action}`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+export function fetchReferralInbox(view: "active" | "done" | "sent" | "all" = "active", entityType?: string) {
+  const qs = new URLSearchParams({ view });
+  if (entityType) qs.set("entityType", entityType);
+  return apiFetch<DocumentReferral[]>(`/referrals/inbox?${qs.toString()}`);
+}
+
+export type ReferralCounts = { pending: number; accepted: number; active: number; overdue: number; sentActive: number };
+export function fetchReferralCounts() {
+  return apiFetch<ReferralCounts>("/referrals/counts");
+}
+
+export type ReferralAssignee = { userId: string; name: string | null; status: ReferralStatus; overdue: boolean };
+export function fetchReferralAssignees(entityType: string, ids: string[]) {
+  if (ids.length === 0) return Promise.resolve({} as Record<string, ReferralAssignee>);
+  return apiFetch<Record<string, ReferralAssignee>>(`/referrals/assignees?entityType=${encodeURIComponent(entityType)}&ids=${ids.slice(0, 200).map(encodeURIComponent).join(",")}`);
+}
+
+export function fetchMyReferredIds(entityType: string) {
+  return apiFetch<{ ids: string[] }>(`/referrals/mine-ids?entityType=${encodeURIComponent(entityType)}`);
+}

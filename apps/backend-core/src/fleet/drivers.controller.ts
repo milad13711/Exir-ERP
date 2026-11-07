@@ -132,9 +132,29 @@ export class DriversController {
     return this.drivers.update(ctx, id, dto);
   }
 
+  /** تعداد سوابق وابسته — برای دیالوگ تأیید حذف (حذف قطعی یا بایگانی). */
+  @Get(':id/usage')
+  async usage(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertView(ctx, 'fleet');
+    return this.drivers.usage(ctx, id);
+  }
+
+  @Post(':id/archive')
+  async archive(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'fleet');
+    return this.drivers.archive(ctx, id);
+  }
+
+  @Post(':id/restore')
+  async restore(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'fleet');
+    return this.drivers.restore(ctx, id);
+  }
+
+  /** حذف قطعی؛ اگر راننده به بار/پیشنهاد وصل باشد ۴۰۹ می‌دهد و باید بایگانی شود. */
   @Delete(':id')
-  async deactivate(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
+  async remove(@Param('id') id: string, @Ctx() ctx: TenantRequestContext) {
     await this.permissions.assertDelete(ctx, 'fleet');
-    return this.drivers.deactivate(ctx, id);
+    return this.drivers.remove(ctx, id);
   }
 }

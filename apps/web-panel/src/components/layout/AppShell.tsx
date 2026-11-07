@@ -14,6 +14,8 @@ import { IncomingCallPopup } from "./IncomingCallPopup";
 import { AiActionApprovalPopup } from "./AiActionApprovalPopup";
 import { PushPrompt } from "./PushPrompt";
 import { OfflineToaster } from "./OfflineToaster";
+import { NotificationRuntime } from "@/components/notifications/NotificationRuntime";
+import { NotificationToaster } from "@/components/notifications/NotificationToaster";
 import { PushSync } from "@/components/pwa/PushSync";
 import { MessengerRuntime } from "@/components/messenger/MessengerRuntime";
 import { TwoFactorGraceBanner } from "./TwoFactorGraceBanner";
@@ -113,6 +115,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
       </div>
       <PushPrompt />
       <OfflineToaster />
+      <NotificationRuntime />
+      <NotificationToaster />
       <PushSync />
 
       {installedModules.has("messenger") && canViewModule(me, installedModules, "messenger") && !pathname.startsWith("/messenger") ? (

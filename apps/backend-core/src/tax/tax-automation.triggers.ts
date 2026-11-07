@@ -5,7 +5,7 @@ import type { TriggerPayloadField } from '../automation/types.js';
 const FIELDS: TriggerPayloadField[] = [
   { key: 'invoiceNo', label: 'شماره فاکتور', type: 'NUMBER' },
   { key: 'customerName', label: 'نام مشتری', type: 'STRING' },
-  { key: 'amount', label: 'مبلغ فاکتور (تومان)', type: 'NUMBER' },
+  { key: 'amount', label: 'مبلغ فاکتور (به ارز پایه)', type: 'NUMBER' },
   { key: 'taxid', label: 'شماره منحصر به فرد مالیاتی', type: 'STRING' },
   { key: 'errorSummary', label: 'خلاصه‌ی خطاها', type: 'STRING' },
   { key: 'ownerUserId', label: 'درخواست‌دهنده', type: 'USER_ID' },

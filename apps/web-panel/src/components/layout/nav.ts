@@ -100,6 +100,7 @@ export const primaryNav: NavItem[] = [
   { href: "/tasks", label: "وظایف و یادآوری", icon: TasksIcon, category: "بهره‌وری" },
   { href: "/messenger", label: "پیام‌رسان داخلی", icon: ChatIcon, moduleCode: "messenger", category: "بهره‌وری" },
   { href: "/approvals", label: "کارتابل تأیید", icon: ClipboardCheckIcon, category: "بهره‌وری" },
+  { href: "/referrals", label: "ارجاع‌های من", icon: ShareIcon, category: "بهره‌وری" },
   { href: "/correspondence", label: "مکاتبات", icon: MailIcon, moduleCode: "correspondence", category: "بهره‌وری" },
 
   // عملیات
@@ -111,6 +112,7 @@ export const primaryNav: NavItem[] = [
   { href: "/automation", label: "اتوماسیون", icon: BoltIcon, moduleCode: "automation", category: "عمومی" },
   { href: "/qr-code", label: "کد QR", icon: QrCodeIcon, moduleCode: "qr-code", category: "عمومی" },
   { href: "/reports", label: "گزارش‌ها", icon: LogIcon, moduleCode: "reports", category: "عمومی" },
+  { href: "/releases", label: "تازه‌های سیستم", icon: BoltIcon, category: "عمومی" },
   { href: "/logs", label: "لاگ‌ها", icon: LogIcon, category: "عمومی" },
   { href: "/confidential-archive", label: "بایگانی اسناد محرمانه", icon: KeyIcon, moduleCode: "confidential-archive", category: "عمومی" },
 ];

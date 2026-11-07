@@ -23,6 +23,7 @@ import { API_KEY_SELF_SCOPED_KEY } from '../decorators/api-key-self-scoped.decor
 import { API_KEY_ALLOWED_KEY, HUMAN_ONLY_KEY } from '../decorators/human-only.decorator.js';
 import { ROLES_KEY } from '../decorators/roles.decorator.js';
 import { isHumanOnlyPath } from '../../api-keys/api-key-human-only.js';
+import { tenantAccess } from '../../billing/subscription-summary.js';
 import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
 import { clientIp } from '../../security/client-ip.js';
 import {
@@ -78,7 +79,7 @@ export class JwtAuthGuard implements CanActivate {
     const tenant = await this.controlDb.tenant.findUnique({
       where: { id: payload.tenantId },
     });
-    if (!tenant || tenant.status === 'SUSPENDED' || tenant.status === 'CANCELLED') {
+    if (!tenant || tenantAccess(tenant.status) === 'BLOCKED') {
       throw new UnauthorizedException('دسترسی به این محیط کاری غیرفعال شده است');
     }
     if (payload.type === 'tenant_user') {
@@ -97,7 +98,7 @@ export class JwtAuthGuard implements CanActivate {
         if (!isAllowedForRestrictedSession(req.method ?? 'GET', fullPath)) throw twoFactorRequiredError();
       }
     }
-    if (tenant.status === 'PENDING_PAYMENT') {
+    if (tenantAccess(tenant.status) === 'BILLING_ONLY') {
       // مشتری اجازه‌ی ورود دارد، اما تا پرداخت فاکتور معلق، فقط به صفحه‌ی
       // صورت‌حساب (billing/*) دسترسی می‌گیرد — نه به داده‌های واقعی کسب‌وکار.
       // کد ۴۰۲ عمداً از ۴۰۱ جداست تا فرانت‌اند به‌جای خروج از حساب، کاربر را

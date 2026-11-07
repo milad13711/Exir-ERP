@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { WarehouseIcon, PlusIcon, WarningIcon, OrdersIcon, AccountingIcon, SettingsIcon } from "@/components/icons";
-import { formatToman, formatNumber } from "@/lib/persian";
+import { formatMoney, formatNumber, moneyUnit } from "@/lib/persian";
 import { fetchProducts, fetchWarehouseSummary, type Product, type WarehouseSummary } from "@/lib/api";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { NewProductModal } from "@/components/warehouse/NewProductModal";
@@ -132,7 +132,7 @@ export default function WarehousePage() {
       {summary ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           <KpiCard label="تعداد کالاها" value={summary.totalProducts} unitSuffix="کالا" tone="primary" icon={<WarehouseIcon />} />
-          <KpiCard label="ارزش کل موجودی" value={summary.inventoryValue} unitSuffix="تومان" tone="accent" icon={<WarehouseIcon />} />
+          <KpiCard label="ارزش کل موجودی" value={summary.inventoryValue} unitSuffix={moneyUnit()} tone="accent" icon={<WarehouseIcon />} />
           <KpiCard
             label="کالاهای رو به اتمام"
             value={summary.lowStockCount}
@@ -225,7 +225,7 @@ export default function WarehousePage() {
                     {formatNumber(p.stock)} <span className="text-[11px] font-normal text-muted">{p.unit}</span>
                   </div>
                   <div className="text-[12px] text-muted w-[130px] text-left shrink-0 hidden sm:block">
-                    {formatToman(p.stock * p.costPrice)}
+                    {formatMoney(p.stock * p.costPrice)}
                   </div>
                 </button>
               ))

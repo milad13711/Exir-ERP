@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import { formatToman, formatJalaliDate, toPersianDigits } from "@/lib/persian";
+import { formatMoney, formatJalaliDate, toPersianDigits } from "@/lib/persian";
 import { fetchAccounts, fetchJournalEntry, postJournalEntry, deleteJournalEntry, voidJournalEntry, type Account, type JournalEntry } from "@/lib/api";
 import { NewEntryModal } from "./NewEntryModal";
 import { DeleteRecordButton } from "@/components/ui/DeleteRecordButton";
@@ -73,8 +73,8 @@ export function EntryDetailModal({
                       {toPersianDigits(l.account.code)} {l.account.name}
                     </td>
                     <td className="py-2.5 px-1 text-muted">{l.description ?? "—"}</td>
-                    <td className="py-2.5 px-1 text-left">{l.debit ? formatToman(l.debit) : "—"}</td>
-                    <td className="py-2.5 px-1 text-left">{l.credit ? formatToman(l.credit) : "—"}</td>
+                    <td className="py-2.5 px-1 text-left">{l.debit ? formatMoney(l.debit) : "—"}</td>
+                    <td className="py-2.5 px-1 text-left">{l.credit ? formatMoney(l.credit) : "—"}</td>
                   </tr>
                 ))}
               </tbody>

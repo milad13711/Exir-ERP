@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 
+import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { assertPeriodOpen } from '../accounting/periods/period-lock.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -52,13 +53,14 @@ export class PurchaseOrdersService implements OnModuleInit {
         await this.reject(ctx, id, opts.note, { fromApprovals: true });
       },
       describe: async (ctx, id) => {
+        const unit = await loadUnitLabel(ctx.tenantDb);
         const o = await ctx.tenantDb.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { supplier: true, lines: true } });
         return {
           fields: [
             { label: 'شماره سفارش', value: String(o.orderNo) },
             { label: 'تأمین‌کننده', value: `${o.supplier.name}${o.supplier.phone ? ` — ${o.supplier.phone}` : ''}` },
             { label: 'اقلام', value: o.lines.map((l) => `${l.description} × ${l.quantity} @ ${l.unitCost.toLocaleString('en-US')}`).join('\n') },
-            { label: 'جمع کل', value: `${o.total.toLocaleString('en-US')} تومان` },
+            { label: 'جمع کل', value: `${o.total.toLocaleString('en-US')} ${unit}` },
             { label: 'تحویل مورد انتظار', value: o.expectedAt ? o.expectedAt.toLocaleDateString('fa-IR') : '—' },
             { label: 'یادداشت', value: o.notes ?? '—' },
           ],
@@ -125,13 +127,14 @@ export class PurchaseOrdersService implements OnModuleInit {
       },
       include: ORDER_INCLUDE,
     });
+    const unit = await loadUnitLabel(ctx.tenantDb);
     if (order.approvalStatus === 'PENDING') {
       await this.approvals.request(ctx, {
         moduleCode: 'purchasing',
         entityType: 'PURCHASE_ORDER',
         entityId: order.id,
         title: `تأیید سفارش خرید ${order.orderNo}`,
-        summary: `${order.supplier?.name ?? ""} — ${order.total.toLocaleString('en-US')} تومان`,
+        summary: `${order.supplier?.name ?? ""} — ${order.total.toLocaleString('en-US')} ${unit}`,
         link: '/purchasing',
         requestedByUserId: createdByUserId ?? undefined,
       });
@@ -399,13 +402,14 @@ export class PurchaseOrdersService implements OnModuleInit {
       include: ORDER_INCLUDE,
     });
     await this.approvals.closeForEntity(ctx, 'PURCHASE_ORDER', id, 'REJECTED');
+    const unit = await loadUnitLabel(ctx.tenantDb);
     if (needsApproval) {
       await this.approvals.request(ctx, {
         moduleCode: 'purchasing',
         entityType: 'PURCHASE_ORDER',
         entityId: id,
         title: `تأیید سفارش خرید ${updated.orderNo}`,
-        summary: `${updated.supplier?.name ?? ''} — ${updated.total.toLocaleString('en-US')} تومان (ویرایش‌شده)`,
+        summary: `${updated.supplier?.name ?? ''} — ${updated.total.toLocaleString('en-US')} ${unit} (ویرایش‌شده)`,
         link: '/purchasing',
       });
     }

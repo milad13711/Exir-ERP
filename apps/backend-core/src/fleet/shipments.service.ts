@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { AutomationEngineService } from '../automation/automation-engine.service.js';
 import { DriversService } from './drivers.service.js';
 import type { CreateShipmentDto } from './dto/create-shipment.dto.js';
+import type { UpdateShipmentDto } from './dto/update-shipment.dto.js';
 import { publicRef } from '../common/tenant-public-key.js';
 import { normalizeSearchTerm, searchTermAsInt } from '../common/search.js';
 
@@ -122,6 +123,51 @@ export class ShipmentsService {
       },
       include: SHIPMENT_INCLUDE,
     });
+  }
+
+  /** ویرایش بار فقط در حالت پیش‌نویس؛ پس از ارسال پیشنهاد به راننده‌ها مشخصات بار تغییر نمی‌کند (لغو و ثبت مجدد). */
+  async update(ctx: TenantRequestContext, id: string, dto: UpdateShipmentDto) {
+    const shipment = await ctx.tenantDb.shipment.findUnique({ where: { id }, select: { id: true, status: true } });
+    if (!shipment) throw new NotFoundException('بار یافت نشد');
+    if (shipment.status !== 'DRAFT') throw new ConflictException('فقط بار پیش‌نویس قابل ویرایش است؛ بعد از ارسال پیشنهاد، بار را لغو و دوباره ثبت کنید');
+    await this.assertNotInDispatchWorkflow(ctx, id);
+    const { pickupAt, ...rest } = dto;
+    return ctx.tenantDb.shipment.update({
+      where: { id },
+      data: { ...rest, ...(pickupAt ? { pickupAt: new Date(pickupAt) } : {}) },
+      include: SHIPMENT_INCLUDE,
+    });
+  }
+
+  /** تعداد سوابق وابسته به بار — برای دیالوگ تأیید حذف. */
+  async usage(ctx: TenantRequestContext, id: string) {
+    const shipment = await ctx.tenantDb.shipment.findUnique({ where: { id }, select: { id: true, status: true } });
+    if (!shipment) throw new NotFoundException('بار یافت نشد');
+    const [offers, dispatch, attachments] = await Promise.all([
+      ctx.tenantDb.shipmentOffer.count({ where: { shipmentId: id } }),
+      ctx.tenantDb.shipmentLoading.count({ where: { shipmentId: id } }),
+      ctx.tenantDb.attachment.count({ where: { entityType: 'Shipment', entityId: id } }),
+    ]);
+    const deletable = (shipment.status === 'DRAFT' || shipment.status === 'CANCELLED') && dispatch === 0;
+    return { status: shipment.status, offers, dispatch, attachments, deletable };
+  }
+
+  /**
+   * حذف قطعی فقط برای بار پیش‌نویس/لغوشده که وارد گردش «اعلام بار» نشده؛ بار پذیرفته/تحویل‌شده سند عملیاتی است
+   * و فقط لغو می‌شود. پیشنهادها (cascade) با بار پاک می‌شوند.
+   */
+  async remove(ctx: TenantRequestContext, id: string) {
+    const u = await this.usage(ctx, id);
+    if (!u.deletable) {
+      throw new ConflictException(
+        u.dispatch > 0
+          ? 'این بار در گردش «اعلام بار» است و حذف نمی‌شود؛ لغو را از صفحه‌ی اعلام بار انجام دهید'
+          : 'فقط بار پیش‌نویس یا لغوشده قابل حذف است؛ برای بار در جریان یا تحویل‌شده از «لغو بار» استفاده کنید',
+      );
+    }
+    await ctx.tenantDb.shipment.delete({ where: { id } });
+    await ctx.tenantDb.attachment.deleteMany({ where: { entityType: 'Shipment', entityId: id } }); // پیوست‌ها رکورد چندریختی‌اند (بدون FK)
+    return { success: true };
   }
 
   /** رتبه‌بندی راننده‌های فعال برای این بار — فقط پیشنهاد است، چیزی ذخیره نمی‌شود. */
