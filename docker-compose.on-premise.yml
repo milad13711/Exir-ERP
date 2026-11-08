@@ -34,6 +34,7 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         ALPINE_MIRROR: ${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
+        USE_PREBUILT: ${USE_PREBUILT:-false}
         # بیلد از سورس روی سرور خودمان بدون secret امضا (مانیفست یکپارچگی فقط در pipeline release امضا می‌شود)
         ALLOW_UNSIGNED_BUILD: ${ALLOW_UNSIGNED_BUILD:-true}
         # Python + PyMuPDF برای مهرزنی نسخه‌ی الکترونیک کتاب (فقط سرور funnelking) — docs/ops/funnelking-ebook.md

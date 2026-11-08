@@ -44,6 +44,19 @@ ssh_retry() {
   done
 }
 
+PREBUILT=false
+if printf '%s\n' "$@" | grep -qx backend || [ $# -eq 0 ]; then
+  # Compile the backend HERE: the 4 GB production host runs out of memory (and starves live traffic) compiling it.
+  echo "==> Compiling backend locally (off-server build)..."
+  ( cd apps/backend-core \
+    && npx prisma generate --schema prisma/control/schema.prisma >/dev/null \
+    && npx prisma generate --schema prisma/tenant/schema.prisma >/dev/null \
+    && rm -rf dist && npm run build >/dev/null )
+  test -s apps/backend-core/dist/main.js && test -s apps/backend-core/dist/scripts/smoke-image.js \
+    || { echo "local backend build produced no dist/main.js - aborting" >&2; exit 1; }
+  PREBUILT=true
+fi
+
 echo "==> Syncing source..."
 # rsync refuses to create a destination whose PARENT doesn't exist yet — only
 # matters the first time a new app directory is deployed, but cheap enough
@@ -54,6 +67,10 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclu
   apps/backend-core/src/ "${HOST}:${REMOTE_DIR}/apps/backend-core/src/"
 rsync -az --delete --exclude node_modules --exclude .next --exclude dist \
   apps/backend-core/docker-entrypoint.sh "${HOST}:${REMOTE_DIR}/apps/backend-core/docker-entrypoint.sh"
+if [ "$PREBUILT" = "true" ]; then
+  ssh_retry "mkdir -p ${REMOTE_DIR}/apps/backend-core/prebuilt-dist"
+  rsync -az --delete apps/backend-core/dist/ "${HOST}:${REMOTE_DIR}/apps/backend-core/prebuilt-dist/"
+fi
 rsync -az apps/backend-core/nest-cli.json "${HOST}:${REMOTE_DIR}/apps/backend-core/nest-cli.json"
 # Dockerfile changes (e.g. a new apk package like postgresql-client for pg_dump) must
 # reach the server too, or the build keeps using the OLD Dockerfile silently.
@@ -93,7 +110,7 @@ rsync -az scripts/deploy-lib.sh "${HOST}:${REMOTE_DIR}/deploy-lib.sh"
 rsync -az scripts/rollback.sh "${HOST}:${REMOTE_DIR}/rollback.sh"
 
 echo "==> Launching detached remote build ($*)..."
-ssh_retry "cd ${REMOTE_DIR} && nohup bash -c 'bash deploy-remote.sh $*; echo \$? > ${REMOTE_DONE_MARKER}' > ${REMOTE_LOG} 2>&1 & disown; echo launched"
+ssh_retry "cd ${REMOTE_DIR} && nohup bash -c 'USE_PREBUILT=${PREBUILT} bash deploy-remote.sh $*; echo \$? > ${REMOTE_DONE_MARKER}' > ${REMOTE_LOG} 2>&1 & disown; echo launched"
 
 echo "==> Polling ${REMOTE_LOG} (this can take several minutes)..."
 last_size=0

@@ -36,10 +36,15 @@ RUN npm config set fetch-retries 8 \
 
 # Build stage reuses the deps layers (no second 1.5 GB copy of node_modules).
 FROM deps AS build
+# USE_PREBUILT=true: dist was compiled on the deploy machine (scripts/deploy.sh) and shipped as
+# prebuilt-dist/ — the 4 GB production host runs out of memory compiling the TypeScript itself.
+ARG USE_PREBUILT=false
 COPY apps/backend-core/ ./
 RUN npx prisma generate --schema prisma/control/schema.prisma \
  && npx prisma generate --schema prisma/tenant/schema.prisma \
- && NODE_OPTIONS=--max-old-space-size=3072 npm run build
+ && if [ "$USE_PREBUILT" = "true" ] && [ -f prebuilt-dist/main.js ]; then \
+      echo "using prebuilt dist (compiled off-server)"; rm -rf dist && cp -r prebuilt-dist dist; \
+    else npm run build; fi
 
 # مانیفست یکپارچگی امضاشده (SHA-256 همه‌ی فایل‌های dist). کلید امضا فقط به‌صورت BuildKit secret داده می‌شود و در هیچ لایه‌ای نمی‌ماند:
 #   docker build --secret id=license_signing_key,src=keys/<kid>.private.pem [--secret id=license_signing_passphrase,src=pass.txt] ...
