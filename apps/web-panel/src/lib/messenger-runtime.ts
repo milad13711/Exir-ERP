@@ -12,8 +12,8 @@
  * پس در تب فعال دوباره‌اعلام نمی‌شود.
  */
 import { getToken } from "./api";
-import { toPersianDigits } from "./persian";
 import { playNotificationSound } from "./notification-sound";
+import { setTabTitleCount } from "./tab-title";
 import { closeMessengerSocket, emitMessengerVisibility, getMessengerSocket, messengerApi, type MessengerMessage } from "./messenger-api";
 import type { Socket } from "socket.io-client";
 
@@ -45,8 +45,6 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let unreadTimer: ReturnType<typeof setTimeout> | null = null;
 let metaTimer: ReturnType<typeof setTimeout> | null = null;
 let lastResync = 0;
-let titleObserver: MutationObserver | null = null;
-let applyingTitle = false;
 
 const meta = new Map<string, ConvMeta>();
 let metaInflight: Promise<void> | null = null;
@@ -60,7 +58,6 @@ let opener: ((conversationId: string, focusComposer: boolean) => void) | null = 
 let navigator_: ((url: string) => void) | null = null;
 
 const MAX_TOASTS = 3;
-const TITLE_PREFIX_RE = /^\([\d۰-۹]+\+?\)\s/;
 
 // ── شمارنده‌ی نخوانده ────────────────────────────────────────────────────
 
@@ -104,41 +101,14 @@ export function refreshMessengerUnread() {
 
 // ── عنوان تب و نشان برنامه ───────────────────────────────────────────────
 
-function desiredTitle(current: string) {
-  const base = current.replace(TITLE_PREFIX_RE, "");
-  return unreadTotal > 0 ? `(${toPersianDigits(unreadTotal > 99 ? "99+" : unreadTotal)}) ${base}` : base;
-}
-
-function applyTitle() {
-  if (typeof document === "undefined") return;
-  const want = desiredTitle(document.title);
-  if (want !== document.title) {
-    applyingTitle = true;
-    document.title = want;
-    applyingTitle = false;
-  }
-}
-
+// عنوان تب و نشان برنامه را فقط lib/tab-title.ts می‌نویسد (مجموع پیام‌رسان + اعلان‌ها). دو ناظر جدا روی <title>
+// با اعداد متفاوت همدیگر را بی‌پایان بیدار می‌کردند و مرورگر قفل می‌شد.
 function syncChrome() {
-  applyTitle();
-  try {
-    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
-    if (unreadTotal > 0) void nav.setAppBadge?.(unreadTotal).catch(() => undefined);
-    else void nav.clearAppBadge?.().catch(() => undefined);
-  } catch {
-    /* مرورگر پشتیبانی نمی‌کند */
-  }
+  setTabTitleCount("messenger", unreadTotal);
 }
 
 function observeTitle() {
-  if (titleObserver || typeof document === "undefined") return;
-  const el = document.querySelector("title");
-  if (!el) return;
-  // Next عنوان صفحه را با هر مسیر عوض می‌کند؛ پیشوند تعداد باید دوباره اعمال شود
-  titleObserver = new MutationObserver(() => {
-    if (!applyingTitle) applyTitle();
-  });
-  titleObserver.observe(el, { childList: true, characterData: true, subtree: true });
+  syncChrome();
 }
 
 // ── ترجیح صدا ────────────────────────────────────────────────────────
@@ -433,8 +403,6 @@ export function stopMessengerRuntime() {
   reconnectTimer = unreadTimer = metaTimer = null;
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
-  titleObserver?.disconnect();
-  titleObserver = null;
   unbindSocket();
   closeMessengerSocket();
   meta.clear();
