@@ -235,6 +235,62 @@ export class UsersService implements OnModuleInit {
   }
 
   /**
+   * تغییر شماره‌ی موبایل (شناسه‌ی ورود) کاربر توسط مالک/مدیر — به‌جای تعریف کاربر جدید.
+   * شماره روی «شخص» (GlobalUser) است و بین همه‌ی محیط‌های کاری او مشترک؛ برای جلوگیری از تصاحب حساب، فقط وقتی مجاز است
+   * که این شخص عضو هیچ محیط کاری دیگری نباشد. همان سلسله‌مراتب نقش/وضعیت اعمال می‌شود، شماره‌ی تکراری رد می‌شود و
+   * همه‌ی نشست‌های فعلی او باطل می‌شود (باید با شماره‌ی جدید دوباره وارد شود). به شماره‌ی قبلی پیامک اطلاع داده می‌شود.
+   */
+  async changeUserPhone(ctx: TenantRequestContext, id: string, rawPhone: string) {
+    const phone = rawPhone.trim();
+    if (!/^09\d{9}$/.test(phone)) throw new BadRequestException('شماره موبایل نامعتبر است');
+    const user = await ctx.tenantDb.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    const target = await this.assertCanManageTarget(ctx, id, { allowSelf: true });
+
+    const globalUser = await this.controlDb.globalUser.findUnique({ where: { id: user.globalUserId } });
+    if (!globalUser) throw new NotFoundException('کاربر یافت نشد');
+    if (globalUser.isSuperUser) throw new ForbiddenException('شماره‌ی این حساب فقط از پنل پلتفرم قابل تغییر است');
+    const oldPhone = globalUser.phone;
+    if (oldPhone === phone) return { id: user.id, phone, changed: false };
+
+    const otherTenants = await this.controlDb.tenantMembership.count({
+      where: { globalUserId: user.globalUserId, tenantId: { not: ctx.tenantId } },
+    });
+    if (otherTenants > 0) {
+      throw new ConflictException('این شخص در محیط‌های کاری دیگری هم عضو است؛ شماره‌ی او را فقط پشتیبانی اکسیر می‌تواند تغییر دهد.');
+    }
+    const taken = await this.controlDb.globalUser.findUnique({ where: { phone }, select: { id: true } });
+    if (taken) throw new ConflictException('این شماره متعلق به حساب دیگری است');
+
+    try {
+      await this.controlDb.$transaction([
+        this.controlDb.globalUser.update({ where: { id: user.globalUserId }, data: { phone } }),
+        ...(target.membershipId ? [this.controlDb.tenantMembership.update({ where: { id: target.membershipId }, data: { tokenVersion: { increment: 1 } } })] : []),
+      ]);
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') throw new ConflictException('این شماره متعلق به حساب دیگری است');
+      throw err;
+    }
+    await ctx.tenantDb.user.update({ where: { id }, data: { phone } });
+
+    const actorTenantUserId = await resolveTenantUserId(ctx).catch(() => undefined);
+    await ctx.tenantDb.activityLog
+      .create({
+        data: { userId: actorTenantUserId, action: 'user.phone_changed', entityType: 'User', entityId: id, metadata: { from: oldPhone, to: phone } },
+      })
+      .catch(() => undefined);
+
+    if (this.sms.isConfigured()) {
+      const tenant = await this.controlDb.tenant.findUnique({ where: { id: ctx.tenantId }, select: { name: true } });
+      const label = tenant?.name ? ` در «${tenant.name}»` : '';
+      const msg = `شماره‌ی ورود حساب شما${label} در اکسیر ERP به ${phone.slice(0, 4)}***${phone.slice(-4)} تغییر کرد. اگر این تغییر را درخواست نکرده‌اید با مدیر سیستم تماس بگیرید.`;
+      void this.sms.sendSms(oldPhone, msg).catch(() => undefined);
+      void this.sendAccessGrantedSms(ctx, user.name, phone).catch(() => undefined);
+    }
+    return { id: user.id, phone, changed: true };
+  }
+
+  /**
    * سلسله‌مراتب: ADMIN نمی‌تواند وضعیت/نقش/دسترسی OWNER یا ADMIN دیگر را عوض کند؛ هیچ‌کس وضعیت خودش را DISABLED نمی‌کند
    * (قفل‌شدن از خود). OWNER بر همه اختیار دارد. نقش عضویت هدف را برمی‌گرداند.
    */

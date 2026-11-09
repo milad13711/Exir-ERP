@@ -122,6 +122,7 @@ export function makeFakeTenantDb(seed: FakeSeed = {}, hooks: { failOn?: (op: str
   const special: Row = {
     $queryRaw: async () => [],
     $queryRawUnsafe: async () => [],
+    $executeRaw: async () => 0,
     $executeRawUnsafe: async () => 0,
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       const snapshot = structuredClone(tables);

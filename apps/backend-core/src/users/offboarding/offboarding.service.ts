@@ -152,7 +152,7 @@ export class OffboardingService {
     try {
       committed = await ctx.tenantDb.$transaction(
         async (tx) => {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`offboard:${userId}`}))`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`offboard:${userId}`}))`;
           const transfer = await transferOwnership(tx, { fromUserId: userId, targetFor: plan.targetFor, now, dryRun: false });
           const cleanup = await cleanupPersonal(tx, { userId, mode, dryRun: false });
 

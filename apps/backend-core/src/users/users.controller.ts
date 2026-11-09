@@ -10,6 +10,7 @@ import { UpdateModulePermissionsDto } from './dto/update-module-permissions.dto.
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { SetManagementRoleDto } from './dto/set-management-role.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { ChangeUserPhoneDto } from './dto/change-user-phone.dto.js';
 import { assertTwoFactorForSensitiveAction } from '../auth/tenant-two-factor-policy.js';
 
 @Controller()
@@ -43,6 +44,15 @@ export class UsersController {
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Ctx() ctx: TenantRequestContext) {
     assertTwoFactorForSensitiveAction(ctx);
     return this.users.updateUser(ctx, id, dto);
+  }
+
+  /** تغییر شماره‌ی موبایل (شناسه‌ی ورود) کاربر؛ نشست‌های فعلی او باطل می‌شود. */
+  @Put('users/:id/phone')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  changePhone(@Param('id') id: string, @Body() dto: ChangeUserPhoneDto, @Ctx() ctx: TenantRequestContext) {
+    assertTwoFactorForSensitiveAction(ctx);
+    return this.users.changeUserPhone(ctx, id, dto.phone);
   }
 
   @Get('users/:id/permissions')

@@ -44,6 +44,7 @@ function setup(o: { moduleOn?: boolean; invoice?: Row; smsOk?: boolean } = {}) {
       }),
     },
     $queryRaw: vi.fn(async () => []),
+    $executeRaw: vi.fn(async () => 0),
     $transaction: vi.fn(async (fn: (tx: any) => unknown) => fn(db)),
     moduleSetting: { findUnique: vi.fn(async () => null) },
     activityLog: { create: vi.fn(async () => ({})) },
@@ -99,7 +100,7 @@ describe('تأیید تحویل عمومی', () => {
   it('sendCode does its limit checks + insert inside one transaction under an advisory lock; tenant cap enforced', async () => {
     const t = setup();
     const order: string[] = [];
-    t.db.$queryRaw.mockImplementation(async () => { order.push('lock'); return []; });
+    t.db.$executeRaw.mockImplementation(async () => { order.push('lock'); return 0; });
     const origCreate = t.db.invoiceDeliveryOtp.create.getMockImplementation()!;
     t.db.invoiceDeliveryOtp.create.mockImplementation(async (a: any) => { order.push('create'); return origCreate(a); });
     await t.svc.sendCode(t.ctx, 'tok', t.req);

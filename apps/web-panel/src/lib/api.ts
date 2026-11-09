@@ -594,6 +594,11 @@ export function inviteUser(name: string, phone: string, roleId: string) {
   });
 }
 
+/** تغییر شماره‌ی موبایل (شناسه‌ی ورود) کاربر — فقط مالک/مدیر؛ نشست‌های فعلی آن کاربر بسته می‌شود. */
+export function changeUserPhone(id: string, phone: string) {
+  return apiFetch<{ id: string; phone: string; changed: boolean }>(`/users/${id}/phone`, { method: "PUT", body: JSON.stringify({ phone }) });
+}
+
 export function updateUser(
   id: string,
   data: { name?: string; email?: string | null; status?: TenantUser["status"]; roleIds?: string[] },
@@ -9876,7 +9881,7 @@ export function fetchEntityReferrals(entityType: string, entityId: string) {
 export function referDocument(data: { entityType: string; entityId: string; toUserId: string; note?: string; dueAt?: string; additional?: boolean }) {
   return apiFetch<DocumentReferral>("/referrals", {
     method: "POST",
-    body: JSON.stringify({ ...data, idempotencyKey: `${data.entityType}:${data.entityId}:${data.toUserId}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` }),
+    body: JSON.stringify({ ...data, idempotencyKey: `ref:${globalThis.crypto.randomUUID()}` }),
   });
 }
 

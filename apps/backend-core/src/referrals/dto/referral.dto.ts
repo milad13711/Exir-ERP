@@ -30,7 +30,7 @@ export class ReferDocumentDto {
   /** کلید تکرار امن؛ دو درخواست با یک کلید یک ارجاع می‌سازند. */
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(200)
   idempotencyKey?: string;
 }
 
@@ -50,7 +50,7 @@ export class ReassignReferralDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(200)
   idempotencyKey?: string;
 }
 

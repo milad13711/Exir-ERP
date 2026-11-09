@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { updateUser, ApiError, type TenantUser, type TenantRoleOption } from "@/lib/api";
+import { updateUser, changeUserPhone, ApiError, type TenantUser, type TenantRoleOption } from "@/lib/api";
+
+/** ارقام فارسی/عربی → لاتین و حذف فاصله/خط تیره (کاربر شماره را هر طور تایپ کند). */
+function normalizePhone(v: string): string {
+  return v
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[\s-]/g, "")
+    .replace(/^\+98/, "0")
+    .replace(/^0098/, "0");
+}
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
@@ -24,6 +34,7 @@ export function EditUserModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(user.name);
+  const [phone, setPhone] = useState(user.phone);
   const [email, setEmail] = useState(user.email ?? "");
   const [status, setStatus] = useState<TenantUser["status"]>(user.status);
   const [roleIds, setRoleIds] = useState<Set<string>>(new Set(user.roleIds));
@@ -42,6 +53,18 @@ export function EditUserModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    const nextPhone = normalizePhone(phone);
+    const phoneChanged = nextPhone !== user.phone;
+    if (phoneChanged && !/^09\d{9}$/.test(nextPhone)) {
+      setError("شماره موبایل نامعتبر است (مثال: 09121234567)");
+      return;
+    }
+    if (
+      phoneChanged &&
+      !window.confirm(`شماره‌ی ورود «${user.name}» از ${user.phone} به ${nextPhone} تغییر کند؟\nاز این پس فقط با شماره‌ی جدید وارد می‌شود و نشست‌های فعلی‌اش بسته می‌شود.`)
+    ) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -51,6 +74,8 @@ export function EditUserModal({
         status,
         roleIds: [...roleIds],
       });
+      // آخرین گام: تغییر شماره نشست‌های همان کاربر را می‌بندد (اگر خودِ شما باشید، باید دوباره وارد شوید)
+      if (phoneChanged) await changeUserPhone(user.id, nextPhone);
       onSaved();
       onClose();
     } catch (err) {
@@ -69,9 +94,18 @@ export function EditUserModal({
         </div>
         <div>
           <label className={labelClass}>شماره موبایل</label>
-          <div className={`${inputClass} bg-slate-100 text-muted`} dir="ltr">
-            {user.phone}
-          </div>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
+            dir="ltr"
+            placeholder="09121234567"
+            className={inputClass}
+          />
+          <p className="mt-1 text-[11px] text-muted leading-5">
+            با تغییر شماره، کاربر از این پس با شماره‌ی جدید وارد می‌شود (همان حساب و همان سوابق). اگر این شخص در کسب‌وکار دیگری
+            هم عضو باشد، تغییر شماره فقط از طریق پشتیبانی ممکن است.
+          </p>
         </div>
         <div>
           <label className={labelClass}>ایمیل</label>

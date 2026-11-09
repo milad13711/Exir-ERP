@@ -113,7 +113,7 @@ export class PublicInvoiceDeliveryService {
     // بررسی سقف‌ها + درج ردیف در یک تراکنش زیر قفل مشورتی: درخواست‌های موازی نمی‌توانند هم‌زمان از کنترل رد شوند.
     // قفل تننت-محور است (سقف روزانه‌ی تننت و سقف IP هم باید race-safe باشند)؛ بخش داخل تراکنش فقط چند کوئری سبک است.
     const row = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'delivery-otp-send'}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'delivery-otp-send'}))`;
       const recent = await tx.invoiceDeliveryOtp.findMany({ where: { invoiceId: invoice.id, createdAt: { gte: dayAgo } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, lockedUntil: true } });
       if (recent.some((r) => r.lockedUntil && r.lockedUntil.getTime() > now)) throw tooMany('به‌دلیل تلاش‌های ناموفق، دریافت کد موقتاً قفل شده است؛ بعداً دوباره تلاش کنید');
       if (recent[0] && now - recent[0].createdAt.getTime() < DELIVERY_OTP.cooldownMs) throw tooMany('کد به‌تازگی ارسال شده است؛ یک دقیقه بعد دوباره درخواست دهید');
