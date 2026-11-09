@@ -5,6 +5,15 @@ const MANAGER_ONLY_SETTINGS_EXCEPTIONS = new Set(["/settings/profile", "/setting
 /** ماژول‌هایی که سرور برایشان فیلتر «فقط خودم» دارد (viewScope یا زنجیره‌ی سازمانی). */
 const OWN_SCOPED_MODULES = new Set(["crm", "sales", "accounting", "purchasing", "hr", "tasks", "projects", "contracts", "reports", "proposals", "tax", "dispatch", "correspondence"]);
 
+/** صفحات مجاز حساب «فقط نماینده» (آینه‌ی سیاست سرور agent-session-policy.ts). */
+const AGENT_ALLOWED_PREFIXES = ["/agents", "/dashboard", "/tasks", "/messenger", "/approvals", "/settings/profile", "/settings/notifications"];
+export function isAgentRestricted(me: Me | null): boolean {
+  return !!me?.agentRestricted && !isManager(me);
+}
+export function agentPathAllowed(pathname: string): boolean {
+  return AGENT_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export function isManager(me: Me | null): boolean {
   return me?.user.membershipRole === "OWNER" || me?.user.membershipRole === "ADMIN";
 }
@@ -13,6 +22,8 @@ export function isManager(me: Me | null): boolean {
 export function canViewModule(me: Me | null, installed: Set<string>, moduleCode?: string): boolean {
   if (!moduleCode) return true;
   if (!installed.has(moduleCode)) return false;
+  // «نمایندگی و رفرال» قدیمی در تننتی که ماژول «نمایندگی» دارد کنار گذاشته شده (همه‌چیز از /agents)
+  if (moduleCode === "referral-marketing" && installed.has("agents")) return false;
   if (!me || isManager(me)) return true;
   const viewable = (code: string) => !!me.permissions?.modules[code] && (me.permissions.modules[code].canViewAll || me.permissions.modules[code].canViewOwn);
   // چک‌ها زیرمجموعه‌ی فروش/خرید است (همان قاعده‌ی سرور)
@@ -21,7 +32,7 @@ export function canViewModule(me: Me | null, installed: Set<string>, moduleCode?
   const m = me.permissions?.modules[moduleCode];
   if (!m) return false;
   // فقط این ماژول‌ها دیدِ «فقط خودم» واقعی دارند؛ برای بقیه فقط «مشاهده‌ی همه» صفحه‌ی ماژول را باز می‌کند (سرور هم همین را اعمال می‌کند)
-  return OWN_SCOPED_MODULES.has(moduleCode) ? m.canViewAll || m.canViewOwn : m.canViewAll || (moduleCode === "referral-marketing" && m.canViewOwn);
+  return OWN_SCOPED_MODULES.has(moduleCode) ? m.canViewAll || m.canViewOwn : m.canViewAll || ((moduleCode === "referral-marketing" || moduleCode === "agents") && m.canViewOwn);
 }
 
 /** بخش‌های تنظیمات به‌جز پروفایل و اعلان‌ها فقط برای مدیران است. */

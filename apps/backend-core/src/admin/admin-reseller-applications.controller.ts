@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, GoneException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminJwtAuthGuard } from '../common/guards/admin-jwt-auth.guard.js';
 import { AdminTeamsGuard } from '../common/guards/admin-teams.guard.js';
 import { AdminTeams } from '../common/decorators/admin-teams.decorator.js';
@@ -41,13 +41,14 @@ export class AdminResellerApplicationsController {
 
   @Post(':id/approve')
   @AdminTeams(...ALL_TEAMS)
-  approve(@Param('id') id: string, @AdminCtx() ctx: AdminRequestContext) {
-    return this.applications.approve(id, ctx.auth.sub);
+  approve(@Param('id') _id: string, @AdminCtx() _ctx: AdminRequestContext): never {
+    // مسیر قدیمی (ماژول «نمایندگی و رفرال») کنار گذاشته شد؛ تأیید فقط در ماژول نمایندگیِ تننت اصلی (انتخاب محصول و سطح)
+    throw new GoneException('تأیید درخواست نمایندگی به ماژول «نمایندگی» در پنل اکسیر (تب درخواست‌ها) منتقل شده است');
   }
 
   @Post(':id/reject')
   @AdminTeams(...ALL_TEAMS)
-  reject(@Param('id') id: string, @Body() dto: RejectResellerApplicationDto, @AdminCtx() ctx: AdminRequestContext) {
-    return this.applications.reject(id, ctx.auth.sub, dto.rejectionNote);
+  reject(@Param('id') _id: string, @Body() _dto: RejectResellerApplicationDto, @AdminCtx() _ctx: AdminRequestContext): never {
+    throw new GoneException('رد درخواست نمایندگی به ماژول «نمایندگی» در پنل اکسیر (تب درخواست‌ها) منتقل شده است');
   }
 }

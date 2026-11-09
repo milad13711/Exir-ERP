@@ -23,7 +23,8 @@ import { LicenseBlockedScreen } from "./LicenseBlockedScreen";
 import { ChatIcon, LogoMark } from "@/components/icons";
 import { usePathname } from "next/navigation";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
-import { canViewModule, canViewSettingsItem } from "@/lib/access";
+import { agentPathAllowed, canViewModule, canViewSettingsItem, isAgentRestricted } from "@/lib/access";
+import { useRouter } from "next/navigation";
 import { primaryNav } from "./nav";
 import { subscribeSupportOpen } from "@/lib/support-open";
 
@@ -44,9 +45,16 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
   const pathname = usePathname();
   const navMatch = primaryNav.filter((i) => i.moduleCode && (pathname === i.href || pathname.startsWith(`${i.href}/`))).sort((a, b) => b.href.length - a.href.length)[0];
+  const router = useRouter();
+  const agentOnly = isAgentRestricted(me);
+  // نماینده: داشبورد خودش (فقط لیست کار روزانه، وظایف/یادآوری، کارتابل تأیید و پیام‌رسان — سرور محدود می‌کند)
+  useEffect(() => {
+    if (agentOnly && pathname === "/") router.replace("/dashboard");
+  }, [agentOnly, pathname, router]);
   const noAccess =
     !!me &&
-    ((navMatch && !canViewModule(me, installedModules, navMatch.moduleCode)) ||
+    ((agentOnly && !agentPathAllowed(pathname)) ||
+      (navMatch && !canViewModule(me, installedModules, navMatch.moduleCode)) ||
       (pathname.startsWith("/settings/") && !canViewSettingsItem(me, pathname.replace(/\/$/, "")) ));
 
   useEffect(() => {

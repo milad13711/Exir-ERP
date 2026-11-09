@@ -72,6 +72,7 @@ export const primaryNav: NavItem[] = [
   { href: "/marketing", label: "بازاریابی", icon: MegaphoneIcon, moduleCode: "marketing", category: "فروش" },
   { href: "/online-store", label: "فروشگاه آنلاین", icon: StoreIcon, moduleCode: "online-store", category: "فروش" },
   { href: "/book-store", label: "فروش تک‌محصولی", icon: DocsIcon, moduleCode: "book-store", category: "فروش" },
+  { href: "/agents", label: "نمایندگی (محصولات اکسیر)", icon: ShareIcon, moduleCode: "agents", category: "فروش" },
   { href: "/referral-marketing", label: "نمایندگی و رفرال", icon: ShareIcon, moduleCode: "referral-marketing", category: "فروش" },
 
   // خرید و تأمین

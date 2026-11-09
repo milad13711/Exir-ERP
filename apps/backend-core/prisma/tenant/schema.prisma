@@ -126,9 +126,11 @@ model User {
 }
 
 model Role {
-  id       String  @id @default(uuid())
-  name     String
-  isSystem Boolean @default(false) // system roles (e.g. "مدیر سیستم") cannot be deleted
+  id          String  @id @default(uuid())
+  name        String
+  isSystem    Boolean @default(false) // system roles (e.g. "مدیر سیستم") cannot be deleted
+  /// نقش «نماینده» (ماژول نمایندگی): نشست‌های دارای این نقش در سرور فقط به ماژول نمایندگی + وظایف + چک‌لیست روزانه دسترسی دارند.
+  isAgentRole Boolean @default(false)
 
   users             UserRole[]
   permissions       RolePermission[]
@@ -1124,17 +1126,17 @@ model SalesQuotationLine {
 /// معکوس (بستانکار درآمد/بدهکار موجودی) و رسید انبار در لحظه‌ی ثبت صادر
 /// می‌شود؛ چون این خودش یک سند نهایی است، برخلاف فاکتور مرحله‌ی پیش‌نویس ندارد.
 model SalesReturn {
-  id              String   @id @default(uuid())
-  returnNo        Int      @unique @default(autoincrement())
-  invoiceId       String
-  reason          String?
-  subtotal        Int // تومان
-  total           Int
-  notes           String?
-  createdByUserId String?
-  journalEntryId  String? // برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
-  accountingPosted Boolean @default(false) // سند مرجوعی در حسابداری ثبت شده؟
-  createdAt       DateTime @default(now())
+  id               String   @id @default(uuid())
+  returnNo         Int      @unique @default(autoincrement())
+  invoiceId        String
+  reason           String?
+  subtotal         Int // تومان
+  total            Int
+  notes            String?
+  createdByUserId  String?
+  journalEntryId   String? // برای رهگیری، مثل الگوی SalesInvoice.journalEntryId
+  accountingPosted Boolean  @default(false) // سند مرجوعی در حسابداری ثبت شده؟
+  createdAt        DateTime @default(now())
 
   invoice   SalesInvoice      @relation(fields: [invoiceId], references: [id])
   createdBy User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1248,14 +1250,14 @@ model PurchaseReturnLine {
 }
 
 model SalesPayment {
-  id        String             @id @default(uuid())
-  invoiceId String
-  amount    Int // تومان
-  method    SalesPaymentMethod @default(CASH)
-  paidAt    DateTime           @default(now())
-  note      String?
+  id               String             @id @default(uuid())
+  invoiceId        String
+  amount           Int // تومان
+  method           SalesPaymentMethod @default(CASH)
+  paidAt           DateTime           @default(now())
+  note             String?
   // سند دریافت وجه در حسابداری (فقط وقتی ماژول حسابداری نصب بوده)؛ false = هنوز ثبت نشده
-  accountingPosted Boolean @default(false)
+  accountingPosted Boolean            @default(false)
   journalEntryId   String?
 
   invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -1511,13 +1513,18 @@ model ResellerProfile {
   bio                           String? // معرفی کوتاه نماینده — روی نقشه‌ی eta.co.ir نمایش داده می‌شود
   city                          String? // برای پین‌گذاری روی نقشه‌ی نمایندگان (eta.co.ir)
   productCode                   ResellerProductCode?
+  /// ماژول نمایندگی: آخرین تأیید OTP شماره و شبا (تغییر هرکدام بدون تأیید پیامکی ممکن نیست)
+  phoneVerifiedAt               DateTime?
+  shebaVerifiedAt               DateTime?
   createdAt                     DateTime                  @default(now())
   updatedAt                     DateTime                  @updatedAt
 
-  contact     CrmContact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  conversions ReferralConversion[]
-  settlements ResellerSettlement[]
+  contact        CrmContact               @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  conversions    ReferralConversion[]
+  settlements    ResellerSettlement[]
+  memberships    AgentProductMembership[]
+  changeRequests AgentProfileChange[]
 
   @@map("reseller_profiles")
 }
@@ -1581,6 +1588,465 @@ model ReferralCommission {
 
   @@index([referralConversionId])
   @@map("referral_commissions")
+}
+
+// ── ماژول نمایندگی (agents) — فقط تننت رجیستری پلتفرم؛ یک پروفایل (ResellerProfile)
+// + چند عضویت محصولی (AgentProductMembership). مشتری/قیف/کیف‌پول/گزارش/قرارداد/کد
+// معرف/سطح همه به‌ازای «محصول» جدا هستند. ستون‌های وضعیت عمداً TEXT اند (نه enum). ──
+
+/// رجیستری «محصولات اکسیر» — محصولی که نمایندگان می‌فروشند و API ورودی‌اش رویداد می‌فرستد.
+model AgentProduct {
+  id                  String   @id @default(uuid())
+  code                String   @unique
+  name                String
+  description         String?
+  logoUrl             String?
+  websiteUrl          String?
+  isActive            Boolean  @default(true)
+  isArchived          Boolean  @default(false)
+  /// MANUAL: کد معرف را ادمین دستی در عضویت ثبت می‌کند
+  referralCodePolicy  String   @default("MANUAL")
+  /// مهلت نگهداری کمیسیون پیش از قابل‌تسویه‌شدن (روز)
+  holdDays            Int      @default(7)
+  /// حداقل مبلغ درخواست تسویه، به واحد پایه (۵۰۰٬۰۰۰ تومان پیش‌فرض؛ هنگام ساخت متناسب با ارز پایه محاسبه می‌شود)
+  minSettlementAmount Int      @default(500000)
+  /// لینک معرفی روی کارت ویزیت نماینده؛ {code} با کد معرف جایگزین می‌شود. تهی → websiteUrl?ref={code}
+  referralUrlTemplate String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  memberships AgentProductMembership[]
+  rules       AgentCommissionRule[]
+  planRules   AgentCommissionPlanRule[]
+  agreements  AgentAgreement[]
+  apiKeys     AgentProductApiKey[]
+  customers   AgentCustomer[]
+
+  @@map("agent_products")
+}
+
+/// عضویت نماینده در یک محصول. سطح: B | A | A_PLUS. وضعیت: PENDING | ACTIVE | SUSPENDED | ENDED.
+model AgentProductMembership {
+  id                  String    @id @default(uuid())
+  resellerProfileId   String
+  productId           String
+  level               String    @default("B")
+  /// کد معرف — فقط ادمین دستی ثبت می‌کند؛ یکتا در هر محصول
+  referralCode        String?
+  status              String    @default("PENDING")
+  agreementVersion    Int? // آخرین نسخه‌ی تفاهم‌نامه‌ی پذیرفته‌شده
+  agreementAcceptedAt DateTime?
+  startedAt           DateTime?
+  endedAt             DateTime?
+  endReason           String?
+  note                String?
+  approvedByUserId    String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  resellerProfile ResellerProfile            @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
+  product         AgentProduct               @relation(fields: [productId], references: [id])
+  customers       AgentCustomer[]
+  acceptances     AgentAgreementAcceptance[]
+
+  @@unique([resellerProfileId, productId])
+  @@unique([productId, referralCode])
+  @@index([productId, status])
+  @@map("agent_memberships")
+}
+
+/// قانون کمیسیون نسخه‌دار: به‌ازای (محصول، سطح) درصد پرداخت اول/تمدید از effectiveFrom. آخرین قانون با effectiveFrom ≤ لحظه‌ی رویداد معتبر است.
+model AgentCommissionRule {
+  id                  String   @id @default(uuid())
+  productId           String
+  level               String
+  firstPaymentPercent Float
+  renewalPercent      Float
+  effectiveFrom       DateTime @default(now())
+  note                String?
+  createdByUserId     String?
+  createdAt           DateTime @default(now())
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, level, effectiveFrom])
+  @@map("agent_commission_rules")
+}
+
+/// تفاهم‌نامه‌ی نسخه‌دار هر محصول. DRAFT | PUBLISHED. با انتشار نسخه‌ی جدید، همه‌ی عضویت‌ها باید دوباره بپذیرند.
+model AgentAgreement {
+  id              String    @id @default(uuid())
+  productId       String
+  version         Int
+  title           String
+  body            String
+  status          String    @default("DRAFT")
+  publishedAt     DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  product     AgentProduct               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  acceptances AgentAgreementAcceptance[]
+
+  @@unique([productId, version])
+  @@map("agent_agreements")
+}
+
+model AgentAgreementAcceptance {
+  id             String   @id @default(uuid())
+  membershipId   String
+  agreementId    String
+  version        Int
+  acceptedByName String?
+  /// شناسه‌ی مدرک امضا (SignatureEvidence) و هش متن پذیرفته‌شده
+  evidenceId     String?
+  contentHash    String?
+  acceptedAt     DateTime @default(now())
+
+  membership AgentProductMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  agreement  AgentAgreement         @relation(fields: [agreementId], references: [id])
+
+  @@unique([membershipId, agreementId])
+  @@map("agent_agreement_acceptances")
+}
+
+/// کلید API ورودی هر محصول. فقط هش کلید ذخیره می‌شود؛ رمز امضای HMAC رمزنگاری‌شده (AES-GCM) نگه داشته می‌شود. ACTIVE | REVOKED.
+model AgentProductApiKey {
+  id               String    @id @default(uuid())
+  productId        String
+  name             String
+  keyPrefix        String
+  keyHash          String    @unique
+  signingSecretEnc String
+  status           String    @default("ACTIVE")
+  maxPerMinute     Int       @default(120)
+  lastUsedAt       DateTime?
+  lastUsedIp       String?
+  expiresAt        DateTime?
+  createdByUserId  String?
+  revokedByUserId  String?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, status])
+  @@map("agent_product_api_keys")
+}
+
+/// لاگ ممیزی هر رویداد ورودی. eventId فقط برای رویدادهای پذیرفته‌شده پر می‌شود و (محصول، eventId) یکتاست (ایدمپوتنسی).
+model AgentApiEventLog {
+  id            String   @id @default(uuid())
+  productId     String?
+  keyId         String?
+  clientEventId String?
+  eventId       String?
+  type          String?
+  status        String // ACCEPTED | DUPLICATE | REJECTED | ERROR
+  httpStatus    Int
+  errorCode     String?
+  message       String?
+  payload       Json?
+  ip            String?
+  createdAt     DateTime @default(now())
+
+  @@unique([productId, eventId])
+  @@index([productId, createdAt])
+  @@index([status, createdAt])
+  @@map("agent_api_event_logs")
+}
+
+/// مشتریِ معرفی‌شده‌ی یک عضویت (از رویدادهای API ورودی). funnelStage: LEAD | REGISTERED | TRIAL | PAID | RENEWED | LOST.
+model AgentCustomer {
+  id                 String    @id @default(uuid())
+  productId          String
+  membershipId       String
+  externalCustomerId String
+  name               String
+  phone              String?
+  email              String?
+  planCode           String?
+  planName           String?
+  status             String    @default("ACTIVE") // ACTIVE | CANCELLED
+  funnelStage        String    @default("REGISTERED")
+  registeredAt       DateTime  @default(now())
+  lastPaymentAt      DateTime?
+  nextRenewalAt      DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  product    AgentProduct            @relation(fields: [productId], references: [id])
+  membership AgentProductMembership  @relation(fields: [membershipId], references: [id])
+  payments   AgentPaymentEvent[]
+  stageLogs  AgentCustomerStageLog[]
+  reminders  AgentRenewalReminder[]
+
+  @@unique([productId, externalCustomerId])
+  @@index([membershipId, funnelStage])
+  @@index([nextRenewalAt])
+  @@map("agent_customers")
+}
+
+model AgentCustomerStageLog {
+  id         String   @id @default(uuid())
+  customerId String
+  fromStage  String?
+  toStage    String
+  source     String // EVENT | MANUAL
+  byUserId   String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  customer AgentCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@map("agent_customer_stage_logs")
+}
+
+/// دفتر رویدادهای پرداخت — فقط افزودنی (هرگز ویرایش/حذف نمی‌شود). type: PAYMENT_FIRST | PAYMENT_RENEWAL | REFUND. amount به واحد پایه‌ی تننت.
+model AgentPaymentEvent {
+  id               String    @id @default(uuid())
+  productId        String
+  membershipId     String
+  customerId       String
+  type             String
+  paymentRef       String
+  amount           Int
+  currency         String
+  originalCurrency String?
+  originalAmount   Int?
+  planCode         String?
+  planName         String?
+  paidAt           DateTime
+  periodEnd        DateTime?
+  inboundEventId   String?
+  createdAt        DateTime  @default(now())
+
+  customer AgentCustomer @relation(fields: [customerId], references: [id])
+
+  @@unique([productId, type, paymentRef])
+  @@index([membershipId, paidAt])
+  @@index([customerId])
+  @@map("agent_payment_events")
+}
+
+/// یادآور تمدید ارسال‌شده به نماینده (D30 | D7) — یکتا به‌ازای (مشتری، نوع، پایان دوره) برای ایدمپوتنسی.
+/// قانون پورسانت (فاز ۳): محصول × سطح × نوع تراکنش × قلم × دفعه (اول/تمدید) → درصد از «مبلغ خالص».
+/// نسخه‌دار و فقط‌افزودنی: ویرایش = قانون تازه با effectiveFrom جدید و بستن قبلی (endedAt). محاسبه همیشه قانونِ معتبر
+/// در لحظه‌ی پرداخت را برمی‌دارد و در خود کمیسیون snapshot می‌کند — تغییر قانون فقط روی تراکنش‌های بعدی اثر دارد.
+/// txTypeCode/itemCode تهی = «هر». occurrence: FIRST | RENEWAL | ANY.
+model AgentCommissionPlanRule {
+  id              String    @id @default(uuid())
+  productId       String
+  level           String
+  txTypeCode      String?
+  itemCode        String?
+  occurrence      String    @default("ANY")
+  percent         Float
+  effectiveFrom   DateTime  @default(now())
+  endedAt         DateTime?
+  replacesRuleId  String?
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, level, effectiveFrom])
+  @@map("agent_commission_plan_rules")
+}
+
+/// کاتالوگ انواع تراکنش هر محصول — با اولین تراکنش خودکار ساخته می‌شود؛ ادمین فقط نام فارسی/فعال‌بودن را تنظیم می‌کند.
+model AgentTransactionType {
+  id          String   @id @default(uuid())
+  productId   String
+  code        String
+  name        String
+  isActive    Boolean  @default(true)
+  firstSeenAt DateTime @default(now())
+
+  @@unique([productId, code])
+  @@map("agent_transaction_types")
+}
+
+/// کاتالوگ اقلام فروش هر محصول (مثلاً ماژول crm) — مثل انواع تراکنش، خودکار از تراکنش‌ها.
+model AgentTransactionItem {
+  id          String   @id @default(uuid())
+  productId   String
+  code        String
+  name        String
+  isActive    Boolean  @default(true)
+  firstSeenAt DateTime @default(now())
+
+  @@unique([productId, code])
+  @@map("agent_transaction_items")
+}
+
+/// دفتر مرکزی همه‌ی تراکنش‌های محصولات (چه مشتری نماینده داشته باشد چه نه). فقط‌افزودنی؛ مبالغ به واحد ارز پایه.
+/// occurrence: FIRST | RENEWAL | ONE_OFF | REFUND. commissionStatus: CREDITED | NO_RULE | NOT_ATTRIBUTED | AGENT_INACTIVE | REVERSED | ZERO.
+model AgentTransaction {
+  id                    String    @id @default(uuid())
+  productId             String
+  externalTxId          String
+  externalCustomerId    String
+  customerId            String?
+  membershipId          String?
+  membershipLevel       String?
+  txTypeCode            String
+  itemCode              String?
+  itemName              String?
+  occurrence            String
+  grossAmount           Int?
+  discountAmount        Int?
+  taxAmount             Int?
+  netAmount             Int
+  currency              String
+  originalCurrency      String
+  originalNetAmount     Int
+  paidAt                DateTime
+  periodEnd             DateTime?
+  refundOfTransactionId String?
+  commissionStatus      String
+  commissionNote        String?
+  inboundEventId        String?
+  createdAt             DateTime  @default(now())
+
+  commissions AgentCommission[]
+
+  @@unique([productId, externalTxId])
+  @@index([productId, paidAt])
+  @@index([customerId, itemCode])
+  @@index([membershipId, paidAt])
+  @@map("agent_transactions")
+}
+
+/// پورسانت هر تراکنش برای نماینده (کیف پول). kind: CREDIT (سبز) | REVERSAL (قرمز، مبلغ منفی، بابت بازپرداخت).
+/// availableAt = پرداخت + مهلت نگهداری محصول؛ قبل از آن «در انتظار»، بعد «قابل تسویه». ruleSnapshot قانونِ اعمال‌شده است.
+model AgentCommission {
+  id                   String   @id @default(uuid())
+  transactionId        String
+  productId            String
+  membershipId         String
+  customerId           String
+  ruleId               String?
+  level                String
+  percent              Float
+  baseAmount           Int
+  amount               Int
+  kind                 String
+  reversesCommissionId String?
+  availableAt          DateTime
+  ruleSnapshot         Json
+  createdAt            DateTime @default(now())
+
+  transaction AgentTransaction @relation(fields: [transactionId], references: [id])
+
+  @@unique([transactionId, membershipId, kind])
+  @@index([membershipId, availableAt])
+  @@index([productId, createdAt])
+  @@map("agent_commissions")
+}
+
+/// انتقال مشتری به نماینده‌ی دیگر (همان محصول) — از این لحظه پورسانت تراکنش‌های بعدی به نماینده‌ی جدید می‌رسد.
+model AgentCustomerTransfer {
+  id               String   @id @default(uuid())
+  customerId       String
+  fromMembershipId String
+  toMembershipId   String
+  reason           String?
+  byUserId         String?
+  createdAt        DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@map("agent_customer_transfers")
+}
+
+/// درخواست تسویه‌ی کیف پول نماینده در یک محصول. مبلغ از لحظه‌ی درخواست رزرو می‌شود (REQUESTED/APPROVED)،
+/// با PAID قطعی و با REJECTED/CANCELLED آزاد. پرداخت دستی توسط مالی با شماره‌ی پیگیری بانکی ثبت می‌شود.
+model AgentPayout {
+  id                String    @id @default(uuid())
+  number            Int       @unique @default(autoincrement())
+  productId         String
+  membershipId      String
+  resellerProfileId String
+  amount            Int
+  status            String    @default("REQUESTED") // REQUESTED | APPROVED | PAID | REJECTED | CANCELLED
+  /// شبای تأییدشده‌ی نماینده در لحظه‌ی درخواست (تغییر بعدی شبا روی این درخواست اثر ندارد)
+  shebaNumber       String
+  requestedByType   String    @default("AGENT") // AGENT | ADMIN
+  requestedByUserId String?
+  agentNote         String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  rejectReason      String?
+  paidByUserId      String?
+  paidAt            DateTime?
+  trackingNumber    String?
+  paymentNote       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([membershipId, status])
+  @@index([status, createdAt])
+  @@map("agent_payouts")
+}
+
+model AgentRenewalReminder {
+  id         String   @id @default(uuid())
+  customerId String
+  kind       String
+  periodEnd  DateTime
+  status     String   @default("SENT")
+  sentAt     DateTime @default(now())
+
+  customer AgentCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, kind, periodEnd])
+  @@map("agent_renewal_reminders")
+}
+
+/// تغییر شبا/شماره‌ی نماینده تا تأیید OTP پیامکی نهایی نمی‌شود. kind: SHEBA | PHONE.
+model AgentProfileChange {
+  id                String    @id @default(uuid())
+  resellerProfileId String
+  kind              String
+  newValue          String
+  codeSalt          String
+  codeHash          String
+  attempts          Int       @default(0)
+  expiresAt         DateTime
+  confirmedAt       DateTime?
+  /// AGENT | ADMIN — تغییر شبایی که خود نماینده از پنلش شروع کرده پس از کد پیامکی منتظر تأیید مدیر می‌ماند
+  requestedByType   String    @default("AGENT")
+  /// فقط برای شبای درخواستی نماینده: PENDING | APPROVED | REJECTED | SUPERSEDED (تهی = نیاز به تأیید ندارد)
+  approvalStatus    String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  rejectReason      String?
+  createdAt         DateTime  @default(now())
+
+  resellerProfile ResellerProfile @relation(fields: [resellerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([resellerProfileId, kind, createdAt])
+  @@index([kind, approvalStatus])
+  @@map("agent_profile_changes")
+}
+
+/// ممیزی تغییرات پروفایل/عضویت نماینده (فقط افزودنی).
+model AgentAuditLog {
+  id                String   @id @default(uuid())
+  resellerProfileId String?
+  membershipId      String?
+  action            String
+  detail            String?
+  actorUserId       String?
+  actorType         String   @default("ADMIN") // ADMIN | AGENT | SYSTEM
+  createdAt         DateTime @default(now())
+
+  @@index([resellerProfileId, createdAt])
+  @@index([membershipId, createdAt])
+  @@map("agent_audit_logs")
 }
 
 // ── Accounting: کدینگ حسابها، اسناد حسابداری و خزانه‌داری ───────────────────
@@ -5955,7 +6421,6 @@ model BankTransaction {
   @@index([journalEntryId])
   @@map("accounting_bank_transactions")
 }
-
 
 /// وضعیت «دیده‌شده» هر کاربر برای هر انتشار به‌روزرسانی ماژول (خودِ انتشار در دیتابیس کنترل است، پس FK ندارد).
 model ModuleReleaseRead {

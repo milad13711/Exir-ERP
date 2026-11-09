@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useWorkspace } from "@/lib/workspace-context";
 import clsx from "clsx";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -30,6 +32,19 @@ import { SmsTemplatesModal } from "@/components/sms/SmsTemplatesModal";
 type Tab = "resellers" | "dashboard" | "me";
 
 export default function ReferralMarketingPage() {
+  const { installedModules } = useWorkspace();
+  // ماژول قدیمی در تننتی که «نمایندگی» دارد کنار گذاشته شده؛ هر لینک قدیمی به ماژول جدید می‌رود
+  if (installedModules.has("agents")) return <RedirectToAgents />;
+  return <LegacyReferralMarketingPage />;
+}
+
+function RedirectToAgents() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/agents"); }, [router]);
+  return <div className="py-10 text-center text-sm text-muted">این بخش به «نمایندگی» منتقل شده است…</div>;
+}
+
+function LegacyReferralMarketingPage() {
   const [hasManagementAccess, setHasManagementAccess] = useState<boolean | null>(null);
   const [isReseller, setIsReseller] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("resellers");

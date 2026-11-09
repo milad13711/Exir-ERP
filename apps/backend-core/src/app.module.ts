@@ -76,6 +76,7 @@ import { ReferralsModule } from './referrals/referrals.module.js';
 import { RecruitmentModule } from './recruitment/recruitment.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReferralMarketingModule } from './referral-marketing/referral-marketing.module.js';
+import { AgentsModule } from './agents/agents.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { BackupDrModule } from './backup-dr/backup-dr.module.js';
 import { MonitoringModule } from './monitoring/monitoring.module.js';
@@ -126,6 +127,7 @@ import { SignatureEvidenceModule } from './common/signature-evidence/signature-e
     RecruitmentModule,
     ReportsModule,
     ReferralMarketingModule,
+    AgentsModule,
     AdminModule,
     PlatformManagementModule,
     WorkspaceModule,

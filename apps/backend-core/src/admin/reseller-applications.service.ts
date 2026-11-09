@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service.js';
 import { ResellersService } from '../referral-marketing/resellers.service.js';
+import { ensureLegacyMembership } from '../agents/agent-membership-helper.js';
 import type { TenantRequestContext } from '../common/request-context.js';
 import type { UpdateResellerApplicationDto } from './dto/update-reseller-application.dto.js';
 
@@ -82,6 +83,9 @@ export class ResellerApplicationsService {
         verifiedAt: new Date(),
       },
     });
+
+    // ماژول نمایندگی: محصول متناظر کد قدیمی + عضویت ACTIVE (idempotent؛ خطا تأیید را نمی‌شکند)
+    await ensureLegacyMembership(tenantDb, profile.id, application.productCode);
 
     // پروفایل + دسترسی ورود: نماینده پیامک ورود می‌گیرد و می‌تواند عکس و اطلاعاتش را برای پین نقشه بارگذاری کند.
     let accessGranted = false;

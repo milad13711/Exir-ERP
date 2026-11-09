@@ -44,6 +44,8 @@ async function bootstrap() {
   app.use(publicFormsCorsMiddleware);
   // گزارش‌های CSP با Content-Type مخصوص می‌آیند و کوچک‌اند — پارسر جداگانه‌ی ۱۶KB (پیش از پارسر ۲۰MB)
   app.use('/api/security/csp-report', expressJson({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '16kb' }));
+  // API ورودی محصولات نمایندگی: بدنه‌ی خام برای امضای HMAC لازم است و سقف ۳۲KB دارد (پیش از پارسر ۲۰MB)
+  app.use('/api/agents-api', expressJson({ limit: '32kb', verify: (req, _res, buf) => { (req as unknown as { rawBody?: Buffer }).rawBody = buf; } }));
   app.useBodyParser('json', { limit: '20mb' });
   app.useBodyParser('urlencoded', { limit: '20mb', extended: true });
 

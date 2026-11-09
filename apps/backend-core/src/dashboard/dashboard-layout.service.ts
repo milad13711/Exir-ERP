@@ -1,6 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { TenantRequestContext } from '../common/request-context.js';
 import { resolveTenantUserId } from '../common/resolve-tenant-user.js';
+import { AGENT_DASHBOARD_WIDGETS } from '../agents/agent-session-policy.js';
+import { isAgentOnlyUser } from '../agents/agent-session.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import {
@@ -78,7 +80,9 @@ export class DashboardLayoutService {
   async resolveForUser(ctx: TenantRequestContext) {
     const userId = await resolveTenantUserId(ctx).catch(() => null);
     const { company, user, installed, acl } = await this.load(ctx, userId);
-    const allowed = availableWidgets(installed, acl);
+    let allowed = availableWidgets(installed, acl);
+    // نشست «فقط نماینده»: داشبورد فقط کار روزانه، وظایف، تقویم/یادآوری، کارتابل تأیید و پیام‌رسان
+    if (await this.isAgentOnly(ctx)) allowed = allowed.filter((d) => AGENT_DASHBOARD_WIDGETS.has(d.key));
     const widgets = resolveLayout(allowed, company, user);
     // برای حالت ویرایش شخصی: همه‌ی ویجت‌هایی که شرکت فعال کرده (حتی پنهان‌شده‌ی شخصی) به ترتیب مؤثر کاربر
     const companyEnabled = effectiveCompanyItems(company, allowed).filter((i) => i.enabled);
@@ -140,6 +144,11 @@ export class DashboardLayoutService {
     const userId = await this.requireUserId(ctx);
     await ctx.tenantDb.dashboardLayout.deleteMany({ where: { scope: USER, ownerKey: userId } });
     return this.resolveForUser(ctx);
+  }
+
+  private async isAgentOnly(ctx: TenantRequestContext): Promise<boolean> {
+    if (ctx.auth?.type !== 'tenant_user' || ctx.auth.role === 'OWNER' || ctx.auth.role === 'ADMIN') return false;
+    return isAgentOnlyUser(ctx.tenantDb, ctx.tenantId, ctx.auth.sub).catch(() => false);
   }
 
   private async requireUserId(ctx: TenantRequestContext): Promise<string> {

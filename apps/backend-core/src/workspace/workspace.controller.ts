@@ -8,6 +8,7 @@ import type { TenantRequestContext } from '../common/request-context.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { ControlPrismaService } from '../prisma/control-prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { isAgentOnlyUser } from '../agents/agent-session.js';
 import { CompanyStampService } from '../settings/company-stamp.service.js';
 import { UpdateBrandingDto } from './dto/update-branding.dto.js';
 import { SwitchTenantDto } from './dto/switch-tenant.dto.js';
@@ -56,6 +57,8 @@ export class WorkspaceController {
       baseCurrency: await loadBaseCurrency(ctx.tenantDb).then((b) => ({ code: b.code, label: b.label })),
       twoFactor: await this.twoFactorFor(ctx, globalUser, tenant),
       permissions: await this.permissions.effectiveMatrix(ctx),
+      // حساب «فقط نماینده»: فرانت منو را محدود می‌کند (اعمال واقعی سمت سرور در JwtAuthGuard است)
+      agentRestricted: ctx.auth.type === 'tenant_user' && ctx.auth.role !== 'OWNER' && ctx.auth.role !== 'ADMIN' ? await isAgentOnlyUser(ctx.tenantDb, ctx.tenantId, ctx.auth.sub).catch(() => false) : false,
     };
   }
 

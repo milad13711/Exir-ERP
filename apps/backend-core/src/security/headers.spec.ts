@@ -37,6 +37,12 @@ describe('publicBodyLimitMiddleware', () => {
     return { r, next };
   };
 
+  it('caps agents-api event bodies at 32KB and rejects chunked bodies', () => {
+    expect(run('POST', '/api/agents-api/v1/events', { 'content-length': '40000' }).r.statusCode).toBe(413);
+    expect(run('POST', '/api/agents-api/v1/events', { 'content-length': '900' }).next).toHaveBeenCalled();
+    expect(run('POST', '/api/agents-api/v1/events', { 'transfer-encoding': 'chunked' }).r.statusCode).toBe(411);
+  });
+
   it('caps auth bodies at 16KB and public bodies at 8MB, leaves authenticated routes (20MB) alone', () => {
     expect(run('POST', '/api/auth/otp/verify', { 'content-length': '20000' }).r.statusCode).toBe(413);
     expect(run('POST', '/api/auth/otp/verify', { 'content-length': '300' }).next).toHaveBeenCalled();

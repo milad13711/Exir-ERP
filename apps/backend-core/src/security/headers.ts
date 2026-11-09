@@ -38,6 +38,7 @@ export function publicBodyLimitMiddleware(req: Request, res: Response, next: Nex
   const url = req.url;
   let max = 0;
   if (url.startsWith('/api/license-api/')) max = 4 * 1024;
+  else if (url.startsWith('/api/agents-api/')) max = 32 * 1024; // API ورودی محصولات نمایندگی: رویدادهای JSON کوچک
   else if (url.startsWith('/api/auth/') || url.startsWith('/api/admin/auth/')) max = 16 * 1024;
   else if (url.startsWith('/api/public/') && !url.startsWith('/api/public/forms/')) max = Number(process.env.PUBLIC_BODY_LIMIT_BYTES) || 8 * 1024 * 1024;
   if (!max) return next();

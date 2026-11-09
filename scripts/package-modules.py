@@ -59,6 +59,7 @@ MODULES = {
     "ration-lab": (["ration-lab"], "ration-lab", None),
     "recruitment": (["recruitment"], "recruitment", "recruitment"),
     "referral-marketing": (["referral-marketing", "tenants"], "referral-marketing", "referral-marketing"),
+    "agents": (["agents"], "agents", "agents"),
     "reports": (["reports"], "reports", "reports"),
     "sales": (["sales"], "sales", "sales"),
     "tasks": (["tasks"], "tasks", None),

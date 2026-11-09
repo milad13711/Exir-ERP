@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { ShieldIcon, LogoMark, DocsIcon, PencilIcon, DragHandleIcon, CheckIcon } from "@/components/icons";
-import { canViewModule } from "@/lib/access";
+import { agentPathAllowed, canViewModule, isAgentRestricted } from "@/lib/access";
 import { primaryNav, secondaryNav, type NavItem } from "./nav";
 import { useWorkspace } from "@/lib/workspace-context";
 import { updateNavOrder } from "@/lib/api";
@@ -87,7 +87,8 @@ function applyNavOrder(items: NavItem[], navOrder: string[]): NavItem[] {
 
 function useVisibleNav(items: NavItem[], navOrder: string[]) {
   const { installedModules, me } = useWorkspace();
-  const visible = items.filter((item) => canViewModule(me, installedModules, item.moduleCode));
+  const restricted = isAgentRestricted(me);
+  const visible = items.filter((item) => (restricted ? agentPathAllowed(item.href) : true) && canViewModule(me, installedModules, item.moduleCode));
   return useMemo(() => applyNavOrder(visible, navOrder), [visible, navOrder]);
 }
 

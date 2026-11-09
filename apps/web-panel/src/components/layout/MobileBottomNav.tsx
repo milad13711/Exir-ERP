@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { mobileNav } from "./nav";
+import { mobileNav, primaryNav } from "./nav";
 import { useWorkspace } from "@/lib/workspace-context";
-import { canViewModule } from "@/lib/access";
+import { agentPathAllowed, canViewModule, isAgentRestricted } from "@/lib/access";
 import { useMessengerUnread } from "@/lib/useMessengerUnread";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
   const { me, installedModules } = useWorkspace();
   const messengerUnread = useMessengerUnread(installedModules.has("messenger"));
-  const items = mobileNav.filter((item) => canViewModule(me, installedModules, item.moduleCode));
+  const agentItem = primaryNav.find((i) => i.href === "/agents");
+  const base = isAgentRestricted(me) && agentItem ? [agentItem, ...mobileNav] : mobileNav;
+  const items = base.filter((item) => (isAgentRestricted(me) ? agentPathAllowed(item.href) : true) && canViewModule(me, installedModules, item.moduleCode));
 
   return (
     <nav className="lg:hidden shrink-0 bg-surface border-t border-border flex pb-[max(env(safe-area-inset-bottom),8px)] pt-2">

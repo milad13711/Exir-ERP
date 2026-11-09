@@ -117,7 +117,12 @@ export function submitLead(data: {
   return apiFetch<{ id: string }>("/public/catalog/lead", { method: "POST", body: JSON.stringify(data) });
 }
 
-export type ProductCode = "ERP" | "REAL_ESTATE" | "SMS_GATEWAY" | "OTHER";
+/** کد محصول ماژول نمایندگی (پویا؛ کدهای قدیمی ERP/REAL_ESTATE/SMS_GATEWAY هم همین شکل‌اند). */
+export type ProductCode = string;
+export type AgentProductOption = { code: string; name: string; description: string | null; logoUrl: string | null; websiteUrl: string | null };
+export function fetchAgentProducts() {
+  return apiFetch<AgentProductOption[]>("/public/agent-products");
+}
 
 export function submitResellerApplication(data: {
   name: string;
@@ -137,6 +142,8 @@ export type ResellerMapPin = {
   name: string;
   city: string;
   productCode: ProductCode | null;
+  productCodes?: string[];
+  productNames?: string[];
   tier: "A_PLUS" | "A" | "B";
   logoUrl: string | null;
   websiteUrl: string | null;
@@ -144,5 +151,5 @@ export type ResellerMapPin = {
 };
 
 export function fetchResellerMap(productCode?: ProductCode) {
-  return apiFetch<ResellerMapPin[]>(`/public/resellers/map${productCode ? `?productCode=${productCode}` : ""}`);
+  return apiFetch<ResellerMapPin[]>(`/public/resellers/map${productCode ? `?productCode=${encodeURIComponent(productCode)}` : ""}`);
 }

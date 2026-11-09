@@ -72,6 +72,11 @@ export const MONEY_COLUMNS: MoneyColumn[] = [
   ...c('بازاریابی و معرفی', 'marketing_campaigns', ['attributedRevenue']),
   ...c('بازاریابی و معرفی', 'reseller_settlements', ['totalCommission', 'paidCommission', 'amountDue']),
   ...c('بازاریابی و معرفی', 'referral_commissions', ['amount']),
+  ...c('نمایندگی', 'agent_products', ['minSettlementAmount']),
+  ...c('نمایندگی', 'agent_payment_events', ['amount']),
+  ...c('نمایندگی', 'agent_transactions', ['grossAmount', 'discountAmount', 'taxAmount', 'netAmount']),
+  ...c('نمایندگی', 'agent_commissions', ['baseAmount', 'amount']),
+  ...c('نمایندگی', 'agent_payouts', ['amount']),
   ...c('آزمایشگاه جیره', 'ration_samples', ['analysisFeeAmount', 'finalFeeAmount']),
   ...c('آزمایشگاه جیره', 'ration_formula_lines', ['unitCostSnapshot', 'lineCost']),
 ];
@@ -165,6 +170,10 @@ export const NOT_CONVERTED: Record<string, string> = {
   'CorrRevision.after': 'نسخه‌ی تاریخی نامه',
   'SyncIdempotency.responseBody': 'پاسخ موقت همگام‌سازی (۷ روز)',
   'BaseCurrencyConversion.report': 'گزارش همین ماژول',
+  'AgentCommission.ruleSnapshot': 'snapshot قانون اعمال‌شده (درصد/سطح/کدها) — بدون مبلغ پولی',
+  'AgentTransaction.originalNetAmount': 'مبلغ خالص تراکنش به ارز اصلی خودش (originalCurrency) — سند تاریخی؛ مبلغ دفتر در netAmount است',
+  'AgentPaymentEvent.originalAmount': 'مبلغ اصلی رویداد به ارز اصلی خودش (originalCurrency) — سند تاریخی؛ مبلغ تبدیل‌شده‌ی دفتر در amount است',
+  'AgentApiEventLog.payload': 'payload ممیزی رویداد ورودی (PII ماسک‌شده) — سند تاریخی به واحد زمان دریافت',
 };
 
 export const COLUMN_KEY = (m: { table: string; column: string }) => `${m.table}.${m.column}`;

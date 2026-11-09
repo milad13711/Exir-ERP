@@ -45,6 +45,7 @@ export const MODULE_ROUTES: Record<string, string> = {
   'online-store': '/online-store',
   'book-store': '/book-store',
   'referral-marketing': '/referral-marketing',
+  agents: '/agents',
   purchasing: '/purchasing',
   warehouse: '/warehouse',
   production: '/production',

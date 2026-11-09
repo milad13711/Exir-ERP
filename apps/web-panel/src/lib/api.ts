@@ -351,6 +351,8 @@ export type Me = {
   navOrder: string[];
   twoFactor?: TwoFactorPolicyState;
   permissions?: { manager: boolean; modules: Record<string, { canViewAll: boolean; canViewOwn: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }> };
+  /** حساب «فقط نماینده»: سرور فقط نمایندگی + وظایف + چک‌لیست را اجازه می‌دهد؛ منو هم همین‌طور محدود می‌شود. */
+  agentRestricted?: boolean;
 };
 
 export function fetchMe() {
@@ -762,6 +764,7 @@ export const PERMISSION_GATED_MODULE_CODES = [
   "online-store",
   "marketing",
   "referral-marketing",
+  "agents",
   "qr-code",
   "automation",
   "reports",
@@ -9909,3 +9912,246 @@ export function fetchReferralAssignees(entityType: string, ids: string[]) {
 export function fetchMyReferredIds(entityType: string) {
   return apiFetch<{ ids: string[] }>(`/referrals/mine-ids?entityType=${encodeURIComponent(entityType)}`);
 }
+
+
+// ── ماژول نمایندگی (agents) — تننت رجیستری ───────────────────────────────────────────────
+export type AgentLevel = "B" | "A" | "A_PLUS";
+export type AgentMembershipStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "ENDED";
+export type AgentFunnelStage = "LEAD" | "REGISTERED" | "TRIAL" | "PAID" | "RENEWED" | "LOST";
+export const AGENT_LEVEL_LABELS: Record<AgentLevel, string> = { B: "سطح B", A: "سطح A", A_PLUS: "سطح A+" };
+export const AGENT_STATUS_LABELS: Record<AgentMembershipStatus, string> = { PENDING: "در انتظار", ACTIVE: "فعال", SUSPENDED: "معلق", ENDED: "پایان‌یافته" };
+export const AGENT_STAGE_LABELS: Record<AgentFunnelStage, string> = { LEAD: "سرنخ", REGISTERED: "ثبت‌نام‌شده", TRIAL: "آزمایشی", PAID: "پرداخت‌کرده", RENEWED: "تمدیدکرده", LOST: "ازدست‌رفته" };
+export const AGENT_STAGES: AgentFunnelStage[] = ["LEAD", "REGISTERED", "TRIAL", "PAID", "RENEWED", "LOST"];
+
+export type AgentProduct = {
+  id: string; code: string; name: string; description: string | null; logoUrl: string | null; websiteUrl: string | null;
+  isActive: boolean; isArchived: boolean; referralCodePolicy: string; holdDays: number; minSettlementAmount: number; referralUrlTemplate?: string | null;
+  _count?: { memberships: number; customers: number; apiKeys: number };
+};
+export type AgentRates = { firstPaymentPercent: number; renewalPercent: number; source: "RULE" | "LEGACY_PROFILE"; ruleId: string | null; effectiveFrom: string | null };
+export type AgentAgreementStatus = { latestVersion: number | null; acceptedVersion: number | null; status: "NONE" | "ACCEPTED" | "REQUIRED" | "REACCEPT_REQUIRED" };
+export type AgentMembership = {
+  id: string; resellerProfileId: string; productId: string; level: AgentLevel; referralCode: string | null; status: AgentMembershipStatus;
+  agreementVersion: number | null; agreementAcceptedAt: string | null; startedAt: string | null; endedAt: string | null; endReason: string | null; note: string | null; createdAt: string;
+  product: Pick<AgentProduct, "id" | "code" | "name"> & Partial<AgentProduct>;
+  rates: AgentRates; agreement: AgentAgreementStatus; stats: { totalSales: number }; _count?: { customers: number };
+};
+export type AgentProfile = {
+  id: string; contactId: string; userId: string | null; websiteUrl: string | null; logoUrl: string | null; shabaMasked: string | null; hasSheba: boolean;
+  isVerified: boolean; bio: string | null; city: string | null; phoneVerifiedAt: string | null; shebaVerifiedAt: string | null; createdAt: string;
+  contact: { id: string; name: string; company: string | null; phone: string | null; address?: string | null };
+  user?: { id: string; status: string } | null;
+  memberships: AgentMembership[];
+  audit?: Array<{ id: string; action: string; detail: string | null; actorType: string; createdAt: string }>;
+  /** شبای جدیدی که نماینده با کد پیامکی تأیید کرده و منتظر تأیید مدیر است */
+  pendingSheba?: { id: string; shabaMasked: string | null; requestedAt: string } | null;
+};
+export type AgentShebaChangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+export type AgentShebaChange = {
+  id: string; resellerProfileId: string; agentName: string; agentPhone: string | null; currentSheba: string | null; newSheba: string;
+  status: AgentShebaChangeStatus; requestedAt: string; reviewedAt: string | null; rejectReason: string | null;
+};
+export const agentsShebaChanges = (status: AgentShebaChangeStatus = "PENDING") => apiFetch<AgentShebaChange[]>(`/agents/sheba-changes?status=${status}`);
+export const agentsApproveShebaChange = (id: string) => apiFetch<{ success: boolean }>(`/agents/sheba-changes/${id}/approve`, { method: "POST" });
+export const agentsRejectShebaChange = (id: string, reason: string) => apiFetch<{ success: boolean }>(`/agents/sheba-changes/${id}/reject`, { method: "POST", body: J({ reason }) });
+export type AgentApplication = {
+  id: string; name: string; company: string | null; phone: string; email: string | null; city: string | null; websiteUrl: string | null;
+  productCode: string | null; message: string | null; status: "PENDING" | "APPROVED" | "REJECTED"; rejectionNote: string | null; createdAt: string;
+};
+export type AgentCustomer = {
+  id: string; productId: string; membershipId: string; externalCustomerId: string; name: string; phone: string | null; email: string | null;
+  planCode: string | null; planName: string | null; status: string; funnelStage: AgentFunnelStage; registeredAt: string; lastPaymentAt: string | null;
+  nextRenewalAt: string | null; cancelledAt: string | null; product: { code: string; name: string };
+  stageLogs?: Array<{ id: string; fromStage: string | null; toStage: string; source: string; note: string | null; createdAt: string }>;
+};
+export type AgentPayment = {
+  id: string; type: "PAYMENT_FIRST" | "PAYMENT_RENEWAL" | "REFUND"; paymentRef: string; amount: number; currency: string; planName: string | null; paidAt: string; periodEnd: string | null;
+  customer: { name: string; externalCustomerId: string; product: { code: string; name: string } };
+};
+export type AgentFunnelSummary = { counts: Record<AgentFunnelStage, number>; total: number; netSales: number; paymentCount: number };
+export type AgentRenewalRow = { id: string; name: string; phone: string | null; planName: string | null; funnelStage: AgentFunnelStage; nextRenewalAt: string; lastPaymentAt: string | null; product: { code: string; name: string } };
+export type Paged<T> = { items: T[]; nextCursor: string | null };
+export type AgentApiKey = { id: string; productId: string; name: string; maskedKey: string; status: "ACTIVE" | "REVOKED"; maxPerMinute: number; lastUsedAt: string | null; lastUsedIp: string | null; expiresAt: string | null; createdAt: string; revokedAt: string | null };
+export type AgentApiKeyCreated = AgentApiKey & { apiKey: string; signingSecret: string; showOnce: true };
+export type AgentEventLog = { id: string; productId: string | null; keyId: string | null; clientEventId: string | null; type: string | null; status: string; httpStatus: number; errorCode: string | null; message: string | null; ip: string | null; createdAt: string };
+export type AgentAgreementRow = { id: string; productId: string; version: number; title: string; body: string; status: "DRAFT" | "PUBLISHED"; publishedAt: string | null; createdAt: string; _count?: { acceptances: number } };
+export type AgentRule = { id: string; productId: string; level: AgentLevel; firstPaymentPercent: number; renewalPercent: number; effectiveFrom: string; note: string | null };
+
+const qsOf = (o: Record<string, string | number | undefined | null>) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== "") p.set(k, String(v));
+  const s = p.toString();
+  return s ? `?${s}` : "";
+};
+const J = (body: unknown) => JSON.stringify(body);
+
+// مدیریت
+export const agentsListProducts = (archived = false) => apiFetch<AgentProduct[]>(`/agents/products${archived ? "?archived=true" : ""}`);
+export const agentsCreateProduct = (d: Partial<AgentProduct> & { code: string; name: string }) => apiFetch<AgentProduct>("/agents/products", { method: "POST", body: J(d) });
+export const agentsUpdateProduct = (id: string, d: Partial<AgentProduct>) => apiFetch<AgentProduct>(`/agents/products/${id}`, { method: "PATCH", body: J(d) });
+export const agentsDeleteProduct = (id: string) => apiFetch<{ archived: boolean }>(`/agents/products/${id}`, { method: "DELETE" });
+export const agentsRestoreProduct = (id: string) => apiFetch<AgentProduct>(`/agents/products/${id}/restore`, { method: "POST" });
+export const agentsListRules = (id: string) => apiFetch<AgentRule[]>(`/agents/products/${id}/rules`);
+export const agentsCreateRule = (id: string, d: { level: AgentLevel; firstPaymentPercent: number; renewalPercent: number; effectiveFrom?: string; note?: string }) => apiFetch<AgentRule>(`/agents/products/${id}/rules`, { method: "POST", body: J(d) });
+export const agentsListAgreements = (id: string) => apiFetch<AgentAgreementRow[]>(`/agents/products/${id}/agreements`);
+export const agentsSaveAgreementDraft = (id: string, d: { title: string; body: string }) => apiFetch<AgentAgreementRow>(`/agents/products/${id}/agreements/draft`, { method: "PUT", body: J(d) });
+export const agentsPublishAgreement = (id: string, agreementId: string) => apiFetch<AgentAgreementRow>(`/agents/products/${id}/agreements/${agreementId}/publish`, { method: "POST" });
+export const agentsApiInfo = () => apiFetch<{ baseUrl: string; signatureHeader: string; timestampHeader: string; timestampWindowSeconds: number }>("/agents/api-info");
+export const agentsListKeys = (id: string) => apiFetch<AgentApiKey[]>(`/agents/products/${id}/api-keys`);
+export const agentsCreateKey = (id: string, d: { name: string; maxPerMinute?: number; expiresAt?: string }) => apiFetch<AgentApiKeyCreated>(`/agents/products/${id}/api-keys`, { method: "POST", body: J(d) });
+export const agentsRotateKey = (id: string, keyId: string) => apiFetch<AgentApiKeyCreated>(`/agents/products/${id}/api-keys/${keyId}/rotate`, { method: "POST" });
+export const agentsRevokeKey = (id: string, keyId: string) => apiFetch<AgentApiKey>(`/agents/products/${id}/api-keys/${keyId}/revoke`, { method: "POST" });
+export const agentsTestEvent = (id: string, referralCode?: string) =>
+  apiFetch<{ steps: Array<{ type: string; ok: boolean; status?: string; code?: string; message?: string }> }>(`/agents/products/${id}/test-event`, { method: "POST", body: J({ referralCode }) });
+export const agentsEventLogs = (f: { productId?: string; status?: string; type?: string; q?: string; from?: string; to?: string; cursor?: string }) => apiFetch<Paged<AgentEventLog>>(`/agents/event-logs${qsOf(f)}`);
+export const agentsApplications = (status?: string) => apiFetch<AgentApplication[]>(`/agents/applications${qsOf({ status })}`);
+export const agentsApproveApplication = (id: string, memberships: Array<{ productId: string; level?: AgentLevel }>) =>
+  apiFetch<{ profile: { id: string }; accessGranted: boolean; accessError: string | null; created: boolean }>(`/agents/applications/${id}/approve`, { method: "POST", body: J({ memberships }) });
+export const agentsRejectApplication = (id: string, note?: string) => apiFetch<AgentApplication>(`/agents/applications/${id}/reject`, { method: "POST", body: J({ note }) });
+export const agentsListProfiles = (f: { productId?: string; level?: string; status?: string; q?: string }) => apiFetch<Array<Omit<AgentProfile, "memberships"> & { memberships: Array<AgentMembership & { product: { id: string; code: string; name: string }; _count: { customers: number } }> }>>(`/agents/profiles${qsOf(f)}`);
+export const agentsGetProfile = (id: string) => apiFetch<AgentProfile>(`/agents/profiles/${id}`);
+export const agentsCreateProfile = (d: { name: string; phone: string; company?: string; city?: string; memberships: Array<{ productId: string; level?: AgentLevel }> }) => apiFetch<{ profile: { id: string } }>("/agents/profiles", { method: "POST", body: J(d) });
+export const agentsUpdateProfile = (id: string, d: Partial<{ name: string; company: string; address: string; city: string; bio: string; websiteUrl: string; logoUrl: string; isVerified: boolean }>) => apiFetch<AgentProfile>(`/agents/profiles/${id}`, { method: "PATCH", body: J(d) });
+export const agentsRequestChange = (id: string, kind: "SHEBA" | "PHONE", value: string) => apiFetch<{ changeId: string; expiresInSeconds: number; sentTo: string; devCode?: string }>(`/agents/profiles/${id}/change-request`, { method: "POST", body: J({ kind, value }) });
+export const agentsConfirmChange = (id: string, changeId: string, code: string) => apiFetch<{ success: boolean; pendingApproval?: boolean }>(`/agents/profiles/${id}/change-confirm`, { method: "POST", body: J({ changeId, code }) });
+export const agentsAddMembership = (profileId: string, d: { productId: string; level?: AgentLevel }) => apiFetch<AgentMembership>(`/agents/profiles/${profileId}/memberships`, { method: "POST", body: J(d) });
+export const agentsUpdateMembership = (id: string, d: Partial<{ level: AgentLevel; status: AgentMembershipStatus; referralCode: string; note: string; endReason: string }>) => apiFetch<AgentMembership>(`/agents/memberships/${id}`, { method: "PATCH", body: J(d) });
+export const agentsAdminCustomers = (f: { productId?: string; profileId?: string; membershipId?: string; stage?: string; q?: string; cursor?: string }) => apiFetch<Paged<AgentCustomer>>(`/agents/customers${qsOf(f)}`);
+export const agentsAdminCustomer = (id: string) => apiFetch<AgentCustomer>(`/agents/customers/${id}`);
+export const agentsChangeStage = (id: string, stage: AgentFunnelStage, note?: string) => apiFetch<{ success: boolean }>(`/agents/customers/${id}/stage`, { method: "POST", body: J({ stage, note }) });
+export const agentsAdminPayments = (f: { productId?: string; profileId?: string; membershipId?: string; cursor?: string }) => apiFetch<Paged<AgentPayment>>(`/agents/payments${qsOf(f)}`);
+export const agentsAdminRenewals = (f: { productId?: string; profileId?: string }) => apiFetch<AgentRenewalRow[]>(`/agents/renewals${qsOf(f)}`);
+export const agentsAdminFunnel = (f: { productId?: string; profileId?: string }) => apiFetch<AgentFunnelSummary>(`/agents/funnel${qsOf(f)}`);
+
+// پنل نماینده (agents/me)
+export const agentsMeExists = () => apiFetch<{ agent: boolean }>("/agents/me/exists");
+export const agentsMe = () => apiFetch<Omit<AgentProfile, "audit">>("/agents/me");
+export const agentsMeUpdate = (d: Partial<{ name: string; bio: string; city: string; logoUrl: string }>) => apiFetch<Omit<AgentProfile, "audit">>("/agents/me", { method: "PATCH", body: J(d) });
+export const agentsMeRequestChange = (kind: "SHEBA" | "PHONE", value: string) => apiFetch<{ changeId: string; expiresInSeconds: number; sentTo: string; devCode?: string }>("/agents/me/change-request", { method: "POST", body: J({ kind, value }) });
+export const agentsMeConfirmChange = (changeId: string, code: string) => apiFetch<{ success: boolean; pendingApproval?: boolean }>("/agents/me/change-confirm", { method: "POST", body: J({ changeId, code }) });
+export const agentsMeSummary = () => apiFetch<Array<{ membershipId: string; product: { code: string; name: string }; status: AgentMembershipStatus } & AgentFunnelSummary>>("/agents/me/summary");
+export const agentsMeAgreement = (mid: string) => apiFetch<{ agreement: { id: string; version: number; title: string; body: string; publishedAt: string } | null; accepted: boolean; acceptedAt?: string | null }>(`/agents/me/memberships/${mid}/agreement`);
+export async function agentsMeAcceptAgreement(mid: string, d: { agreementId: string; signerName: string; signatureDataUrl: string }) {
+  return apiFetch<{ version: number }>(`/agents/me/memberships/${mid}/agreement/accept`, { method: "POST", body: J(await withEvidence(d)) });
+}
+export const agentsMeCustomers = (mid: string, f: { stage?: string; q?: string; cursor?: string } = {}) => apiFetch<Paged<AgentCustomer>>(`/agents/me/memberships/${mid}/customers${qsOf(f)}`);
+export const agentsMePayments = (mid: string, cursor?: string) => apiFetch<Paged<AgentPayment>>(`/agents/me/memberships/${mid}/payments${qsOf({ cursor })}`);
+export const agentsMeRenewals = (mid: string) => apiFetch<AgentRenewalRow[]>(`/agents/me/memberships/${mid}/renewals`);
+export const agentsMeFunnel = (mid: string) => apiFetch<AgentFunnelSummary>(`/agents/me/memberships/${mid}/funnel`);
+
+// ── پورسانت (فاز ۳): قوانین چندبعدی، دفتر مرکزی تراکنش‌ها، کیف پول، انتقال مشتری ──
+export type AgentRuleOccurrence = "FIRST" | "RENEWAL" | "ANY";
+export type AgentTxOccurrence = "FIRST" | "RENEWAL" | "ONE_OFF" | "REFUND";
+export type AgentCommissionStatus = "CREDITED" | "NO_RULE" | "NOT_ATTRIBUTED" | "AGENT_INACTIVE" | "REVERSED" | "ZERO";
+export const AGENT_RULE_OCCURRENCE_LABELS: Record<AgentRuleOccurrence, string> = { FIRST: "خرید اول", RENEWAL: "هر تمدید", ANY: "هر بار" };
+export const AGENT_TX_OCCURRENCE_LABELS: Record<AgentTxOccurrence, string> = { FIRST: "خرید اول", RENEWAL: "تمدید", ONE_OFF: "یک‌باره", REFUND: "بازپرداخت" };
+export const AGENT_COMMISSION_STATUS_LABELS: Record<AgentCommissionStatus, string> = {
+  CREDITED: "پورسانت ثبت شد",
+  NO_RULE: "قانون ندارد",
+  NOT_ATTRIBUTED: "بدون نماینده",
+  AGENT_INACTIVE: "نماینده غیرفعال",
+  REVERSED: "پورسانت برگشت خورد",
+  ZERO: "پورسانت صفر",
+};
+export type AgentPlanRule = {
+  id: string;
+  productId: string;
+  level: AgentLevel;
+  txTypeCode: string | null;
+  itemCode: string | null;
+  occurrence: AgentRuleOccurrence;
+  percent: number;
+  effectiveFrom: string;
+  endedAt: string | null;
+  note: string | null;
+  createdAt: string;
+  state: "ACTIVE" | "SCHEDULED" | "ENDED";
+  specificity: number;
+};
+export type AgentCatalogEntry = { id: string; productId: string; code: string; name: string; isActive: boolean; firstSeenAt: string };
+export type AgentTransactionRow = {
+  id: string;
+  productId: string;
+  externalTxId: string;
+  externalCustomerId: string;
+  customerId: string | null;
+  membershipId: string | null;
+  membershipLevel: AgentLevel | null;
+  txTypeCode: string;
+  itemCode: string | null;
+  itemName: string | null;
+  occurrence: AgentTxOccurrence;
+  grossAmount: number | null;
+  discountAmount: number | null;
+  taxAmount: number | null;
+  netAmount: number;
+  paidAt: string;
+  periodEnd: string | null;
+  commissionStatus: AgentCommissionStatus;
+  commissionNote: string | null;
+  agentName: string | null;
+  customerName: string | null;
+  commissions: Array<{ id: string; membershipId: string; amount: number; percent: number; kind: "CREDIT" | "REVERSAL"; availableAt: string; ruleId: string | null }>;
+};
+export type AgentWalletEntry = {
+  id: string;
+  amount: number;
+  percent: number;
+  kind: "CREDIT" | "REVERSAL";
+  availableAt: string;
+  createdAt: string;
+  customerName: string | null;
+  transaction: { externalTxId: string; txTypeCode: string; itemCode: string | null; itemName: string | null; occurrence: AgentTxOccurrence; netAmount: number; paidAt: string };
+};
+export type AgentWalletBalances = { earnedAvailable: number; held: number; totalEarned: number; pending: number; paid: number; withdrawable: number };
+export type AgentWallet = { balances: AgentWalletBalances; entries: AgentWalletEntry[]; nextCursor: string | null };
+export type AgentPayoutStatus = "REQUESTED" | "APPROVED" | "PAID" | "REJECTED" | "CANCELLED";
+export const AGENT_PAYOUT_STATUS_LABELS: Record<AgentPayoutStatus, string> = { REQUESTED: "در انتظار بررسی", APPROVED: "تأییدشده، در انتظار واریز", PAID: "واریز شد", REJECTED: "رد شد", CANCELLED: "لغو شد" };
+export type AgentPayout = {
+  id: string; number: number; productId: string; membershipId: string; resellerProfileId: string; amount: number; status: AgentPayoutStatus;
+  shebaNumber: string | null; requestedByType: "AGENT" | "ADMIN"; agentNote: string | null; reviewedAt: string | null; rejectReason: string | null;
+  paidAt: string | null; trackingNumber: string | null; paymentNote: string | null; createdAt: string;
+  agentName: string | null; agentPhone?: string | null; productName: string | null;
+};
+export type AgentPayoutList = Paged<AgentPayout> & { totals: Array<{ status: AgentPayoutStatus; count: number; amount: number }> };
+export const agentsPayouts = (f: { status?: string; productId?: string; membershipId?: string; cursor?: string }) => apiFetch<AgentPayoutList>(`/agents/payouts${qsOf(f)}`);
+export const agentsCreatePayout = (d: { membershipId: string; amount: number; note?: string }) => apiFetch<AgentPayout>(`/agents/payouts`, { method: "POST", body: J(d) });
+export const agentsApprovePayout = (id: string) => apiFetch<AgentPayout>(`/agents/payouts/${id}/approve`, { method: "POST" });
+export const agentsRejectPayout = (id: string, reason: string) => apiFetch<AgentPayout>(`/agents/payouts/${id}/reject`, { method: "POST", body: J({ reason }) });
+export const agentsMarkPayoutPaid = (id: string, d: { trackingNumber: string; paidAt?: string; note?: string }) => apiFetch<AgentPayout>(`/agents/payouts/${id}/paid`, { method: "POST", body: J(d) });
+export const agentsMePayouts = (mid: string, cursor?: string) => apiFetch<AgentPayoutList>(`/agents/me/memberships/${mid}/payouts${qsOf({ cursor })}`);
+export const agentsMeRequestPayout = (mid: string, d: { amount: number; note?: string }) => apiFetch<AgentPayout>(`/agents/me/memberships/${mid}/payouts`, { method: "POST", body: J(d) });
+export const agentsMeCancelPayout = (id: string) => apiFetch<AgentPayout>(`/agents/me/payouts/${id}/cancel`, { method: "POST" });
+export type AgentBusinessCard = {
+  active: boolean; agentName: string; company: string | null; phone: string | null; city: string | null; agentLogoUrl: string | null; verified: boolean;
+  level: AgentLevel; levelLabel: string; productName: string; productLogoUrl: string | null; referralCode: string | null; referralUrl: string | null; qrSvg: string | null;
+};
+export const agentsMeCard = (mid: string) => apiFetch<AgentBusinessCard>(`/agents/me/memberships/${mid}/card`);
+export const agentsMembershipCard = (mid: string) => apiFetch<AgentBusinessCard>(`/agents/memberships/${mid}/card`);
+export type AgentPerformanceRow = {
+  membershipId: string; agentName: string; productId: string; productName: string; level: AgentLevel; status: string; newCustomers: number; txCount: number;
+  firstSales: number; renewalSales: number; refunds: number; netSales: number; commission: number; paidInPeriod: number; withdrawable: number; held: number; pending: number;
+};
+export type AgentPerformanceReport = {
+  from: string; to: string; rows: AgentPerformanceRow[];
+  totals: { newCustomers: number; netSales: number; commission: number; paidInPeriod: number; withdrawable: number; held: number; pending: number; unattributedNetSales: number };
+};
+export const agentsPerformanceReport = (q: { productId?: string; from?: string; to?: string }) => apiFetch<AgentPerformanceReport>(`/agents/reports/performance${qsOf(q)}`);
+export type AgentTxFilter = { productId?: string; membershipId?: string; txType?: string; itemCode?: string; commissionStatus?: string; occurrence?: string; from?: string; to?: string; q?: string; cursor?: string };
+export const agentsPlanRules = (productId: string, all = false) => apiFetch<AgentPlanRule[]>(`/agents/products/${productId}/plan-rules${all ? "?all=1" : ""}`);
+export const agentsCreatePlanRule = (productId: string, d: { level: AgentLevel; txTypeCode?: string; itemCode?: string; occurrence: AgentRuleOccurrence; percent: number; effectiveFrom?: string; note?: string }) =>
+  apiFetch<AgentPlanRule>(`/agents/products/${productId}/plan-rules`, { method: "POST", body: J(d) });
+export const agentsEndPlanRule = (productId: string, ruleId: string) => apiFetch<AgentPlanRule>(`/agents/products/${productId}/plan-rules/${ruleId}/end`, { method: "POST" });
+export const agentsSimulateRule = (productId: string, q: { level: AgentLevel; txType: string; itemCode?: string; occurrence: string; amount?: number }) =>
+  apiFetch<{ rule: AgentPlanRule | null; commission: number }>(`/agents/products/${productId}/plan-rules/simulate${qsOf(q)}`);
+export const agentsCatalog = (productId: string) => apiFetch<{ types: AgentCatalogEntry[]; items: AgentCatalogEntry[] }>(`/agents/products/${productId}/catalog`);
+export const agentsUpsertCatalog = (productId: string, kind: "types" | "items", d: { code: string; name?: string; isActive?: boolean }) =>
+  apiFetch<AgentCatalogEntry>(`/agents/products/${productId}/catalog/${kind}`, { method: "PUT", body: J(d) });
+export const agentsTransactions = (f: AgentTxFilter) =>
+  apiFetch<Paged<AgentTransactionRow> & { totals: { byOccurrence: Array<{ occurrence: AgentTxOccurrence; count: number; net: number }>; commission: number } }>(`/agents/transactions${qsOf(f)}`);
+export const agentsMembershipWallet = (membershipId: string, cursor?: string) => apiFetch<AgentWallet>(`/agents/memberships/${membershipId}/wallet${qsOf({ cursor })}`);
+export type AgentMyRule = { id: string; txTypeCode: string | null; txTypeName: string | null; itemCode: string | null; itemName: string | null; occurrence: AgentRuleOccurrence; percent: number; effectiveFrom: string; endedAt: string | null; state: "ACTIVE" | "SCHEDULED" };
+export const agentsMeRules = (mid: string) => apiFetch<AgentMyRule[]>(`/agents/me/memberships/${mid}/rules`);
+export const agentsMeWallet = (mid: string, cursor?: string) => apiFetch<AgentWallet>(`/agents/me/memberships/${mid}/wallet${qsOf({ cursor })}`);
+export const agentsTransferCustomer = (customerId: string, d: { toMembershipId: string; reason?: string }) =>
+  apiFetch<{ customerId: string; fromMembershipId: string; toMembershipId: string }>(`/agents/customers/${customerId}/transfer`, { method: "POST", body: J(d) });

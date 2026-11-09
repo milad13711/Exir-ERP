@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import {
-  approveResellerApplication,
   deleteResellerApplication,
   fetchResellerApplication,
-  rejectResellerApplication,
   updateResellerApplication,
   ApiError,
   type ResellerApplication,
@@ -21,13 +19,11 @@ const PRODUCTS = [
 ];
 const FIELD = "w-full text-[13px] outline-none bg-slate-50 border border-border rounded-lg px-3 py-2 focus:border-primary";
 
-/** جزئیات کامل درخواست همکار: مشاهده، تماس، ویرایش اطلاعات، تأیید (ساخت پروفایل + پین نقشه)، رد با دلیل و حذف. */
+/** جزئیات کامل درخواست همکار: مشاهده، تماس، ویرایش اطلاعات و حذف. تأیید/رد در ماژول «نمایندگی» تننت اصلی. */
 export function ResellerApplicationModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [app, setApp] = useState<(ResellerApplication & { reviewedBy?: { name: string } | null }) | null>(null);
   const [form, setForm] = useState<Partial<ResellerApplication>>({});
   const [editing, setEditing] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -143,45 +139,11 @@ export function ResellerApplicationModal({ id, onClose, onChanged }: { id: strin
         {msg && <div className="text-[12.5px] text-success font-semibold">{msg}</div>}
         {error && <div className="text-[12.5px] text-danger font-semibold">{error}</div>}
 
-        {rejecting && (
-          <div className="flex gap-2">
-            <input className={FIELD} placeholder="دلیل رد (اختیاری)" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button
-              disabled={busy}
-              onClick={() => run(async () => { await rejectResellerApplication(id, note.trim() || undefined); onChanged(); onClose(); })}
-              className="shrink-0 px-4 rounded-lg bg-danger text-white text-[12.5px] font-bold disabled:opacity-50 cursor-pointer"
-            >
-              ثبت رد
-            </button>
-          </div>
-        )}
 
         {!editing && (
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setEditing(true)} className="text-[12px] font-bold text-ink-soft bg-slate-100 px-3 py-2 rounded-lg cursor-pointer">ویرایش</button>
-            {pending && (
-              <>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    run(async () => {
-                      const res = await approveResellerApplication(id);
-                      setMsg(
-                        `تأیید شد. پروفایل همکار ساخته شد${res.pinnedOnMap ? " و روی نقشه پین شد" : " (شهر ثبت نشده؛ بعد از ثبت شهر روی نقشه می‌آید)"}. ${
-                          res.accessGranted ? "پیامک ورود برای او ارسال شد تا عکس و اطلاعاتش را کامل کند." : `دسترسی ورود خودکار ساخته نشد: ${res.accessError ?? ""}`
-                        }`,
-                      );
-                      load();
-                      onChanged();
-                    })
-                  }
-                  className="text-[12px] font-bold text-white bg-success px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
-                >
-                  تأیید و ساخت پروفایل
-                </button>
-                <button onClick={() => setRejecting((v) => !v)} className="text-[12px] font-bold text-danger bg-danger-soft px-3 py-2 rounded-lg cursor-pointer">رد</button>
-              </>
-            )}
+            {pending && <span className="text-[12px] text-ink-soft">تأیید/رد در پنل اکسیر ← نمایندگی ← درخواست‌ها</span>}
             {app.status !== "APPROVED" && (
               <button
                 disabled={busy}

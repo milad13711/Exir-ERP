@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { registrySlug } from '../agents/agent-constants.js';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { loadUnitLabel } from '../base-currency/base-unit.js';
 import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { TenantRequestContext } from '../common/request-context.js';
@@ -168,8 +169,15 @@ export class ResellersService implements OnModuleInit {
   }
 
   async update(ctx: TenantRequestContext, id: string, dto: UpdateResellerDto) {
-    const reseller = await ctx.tenantDb.resellerProfile.findUnique({ where: { id } });
+    const reseller = await ctx.tenantDb.resellerProfile.findUnique({ where: { id }, include: { contact: { select: { phone: true } } } });
     if (!reseller) throw new NotFoundException('نماینده یافت نشد');
+    const shebaChanging = dto.shabaNumber !== undefined && (dto.shabaNumber || null) !== reseller.shabaNumber;
+    const phoneChanging = dto.phone !== undefined && dto.phone !== reseller.contact.phone;
+    // تننت اصلی (ماژول نمایندگی): شبا و شماره‌ی نماینده فقط از مسیر تأیید پیامکی ماژول نمایندگی عوض می‌شود —
+    // این مسیر قدیمی بی‌کد می‌توانست مقصد واریز تسویه را عوض کند.
+    if ((shebaChanging || phoneChanging) && ctx.tenantSlug === registrySlug()) {
+      throw new ForbiddenException('تغییر شبا/شماره‌ی نماینده فقط از ماژول «نمایندگی» و با تأیید پیامکی ممکن است');
+    }
 
     if (dto.name || dto.company !== undefined || dto.phone !== undefined || dto.address !== undefined) {
       await ctx.tenantDb.crmContact.update({
@@ -184,6 +192,8 @@ export class ResellersService implements OnModuleInit {
         websiteUrl: dto.websiteUrl,
         logoUrl: dto.logoUrl,
         shabaNumber: dto.shabaNumber,
+        // شبای عوض‌شده دیگر «تأییدشده» نیست (تسویه‌ی ماژول نمایندگی فقط با شبای تأییدشده)
+        ...(shebaChanging ? { shebaVerifiedAt: null } : {}),
         tier: dto.tier,
         isVerified: dto.isVerified,
         verifiedAt: dto.isVerified ? new Date() : dto.isVerified === false ? null : undefined,

@@ -26,6 +26,7 @@ import { isHumanOnlyPath } from '../../api-keys/api-key-human-only.js';
 import { tenantAccess } from '../../billing/subscription-summary.js';
 import { REQUIRE_MODULE_KEY } from '../decorators/require-module.decorator.js';
 import { clientIp } from '../../security/client-ip.js';
+import { enforceAgentSession } from '../../agents/agent-session.js';
 import {
   effectiveMode,
   evaluateTwoFactor,
@@ -123,6 +124,10 @@ export class JwtAuthGuard implements CanActivate {
     });
 
     if (payload.type === 'api_key') this.enforceKeyScopes(payload.scopes, context, req);
+    // نشست «نماینده» (نقش isAgentRole): سمت سرور فقط ماژول نمایندگی + وظایف + چک‌لیست روزانه؛ بقیه ۴۰۳
+    if (payload.type === 'tenant_user' && payload.role !== 'OWNER' && payload.role !== 'ADMIN') {
+      await enforceAgentSession(tenantDb, tenant.id, payload.sub, req.method ?? 'GET', req.originalUrl ?? req.url ?? req.path ?? '');
+    }
 
     req.ctx = {
       auth: payload,

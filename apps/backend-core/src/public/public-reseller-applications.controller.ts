@@ -43,6 +43,11 @@ export class PublicResellerApplicationsController {
     return application;
   }
 
+  @Get('agent-products')
+  listAgentProducts() {
+    return this.map.listProducts();
+  }
+
   @Get('resellers/map')
   listMap(@Query('productCode') productCode: string | undefined) {
     return this.map.listForMap(productCode);

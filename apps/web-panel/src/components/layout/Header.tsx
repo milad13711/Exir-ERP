@@ -17,6 +17,8 @@ import { SmsCreditChip } from "@/components/sms/SmsCreditChip";
 import { useInstall } from "@/hooks/useInstall";
 import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
 import { SubscriptionHeaderChip } from "@/components/billing/SubscriptionHeaderChip";
+import { AgentProductSwitcher } from "@/components/agents/AgentProductSwitcher";
+import { isAgentRestricted } from "@/lib/access";
 import { promptInstall, unsubscribeForLogout } from "@/lib/push-client";
 
 export function Header({
@@ -33,6 +35,7 @@ export function Header({
   const [otherTenants, setOtherTenants] = useState<MyTenant[] | null>(null);
   const [switching, setSwitching] = useState(false);
   const { me } = useWorkspace();
+  const agentOnly = isAgentRestricted(me);
   const router = useRouter();
   const install = useInstall();
   const [iosSheet, setIosSheet] = useState(false);
@@ -107,9 +110,10 @@ export function Header({
       <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 min-w-0">
         <OfflineIndicator />
 
-        <SubscriptionHeaderChip onOpenSupport={onOpenSupport} />
+        {agentOnly ? <AgentProductSwitcher /> : null}
+        {!agentOnly ? <SubscriptionHeaderChip onOpenSupport={onOpenSupport} /> : null}
 
-        <button
+        {!agentOnly ? <button
           type="button"
           onClick={onOpenSupport}
           className="relative w-10 h-10 rounded-xl border border-border bg-white flex items-center justify-center text-accent"
@@ -119,10 +123,10 @@ export function Header({
           {supportUnread ? (
             <span className="absolute top-1.5 end-1.5 w-2.5 h-2.5 rounded-full bg-danger border-2 border-white" />
           ) : null}
-        </button>
+        </button> : null}
 
-        <SmsCreditChip />
-        <PhoneWidget />
+        {!agentOnly ? <SmsCreditChip /> : null}
+        {!agentOnly ? <PhoneWidget /> : null}
         <NotificationBell />
         <ReminderAlarm />
 

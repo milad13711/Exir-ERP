@@ -263,6 +263,11 @@ export const HISTORICAL: HistoricalGroups = {
     'ShipmentLoading.readyGrantedByUserId', 'ShipmentLoading.tareByUserId', 'ShipmentLoading.weightConfirmedByUserId',
   ],
   mentoring: ['MentoringEngagement.createdByUserId', 'MentoringSession.createdByUserId'],
+  agents: [
+    'AgentProductMembership.approvedByUserId', 'AgentCommissionRule.createdByUserId', 'AgentAgreement.createdByUserId', 'AgentProductApiKey.createdByUserId',
+    'AgentProductApiKey.revokedByUserId', 'AgentCustomerStageLog.byUserId', 'AgentAuditLog.actorUserId', 'AgentCommissionPlanRule.createdByUserId',
+    'AgentCustomerTransfer.byUserId', 'AgentPayout.requestedByUserId', 'AgentPayout.reviewedByUserId', 'AgentPayout.paidByUserId', 'AgentProfileChange.reviewedByUserId',
+  ],
   marketing: ['MarketingCampaign.createdByUserId'],
   events: ['Event.createdByUserId', 'EventTicket.checkedInByUserId'],
   forms: ['Form.createdByUserId'],
@@ -356,6 +361,7 @@ export const MODULE_LABELS: Record<string, string> = {
   dashboard: 'داشبورد',
   'confidential-archive': 'بایگانی محرمانه',
   'referral-marketing': 'بازاریابی معرفی',
+  agents: 'نمایندگی (تننت رجیستری)',
   users: 'حساب کاربری',
 };
 
@@ -368,6 +374,7 @@ export const MODULE_LINKS: Record<string, string> = {
   proposals: '/proposals',
   booking: '/booking',
   mentoring: '/mentoring',
+  agents: '/agents',
   accounting: '/accounting',
   production: '/production',
   recruitment: '/recruitment',
@@ -384,5 +391,5 @@ export const MODULE_LINKS: Record<string, string> = {
 export const MATRIX_GATED_MODULE_CODES = [
   'crm', 'sales', 'accounting', 'warehouse', 'purchasing', 'hr', 'recruitment', 'tasks', 'daily-checklist', 'projects', 'contracts', 'booking',
   'production', 'quality-control', 'ration-lab', 'mentoring', 'events', 'forms', 'fleet', 'warranty', 'after-sales-service', 'online-store',
-  'marketing', 'referral-marketing', 'qr-code', 'automation', 'reports', 'logs', 'dispatch', 'correspondence', 'proposals', 'tax', 'certificates', 'book-store',
+  'marketing', 'referral-marketing', 'agents', 'qr-code', 'automation', 'reports', 'logs', 'dispatch', 'correspondence', 'proposals', 'tax', 'certificates', 'book-store',
 ];

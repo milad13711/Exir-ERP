@@ -69,7 +69,7 @@ export const writeLock = {
 /** بخش‌های اول مسیر (بعد از /api) که نوشتن مالی دارند. */
 const FINANCIAL_SEGMENTS = new Set([
   'sales', 'purchasing', 'accounting', 'checks', 'warehouse', 'hr', 'recruitment', 'crm', 'contracts', 'projects', 'proposals',
-  'online-store', 'events', 'booking', 'mentoring', 'ration-lab', 'referral-marketing', 'marketing', 'tax', 'dispatch',
+  'online-store', 'events', 'booking', 'mentoring', 'ration-lab', 'referral-marketing', 'agents', 'agents-api', 'marketing', 'tax', 'dispatch',
   'production', 'book-store', 'payment-gateway', 'approvals', 'sync', 'mcp', 'ai-actions', 'public', 'quality-control',
 ]);
 

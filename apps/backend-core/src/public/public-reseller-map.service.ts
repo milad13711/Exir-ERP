@@ -19,34 +19,76 @@ export class PublicResellerMapService {
     return process.env.RESELLER_REGISTRY_TENANT_SLUG ?? 'eta';
   }
 
-  async listForMap(productCode?: string) {
+  private async registryDb() {
     const registryTenant = await this.controlDb.tenant.findUnique({ where: { slug: this.registrySlug } });
-    if (!registryTenant) return [];
-    const tenantDb = this.tenantPrisma.forTenant(registryTenant);
-
-    const resellers = await tenantDb.resellerProfile.findMany({
-      where: { isVerified: true, hiddenFromMap: false, cooperationStatus: { not: 'ENDED' }, city: { not: null }, productCode: productCode ? (productCode as never) : undefined },
-      select: {
-        id: true,
-        city: true,
-        productCode: true,
-        tier: true,
-        logoUrl: true,
-        websiteUrl: true,
-        bio: true,
-        contact: { select: { name: true, company: true } },
-      },
-    });
-
-    return resellers.map((r) => ({
-      id: r.id,
-      name: r.contact.company || r.contact.name,
-      city: r.city,
-      productCode: r.productCode,
-      tier: r.tier,
-      logoUrl: r.logoUrl,
-      websiteUrl: r.websiteUrl,
-      bio: r.bio,
-    }));
+    return registryTenant ? this.tenantPrisma.forTenant(registryTenant) : null;
   }
+
+  /** محصولاتی که فرم «همکاری با ما» نشان می‌دهد — همان رجیستری محصولات ماژول نمایندگی (فقط فعال و بایگانی‌نشده). */
+  async listProducts() {
+    const db = await this.registryDb();
+    if (!db) return [];
+    const rows = await db.agentProduct.findMany({
+      where: { isActive: true, isArchived: false },
+      select: { code: true, name: true, description: true, logoUrl: true, websiteUrl: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => ({ ...r, logoUrl: safeImage(r.logoUrl) }));
+  }
+
+  /**
+   * پین‌های نقشه از ماژول نمایندگی: نماینده‌ی احرازشده، دارای شهر، با دست‌کم یک عضویت ACTIVE در محصول فعال.
+   * productCode = کد محصول ماژول نمایندگی.
+   */
+  async listForMap(productCode?: string) {
+    const db = await this.registryDb();
+    if (!db) return [];
+    const code = productCode && /^[A-Z][A-Z0-9_]{1,31}$/.test(productCode) ? productCode : undefined;
+    const memberships = await db.agentProductMembership.findMany({
+      where: {
+        status: 'ACTIVE',
+        product: { isActive: true, isArchived: false, ...(code ? { code } : {}) },
+        resellerProfile: { isVerified: true, hiddenFromMap: false, city: { not: null } },
+      },
+      select: {
+        level: true,
+        product: { select: { code: true, name: true } },
+        resellerProfile: {
+          select: { id: true, city: true, logoUrl: true, websiteUrl: true, bio: true, contact: { select: { name: true, company: true } } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 2000,
+    });
+    // یک پین به‌ازای هر نماینده؛ محصولاتش کنار هم
+    const byProfile = new Map<string, { id: string; name: string; city: string | null; productCode: string; productCodes: string[]; productNames: string[]; tier: string; logoUrl: string | null; websiteUrl: string | null; bio: string | null }>();
+    for (const m of memberships) {
+      const r = m.resellerProfile;
+      const prev = byProfile.get(r.id);
+      if (prev) {
+        prev.productCodes.push(m.product.code);
+        prev.productNames.push(m.product.name);
+        continue;
+      }
+      byProfile.set(r.id, {
+        id: r.id,
+        name: r.contact.company || r.contact.name,
+        city: r.city,
+        productCode: m.product.code,
+        productCodes: [m.product.code],
+        productNames: [m.product.name],
+        tier: m.level,
+        logoUrl: safeImage(r.logoUrl),
+        websiteUrl: r.websiteUrl && /^https?:\/\//i.test(r.websiteUrl) ? r.websiteUrl : null,
+        bio: r.bio,
+      });
+    }
+    return [...byProfile.values()];
+  }
+}
+
+/** فقط http(s) یا data:image — هیچ طرح دیگری به صفحه‌ی عمومی نمی‌رسد. */
+function safeImage(u: string | null): string | null {
+  if (!u) return null;
+  return /^https?:\/\//i.test(u) || /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u) ? u : null;
 }

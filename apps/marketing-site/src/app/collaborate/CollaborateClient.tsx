@@ -5,17 +5,25 @@ import { safeHref } from "@/lib/safe-url";
 import clsx from "clsx";
 import { CheckIcon } from "@/components/icons";
 import { HeroBand } from "@/components/Ornaments";
-import { submitResellerApplication, fetchResellerMap, ApiError, type ProductCode, type ResellerMapPin } from "@/lib/api";
-import { IRAN_MAP_VIEWBOX, IRAN_PROVINCES, IRAN_CITY_DATA, IRAN_CITIES, PRODUCT_LABELS, PRODUCT_THEME } from "@/lib/iran-map";
+import { submitResellerApplication, fetchResellerMap, fetchAgentProducts, ApiError, type AgentProductOption, type ProductCode, type ResellerMapPin } from "@/lib/api";
+import { IRAN_MAP_VIEWBOX, IRAN_PROVINCES, IRAN_CITY_DATA, IRAN_CITIES, PRODUCT_LABELS, productLabel, productTheme } from "@/lib/iran-map";
 
 const inputClass =
   "w-full text-[13px] outline-none placeholder:text-muted bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:border-primary transition-colors";
 const labelClass = "text-[12.5px] font-semibold mb-1.5 block";
 
-const PRODUCTS: ProductCode[] = ["ERP", "REAL_ESTATE", "SMS_GATEWAY"];
+/** اگر فهرست محصولات ماژول نمایندگی در دسترس نبود (خطای شبکه)، همان سه محصول قدیمی. */
+const FALLBACK_PRODUCTS: AgentProductOption[] = (["ERP", "REAL_ESTATE", "SMS_GATEWAY"] as const).map((code) => ({ code, name: PRODUCT_LABELS[code], description: null, logoUrl: null, websiteUrl: null }));
 const ALL_FILTER = "ALL" as const;
 
 export function CollaborateClient() {
+  // محصولات فرم و فیلتر نقشه مستقیم از رجیستری ماژول نمایندگی تننت اصلی
+  const [products, setProducts] = useState<AgentProductOption[]>(FALLBACK_PRODUCTS);
+  useEffect(() => {
+    fetchAgentProducts()
+      .then((list) => { if (list.length) setProducts(list); })
+      .catch(() => undefined);
+  }, []);
   return (
     <div dir="rtl" className="min-h-dvh bg-background">
       <HeroBand>
@@ -30,9 +38,9 @@ export function CollaborateClient() {
 
       {/* نقشه و فرم کنار هم (دسکتاپ)؛ در موبایل زیر هم: اول نقشه، بعد فرم */}
       <section className="max-w-[1100px] mx-auto px-4 sm:px-6 py-10 grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
-        <ResellerMap />
+        <ResellerMap products={products} />
         <div>
-          <ApplicationForm />
+          <ApplicationForm products={products} />
         </div>
       </section>
     </div>
@@ -41,7 +49,8 @@ export function CollaborateClient() {
 
 const PIN_GAP = 15; // فاصله‌ی افقی دو پینِ هم‌شهر، در واحد viewBox
 
-function ResellerMap() {
+function ResellerMap({ products }: { products: AgentProductOption[] }) {
+  const order = products.map((p) => p.code);
   const [filter, setFilter] = useState<ProductCode | typeof ALL_FILTER>(ALL_FILTER);
   const [pins, setPins] = useState<ResellerMapPin[] | null>(null);
   const [selected, setSelected] = useState<ResellerMapPin | null>(null);
@@ -96,7 +105,7 @@ function ResellerMap() {
         >
           همه‌ی محصولات
         </button>
-        {PRODUCTS.map((p) => (
+        {order.map((p) => (
           <button
             key={p}
             onClick={() => setFilter(p)}
@@ -105,12 +114,12 @@ function ResellerMap() {
               "min-h-10 inline-flex items-center gap-2 text-[12.5px] font-bold px-4 rounded-xl cursor-pointer transition-colors",
               filter === p ? "" : "bg-surface border border-border text-ink-soft hover:border-primary",
             )}
-            style={filter === p ? { backgroundColor: PRODUCT_THEME[p].accent, color: PRODUCT_THEME[p].ink } : undefined}
+            style={filter === p ? { backgroundColor: productTheme(p, order).accent, color: productTheme(p, order).ink } : undefined}
           >
             <svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true">
-              <PinGlyph shape={PRODUCT_THEME[p].shape} color={filter === p ? PRODUCT_THEME[p].ink : PRODUCT_THEME[p].accent} size={4.5} />
+              <PinGlyph shape={productTheme(p, order).shape} color={filter === p ? productTheme(p, order).ink : productTheme(p, order).accent} size={4.5} />
             </svg>
-            {PRODUCT_LABELS[p]}
+            {productLabel(p, products)}
           </button>
         ))}
       </div>
@@ -166,7 +175,7 @@ function ResellerMap() {
           {/* پین‌ها */}
           <g>
             {placed.map(({ pin, x, y }) => {
-              const theme = pin.productCode ? PRODUCT_THEME[pin.productCode] : PRODUCT_THEME.OTHER;
+              const theme = productTheme(pin.productCode, order);
               const isSel = selected?.id === pin.id;
               return (
                 <g
@@ -218,8 +227,8 @@ function ResellerMap() {
             <span
               className="w-14 h-14 rounded-xl shrink-0 flex items-center justify-center text-[18px] font-extrabold"
               style={{
-                backgroundColor: (selected.productCode ? PRODUCT_THEME[selected.productCode] : PRODUCT_THEME.OTHER).accent,
-                color: (selected.productCode ? PRODUCT_THEME[selected.productCode] : PRODUCT_THEME.OTHER).ink,
+                backgroundColor: productTheme(selected.productCode, order).accent,
+                color: productTheme(selected.productCode, order).ink,
               }}
             >
               {selected.name.trim().charAt(0)}
@@ -231,7 +240,7 @@ function ResellerMap() {
               {selected.city}
               {IRAN_CITY_DATA[selected.city]?.province ? ` · استان ${IRAN_CITY_DATA[selected.city].province}` : ""}
             </div>
-            {selected.productCode ? <div className="text-[11.5px] font-bold text-primary mt-1">{PRODUCT_LABELS[selected.productCode]}</div> : null}
+            {selected.productCode ? <div className="text-[11.5px] font-bold text-primary mt-1">{(selected.productCodes ?? [selected.productCode]).map((c) => productLabel(c, products)).join("، ")}</div> : null}
             {selected.bio ? <p className="text-[12px] text-ink-soft leading-relaxed mt-1.5">{selected.bio}</p> : null}
             {selected.websiteUrl ? (
               <a href={safeHref(selected.websiteUrl)} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[12px] font-bold text-primary underline underline-offset-2" dir="ltr">
@@ -273,14 +282,17 @@ function toFa(n: number): string {
   return n.toLocaleString("fa-IR");
 }
 
-function ApplicationForm() {
+function ApplicationForm({ products }: { products: AgentProductOption[] }) {
+  const order = products.map((p) => p.code);
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [productCode, setProductCode] = useState<ProductCode>("ERP");
+  const [picked, setProductCode] = useState<ProductCode | null>(null);
+  // انتخاب پیش‌فرض: اولین محصول فهرست (پس از رسیدن فهرست از سرور هم معتبر می‌ماند)
+  const productCode = picked && order.includes(picked) ? picked : (order[0] ?? null);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -301,7 +313,7 @@ function ApplicationForm() {
         email: email.trim() || undefined,
         city: city || undefined,
         websiteUrl: websiteUrl.trim() || undefined,
-        productCode,
+        productCode: productCode ?? undefined,
         message: message.trim() || undefined,
       });
       setSubmitted(true);
@@ -359,19 +371,19 @@ function ApplicationForm() {
       </div>
       <div>
         <label className={labelClass}>روی کدام محصول اکسیر می‌خواهید فعالیت کنید؟</label>
-        <div className="flex gap-2">
-          {PRODUCTS.map((p) => (
+        <div className="flex flex-wrap gap-2">
+          {order.map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setProductCode(p)}
               className={clsx(
-                "flex-1 text-[12px] font-bold py-2 rounded-lg border cursor-pointer transition-colors",
+                "flex-1 min-w-[110px] text-[12px] font-bold py-2 px-2 rounded-lg border cursor-pointer transition-colors",
                 productCode === p ? "text-white border-transparent" : "border-border text-ink-soft bg-white",
               )}
-              style={productCode === p ? { backgroundColor: PRODUCT_THEME[p].accent, color: PRODUCT_THEME[p].ink } : undefined}
+              style={productCode === p ? { backgroundColor: productTheme(p, order).accent, color: productTheme(p, order).ink } : undefined}
             >
-              {PRODUCT_LABELS[p]}
+              {productLabel(p, products)}
             </button>
           ))}
         </div>
