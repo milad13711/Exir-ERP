@@ -259,14 +259,28 @@ export class UsersService implements OnModuleInit {
     if (otherTenants > 0) {
       throw new ConflictException('این شخص در محیط‌های کاری دیگری هم عضو است؛ شماره‌ی او را فقط پشتیبانی اکسیر می‌تواند تغییر دهد.');
     }
-    const taken = await this.controlDb.globalUser.findUnique({ where: { phone }, select: { id: true } });
-    if (taken) throw new ConflictException('این شماره متعلق به حساب دیگری است');
+    // شماره‌ای که مال «شخص رهاشده» است (هیچ عضویتی ندارد — مثلاً دعوتی که بعد حذف شد) آزاد می‌شود؛ شخص فعال هرگز.
+    const taken = await this.controlDb.globalUser.findUnique({
+      where: { phone },
+      select: { id: true, isSuperUser: true, totpEnabledAt: true, _count: { select: { memberships: true, supportTickets: true } } },
+    });
+    const releasable =
+      !!taken && !taken.isSuperUser && !taken.totpEnabledAt && taken._count.memberships === 0 && taken._count.supportTickets === 0;
+    if (taken && !releasable) throw new ConflictException('این شماره متعلق به حساب دیگری است');
 
     try {
-      await this.controlDb.$transaction([
-        this.controlDb.globalUser.update({ where: { id: user.globalUserId }, data: { phone } }),
-        ...(target.membershipId ? [this.controlDb.tenantMembership.update({ where: { id: target.membershipId }, data: { tokenVersion: { increment: 1 } } })] : []),
-      ]);
+      await this.controlDb.$transaction(async (tx) => {
+        if (taken) {
+          // شرط «بدون عضویت» دوباره داخل تراکنش چک می‌شود تا اگر هم‌زمان دعوت شد، آزاد نشود. داده‌ای حذف نمی‌شود؛ فقط شماره کنار می‌رود.
+          const freed = await tx.globalUser.updateMany({
+            where: { id: taken.id, phone, memberships: { none: {} }, isSuperUser: false },
+            data: { phone: `released:${taken.id}` },
+          });
+          if (freed.count !== 1) throw new ConflictException('این شماره متعلق به حساب دیگری است');
+        }
+        await tx.globalUser.update({ where: { id: user.globalUserId }, data: { phone } });
+        if (target.membershipId) await tx.tenantMembership.update({ where: { id: target.membershipId }, data: { tokenVersion: { increment: 1 } } });
+      });
     } catch (err) {
       if ((err as { code?: string }).code === 'P2002') throw new ConflictException('این شماره متعلق به حساب دیگری است');
       throw err;
