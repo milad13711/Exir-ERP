@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ModuleGuard } from '../common/guards/module.guard.js';
@@ -23,6 +23,7 @@ import { CreatePartyTransferDto } from './dto/create-party-transfer.dto.js';
 import { CreateContactDto } from './dto/create-contact.dto.js';
 import { UpdateContactDto } from './dto/update-contact.dto.js';
 import { UpdateCreditInputsDto } from './dto/update-credit-inputs.dto.js';
+import { BulkContactIdsDto, BulkContactStageDto } from './dto/bulk-contacts.dto.js';
 import { AddActivityDto } from './dto/add-activity.dto.js';
 import { searchContacts } from './contact-search.js';
 import { normalizeSearchTerm } from '../common/search.js';
@@ -183,6 +184,55 @@ export class ContactsController {
     }
 
     return summarize(results);
+  }
+
+  /**
+   * حذف دسته‌جمعی: هر مخاطب جداگانه و با همان محافظ‌های حذف تکی (دامنه‌ی مشاهده + کلید خارجی)
+   * پردازش می‌شود؛ یک مورد ناموفق (مثلاً وصل به فاکتور) جلوی بقیه را نمی‌گیرد و نتیجه‌ی هر مورد برمی‌گردد.
+   */
+  @Post('bulk-delete')
+  async bulkDelete(@Body() dto: BulkContactIdsDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertDelete(ctx, 'crm');
+    const ids = [...new Set(dto.ids)];
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const visible = await ctx.tenantDb.crmContact.findMany({ where: { id: { in: ids }, ...scope }, select: { id: true } });
+    const visibleIds = new Set(visible.map((c) => c.id));
+
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+    for (const id of ids) {
+      if (!visibleIds.has(id)) {
+        results.push({ id, ok: false, error: 'مخاطب یافت نشد' });
+        continue;
+      }
+      try {
+        await safeDelete(() => ctx.tenantDb.crmContact.delete({ where: { id } }));
+        results.push({ id, ok: true });
+      } catch (err) {
+        results.push({ id, ok: false, error: err instanceof ConflictException ? err.message : 'حذف ناموفق بود' });
+      }
+    }
+    return { deleted: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results };
+  }
+
+  /** تغییر دسته‌جمعی مرحله‌ی قیف (فقط مراحل دستی)؛ هر مورد با قوانین انتقال تکی بررسی می‌شود. */
+  @Post('bulk-stage')
+  async bulkStage(@Body() dto: BulkContactStageDto, @Ctx() ctx: TenantRequestContext) {
+    await this.permissions.assertEdit(ctx, 'crm');
+    const ids = [...new Set(dto.ids)];
+    const scope = await this.permissions.viewScope(ctx, 'crm', 'ownerUserId');
+    const visible = await ctx.tenantDb.crmContact.findMany({ where: { id: { in: ids }, ...scope }, select: { id: true } });
+    const visibleIds = new Set(visible.map((c) => c.id));
+
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+    for (const id of ids) {
+      if (!visibleIds.has(id)) {
+        results.push({ id, ok: false, error: 'مخاطب یافت نشد' });
+        continue;
+      }
+      const r = await this.funnel.transitionLeadStage(ctx, id, dto.stage, dto.reason);
+      results.push(r.ok ? { id, ok: true } : { id, ok: false, error: r.error });
+    }
+    return { updated: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results };
   }
 
   @Get(':id/statement')

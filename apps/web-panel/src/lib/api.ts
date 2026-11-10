@@ -8960,6 +8960,20 @@ export async function purchaseSmsPackageAndPay(code: string): Promise<string> {
 export function deleteCrmContact(id: string) {
   return apiFetch<{ success: boolean }>(`/crm/contacts/${id}`, { method: "DELETE" });
 }
+/** نتیجه‌ی عملیات دسته‌جمعی روی مخاطبین: وضعیت هر مورد جدا می‌آید تا موارد ناموفق قابل نمایش باشند. */
+export type CrmBulkResult = { id: string; ok: boolean; error?: string };
+export function bulkDeleteCrmContacts(ids: string[]) {
+  return apiFetch<{ deleted: number; failed: number; results: CrmBulkResult[] }>(`/crm/contacts/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+export function bulkStageCrmContacts(ids: string[], stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED" | "DISQUALIFIED", reason?: string) {
+  return apiFetch<{ updated: number; failed: number; results: CrmBulkResult[] }>(`/crm/contacts/bulk-stage`, {
+    method: "POST",
+    body: JSON.stringify({ ids, stage, reason }),
+  });
+}
 export function deleteEmployee(id: string) {
   return apiFetch<{ success: boolean }>(`/hr/employees/${id}`, { method: "DELETE" });
 }

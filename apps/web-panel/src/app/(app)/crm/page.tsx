@@ -11,8 +11,18 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { CrmIcon, PlusIcon, BuildingIcon, PhoneIcon } from "@/components/icons";
 import { formatMoney, formatNumber, moneyUnit } from "@/lib/persian";
-import { fetchCrmDeals, fetchCrmContacts, type CrmDeal, type CrmContact, type CrmContactGroup } from "@/lib/api";
-import { FunnelStageBadge, isConvertedContact } from "@/components/crm/FunnelStageControls";
+import {
+  ApiError,
+  bulkDeleteCrmContacts,
+  bulkStageCrmContacts,
+  fetchCrmDeals,
+  fetchCrmContacts,
+  type CrmBulkResult,
+  type CrmDeal,
+  type CrmContact,
+  type CrmContactGroup,
+} from "@/lib/api";
+import { FUNNEL_STAGE_META, FunnelStageBadge, isConvertedContact } from "@/components/crm/FunnelStageControls";
 import { STAGE_ORDER, STAGE_META } from "@/components/crm/crm-shared";
 import { ExcelImportExportBar } from "@/components/shared/ExcelImportExportBar";
 import { DealModal } from "@/components/crm/DealModal";
@@ -68,6 +78,76 @@ export default function CrmPage() {
   const [newDealFor, setNewDealFor] = useState<{ contactId?: string } | null>(null);
   const searchParams = useSearchParams();
 
+  // انتخاب و عملیات دسته‌جمعی روی مخاطبین
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<{ tone: "ok" | "error"; text: string; failures?: string[] } | null>(null);
+
+  function toggleSelected(id: string, on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function summarizeBulk(results: CrmBulkResult[], verb: string) {
+    const nameOf = (id: string) => (contacts ?? []).find((c) => c.id === id)?.name ?? id;
+    const failures = results.filter((r) => !r.ok).map((r) => `${nameOf(r.id)}: ${r.error ?? "ناموفق"}`);
+    const okCount = results.length - failures.length;
+    setBulkNotice({
+      tone: failures.length ? "error" : "ok",
+      text: failures.length
+        ? `${formatNumber(okCount)} مخاطب ${verb} شد و ${formatNumber(failures.length)} مورد انجام نشد.`
+        : `${formatNumber(okCount)} مخاطب ${verb} شد.`,
+      failures,
+    });
+  }
+
+  async function bulkDelete() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    if (
+      !window.confirm(
+        `${formatNumber(ids.length)} مخاطب برای همیشه حذف شود؟ مخاطبینی که فاکتور یا نوبتی به آن‌ها وصل است حذف نمی‌شوند.`,
+      )
+    )
+      return;
+    setBulkBusy(true);
+    setBulkNotice(null);
+    try {
+      const r = await bulkDeleteCrmContacts(ids);
+      const deletedIds = new Set(r.results.filter((x) => x.ok).map((x) => x.id));
+      summarizeBulk(r.results, "حذف");
+      setContacts((prev) => prev?.filter((c) => !deletedIds.has(c.id)) ?? prev);
+      setAllContacts((prev) => prev?.filter((c) => !deletedIds.has(c.id)) ?? prev);
+      setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+      reloadContacts();
+    } catch (err) {
+      setBulkNotice({ tone: "error", text: err instanceof ApiError ? err.message : "حذف دسته‌جمعی ناموفق بود" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkSetStage(stage: "NEW_LEAD" | "CONTACTED" | "QUALIFIED") {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBulkBusy(true);
+    setBulkNotice(null);
+    try {
+      const r = await bulkStageCrmContacts(ids, stage);
+      summarizeBulk(r.results, "به «" + FUNNEL_STAGE_META[stage].label + "» منتقل");
+      setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+      reloadContacts();
+    } catch (err) {
+      setBulkNotice({ tone: "error", text: err instanceof ApiError ? err.message : "تغییر مرحله ناموفق بود" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   function reloadContacts() {
     const q = debouncedSearch.trim();
     const isCurrent = beginRequest();
@@ -76,6 +156,12 @@ export default function CrmPage() {
       .then((r) => {
         if (!isCurrent()) return;
         setContacts(r);
+        // انتخاب‌هایی که دیگر در لیست نیستند (جستجو/فیلتر عوض شده یا حذف شده‌اند) کنار گذاشته می‌شوند.
+        setSelected((prev) => {
+          const visible = new Set(r.map((c) => c.id));
+          const next = new Set([...prev].filter((id) => visible.has(id)));
+          return next.size === prev.size ? prev : next;
+        });
         if (!q && group === "all") setAllContacts(r);
       })
       .catch(() => {
@@ -117,6 +203,7 @@ export default function CrmPage() {
   const pipelineValue = useMemo(() => openDeals.reduce((sum, d) => sum + d.value, 0), [openDeals]);
 
   const filteredContacts = contacts ?? [];
+  const allVisibleSelected = filteredContacts.length > 0 && filteredContacts.every((c) => selected.has(c.id));
 
   function upsertDeal(deal: CrmDeal) {
     setDeals((prev) => {
@@ -276,6 +363,80 @@ export default function CrmPage() {
             سرنخ (جدید، در تماس، واجد شرایط) تا اولین خرید یا برد فرصت در «سرنخ‌ها» می‌ماند و بعد خودکار به «مشتریان» می‌رود؛ دو خرید پرداخت‌شده = «خرید تکراری».
             «همه مخاطبین» و جستجو همیشه همه‌ی مراحل را نشان می‌دهند.
           </p>
+          {filteredContacts.length > 0 ? (
+            <div className="flex items-center gap-3 flex-wrap mb-2 px-1">
+              <label className="flex items-center gap-2 text-[12.5px] font-bold cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4.5 h-4.5 cursor-pointer"
+                  checked={allVisibleSelected}
+                  onChange={(e) => setSelected(e.target.checked ? new Set(filteredContacts.map((c) => c.id)) : new Set())}
+                />
+                انتخاب همه ({formatNumber(filteredContacts.length)})
+              </label>
+              {selected.size > 0 ? (
+                <>
+                  <span className="text-[12.5px] text-muted">{formatNumber(selected.size)} مخاطب انتخاب شده</span>
+                  <select
+                    disabled={bulkBusy}
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value as "NEW_LEAD" | "CONTACTED" | "QUALIFIED" | "";
+                      if (v) void bulkSetStage(v);
+                    }}
+                    className="text-[12px] font-bold border border-border rounded-lg px-2.5 py-2 bg-surface cursor-pointer disabled:opacity-50"
+                    aria-label="تغییر مرحله‌ی انتخاب‌شده‌ها"
+                  >
+                    <option value="">تغییر مرحله...</option>
+                    {(["NEW_LEAD", "CONTACTED", "QUALIFIED"] as const).map((s) => (
+                      <option key={s} value={s}>
+                        {FUNNEL_STAGE_META[s].label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={() => void bulkDelete()}
+                    className="text-[12px] font-bold text-danger bg-danger-soft px-3.5 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+                  >
+                    {bulkBusy ? "در حال انجام..." : `حذف ${formatNumber(selected.size)} مخاطب`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={() => setSelected(new Set())}
+                    className="text-[12px] font-bold text-muted px-2 py-2 cursor-pointer disabled:opacity-50"
+                  >
+                    لغو انتخاب
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {bulkNotice ? (
+            <div
+              className={clsx(
+                "mb-3 rounded-xl px-4 py-3 text-[12.5px] font-semibold",
+                bulkNotice.tone === "ok" ? "bg-success-soft text-success" : "bg-danger-soft text-danger",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span>{bulkNotice.text}</span>
+                <button type="button" onClick={() => setBulkNotice(null)} className="cursor-pointer text-[12px]" aria-label="بستن پیام">
+                  ✕
+                </button>
+              </div>
+              {bulkNotice.failures?.length ? (
+                <ul className="mt-1.5 font-normal list-disc pr-5 space-y-0.5">
+                  {bulkNotice.failures.slice(0, 10).map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                  {bulkNotice.failures.length > 10 ? <li>و {formatNumber(bulkNotice.failures.length - 10)} مورد دیگر</li> : null}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           <Card className="p-2">
             {contacts === null ? (
               <div className="p-8 text-center text-muted text-sm">در حال بارگذاری...</div>
@@ -283,32 +444,46 @@ export default function CrmPage() {
               <div className="p-8 text-center text-muted text-sm">مخاطبی یافت نشد</div>
             ) : (
               filteredContacts.map((c, i) => (
-                <button
+                <div
                   key={c.id}
-                  onClick={() => setOpenContactId(c.id)}
                   className={clsx(
-                    "w-full flex items-center gap-3 px-4 py-3.5 text-right cursor-pointer hover:bg-slate-50 transition-colors",
+                    "flex items-center hover:bg-slate-50 transition-colors",
+                    selected.has(c.id) && "bg-primary-soft/40",
                     i < filteredContacts.length - 1 && "border-b border-border",
                   )}
                 >
-                  <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-                    <BuildingIcon className="w-4.5 h-4.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] font-bold">{c.name}</div>
-                    <div className="text-[11.5px] text-muted mt-0.5 flex items-center gap-2 flex-wrap">
-                      {c.company ? <span>{c.company}</span> : null}
-                      {c.phone ? (
-                        <span className="flex items-center gap-1">
-                          <PhoneIcon className="w-3 h-3" />
-                          {c.phone}
-                        </span>
-                      ) : null}
+                  <label className="pr-4 pl-1 py-3.5 flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-4.5 h-4.5 cursor-pointer"
+                      checked={selected.has(c.id)}
+                      onChange={(e) => toggleSelected(c.id, e.target.checked)}
+                      aria-label={`انتخاب ${c.name}`}
+                    />
+                  </label>
+                  <button
+                    onClick={() => setOpenContactId(c.id)}
+                    className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3.5 text-right cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+                      <BuildingIcon className="w-4.5 h-4.5" />
                     </div>
-                  </div>
-                  <FunnelStageBadge stage={c.funnelStage} />
-                  <Badge tone="neutral">{formatNumber(c._count?.deals ?? 0)} فرصت</Badge>
-                </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-bold">{c.name}</div>
+                      <div className="text-[11.5px] text-muted mt-0.5 flex items-center gap-2 flex-wrap">
+                        {c.company ? <span>{c.company}</span> : null}
+                        {c.phone ? (
+                          <span className="flex items-center gap-1">
+                            <PhoneIcon className="w-3 h-3" />
+                            {c.phone}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <FunnelStageBadge stage={c.funnelStage} />
+                    <Badge tone="neutral">{formatNumber(c._count?.deals ?? 0)} فرصت</Badge>
+                  </button>
+                </div>
               ))
             )}
           </Card>
